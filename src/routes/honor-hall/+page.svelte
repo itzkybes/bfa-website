@@ -11,6 +11,8 @@
   const messages = data?.messages ?? [];
   const originalRecords = data?.originalRecords ?? {};
 
+  let showDebug = false; // toggle debug panel
+
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
     const letter = name ? name[0] : 'T';
@@ -55,21 +57,9 @@
       if (!map.has(w)) map.set(w, []);
       map.get(w).push(r);
     }
-    // sort participants inside each week and produce an array of { week, rows }
-    const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([week, rows]) => {
-      // keep original order-ish but ensure pair rows before multi maybe
-      return { week, rows };
-    });
+    const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([week, rows]) => ({ week, rows }));
     return entries;
   })();
-
-  // small helper to determine winner styling
-  function winnerClass(aPts, bPts) {
-    if (aPts == null || bPts == null) return '';
-    if (aPts > bPts) return 'winnerA';
-    if (bPts > aPts) return 'winnerB';
-    return 'tie';
-  }
 
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
@@ -79,89 +69,85 @@
 </script>
 
 <style>
-  .page { padding: 1rem; }
+  :global(body) { background: linear-gradient(180deg,#070809,#0b0c0f); color: #e6eef8; }
+
+  .page { padding: 1.2rem 1.6rem; max-width: 1100px; margin: 0 auto; }
+  .header { display:flex; align-items:center; gap:1rem; margin-bottom: 1rem; }
+  h1 { margin:0; font-size:1.25rem; }
+  .controls { display:flex; gap:.6rem; align-items:center; margin-left:auto; }
+  .select { padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; }
   .muted { color: #9ca3af; font-size:.9rem; }
-  .controls { display:flex; gap:.8rem; align-items:center; margin-bottom:0.8rem; }
-  .select { padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
+  .small { font-size:.85rem; color:#9ca3af; }
+
   .week-header {
     margin-top: 1rem;
     margin-bottom: .5rem;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: .98rem;
     color: #e6eef8;
-    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
     padding: 8px 12px;
     border-radius: 8px;
+    background: rgba(255,255,255,0.02);
   }
 
-  /* Table layout modeled on Matchups tab */
   table { width:100%; border-collapse:collapse; }
-  thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:#9ca3af; }
-  td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; color:#e6eef8; }
-
-  .row-card { display:flex; gap:1rem; align-items:center; padding:10px; border-radius:10px; background: rgba(255,255,255,0.01); transition: box-shadow .12s ease, transform .06s ease; }
-  .row-card:hover { box-shadow: 0 8px 30px rgba(2,6,23,0.45); transform: translateY(-2px); }
-
+  td { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
+  .row-card { display:flex; gap:1rem; align-items:center; padding:8px; border-radius:10px; background: rgba(255,255,255,0.01); }
   .team-cell { display:flex; gap:.6rem; align-items:center; min-width:0; }
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
+  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 260px; }
+  .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; }
 
-  .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; display:inline-block; min-width:72px; text-align:center; border-radius:8px; }
-  .score.winner { background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22)); color:#eef8ff; }
-  .score.tie { background: rgba(255,255,255,0.02); color: #e6eef8; font-weight:700; }
+  .score { font-weight:600; padding:6px 10px; border-radius:8px; background: rgba(255,255,255,0.02); color:#e6eef8; }
+  .score.winner { background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22)); color:#fff; }
 
-  .muted-small { color:#9ca3af; font-size:.85rem; }
+  .debug-toggle { margin-left:8px; background:transparent; border:1px solid rgba(255,255,255,0.04); color:inherit; padding:6px 8px; border-radius:6px; cursor:pointer; }
 
-  .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
-  .inner-table th { text-align:left; color:#9ca3af; font-size:.8rem; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.03); }
-  .inner-table td { padding:8px 8px; }
-
-  @media (max-width:900px) {
-    .avatar { width:44px; height:44px; }
-    .score { padding:5px 8px; min-width:56px; }
-  }
+  details.note { margin-top:1rem; color:#cfe7f6; }
 </style>
 
 <div class="page">
-  <div class="muted" style="margin-bottom:.5rem;">
-    {#if messages && messages.length}
-      <div><strong>Debug</strong></div>
-      {#each messages as m, i}
-        <div>{i+1}. {m}</div>
-      {/each}
-    {/if}
+  <div class="header">
+    <div>
+      <h1>Honor Hall</h1>
+      <div class="small">{playoffRangeLabel}</div>
+    </div>
+
+    <form id="filters" method="get" class="controls" aria-label="filters">
+      <label class="small muted" for="season">Season</label>
+      <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
+        {#each seasons as s}
+          <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
+        {/each}
+      </select>
+
+      <label class="small muted" for="week">Week</label>
+      <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
+        {#each weeks as w}
+          <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+        {/each}
+      </select>
+
+      <noscript><button type="submit" class="select">Go</button></noscript>
+      {#if messages && messages.length}
+        <button type="button" on:click={() => showDebug = !showDebug} class="debug-toggle">{showDebug ? 'Hide logs' : 'Show logs ('+messages.length+')'}</button>
+      {/if}
+    </form>
   </div>
 
-  <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center;">
-    <label class="muted" for="season">Season</label>
-    <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
-      {#each seasons as s}
-        <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
-      {/each}
-    </select>
-
-    <label class="muted" for="week">Week</label>
-    <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-      {#each weeks as w}
-        <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-      {/each}
-    </select>
-
-    <noscript>
-      <button type="submit" class="select" style="cursor:pointer;">Go</button>
-    </noscript>
-
-    <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end;">
-      <div style="font-weight:700;">{playoffRangeLabel}</div>
-      <div class="muted-small">Showing season: {#if selectedSeason}{(seasons.find(s=>String(s.league_id)===String(selectedSeason))?.name ?? selectedSeason)}{:else}All{/if}</div>
+  {#if showDebug && messages && messages.length}
+    <div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:8px; margin-bottom:1rem;">
+      <div class="small" style="font-weight:700; margin-bottom:6px;">Debug</div>
+      <ol style="margin:0 0 0 1.1rem; padding:0; color:#cbdff3;">
+        {#each messages as m}
+          <li style="margin-bottom:6px;">{m}</li>
+        {/each}
+      </ol>
     </div>
-  </form>
+  {/if}
 
   {#if groupedByWeek.length}
     {#each groupedByWeek as group}
       <div class="week-header">Week {group.week}</div>
-
       <table aria-labelledby="week-{group.week}">
         <tbody>
           {#each group.rows as row (row.matchup_id ?? row.key)}
@@ -171,9 +157,9 @@
                   <div class="row-card">
                     <div class="team-cell" style="min-width:0;">
                       <img class="avatar" src={row.teamA.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
-                      <div class="team-meta" style="min-width:0;">
+                      <div style="min-width:0;">
                         <div class="team-name">{row.teamA.name}</div>
-                        {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                        {#if row.teamA.ownerName}<div class="small muted">{row.teamA.ownerName}</div>{/if}
                       </div>
                     </div>
 
@@ -182,59 +168,47 @@
                     <div class="team-cell" style="margin-left:auto; align-items:center;">
                       <div style="text-align:right; margin-right:.6rem;">
                         <div class="team-name">{row.teamB.name}</div>
-                        {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
+                        {#if row.teamB.ownerName}<div class="small muted">{row.teamB.ownerName}</div>{/if}
                       </div>
                       <img class="avatar" src={row.teamB.avatar ? row.teamB.avatar : avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
                     </div>
                   </div>
                 </td>
 
-                <td style="width:120px; text-align:center;">
-                  <div class={row.teamA.points != null && row.teamB.points != null ? (row.teamA.points > row.teamB.points ? 'score winner' : (row.teamA.points === row.teamB.points ? 'score tie' : 'score')) : 'score'}>
-                    {#if row.teamA.points != null && row.teamB.points != null}
-                      {#if row.teamA.points > row.teamB.points}
-                        {fmt2(row.teamA.points)} — {fmt2(row.teamB.points)}
-                      {:else if row.teamA.points === row.teamB.points}
-                        {fmt2(row.teamA.points)} — {fmt2(row.teamB.points)}
-                      {:else}
-                        {fmt2(row.teamA.points)} — {fmt2(row.teamB.points)}
-                      {/if}
-                    {:else}
-                      {#if row.teamA.points != null}{fmt2(row.teamA.points)}{:else if row.teamB.points != null}{fmt2(row.teamB.points)}{:else}—{/if}
-                    {/if}
-                  </div>
+                <td style="width:130px; text-align:center;">
+                  {#if row.teamA.points != null && row.teamB.points != null}
+                    <div class="score {row.teamA.points > row.teamB.points ? 'winner' : ''}">{fmt2(row.teamA.points)} — {fmt2(row.teamB.points)}</div>
+                  {:else}
+                    <div class="score">—</div>
+                  {/if}
                 </td>
 
                 <td style="width:80px; text-align:center;">
-                  <div class="muted">Week {row.week}</div>
+                  <div class="small muted">Week {row.week}</div>
                 </td>
               </tr>
 
             {:else if row.participantsCount === 1}
-              <!-- BYE -->
               <tr>
                 <td>
                   <div class="row-card">
                     <div class="team-cell">
                       <img class="avatar" src={row.teamA.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
-                      <div class="team-meta" style="min-width:0;">
+                      <div style="min-width:0;">
                         <div class="team-name">{row.teamA.name}</div>
-                        {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                        {#if row.teamA.ownerName}<div class="small muted">{row.teamA.ownerName}</div>{/if}
                       </div>
                     </div>
                     <div style="margin-left:auto; text-align:right;">
-                      <div class="muted">BYE</div>
+                      <div class="small muted">BYE</div>
                     </div>
                   </div>
                 </td>
-                <td style="text-align:center;">
-                  <div class="muted">Week {row.week}</div>
-                </td>
+                <td style="text-align:center;"><div class="small muted">Week {row.week}</div></td>
                 <td></td>
               </tr>
 
             {:else}
-              <!-- multi-team -->
               <tr>
                 <td colspan="3">
                   <div style="font-weight:700; margin-bottom:.4rem;">Multi-Team Matchup — Week {row.week}</div>
@@ -246,9 +220,7 @@
                           <td>
                             <div class="team-cell">
                               <img class="avatar" src={p.avatar ? p.avatar : avatarOrPlaceholder(p.avatar, p.name, 40)} alt="">
-                              <div class="team-meta">
-                                <div class="team-name">{p.name}</div>
-                              </div>
+                              <div style="margin-left:.6rem;"><div class="team-name">{p.name}</div></div>
                             </div>
                           </td>
                           <td style="text-align:right; font-weight:700;">{fmt2(p.points)}</td>
@@ -267,14 +239,14 @@
     <div class="muted">No playoff matchups found for the selected season. Try picking a different season from the dropdown.</div>
   {/if}
 
-  <details class="note" style="margin-top:1rem;">
+  <details class="note">
     <summary>Ownership / Data notes</summary>
     <div style="padding:0.6rem;">
       {#if originalRecords && Object.keys(originalRecords).length}
         {#each Object.keys(originalRecords) as key}
           <div style="margin-bottom:0.6rem;">
             <div style="font-weight:700;">{key}</div>
-            <div class="muted" style="font-size:.9rem;">
+            <div class="small muted">
               <div>Regular: <strong>{originalRecords[key].regW}</strong> ({fmt2(originalRecords[key].regPF)}, PA {fmt2(originalRecords[key].regPA)})</div>
               <div>Playoffs: <strong>{originalRecords[key].playoffW}</strong> ({fmt2(originalRecords[key].playoffPF)}, PA {fmt2(originalRecords[key].playoffPA)})</div>
               <div>Championships: <strong>{originalRecords[key].championships}</strong></div>
@@ -282,7 +254,7 @@
           </div>
         {/each}
       {:else}
-        <div class="muted" style="margin-top:.6rem;">No preserved records were supplied in the loader payload — the `Records` page uses a different `load` return payload.</div>
+        <div class="small muted" style="margin-top:.6rem;">No preserved records were supplied in the loader payload — the `Records` page uses a different `load` return payload.</div>
       {/if}
     </div>
   </details>
