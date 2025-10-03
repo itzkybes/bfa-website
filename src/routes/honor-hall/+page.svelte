@@ -3,7 +3,6 @@
 
   const seasons = data?.seasons ?? [];
   const weeks = data?.weeks ?? [];
-  // Use selectedSeason from loader or default to most recent season in chain
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[seasons.length - 1].league_id : null);
   let selectedWeek = Number(data?.selectedWeek ?? (weeks.length ? weeks[weeks.length - 1] : 1));
   if (!selectedWeek || isNaN(selectedWeek) || selectedWeek < 1) selectedWeek = 1;
@@ -71,6 +70,12 @@
     if (bPts > aPts) return 'winnerB';
     return 'tie';
   }
+
+  function submitFilters(e) {
+    const form = e.currentTarget.form || document.getElementById('filters');
+    if (form && form.requestSubmit) form.requestSubmit();
+    else if (form) form.submit();
+  }
 </script>
 
 <style>
@@ -106,7 +111,6 @@
   .score.winner { background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22)); color:#eef8ff; }
   .score.tie { background: rgba(255,255,255,0.02); color: #e6eef8; font-weight:700; }
 
-  /* table-row style for non-table layout (we'll keep using table rows but style inner content) */
   .muted-small { color:#9ca3af; font-size:.85rem; }
 
   .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
@@ -129,31 +133,30 @@
     {/if}
   </div>
 
-  <!-- Controls -->
-  <div class="controls">
-    <div>
-      <label class="muted">Season</label><br/>
-      <select class="select" bind:value={selectedSeason}>
-        {#each seasons as s}
-          <option value={s.league_id}>{s.name ?? s.season}</option>
-        {/each}
-      </select>
-    </div>
+  <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center;">
+    <label class="muted" for="season">Season</label>
+    <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
+      {#each seasons as s}
+        <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
+      {/each}
+    </select>
 
-    <div>
-      <label class="muted">Week</label><br/>
-      <select class="select" bind:value={selectedWeek}>
-        {#each weeks as w}
-          <option value={w}>{w}</option>
-        {/each}
-      </select>
-    </div>
+    <label class="muted" for="week">Week</label>
+    <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
+      {#each weeks as w}
+        <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+      {/each}
+    </select>
+
+    <noscript>
+      <button type="submit" class="select" style="cursor:pointer;">Go</button>
+    </noscript>
 
     <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end;">
       <div style="font-weight:700;">{playoffRangeLabel}</div>
       <div class="muted-small">Showing season: {#if selectedSeason}{(seasons.find(s=>String(s.league_id)===String(selectedSeason))?.name ?? selectedSeason)}{:else}All{/if}</div>
     </div>
-  </div>
+  </form>
 
   {#if groupedByWeek.length}
     {#each groupedByWeek as group}
