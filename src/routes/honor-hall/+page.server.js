@@ -13,6 +13,7 @@ try {
 const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
 const sleeper = createSleeperClient({ cache, concurrency: SLEEPER_CONCURRENCY });
 
+// default BASE_LEAGUE_ID falls back to provided ID if env not set
 const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process.env.BASE_LEAGUE_ID)
   ? process.env.BASE_LEAGUE_ID
   : '1219816671624048640';
@@ -60,7 +61,7 @@ export async function load(event) {
     messages.push('Error while building seasons chain: ' + (err?.message ?? String(err)));
   }
 
-  // determine selected season (league id) and week from query params
+  // determine selected season (league id) from query params
   const url = event.url;
   const seasonParam = url.searchParams.get('season') ?? null;
   let selectedSeason = seasonParam;
@@ -77,12 +78,9 @@ export async function load(event) {
       break;
     }
   }
-  // fallback - use BASE_LEAGUE_ID
+  // fallback - use BASE_LEAGUE_ID if nothing matched
   if (!selectedLeagueId && seasons.length) selectedLeagueId = seasons[seasons.length - 1].league_id;
-
-  // selected week param (or default to last week)
-  let selectedWeek = Number(url.searchParams.get('week') || (MAX_WEEKS > 0 ? MAX_WEEKS : 1));
-  if (!selectedWeek || selectedWeek < 1) selectedWeek = 1;
+  if (!selectedLeagueId) selectedLeagueId = BASE_LEAGUE_ID;
 
   // build weeks array (1..MAX_WEEKS)
   const weeks = [];
@@ -153,7 +151,7 @@ export async function load(event) {
   for (let i = 0; i < rawMatchups.length; i++) {
     const e = rawMatchups[i];
     const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-    const wk = e.week ?? e.w ?? selectedWeek;
+    const wk = e.week ?? e.w ?? null;
     const key = mid != null ? `${mid}|${wk}` : `auto|${wk}|${i}`;
     if (!byMatch[key]) byMatch[key] = [];
     byMatch[key].push(e);
@@ -177,7 +175,7 @@ export async function load(event) {
       matchupsRows.push({
         matchup_id: k,
         season: selectedSeason ?? null,
-        week: a.week ?? a.w ?? selectedWeek,
+        week: a.week ?? a.w ?? null,
         teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
         teamB: { rosterId: null, name: 'BYE', avatar: null, points: null },
         participantsCount: 1
@@ -204,7 +202,7 @@ export async function load(event) {
       matchupsRows.push({
         matchup_id: k,
         season: selectedSeason ?? null,
-        week: a.week ?? a.w ?? selectedWeek,
+        week: a.week ?? a.w ?? null,
         teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
         teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
         participantsCount: 2
@@ -226,7 +224,7 @@ export async function load(event) {
       matchupsRows.push({
         matchup_id: k,
         season: selectedSeason ?? null,
-        week: entries[0].week ?? entries[0].w ?? selectedWeek,
+        week: entries[0].week ?? entries[0].w ?? null,
         combinedParticipants: participants,
         combinedLabel: combinedNames,
         participantsCount: participants.length
@@ -234,18 +232,19 @@ export async function load(event) {
     }
   }
 
-  // sort rows by teamA.points desc when possible
+  // sort rows by week desc then teamA points desc (so finals appear first)
   matchupsRows.sort((x,y) => {
-    const ax = (x.teamA && x.teamA.points) ? safeNum(x.teamA.points) : (x.combinedParticipants ? (safeNum(x.combinedParticipants[0]?.points) || 0) : 0);
-    const by = (y.teamA && y.teamA.points) ? safeNum(y.teamA.points) : (y.combinedParticipants ? (safeNum(y.combinedParticipants[0]?.points) || 0) : 0);
-    return (by - ax);
+    const wx = Number(x.week ?? 0), wy = Number(y.week ?? 0);
+    if (wy !== wx) return wy - wx;
+    const ax = (x.teamA && x.teamA.points) ? safeNum(x.teamA.points) : 0;
+    const by = (y.teamA && y.teamA.points) ? safeNum(y.teamA.points) : 0;
+    return by - ax;
   });
 
   return {
     seasons,
     weeks,
     selectedSeason,
-    selectedWeek,
     matchupsRows,
     messages
   };
