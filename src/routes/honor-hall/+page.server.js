@@ -107,8 +107,9 @@ export async function load(event) {
         startWeek = Math.max(1, MAX_WEEKS - 2);
         messages.push('Playoff start not found in league metadata — defaulting to week ' + startWeek);
       }
-      // Fetch matchups for each playoff week up to MAX_WEEKS
-      for (let wk = startWeek; wk <= MAX_WEEKS; wk++) {
+      // Fetch matchups for each playoff week up to startWeek+2 (3-week playoff window)
+      const endWeek = Math.min(MAX_WEEKS, startWeek + 2);
+      for (let wk = startWeek; wk <= endWeek; wk++) {
         try {
           const wkMatchups = await sleeper.getMatchupsForWeek(selectedSeason, wk, { ttl: 60 * 5 });
           if (Array.isArray(wkMatchups) && wkMatchups.length) {
@@ -146,6 +147,26 @@ export async function load(event) {
     const entries = byMatch[k];
     if (!entries || entries.length === 0) continue;
 
+    // handle bye (single participant)
+    if (entries.length === 1) {
+      const a = entries[0];
+      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+      const aMeta = rosterMap[aId] || {};
+      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
+      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
+      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
+
+      matchupsRows.push({
+        matchup_id: k,
+        season: selectedSeason ?? null,
+        week: a.week ?? a.w ?? selectedWeek,
+        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
+        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null },
+        participantsCount: 1
+      });
+      continue;
+    }
+
     // if exactly 2 participants produce a clean two-column row
     if (entries.length === 2) {
       const a = entries[0];
@@ -156,53 +177,46 @@ export async function load(event) {
       const bMeta = rosterMap[bId] || {};
       const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
       const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
+      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
+      const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
 
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? 0);
-      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? 0);
+      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
+      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
 
       matchupsRows.push({
-        key: k,
-        type: 'pair',
-        week: Number(entries[0].week ?? entries[0].w ?? selectedWeek),
-        teamA: {
-          roster_id: aId,
-          owner_id: a.owner_id ?? a.ownerId ?? null,
-          name: aName,
-          avatar: aMeta.team_avatar || aMeta.owner_avatar || null,
-          points: aPts
-        },
-        teamB: {
-          roster_id: bId,
-          owner_id: b.owner_id ?? b.ownerId ?? null,
-          name: bName,
-          avatar: bMeta.team_avatar || bMeta.owner_avatar || null,
-          points: bPts
-        }
+        matchup_id: k,
+        season: selectedSeason ?? null,
+        week: a.week ?? a.w ?? selectedWeek,
+        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
+        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
+        participantsCount: 2
       });
     } else {
       // multi-participant matchup -- aggregate into combinedParticipants for display
-      const participants = entries.map((ent) => {
-        const rid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'unknown');
-        const meta = rosterMap[rid] || {};
+      const participants = entries.map(ent => {
+        const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
+        const meta = rosterMap[pid] || {};
         return {
-          roster_id: rid,
-          owner_id: ent.owner_id ?? ent.ownerId ?? null,
-          name: meta.team_name || meta.owner_name || ('Roster ' + rid),
+          rosterId: pid,
+          name: meta.team_name || meta.owner_name || ('Roster ' + pid),
           avatar: meta.team_avatar || meta.owner_avatar || null,
           points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0)
         };
-      }).sort((x,y) => (y.points - x.points));
-
+      });
+      // build a combined label
+      const combinedNames = participants.map(p => p.name).join(' / ');
       matchupsRows.push({
-        key: k,
-        type: 'multi',
-        week: Number(entries[0].week ?? entries[0].w ?? selectedWeek),
-        combinedParticipants: participants
+        matchup_id: k,
+        season: selectedSeason ?? null,
+        week: entries[0].week ?? entries[0].w ?? selectedWeek,
+        combinedParticipants: participants,
+        combinedLabel: combinedNames,
+        participantsCount: participants.length
       });
     }
   }
 
-  // sort rows by primary team points desc
+  // sort rows by teamA.points desc when possible
   matchupsRows.sort((x,y) => {
     const ax = (x.teamA && x.teamA.points) ? safeNum(x.teamA.points) : (x.combinedParticipants ? (safeNum(x.combinedParticipants[0]?.points) || 0) : 0);
     const by = (y.teamA && y.teamA.points) ? safeNum(y.teamA.points) : (y.combinedParticipants ? (safeNum(y.combinedParticipants[0]?.points) || 0) : 0);
