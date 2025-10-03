@@ -8,597 +8,241 @@
   const matchupsRows = Array.isArray(data?.matchupsRows) ? data.matchupsRows : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // ---------------------------
-  // Hard-coded final standings (owner display names in finishing order)
-  // ---------------------------
-  const FINAL_STANDINGS = {
-    '2024': [
-      'riguy506','smallvt','JakePratt','Kybes','TLupinetti','samsilverman12','armyjunior','JFK4312','WebbWarrior','slawflesh','jewishhorsemen','noahlap01','zamt','WillMichael'
-    ],
-    '2023': [
-      'armyjunior','jewishhorsemen','Kybes','riguy506','zamt','slawflesh','JFK4312','smallvt','samsilverman12','WebbWarrior','TLupinetti','noahlap01','JakePratt','WillMichael'
-    ],
-    '2022': [
-      'riguy506','smallvt','jewishhorsemen','zamt','noahlap01','Kybes','armyjunior','slawflesh','WillMichael','JFK4312','WebbWarrior','TLupinetti','JakePratt','samsilverman12'
-    ]
-  };
-
-  // helper to get seed map (display_name -> seed number)
-  function buildSeedMapForSeason(seasonKey) {
-    const arr = FINAL_STANDINGS[String(seasonKey)] || [];
-    const map = {};
-    for (let i = 0; i < arr.length; i++) {
-      map[String(arr[i]).toLowerCase()] = i + 1; // seed = index+1
-    }
-    return map;
+  // helpers
+  function avatarOrPlaceholder(url, name, size = 48) {
+    if (url) return url;
+    const letter = name ? name[0] : 'T';
+    // lightweight placeholder service — background and color chosen to match dark UI
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
 
-  // ---------------------------
-  // Helper: normalize a team name from matchup row to match a final-standings owner name
-  // We'll try multiple heuristics: exact match (case-insensitive) to team name or owner name,
-  // substring match, otherwise null.
-  function nameKey(name) {
-    if (!name) return '';
-    return String(name).toLowerCase().trim();
-  }
-
-  // Create a roster lookup (map rosterId -> enriched info from matchupsRows)
-  // attempt to extract owner/team names & avatars from matchups rows
-  const rosterInfo = {};
-  for (const r of matchupsRows) {
-    // for two participant rows:
-    if (r.teamA) {
-      rosterInfo[String(r.teamA.rosterId)] = rosterInfo[String(r.teamA.rosterId)] || {
-        rosterId: String(r.teamA.rosterId),
-        name: r.teamA.name || null,
-        avatar: r.teamA.avatar || null
-      };
-    }
-    if (r.teamB) {
-      rosterInfo[String(r.teamB.rosterId)] = rosterInfo[String(r.teamB.rosterId)] || {
-        rosterId: String(r.teamB.rosterId),
-        name: r.teamB.name || null,
-        avatar: r.teamB.avatar || null
-      };
-    }
-    if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
-      for (const p of r.combinedParticipants) {
-        rosterInfo[String(p.rosterId)] = rosterInfo[String(p.rosterId)] || {
-          rosterId: String(p.rosterId),
-          name: p.name || null,
-          avatar: p.avatar || null
-        };
-      }
-    }
-  }
-
-  // ---------------------------
-  // Determine playoff weeks from matchupsRows (unique weeks sorted ascending)
-  const uniqueWeeks = Array.from(new Set(matchupsRows.map(m => m.week).filter(w => w != null))).map(x => Number(x)).filter(n => !isNaN(n));
-  uniqueWeeks.sort((a,b) => a - b);
-  // Map round names by index
-  const ROUND_LABELS = ['Quarterfinals','Semifinals','Final'];
-  // if uniqueWeeks length < 3 we still map available weeks to labels (index)
-  // use week -> round label mapping:
-  const weekToRoundLabel = {};
-  for (let i = 0; i < uniqueWeeks.length; i++) {
-    weekToRoundLabel[uniqueWeeks[i]] = (ROUND_LABELS[i] || `Round ${i+1}`);
-  }
-
-  // ---------------------------
-  // Utility: find a matchup row by two roster ids (order-agnostic) and week optional
-  function findMatchup(rosterA, rosterB, week = null) {
-    if (rosterA == null && rosterB == null) return null;
-    rosterA = rosterA != null ? String(rosterA) : null;
-    rosterB = rosterB != null ? String(rosterB) : null;
-    for (const r of matchupsRows) {
-      // two-team rows:
-      if (r.teamA && r.teamB) {
-        const a = String(r.teamA.rosterId);
-        const b = String(r.teamB.rosterId);
-        const samePair = ((a === rosterA && b === rosterB) || (a === rosterB && b === rosterA));
-        const wkMatch = (week == null || Number(r.week) === Number(week));
-        if (samePair && wkMatch) return r;
-      } else if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
-        // multi-team: check if both roster ids are present (rare in playoffs)
-        const ids = r.combinedParticipants.map(p => String(p.rosterId));
-        if (rosterA && rosterB && ids.includes(rosterA) && ids.includes(rosterB)) {
-          if (week == null || Number(r.week) === Number(week)) return r;
-        }
-      } else if (r.teamA && !r.teamB) {
-        const a = String(r.teamA.rosterId);
-        if (rosterA && a === rosterA && !rosterB && (week == null || Number(r.week) === Number(week))) return r;
-      }
-    }
-    return null;
-  }
-
-  // ---------------------------
-  // Build seed lists for the selected season using the final standings arrays
-  function buildSeeds(seasonKey) {
-    const seedMap = buildSeedMapForSeason(seasonKey);
-    // we'll produce an array of objects { seed, ownerName, rosterId, displayName, avatar }.
-    // but we only have rosterId->name mapping from rosterInfo; we must match rosterInfo names to the ownerName to map rosterId.
-    // Attempt to match by owner/team name containing the owner username (or vice versa).
-    const rosterEntries = Object.values(rosterInfo);
-    // build reverse map by nameKey for quick lookups
-    const nameToRosterIds = {};
-    for (const entry of rosterEntries) {
-      const k = nameKey(entry.name);
-      if (!k) continue;
-      if (!nameToRosterIds[k]) nameToRosterIds[k] = [];
-      nameToRosterIds[k].push(entry.rosterId);
-    }
-
-    // We'll produce an ordered list of rosterIds following FINAL_STANDINGS order where possible.
-    const final = FINAL_STANDINGS[String(seasonKey)] || [];
-    const seeds = [];
-    // track which rosterIds already used
-    const used = new Set();
-
-    // First, try to map by exact match or substring
-    for (let i = 0; i < final.length; i++) {
-      const owner = final[i];
-      const lowOwner = String(owner).toLowerCase();
-      // try exact match on rosterInfo.name
-      let matchedRoster = null;
-      for (const entry of rosterEntries) {
-        if (used.has(entry.rosterId)) continue;
-        const nm = nameKey(entry.name || '');
-        if (!nm) continue;
-        if (nm === lowOwner) { matchedRoster = entry; break; }
-      }
-      // try substring (owner text appears inside team name)
-      if (!matchedRoster) {
-        for (const entry of rosterEntries) {
-          if (used.has(entry.rosterId)) continue;
-          const nm = nameKey(entry.name || '');
-          if (!nm) continue;
-          if (nm.includes(lowOwner) || lowOwner.includes(nm)) {
-            matchedRoster = entry;
-            break;
-          }
-        }
-      }
-      // fallback: match by presence of owner username as token in name
-      if (!matchedRoster) {
-        for (const entry of rosterEntries) {
-          if (used.has(entry.rosterId)) continue;
-          const nm = nameKey(entry.name || '');
-          if (!nm) continue;
-          if (nm.indexOf(lowOwner) !== -1) { matchedRoster = entry; break; }
-        }
-      }
-
-      if (matchedRoster) {
-        used.add(matchedRoster.rosterId);
-        seeds.push({
-          seed: i+1,
-          ownerName: owner,
-          rosterId: matchedRoster.rosterId,
-          displayName: matchedRoster.name || owner,
-          avatar: matchedRoster.avatar || null
-        });
-      } else {
-        // unknown roster id for that seed (maybe owner not present in rosterInfo)
-        seeds.push({
-          seed: i+1,
-          ownerName: owner,
-          rosterId: null,
-          displayName: owner,
-          avatar: null
-        });
-      }
-    }
-
-    // add any leftover roster entries not matched to a seed at the end
-    for (const entry of rosterEntries) {
-      if (!used.has(entry.rosterId)) {
-        seeds.push({
-          seed: null,
-          ownerName: entry.name || entry.rosterId,
-          rosterId: entry.rosterId,
-          displayName: entry.name || ('Roster '+entry.rosterId),
-          avatar: entry.avatar || null
-        });
-      }
-    }
-
-    return seeds;
-  }
-
-  // ---------------------------
-  // Build bracket pairings using the seed lists and mapping rules
-  function buildBracketsForSeason(seasonKey) {
-    const seeds = buildSeeds(seasonKey);
-
-    // Determine winnersBracket size (2022 -> 6, others -> 8)
-    const winnersSize = (String(seasonKey) === '2022') ? 6 : 8;
-    const winnersSeeds = seeds.slice(0, winnersSize); // top winnersSize entries (some may have rosterId null)
-    const losersSeeds = seeds.slice(winnersSize); // rest go to losers bracket
-
-    // Helper to get rosterId for a seed index (0-based)
-    function ridAt(idx) {
-      return winnersSeeds[idx] ? winnersSeeds[idx].rosterId : null;
-    }
-
-    // Winners Round1 pairings (according to your requested pairing order)
-    // index pairs: [0 vs 7], [1 vs 6], [5 vs 2], [3 vs 4]  (0-based)
-    const winnersPairsRound1Indices = [];
-    if (winnersSize >= 8) {
-      winnersPairsRound1Indices.push([0,7],[1,6],[5,2],[3,4]);
-    } else if (winnersSize === 6) {
-      // For 6-team winners (2022) typical bye structure: seeds 1-2 get byes maybe — but user said winners bracket had 6 teams.
-      // We'll form Round1 as: 1 & 2 get byes to semis; round1: 3v6 and 4v5 (common structure)
-      winnersPairsRound1Indices.push([2,5],[3,4]); // 3v6, 4v5
-    } else {
-      // fallback simple top-vs-bottom pairs
-      const n = winnersSeeds.length;
-      for (let i = 0; i < Math.floor(n/2); i++) winnersPairsRound1Indices.push([i, n-1-i]);
-    }
-
-    // build pair objects
-    const winnersRound1 = winnersPairsRound1Indices.map(([iA,iB]) => {
-      const a = winnersSeeds[iA] || null;
-      const b = winnersSeeds[iB] || null;
-      return {
-        seedA: a ? a.seed : null,
-        seedB: b ? b.seed : null,
-        rosterA: a ? a.rosterId : null,
-        rosterB: b ? b.rosterId : null,
-        displayA: a ? a.displayName : (a ? a.ownerName : 'TBD'),
-        displayB: b ? b.displayName : (b ? b.ownerName : 'TBD'),
-        avatarA: a ? a.avatar : null,
-        avatarB: b ? b.avatar : null
-      };
-    });
-
-    // Winners Round2: find matchups between winners of Round1.
-    // We'll derive the rosterIds present in matchupsRows for the second playoff week (if available),
-    // otherwise create placeholders: for each winnersRound1 pairing find the match in week2 that contains either roster in winnersPairsRound1Indices (we'll rely on the real match data)
-    // For display we'll attempt to find the actual matchup using roster ids & week mapping later when rendering.
-
-    // Losers bracket pairings: seed top->bottom among losersSeeds
-    // pair highest seed with lowest seed (within losers bracket), etc.
-    const loserSeedList = losersSeeds.map(s => ({ seed: s.seed, rosterId: s.rosterId, display: s.displayName, avatar: s.avatar }));
-    const losersPairsRound1 = [];
-    for (let i = 0; i < Math.floor(loserSeedList.length/2); i++) {
-      const top = loserSeedList[i];
-      const bot = loserSeedList[loserSeedList.length - 1 - i];
-      losersPairsRound1.push({
-        seedA: top ? top.seed : null,
-        seedB: bot ? bot.seed : null,
-        rosterA: top ? top.rosterId : null,
-        rosterB: bot ? bot.rosterId : null,
-        displayA: top ? top.display : 'TBD',
-        displayB: bot ? bot.display : 'TBD',
-        avatarA: top ? top.avatar : null,
-        avatarB: bot ? bot.avatar : null
-      });
-    }
-
-    return { winnersSeeds, winnersRound1, loserSeedList, losersPairsRound1 };
-  }
-
-  // ---------------------------
-  // For rendering, compute the bracket objects for the currently selected season
-  $: brackets = buildBracketsForSeason(selectedSeason);
-
-  // For mapping rounds to weeks: use uniqueWeeks array.
-  // quarter = uniqueWeeks[0], semi = uniqueWeeks[1], final = uniqueWeeks[2]
-  const quarterWeek = uniqueWeeks[0] ?? null;
-  const semiWeek = uniqueWeeks[1] ?? null;
-  const finalWeek = uniqueWeeks[2] ?? null;
-
-  // small UI helper: format points from row object
   function fmtPts(n) {
     if (n === null || n === undefined || isNaN(Number(n))) return '—';
     return (Math.round(Number(n) * 100) / 100).toFixed(2);
   }
 
-  function avatarOrPlaceholder(url, name, size = 48) {
-    if (url) return url;
-    const letter = name ? String(name)[0] : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
+  function submitFilters(e) {
+    const form = e.currentTarget.form || document.getElementById('filters');
+    if (form?.requestSubmit) form.requestSubmit();
+    else form?.submit();
   }
 
-  // Determine label for a losers-pair that becomes a consolation: e.g., the winners of losers round play for 5th, losers play for 7th, second round losers play for 3rd.
-  // We'll apply labels in the render by index positions.
+  // only show rows that match selectedSeason (if season provided in row)
+  $: filteredRows = Array.isArray(matchupsRows) && selectedSeason
+    ? matchupsRows.filter(r => {
+        // some rows might store season as number or league id; compare stringified
+        const rs = r?.season ?? null;
+        if (!rs) return true; // keep rows missing season metadata
+        return String(rs) === String(selectedSeason);
+      })
+    : (Array.isArray(matchupsRows) ? matchupsRows.slice() : []);
+
+  // Group by week (descending so finals / later weeks are at top like matchups page)
+  $: groupedByWeek = (() => {
+    const map = new Map();
+    for (const r of filteredRows) {
+      const wk = r.week ?? 'unknown';
+      if (!map.has(wk)) map.set(wk, []);
+      map.get(wk).push(r);
+    }
+    // convert to array sorted by week desc (numeric if possible)
+    const arr = Array.from(map.entries()).map(([week, rows]) => {
+      // attempt numeric sort key
+      const nweek = Number(week);
+      const sortKey = !isNaN(nweek) ? nweek : Number.MIN_SAFE_INTEGER;
+      return { week, sortKey, rows };
+    });
+    arr.sort((a,b) => b.sortKey - a.sortKey);
+    return arr;
+  })();
 </script>
 
 <style>
-  :global(body) { background:#0b0c0f; color:#e6eef8; }
-  .wrap { max-width:1200px; margin:0 auto; padding:1.5rem; }
-  h1 { margin-bottom:.5rem; }
-  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-  .filters { display:flex; gap:.75rem; align-items:center; }
-  .season-select { padding:8px 10px; background:rgba(255,255,255,0.02); border-radius:8px; color:#fff; border:1px solid rgba(255,255,255,0.04); }
+  :global(body) { background: var(--bg, #0b0c0f); color: #e6eef8; }
 
-  .messages { background:rgba(255,255,255,0.02); border-radius:8px; padding:12px; margin-bottom:1rem; color:#bfcbdc; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 
-  .bracketColumns { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
-  .col { flex:1 1 480px; min-width:320px; background:rgba(255,255,255,0.02); border-radius:10px; padding:12px; border:1px solid rgba(255,255,255,0.03); }
-  .col h2 { margin:0 0 10px 0; font-size:1.05rem; }
+  h1 { font-size: 2rem; margin-bottom: .6rem; }
+  .subtitle { color: #9aa3ad; margin-bottom: 1rem; }
 
-  .pair { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.01); padding:10px; border-radius:8px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.02); }
-  .team { display:flex; align-items:center; gap:10px; min-width:0; }
-  .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; flex-shrink:0; }
-  .teamInfo { display:flex; flex-direction:column; min-width:0; }
-  .teamName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
-  .seed { background:rgba(255,255,255,0.03); padding:4px 6px; border-radius:6px; font-weight:700; color:#cbd5e1; font-size:.85rem; }
-  .score { margin-left:auto; text-align:right; min-width:110px; }
-  .scoreVal { font-weight:800; color:#fff; display:block; }
-  .sub { color:#9aa3ad; font-size:.9rem; }
-
-  .label { font-weight:800; color:#cbd5e1; margin-bottom:6px; }
-
-  @media (max-width:900px) {
-    .bracketColumns { flex-direction:column; }
+  /* filters */
+  .filters { display:flex; justify-content:flex-end; gap:.65rem; margin-bottom: 1rem; }
+  .season-select {
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-weight: 600;
   }
+
+  /* messages box */
+  .messages {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    padding: 14px;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    color: #cbd5e1;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    font-size: .95rem;
+  }
+
+  /* week group */
+  .weekGroup { margin-top: 1.25rem; margin-bottom: 1.25rem; }
+  .weekHeader { display:flex; justify-content:space-between; align-items:center; margin-bottom:.8rem; }
+  .weekTitle { font-weight:700; color:#e6eef8; }
+  .weekSub { color:#9aa3ad; font-size:.95rem; }
+
+  /* match row (matchups style) */
+  .matchRow {
+    display:flex;
+    align-items:center;
+    gap: 1rem;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.03);
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  .teamCol { display:flex; align-items:center; gap:.75rem; min-width: 0; }
+  .teamInfo { display:flex; flex-direction:column; min-width:0; }
+  .teamName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
+  .teamSub { color:#9aa3ad; font-size:.85rem; display:flex; gap:.45rem; align-items:center; }
+  .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; flex-shrink:0; }
+
+  .vsCol { width:64px; text-align:center; color:#9aa3ad; font-weight:700; }
+
+  .scoreCol { margin-left:auto; text-align:right; min-width:95px; }
+  .scoreVal { font-weight:800; color:#fff; display:block; }
+  .scoreSub { color:#9aa3ad; font-size:.85rem; }
+
+  .winner { color: #fff; background: rgba(99,102,241,0.12); padding: 3px 8px; border-radius: 8px; }
+
+  .bye { font-style:italic; color:#9aa3ad; }
+
+  /* combined participants */
+  .combinedList { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .chip { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; color:#d1d5db; font-weight:700; font-size:.9rem; }
+
+  /* empty state */
+  .empty { color:#9aa3ad; padding:1rem 0; }
 </style>
 
-<div class="wrap">
-  <div class="topbar">
-    <div>
-      <h1>Honor Hall — Playoff Brackets</h1>
-      <div class="sub">Seeded via final standings arrays; rounds derived from playoff weeks present in the matchups rows.</div>
-    </div>
+<div class="container">
+  <h1>Honor Hall — Playoff matchups (showing selected season)</h1>
+  <div class="subtitle">Playoff matchups (filtered from server loader). Showing week range: {data?.playoffStart} — {data?.playoffEnd}</div>
 
-    <form id="filters" method="get" class="filters">
-      <select id="season" name="season" class="season-select" on:change={() => document.getElementById('filters')?.requestSubmit?.()}>
-        {#if seasons && seasons.length}
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-              {s.season ?? s.name ?? s.league_id}
-            </option>
-          {/each}
-        {:else}
-          <option>{selectedSeason}</option>
-        {/if}
-      </select>
-    </form>
-  </div>
+  <form id="filters" method="get" class="filters" aria-hidden="false">
+    <label for="season" class="sr-only">Season</label>
+    <select id="season" name="season" class="season-select" on:change={submitFilters}>
+      {#if seasons && seasons.length}
+        {#each seasons as s}
+          <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
+            {s.season ?? s.name ?? s.league_id}
+          </option>
+        {/each}
+      {:else}
+        <option value={selectedSeason}>{selectedSeason}</option>
+      {/if}
+    </select>
+  </form>
 
   {#if messages && messages.length}
     <div class="messages" role="status" aria-live="polite">
-      {#each messages as m}
-        <div>• {m}</div>
+      {#each messages as msg, idx}
+        <div key={idx}>• {msg}</div>
       {/each}
     </div>
   {/if}
 
-  <div class="bracketColumns">
-    <!-- Winners Bracket Column -->
-    <div class="col">
-      <h2>Winners Bracket</h2>
-
-      <div class="label">Round 1 — {quarterWeek ? `Week ${quarterWeek}` : 'Quarterfinals'}</div>
-      {#each brackets.winnersRound1 as p, idx}
-        { /* find actual matchup row for this pair in quarterWeek if exists */ }
-        {@const match = findMatchup(p.rosterA, p.rosterB, quarterWeek)}
-        <div class="pair">
-          <div class="team" style="min-width:220px">
-            <img class="avatar" src={avatarOrPlaceholder(p.avatarA, p.displayA)} alt="">
-            <div class="teamInfo">
-              <div class="teamName">{p.displayA}</div>
-              <div class="sub"><span class="seed">#{p.seedA ?? '-'}</span></div>
-            </div>
+  {#if groupedByWeek.length === 0}
+    <div class="empty">No playoff matchups found for the selected season.</div>
+  {:else}
+    {#each groupedByWeek as weekGroup (weekGroup.week)}
+      <div class="weekGroup">
+        <div class="weekHeader">
+          <div>
+            <div class="weekTitle">Round — Week {weekGroup.week}</div>
+            <div class="weekSub">Showing playoff matchups (week {weekGroup.week})</div>
           </div>
-
-          <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-
-          <div class="team" style="min-width:180px">
-            <img class="avatar" src={avatarOrPlaceholder(p.avatarB, p.displayB)} alt="">
-            <div class="teamInfo">
-              <div class="teamName">{p.displayB}</div>
-              <div class="sub"><span class="seed">#{p.seedB ?? '-'}</span></div>
-            </div>
-          </div>
-
-          <div class="score">
-            {#if match && match.teamA && match.teamB}
-              <div class="scoreVal">
-                <span class={match.teamA.points > match.teamB.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(match.teamA.points)}</span>
-                &nbsp;—&nbsp;
-                <span class={match.teamB.points > match.teamA.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(match.teamB.points)}</span>
-              </div>
-              <div class="sub">Week {match.week}</div>
-            {:else}
-              <div class="scoreVal">TBD</div>
-              <div class="sub">Week {quarterWeek ?? '—'}</div>
-            {/if}
-          </div>
+          <div class="weekSub">{weekGroup.rows.length} match{weekGroup.rows.length === 1 ? '' : 'es'}</div>
         </div>
-      {/each}
 
-      <div style="height:6px"></div>
-      <div class="label">Round 2 — {semiWeek ? `Week ${semiWeek}` : 'Semifinals'}</div>
+        {#each weekGroup.rows as row (row.matchup_id ?? row.combinedLabel ?? Math.random())}
+          <div class="matchRow">
+            <!-- Team A -->
+            <div class="teamCol" style="min-width:260px;">
+              {#if row.participantsCount === 1}
+                <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="avatar">
+                <div class="teamInfo">
+                  <div class="teamName">{row.teamA.name}</div>
+                  <div class="teamSub">
+                    {#if row.teamA.placement}<span class="chip">#{row.teamA.placement}</span>{/if}
+                    <span class="teamSub"> {row.teamA.rosterId ?? ''} </span>
+                  </div>
+                </div>
+              {:else if row.participantsCount === 2}
+                <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="avatar">
+                <div class="teamInfo">
+                  <div class="teamName">{row.teamA.name}</div>
+                  <div class="teamSub">
+                    {#if row.teamA.placement}<span class="chip">#{row.teamA.placement}</span>{/if}
+                    <span>Roster {row.teamA.rosterId}</span>
+                  </div>
+                </div>
+              {:else}
+                <!-- combined participants -->
+                <div class="combinedList">
+                  {#each row.combinedParticipants as p (p.rosterId)}
+                    <div class="chip">{p.name}</div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
 
-      {#each Array(brackets.winnersRound1.length / 2) as _, i}
-        { /* Attempt to derive the second-round pairing by locating the match in semiWeek involving any roster from the first-round pair set */ }
-        {@const semiMatch = (() => {
-          // collect the two winners candidate rosters from relevant Round1 pairs by using matchupsRows for quarterWeek results:
-          const pA = brackets.winnersRound1[i*2];
-          const pB = brackets.winnersRound1[i*2 + 1];
-          // Look for any matchup in semiWeek that contains a roster from either pA or pB
-          if (!pA || !pB) return null;
-          // Search semiWeek matchupsRows for a match that contains roster from pA or pB (best-effort)
-          for (const r of matchupsRows) {
-            if (Number(r.week) !== Number(semiWeek)) continue;
-            const a = r.teamA && r.teamA.rosterId ? String(r.teamA.rosterId) : null;
-            const b = r.teamB && r.teamB.rosterId ? String(r.teamB.rosterId) : null;
-            if (!a || !b) continue;
-            // if either side contains any roster from the two Round1 pairs, accept
-            const candidates = [String(pA.rosterA), String(pA.rosterB), String(pB.rosterA), String(pB.rosterB)];
-            if (candidates.includes(a) || candidates.includes(b)) return r;
-          }
-          return null;
-        })()}
+            <div class="vsCol">vs</div>
 
-        <div class="pair">
-          {#if semiMatch && semiMatch.teamA && semiMatch.teamB}
-            <div class="team">
-              <img class="avatar" src={avatarOrPlaceholder(semiMatch.teamA.avatar, semiMatch.teamA.name)} alt="">
-              <div class="teamInfo">
-                <div class="teamName">{semiMatch.teamA.name}</div>
-                <div class="sub"><span class="seed">#{semiMatch.teamA.rosterId ?? '-'}</span></div>
-              </div>
+            <!-- Team B -->
+            <div class="teamCol" style="min-width:240px;">
+              {#if row.participantsCount === 1}
+                <div class="teamInfo">
+                  <div class="teamName bye">BYE</div>
+                </div>
+              {:else if row.participantsCount === 2}
+                <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="avatar">
+                <div class="teamInfo">
+                  <div class="teamName">{row.teamB.name}</div>
+                  <div class="teamSub">
+                    {#if row.teamB.placement}<span class="chip">#{row.teamB.placement}</span>{/if}
+                    <span>Roster {row.teamB.rosterId}</span>
+                  </div>
+                </div>
+              {:else}
+                <!-- nothing (already handled above) -->
+              {/if}
             </div>
-            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-            <div class="team">
-              <img class="avatar" src={avatarOrPlaceholder(semiMatch.teamB.avatar, semiMatch.teamB.name)} alt="">
-              <div class="teamInfo">
-                <div class="teamName">{semiMatch.teamB.name}</div>
-                <div class="sub"><span class="seed">#{semiMatch.teamB.rosterId ?? '-'}</span></div>
-              </div>
-            </div>
-            <div class="score">
-              <div class="scoreVal">
-                <span class={semiMatch.teamA.points > semiMatch.teamB.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(semiMatch.teamA.points)}</span>
-                &nbsp;—&nbsp;
-                <span class={semiMatch.teamB.points > semiMatch.teamA.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(semiMatch.teamB.points)}</span>
-              </div>
-              <div class="sub">Week {semiMatch.week}</div>
-            </div>
-          {:else}
-            <div class="team">
-              <div class="teamInfo"><div class="teamName">TBD</div></div>
-            </div>
-            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-            <div class="team"><div class="teamInfo"><div class="teamName">TBD</div></div></div>
-            <div class="score"><div class="scoreVal">TBD</div><div class="sub">Week {semiWeek ?? '—'}</div></div>
-          {/if}
-        </div>
-      {/each}
 
-      <div style="height:6px"></div>
-      <div class="label">Final — {finalWeek ? `Week ${finalWeek}` : 'Final'}</div>
-      {#if finalWeek}
-        {@const finalMatch = matchupsRows.find(r => Number(r.week) === Number(finalWeek) && r.teamA && r.teamB)}
-        <div class="pair">
-          {#if finalMatch}
-            <div class="team">
-              <img class="avatar" src={avatarOrPlaceholder(finalMatch.teamA.avatar, finalMatch.teamA.name)} alt="">
-              <div class="teamInfo"><div class="teamName">{finalMatch.teamA.name}</div></div>
-            </div>
-            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-            <div class="team">
-              <img class="avatar" src={avatarOrPlaceholder(finalMatch.teamB.avatar, finalMatch.teamB.name)} alt="">
-              <div class="teamInfo"><div class="teamName">{finalMatch.teamB.name}</div></div>
-            </div>
-            <div class="score">
-              <div class="scoreVal">
-                <span class={finalMatch.teamA.points > finalMatch.teamB.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(finalMatch.teamA.points)}</span>
-                &nbsp;—&nbsp;
-                <span class={finalMatch.teamB.points > finalMatch.teamA.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(finalMatch.teamB.points)}</span>
-              </div>
-              <div class="sub">Week {finalMatch.week}</div>
-            </div>
-          {:else}
-            <div class="team"><div class="teamInfo"><div class="teamName">TBD</div></div></div>
-            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-            <div class="team"><div class="teamInfo"><div class="teamName">TBD</div></div></div>
-            <div class="score"><div class="scoreVal">TBD</div><div class="sub">Week {finalWeek}</div></div>
-          {/if}
-        </div>
-      {:else}
-        <div class="pair"><div class="teamInfo"><div class="teamName">Final not available</div></div></div>
-      {/if}
-    </div>
-
-    <!-- Losers Bracket Column -->
-    <div class="col">
-      <h2>Losers Bracket</h2>
-
-      <div class="label">Losers Round 1 — {quarterWeek ? `Week ${quarterWeek}` : 'Round 1'}</div>
-      {#each brackets.losersPairsRound1 as lp, i}
-        {@const lm = findMatchup(lp.rosterA, lp.rosterB, quarterWeek)}
-        <div class="pair">
-          <div class="team">
-            <img class="avatar" src={avatarOrPlaceholder(lp.avatarA, lp.displayA)} alt="">
-            <div class="teamInfo">
-              <div class="teamName">{lp.displayA}</div>
-              <div class="sub"><span class="seed">#{lp.seedA ?? '-'}</span></div>
+            <!-- score column -->
+            <div class="scoreCol" aria-hidden="false">
+              {#if row.participantsCount === 2}
+                <div>
+                  <span class="scoreVal {row.teamA.points > row.teamB.points ? 'winner' : ''}">{fmtPts(row.teamA.points)}</span>
+                  <span class="scoreVal"> — </span>
+                  <span class="scoreVal {row.teamB.points > row.teamA.points ? 'winner' : ''}">{fmtPts(row.teamB.points)}</span>
+                </div>
+                <div class="scoreSub">Week {row.week}</div>
+              {:else if row.participantsCount === 1}
+                <div class="scoreSub">—</div>
+                <div class="scoreSub">Week {row.week}</div>
+              {:else}
+                <div class="scoreSub">{row.combinedLabel}</div>
+                <div class="scoreSub">Week {row.week}</div>
+              {/if}
             </div>
           </div>
-
-          <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-
-          <div class="team">
-            <img class="avatar" src={avatarOrPlaceholder(lp.avatarB, lp.displayB)} alt="">
-            <div class="teamInfo">
-              <div class="teamName">{lp.displayB}</div>
-              <div class="sub"><span class="seed">#{lp.seedB ?? '-'}</span></div>
-            </div>
-          </div>
-
-          <div class="score">
-            {#if lm && lm.teamA && lm.teamB}
-              <div class="scoreVal">
-                <span class={lm.teamA.points > lm.teamB.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(lm.teamA.points)}</span>
-                &nbsp;—&nbsp;
-                <span class={lm.teamB.points > lm.teamA.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(lm.teamB.points)}</span>
-              </div>
-              <div class="sub">Week {lm.week}</div>
-            {:else}
-              <div class="scoreVal">TBD</div>
-              <div class="sub">Week {quarterWeek ?? '—'}</div>
-            {/if}
-          </div>
-        </div>
-      {/each}
-
-      <div style="height:6px"></div>
-      <div class="label">Losers Round 2 / Consolations — {semiWeek ? `Week ${semiWeek}` : 'Round 2'}</div>
-
-      {#each brackets.losersPairsRound1 as lp, idx}
-        { /* for second-round losers logic:
-             - winners of losers round1 play for 5th place (consolation)
-             - losers of losers round1 play for 7th place (consolation)
-             - label accordingly by index: we'll show both match types if match rows exist in semiWeek/finalWeek
-          */ }
-        {@const possible5th = (() => {
-          // look for a match in semiWeek containing either roster of lp
-          for (const r of matchupsRows) {
-            if (Number(r.week) !== Number(semiWeek)) continue;
-            const a = r.teamA && r.teamA.rosterId ? String(r.teamA.rosterId) : null;
-            const b = r.teamB && r.teamB.rosterId ? String(r.teamB.rosterId) : null;
-            if (!a || !b) continue;
-            // if this semiWeek match includes one of the losersRound1 winners candidates it might be the 5th-place bracket
-            const candidates = [String(lp.rosterA), String(lp.rosterB)];
-            if (candidates.includes(a) || candidates.includes(b)) return r;
-          }
-          return null;
-        })()}
-
-        <div class="pair">
-          {#if possible5th}
-            <div class="team">
-              <img class="avatar" src={avatarOrPlaceholder(possible5th.teamA.avatar, possible5th.teamA.name)} alt="">
-              <div class="teamInfo"><div class="teamName">{possible5th.teamA.name}</div></div>
-            </div>
-            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-            <div class="team">
-              <img class="avatar" src={avatarOrPlaceholder(possible5th.teamB.avatar, possible5th.teamB.name)} alt="">
-              <div class="teamInfo"><div class="teamName">{possible5th.teamB.name}</div></div>
-            </div>
-            <div class="score">
-              <div class="scoreVal">
-                <span class={possible5th.teamA.points > possible5th.teamB.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(possible5th.teamA.points)}</span>
-                &nbsp;—&nbsp;
-                <span class={possible5th.teamB.points > possible5th.teamA.points ? 'scoreVal winner' : 'scoreVal'}>{fmtPts(possible5th.teamB.points)}</span>
-              </div>
-              <div class="sub">Week {possible5th.week} — Consolation</div>
-            </div>
-          {:else}
-            <div class="team"><div class="teamInfo"><div class="teamName">TBD</div></div></div>
-            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-            <div class="team"><div class="teamInfo"><div class="teamName">TBD</div></div></div>
-            <div class="score"><div class="scoreVal">TBD</div><div class="sub">Week {semiWeek ?? '—'}</div></div>
-          {/if}
-        </div>
-      {/each}
-
-    </div>
-  </div>
+        {/each}
+      </div>
+    {/each}
+  {/if}
 </div>
