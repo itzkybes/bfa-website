@@ -2,13 +2,16 @@
   export let data;
 
   // page data
-  const seasons = data.seasons || [];
-  const weeks = data.weeks || [];
-  let selectedSeason = data.selectedSeason ?? (seasons.length ? ...ength-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
-  const matchupsRows = data.matchupsRows || [];
-  const messages = data.messages || [];
-  const originalRecords = data.originalRecords || {};
+  const seasons = data?.seasons ?? [];
+  const weeks = data?.weeks ?? [];
+  // sensible defaults: last season in chain, last week in weeks
+  let selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[seasons.length - 1].league_id : null);
+  let selectedWeek = Number(data?.selectedWeek ?? (weeks.length ? weeks[weeks.length - 1] : 1));
+  if (!selectedWeek || isNaN(selectedWeek) || selectedWeek < 1) selectedWeek = 1;
+
+  const matchupsRows = data?.matchupsRows ?? [];
+  const messages = data?.messages ?? [];
+  const originalRecords = data?.originalRecords ?? {};
 
   // helpers
   function avatarOrPlaceholder(url, name, size = 64) {
@@ -37,7 +40,6 @@
   $: playoffRangeLabel = (playoffWeeks.min === null) ? 'Playoff matchups' :
     (playoffWeeks.min === playoffWeeks.max) ? `Playoff matchups — Week ${playoffWeeks.min}` :
     `Playoff matchups — Weeks ${playoffWeeks.min}–${playoffWeeks.max}`;
-
 </script>
 
 <style>
@@ -53,13 +55,14 @@
   .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
   .inner-table th { text-align:left; color:#9ca3af; font-size:.8rem; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.03); }
   .inner-table td { padding:8px 8px; }
+  .select { padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
 </style>
 
 <div class="container">
   <!-- seasons / week controls -->
   <div style="display:flex; gap:.8rem; align-items:center; margin-bottom:0.8rem;">
     <div>
-      <label class="muted">Season</label>
+      <label class="muted">Season</label><br/>
       <select class="select" bind:value={selectedSeason}>
         {#each seasons as s}
           <option value={s.league_id}>{s.name ?? s.season}</option>
@@ -67,7 +70,7 @@
       </select>
     </div>
     <div>
-      <label class="muted">Week</label>
+      <label class="muted">Week</label><br/>
       <select class="select" bind:value={selectedWeek}>
         {#each weeks as w}
           <option value={w}>{w}</option>
@@ -79,13 +82,17 @@
   <div class="playoff-header" style="margin:1rem 0;">
     <h2>{playoffRangeLabel}</h2>
     {#if messages && messages.length}
-      <div class="muted" style="margin-top:.4rem;">{#each messages as m}<div>{m}</div>{/each}</div>
+      <div class="muted" style="margin-top:.4rem;">
+        {#each messages as m}
+          <div>{m}</div>
+        {/each}
+      </div>
     {/if}
   </div>
 
   {#if matchupsRows && matchupsRows.length}
     <div>
-      {#each matchupsRows as row}
+      {#each matchupsRows as row (row.key)}
         {#if row.type === 'pair'}
           <div style="display:flex; gap:1rem; align-items:center; padding:8px; border-radius:8px; margin-bottom:.6rem; background: rgba(255,255,255,0.01);">
             <div style="display:flex; align-items:center; gap:.8rem; min-width:0;">
