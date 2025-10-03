@@ -50,6 +50,7 @@
   $: {
     rosterInfo = {};
     for (const r of filteredRows) {
+      if (!r) continue;
       if (r.teamA && r.teamA.rosterId != null) {
         rosterInfo[String(r.teamA.rosterId)] = rosterInfo[String(r.teamA.rosterId)] || {
           rosterId: String(r.teamA.rosterId),
@@ -68,7 +69,7 @@
       }
       if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
         for (const p of r.combinedParticipants) {
-          if (p.rosterId != null) {
+          if (p && p.rosterId != null) {
             rosterInfo[String(p.rosterId)] = rosterInfo[String(p.rosterId)] || {
               rosterId: String(p.rosterId),
               name: p.name ?? null,
@@ -102,6 +103,7 @@
     const B = bId != null ? String(bId) : null;
 
     for (const r of filteredRows) {
+      if (!r) continue;
       if (week != null && Number(r.week) !== Number(week)) continue;
 
       if (r.teamA && r.teamB) {
@@ -128,7 +130,6 @@
   }
 
   /********** Helper: match roster object by owner display_name heuristically **********/
-  // Attempts: 1) exact match on rosterInfo.name lower, 2) if roster name contains displayName, 3) check ownerName if present
   function findRosterIdByDisplayName(displayName) {
     if (!displayName) return null;
     const target = String(displayName).toLowerCase();
@@ -201,11 +202,13 @@
   }
 
   /********** Determine winners/losers bracket sizes **********/
+  // IMPORTANT: declare winnersSize so Svelte reactive blocks can update it
+  let winnersSize = 0;
   $: {
     const totalRosters = seedList.length;
     const seasonKey = String(selectedSeason ?? '');
     const winnersDefault = (seasonKey === '2022') ? 6 : 8;
-    winnersSize = Math.min(winnersDefault, totalRosters);
+    winnersSize = Math.min(winnersDefault, Math.max(0, totalRosters));
   }
 
   /********** Build pairings using seedList and find matchups (quarter week) **********/
@@ -325,76 +328,84 @@
     <div class="col">
       <h2>Winners Bracket</h2>
       <div class="sub">{quarterWeek ? `Round 1 — Week ${quarterWeek}` : 'Round 1'}</div>
-      {#each brackets.winnersRound1WithMatch as p (p.rosterA + '-' + p.rosterB)}
-        <div class="pair">
-          <div class="team" style="min-width:220px">
-            <img class="avatar" src={avatarOrPlaceholder(p.avatarA, p.displayA)} alt="">
-            <div>
-              <div class="teamName">{p.displayA}</div>
-              <div class="sub"><span class="seed">#{p.seedA ?? '-'}</span></div>
-            </div>
-          </div>
-
-          <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-
-          <div class="team" style="min-width:180px">
-            <img class="avatar" src={avatarOrPlaceholder(p.avatarB, p.displayB)} alt="">
-            <div>
-              <div class="teamName">{p.displayB}</div>
-              <div class="sub"><span class="seed">#{p.seedB ?? '-'}</span></div>
-            </div>
-          </div>
-
-          <div class="score">
-            {#if p.match && p.match.teamA && p.match.teamB}
-              <div class="scoreVal">
-                <span>{fmtPts(p.match.teamA.points)}</span>&nbsp;—&nbsp;<span>{fmtPts(p.match.teamB.points)}</span>
+      {#if brackets.winnersRound1WithMatch && brackets.winnersRound1WithMatch.length}
+        {#each brackets.winnersRound1WithMatch as p (p.rosterA + '-' + p.rosterB)}
+          <div class="pair">
+            <div class="team" style="min-width:220px">
+              <img class="avatar" src={avatarOrPlaceholder(p.avatarA, p.displayA)} alt="">
+              <div>
+                <div class="teamName">{p.displayA}</div>
+                <div class="sub"><span class="seed">#{p.seedA ?? '-'}</span></div>
               </div>
-              <div class="sub">Week {p.match.week}</div>
-            {:else}
-              <div class="scoreVal">TBD</div>
-              <div class="sub">Week {quarterWeek ?? '—'}</div>
-            {/if}
+            </div>
+
+            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
+
+            <div class="team" style="min-width:180px">
+              <img class="avatar" src={avatarOrPlaceholder(p.avatarB, p.displayB)} alt="">
+              <div>
+                <div class="teamName">{p.displayB}</div>
+                <div class="sub"><span class="seed">#{p.seedB ?? '-'}</span></div>
+              </div>
+            </div>
+
+            <div class="score">
+              {#if p.match && p.match.teamA && p.match.teamB}
+                <div class="scoreVal">
+                  <span>{fmtPts(p.match.teamA.points)}</span>&nbsp;—&nbsp;<span>{fmtPts(p.match.teamB.points)}</span>
+                </div>
+                <div class="sub">Week {p.match.week}</div>
+              {:else}
+                <div class="scoreVal">TBD</div>
+                <div class="sub">Week {quarterWeek ?? '—'}</div>
+              {/if}
+            </div>
           </div>
-        </div>
-      {/each}
+        {/each}
+      {:else}
+        <div class="sub">No winners-round matchups found.</div>
+      {/if}
     </div>
 
     <!-- Losers column -->
     <div class="col">
       <h2>Losers Bracket</h2>
       <div class="sub">{quarterWeek ? `Round 1 — Week ${quarterWeek}` : 'Round 1'}</div>
-      {#each brackets.losersRound1WithMatch as lp (lp.rosterA + '-' + lp.rosterB)}
-        <div class="pair">
-          <div class="team">
-            <img class="avatar" src={avatarOrPlaceholder(lp.avatarA, lp.displayA)} alt="">
-            <div>
-              <div class="teamName">{lp.displayA}</div>
-              <div class="sub"><span class="seed">#{lp.seedA ?? '-'}</span></div>
+      {#if brackets.losersRound1WithMatch && brackets.losersRound1WithMatch.length}
+        {#each brackets.losersRound1WithMatch as lp (lp.rosterA + '-' + lp.rosterB)}
+          <div class="pair">
+            <div class="team">
+              <img class="avatar" src={avatarOrPlaceholder(lp.avatarA, lp.displayA)} alt="">
+              <div>
+                <div class="teamName">{lp.displayA}</div>
+                <div class="sub"><span class="seed">#{lp.seedA ?? '-'}</span></div>
+              </div>
+            </div>
+
+            <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
+
+            <div class="team">
+              <img class="avatar" src={avatarOrPlaceholder(lp.avatarB, lp.displayB)} alt="">
+              <div>
+                <div class="teamName">{lp.displayB}</div>
+                <div class="sub"><span class="seed">#{lp.seedB ?? '-'}</span></div>
+              </div>
+            </div>
+
+            <div class="score">
+              {#if lp.match && lp.match.teamA && lp.match.teamB}
+                <div class="scoreVal">{fmtPts(lp.match.teamA.points)} &nbsp;—&nbsp; {fmtPts(lp.match.teamB.points)}</div>
+                <div class="sub">Week {lp.match.week}</div>
+              {:else}
+                <div class="scoreVal">TBD</div>
+                <div class="sub">Week {quarterWeek ?? '—'}</div>
+              {/if}
             </div>
           </div>
-
-          <div style="width:28px; text-align:center; color:#9aa3ad; font-weight:700;">vs</div>
-
-          <div class="team">
-            <img class="avatar" src={avatarOrPlaceholder(lp.avatarB, lp.displayB)} alt="">
-            <div>
-              <div class="teamName">{lp.displayB}</div>
-              <div class="sub"><span class="seed">#{lp.seedB ?? '-'}</span></div>
-            </div>
-          </div>
-
-          <div class="score">
-            {#if lp.match && lp.match.teamA && lp.match.teamB}
-              <div class="scoreVal">{fmtPts(lp.match.teamA.points)} &nbsp;—&nbsp; {fmtPts(lp.match.teamB.points)}</div>
-              <div class="sub">Week {lp.match.week}</div>
-            {:else}
-              <div class="scoreVal">TBD</div>
-              <div class="sub">Week {quarterWeek ?? '—'}</div>
-            {/if}
-          </div>
-        </div>
-      {/each}
+        {/each}
+      {:else}
+        <div class="sub">No losers-round matchups found.</div>
+      {/if}
     </div>
   </div>
 </div>
