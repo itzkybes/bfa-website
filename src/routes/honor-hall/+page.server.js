@@ -1,6 +1,5 @@
 // src/routes/honor-hall/+page.server.js
 import { error } from '@sveltejs/kit';
-import fetch from 'node-fetch';   // fix fetch issue
 
 export async function load({ url }) {
   const season = url.searchParams.get('season');
@@ -27,7 +26,7 @@ export async function load({ url }) {
 
   // 3. Get winners bracket
   const bracketRes = await fetch(`https://api.sleeper.app/v1/league/${season}/winners_bracket`);
-  const bracket = await bracketRes.json();
+  const bracket = bracketRes.ok ? await bracketRes.json() : [];
 
   // 4. Fetch all playoff week matchups (for scores)
   const weeklyMatchups = {};
