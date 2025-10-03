@@ -1,7 +1,4 @@
 // src/routes/honor-hall/+page.server.js
-// Honor Hall loader: fetch playoff matchups and compute placements by scrubbing regular-season matchups
-// Mirrors the approach used in src/routes/standings/+page.server.js for consistency.
-
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
@@ -26,423 +23,458 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-// compute streaks (copied from standings loader style)
-function computeStreaks(resultsArray) {
-  let maxW = 0, maxL = 0, curW = 0, curL = 0;
-  if (!resultsArray || !Array.isArray(resultsArray)) return { maxW: 0, maxL: 0 };
-  for (let i = 0; i < resultsArray.length; i++) {
-    const r = resultsArray[i];
-    if (r === 'W') {
-      curW += 1;
-      curL = 0;
-      if (curW > maxW) maxW = curW;
-    } else if (r === 'L') {
-      curL += 1;
-      curW = 0;
-      if (curL > maxL) maxL = curL;
-    } else {
-      curW = 0;
-      curL = 0;
-    }
-  }
-  return { maxW, maxL };
-}
+/**
+ * FINAL STANDINGS (owner display_name arrays) — provided by you for seeding.
+ */
+const FINAL_STANDINGS = {
+  '2024': [
+    'riguy506','smallvt','JakePratt','Kybes',
+    'TLupinetti','samsilverman12','armyjunior','JFK4312',
+    'WebbWarrior','slawflesh','jewishhorsemen','noahlap01',
+    'zamt','WillMichael'
+  ],
+  '2023': [
+    'armyjunior','jewishhorsemen','Kybes','riguy506',
+    'zamt','slawflesh','JFK4312','smallvt',
+    'samsilverman12','WebbWarrior','TLupinetti','noahlap01',
+    'JakePratt','WillMichael'
+  ],
+  '2022': [
+    'riguy506','smallvt','jewishhorsemen','zamt',
+    'noahlap01','Kybes','armyjunior','slawflesh',
+    'WillMichael','JFK4312','WebbWarrior','TLupinetti',
+    'JakePratt','samsilverman12'
+  ]
+};
 
 export async function load(event) {
-  // edge cache header
-  event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
-
-  const url = event.url;
-  const incomingSeasonParam = url.searchParams.get('season') || null;
+  // caching for edge
+  event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const messages = [];
-  const prevChain = [];
-
-  // Build seasons chain via previous_league_id starting from BASE_LEAGUE_ID
   let seasons = [];
+
+  // Build seasons chain starting from BASE_LEAGUE_ID (same logic used previously)
   try {
-    let mainLeague = null;
-    try {
-      mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
-    } catch (e) {
-      messages.push('Failed fetching base league ' + BASE_LEAGUE_ID + ' — ' + (e && e.message ? e.message : String(e)));
-    }
-
-    if (mainLeague) {
-      seasons.push({
-        league_id: String(mainLeague.league_id || BASE_LEAGUE_ID),
-        season: mainLeague.season ?? null,
-        name: mainLeague.name ?? null
-      });
-      prevChain.push(String(mainLeague.league_id || BASE_LEAGUE_ID));
-
-      let currPrev = mainLeague.previous_league_id ? String(mainLeague.previous_league_id) : null;
+    let main = null;
+    try { main = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 }); } catch (e) { main = null; messages.push('Failed fetch base league: ' + (e?.message ?? e)); }
+    if (main) {
+      seasons.push({ league_id: String(main.league_id), season: main.season ?? null, name: main.name ?? null });
+      let prev = main.previous_league_id ? String(main.previous_league_id) : null;
       let steps = 0;
-      while (currPrev && steps < 50) {
+      while (prev && steps < 50) {
         steps++;
         try {
-          const prevLeague = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
-          if (!prevLeague) {
-            messages.push('Could not fetch league for previous_league_id ' + currPrev);
-            break;
-          }
-          seasons.push({
-            league_id: String(prevLeague.league_id || currPrev),
-            season: prevLeague.season ?? null,
-            name: prevLeague.name ?? null
-          });
-          prevChain.push(String(prevLeague.league_id || currPrev));
-          currPrev = prevLeague.previous_league_id ? String(prevLeague.previous_league_id) : null;
+          const p = await sleeper.getLeague(prev, { ttl: 60 * 5 });
+          if (!p) { messages.push('Could not fetch prev league ' + prev); break; }
+          seasons.push({ league_id: String(p.league_id), season: p.season ?? null, name: p.name ?? null });
+          prev = p.previous_league_id ? String(p.previous_league_id) : null;
         } catch (err) {
-          messages.push('Error fetching previous_league_id: ' + currPrev + ' — ' + (err && err.message ? err.message : String(err)));
+          messages.push('Error fetching prev league ' + prev + ' — ' + (err?.message ?? String(err)));
           break;
         }
       }
     }
   } catch (err) {
-    messages.push('Error while building seasons chain: ' + (err && err.message ? err.message : String(err)));
+    messages.push('Error building seasons chain: ' + (err?.message ?? String(err)));
   }
 
-  // dedupe by league id
-  const byId = {};
-  for (let i = 0; i < seasons.length; i++) {
-    const s = seasons[i];
-    byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
-  }
-  seasons = [];
-  for (const k in byId) if (Object.prototype.hasOwnProperty.call(byId, k)) seasons.push(byId[k]);
+  // determine selected season param and selected league id
+  const url = event.url;
+  const seasonParam = url.searchParams.get('season') ?? null;
+  let selectedSeason = seasonParam;
+  if (!selectedSeason && seasons.length) selectedSeason = seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id;
 
-  // sort by season (old -> new)
-  seasons.sort((a, b) => {
-    if (a.season == null && b.season == null) return 0;
-    if (a.season == null) return 1;
-    if (b.season == null) return -1;
-    const na = Number(a.season), nb = Number(b.season);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
-  });
-
-  // selected season param (default to latest)
-  let selectedSeasonParam = incomingSeasonParam;
-  if (!selectedSeasonParam) {
-    if (seasons && seasons.length) {
-      const latest = seasons[seasons.length - 1];
-      selectedSeasonParam = latest.season != null ? String(latest.season) : String(latest.league_id);
-    } else {
-      selectedSeasonParam = String(BASE_LEAGUE_ID);
-    }
-  }
-
-  // determine leagueIdsToProcess (we only need the selected league for honor-hall)
   let selectedLeagueId = null;
-  // try to match season or league_id in seasons array
-  for (let i = 0; i < seasons.length; i++) {
-    const s = seasons[i];
-    if (String(s.league_id) === String(selectedSeasonParam) || (s.season != null && String(s.season) === String(selectedSeasonParam))) {
+  for (const s of seasons) {
+    if (String(s.season) === String(selectedSeason) || String(s.league_id) === String(selectedSeason)) {
       selectedLeagueId = String(s.league_id);
+      selectedSeason = s.season ?? selectedSeason;
       break;
     }
   }
-  if (!selectedLeagueId) selectedLeagueId = String(selectedSeasonParam || BASE_LEAGUE_ID);
+  if (!selectedLeagueId && seasons.length) selectedLeagueId = seasons[seasons.length - 1].league_id;
 
-  // Fetch league meta to determine playoff weeks
+  // fetch league meta to read playoff start
   let leagueMeta = null;
-  try {
-    leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 });
-  } catch (e) {
-    leagueMeta = null;
-    messages.push('Failed fetching league meta for ' + selectedLeagueId + ' — ' + (e?.message ?? e));
-  }
+  try { leagueMeta = selectedLeagueId ? await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }) : null; } catch (e) { leagueMeta = null; messages.push('Failed fetch league meta: ' + (e?.message ?? e)); }
 
-  // determine playoff start/end using same fields as standings loader (fallback to 15)
-  let playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
-  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-    // fallback: try some known fields then set default
-    playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
-    if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-      // fallback default (match standings' fallback behavior)
-      playoffStart = 15;
-      messages.push('Playoff start not found in metadata — defaulting to week ' + playoffStart);
-    }
+  let playoffStart = null;
+  if (leagueMeta && leagueMeta.settings) {
+    playoffStart = Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek ?? 0) || null;
   }
-  const playoffEnd = playoffStart + 2;
+  if (!playoffStart) {
+    playoffStart = Math.max(1, MAX_WEEKS - 2);
+    messages.push('Playoff start not found; defaulting to week ' + playoffStart);
+  }
+  const playoffEnd = Math.min(MAX_WEEKS, playoffStart + 2);
 
-  // fetch roster map
+  // roster map
   let rosterMap = {};
   try {
-    rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
-    messages.push('Loaded rosters (' + Object.keys(rosterMap).length + ')');
+    if (selectedLeagueId) {
+      rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
+      messages.push(`Loaded rosters (${Object.keys(rosterMap).length})`);
+    }
   } catch (e) {
     rosterMap = {};
-    messages.push('Failed fetching rosters for ' + selectedLeagueId + ' — ' + (e?.message ?? e));
+    messages.push('Failed fetch roster map: ' + (e?.message ?? e));
   }
 
-  // --- compute regular-season standings by scrubbing matchups 1..(playoffStart-1) ---
-  const statsByRosterRegular = {};
-  const resultsByRosterRegular = {};
-  const paByRosterRegular = {};
-
-  // seed from rosterMap
-  for (const rk in rosterMap) {
-    if (!Object.prototype.hasOwnProperty.call(rosterMap, rk)) continue;
-    statsByRosterRegular[String(rk)] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: rosterMap[rk].roster_raw ?? null };
-    resultsByRosterRegular[String(rk)] = [];
-    paByRosterRegular[String(rk)] = 0;
-  }
-
-  // regular weeks: 1 .. (playoffStart - 1)
-  const regStart = 1;
-  const regEnd = Math.max(1, playoffStart - 1);
-
-  for (let week = regStart; week <= regEnd; week++) {
-    let matchups = null;
-    try {
-      matchups = await sleeper.getMatchupsForWeek(selectedLeagueId, week, { ttl: 60 * 5 });
-    } catch (errWeek) {
-      messages.push('Error fetching matchups for league ' + selectedLeagueId + ' week ' + week + ' — ' + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
-      continue;
-    }
-    if (!matchups || !matchups.length) continue;
-
-    // group by matchup id | week
-    const byMatch = {};
-    for (let mi = 0; mi < matchups.length; mi++) {
-      const e = matchups[mi];
-      const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-      const wk = e.week ?? e.w ?? week;
-      const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
-      if (!byMatch[key]) byMatch[key] = [];
-      byMatch[key].push(e);
-    }
-
-    const keys = Object.keys(byMatch);
-    for (let k = 0; k < keys.length; k++) {
-      const entries = byMatch[keys[k]];
-      if (!entries || entries.length === 0) continue;
-
-      if (entries.length === 1) {
-        const only = entries[0];
-        const ridOnly = String(only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId ?? 'unknown');
-        const ptsOnly = safeNum(only.points ?? only.points_for ?? only.pts ?? 0);
-        if (!statsByRosterRegular[ridOnly]) statsByRosterRegular[ridOnly] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        if (!resultsByRosterRegular[ridOnly]) resultsByRosterRegular[ridOnly] = [];
-        if (!paByRosterRegular[ridOnly]) paByRosterRegular[ridOnly] = 0;
-        statsByRosterRegular[ridOnly].pf += ptsOnly;
-        // single-entry matches don't produce W/L in this schema
-        continue;
-      }
-
-      // multi-entry: compute each participant's points and compare against opponents' average
-      const participants = [];
-      for (let i = 0; i < entries.length; i++) {
-        const ent = entries[i];
-        const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? ('r' + i));
-        const ppts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0);
-        participants.push({ rosterId: pid, points: ppts });
-        if (!statsByRosterRegular[pid]) statsByRosterRegular[pid] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        if (!resultsByRosterRegular[pid]) resultsByRosterRegular[pid] = [];
-        if (!paByRosterRegular[pid]) paByRosterRegular[pid] = 0;
-        statsByRosterRegular[pid].pf += ppts;
-      }
-
-      for (let i = 0; i < participants.length; i++) {
-        const part = participants[i];
-        const opponents = participants.filter((_, idx) => idx !== i);
-        let oppAvg = 0;
-        if (opponents.length) {
-          oppAvg = opponents.reduce((acc, o) => acc + o.points, 0) / opponents.length;
-        }
-        paByRosterRegular[part.rosterId] = (paByRosterRegular[part.rosterId] || 0) + oppAvg;
-        // determine result
-        if (part.points > oppAvg + 1e-9) {
-          resultsByRosterRegular[part.rosterId].push('W');
-          statsByRosterRegular[part.rosterId].wins += 1;
-        } else if (part.points < oppAvg - 1e-9) {
-          resultsByRosterRegular[part.rosterId].push('L');
-          statsByRosterRegular[part.rosterId].losses += 1;
-        } else {
-          resultsByRosterRegular[part.rosterId].push('T');
-          statsByRosterRegular[part.rosterId].ties += 1;
+  // fetch matchups for playoff weeks
+  let rawMatchups = [];
+  try {
+    if (selectedLeagueId) {
+      for (let wk = playoffStart; wk <= playoffEnd; wk++) {
+        try {
+          const m = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
+          if (Array.isArray(m) && m.length) {
+            for (const mm of m) {
+              if (mm && (mm.week == null && mm.w == null)) mm.week = wk;
+              rawMatchups.push(mm);
+            }
+          }
+        } catch (we) {
+          messages.push(`Failed fetch matchups for week ${wk}: ${we?.message ?? we}`);
         }
       }
     }
-  } // end regular weeks loop
-
-  // Build sorted regular standings (same scheme as standings route)
-  function buildStandingsFromTrackers(statsByRoster, resultsByRoster, paByRoster) {
-    const keys = Object.keys(resultsByRoster).length ? Object.keys(resultsByRoster) : (rosterMap ? Object.keys(rosterMap) : []);
-    const out = [];
-    for (let i = 0; i < keys.length; i++) {
-      const rid = keys[i];
-      if (!Object.prototype.hasOwnProperty.call(statsByRoster, rid)) {
-        statsByRoster[rid] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: (rosterMap && rosterMap[rid] ? rosterMap[rid].roster_raw : null) };
-      }
-      const s = statsByRoster[rid];
-      const wins = s.wins || 0;
-      const losses = s.losses || 0;
-      const ties = s.ties || 0;
-      const pfVal = Math.round((s.pf || 0) * 100) / 100;
-      const paVal = Math.round((paByRoster[rid] || s.pa || 0) * 100) / 100;
-      const meta = rosterMap && rosterMap[rid] ? rosterMap[rid] : {};
-      const team_name = meta.team_name ? meta.team_name : ((s.roster && s.roster.metadata && s.roster.metadata.team_name) ? s.roster.metadata.team_name : ('Roster ' + rid));
-      const owner_name = meta.owner_name || null;
-      const avatar = meta.team_avatar || meta.owner_avatar || null;
-      const resArr = resultsByRoster && resultsByRoster[rid] ? resultsByRoster[rid] : [];
-      const streaks = computeStreaks(resArr);
-      out.push({
-        rosterId: rid,
-        team_name,
-        owner_name,
-        avatar,
-        wins,
-        losses,
-        ties,
-        pf: pfVal,
-        pa: paVal,
-        maxWinStreak: streaks.maxW,
-        maxLoseStreak: streaks.maxL
-      });
-    }
-    // sort by wins desc, then pf desc (same as standings)
-    out.sort((a,b) => {
-      if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
-      return (b.pf || 0) - (a.pf || 0);
-    });
-    return out;
+  } catch (err) {
+    messages.push('Failed fetching playoff matchups: ' + (err?.message ?? err));
   }
 
-  const regularStandings = buildStandingsFromTrackers(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular);
-
-  // Build placement map rosterId -> placement (1-based)
-  const placementMap = {};
-  for (let i = 0; i < regularStandings.length; i++) {
-    placementMap[String(regularStandings[i].rosterId)] = i + 1;
-  }
-
-  // --- fetch playoff matchups (playoffStart .. playoffEnd) and build matchupsRows ---
-  const rawMatchups = [];
-  for (let wk = playoffStart; wk <= playoffEnd; wk++) {
-    try {
-      const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
-      if (Array.isArray(wkMatchups) && wkMatchups.length) {
-        for (const m of wkMatchups) {
-          if (m && (m.week == null && m.w == null)) m.week = wk;
-          rawMatchups.push(m);
-        }
-      }
-    } catch (we) {
-      messages.push('Failed to fetch matchups for week ' + wk + ': ' + (we?.message ?? String(we)));
-    }
-  }
-
-  // group by matchup id + week
+  // normalize matchups into rows (same approach as earlier)
   const byMatch = {};
   for (let i = 0; i < rawMatchups.length; i++) {
     const e = rawMatchups[i];
     const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-    const wk = e.week ?? e.w ?? null;
-    const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + i));
+    const wk = e.week ?? e.w ?? playoffStart;
+    const key = mid != null ? `${mid}|${wk}` : `auto|${wk}|${i}`;
     if (!byMatch[key]) byMatch[key] = [];
     byMatch[key].push(e);
   }
 
   const matchupsRows = [];
-  const keys = Object.keys(byMatch);
-  for (let ki = 0; ki < keys.length; ki++) {
-    const entries = byMatch[keys[ki]];
+  for (const k of Object.keys(byMatch)) {
+    const entries = byMatch[k];
     if (!entries || entries.length === 0) continue;
-
-    // single participant -> bye
     if (entries.length === 1) {
       const a = entries[0];
       const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
       const aMeta = rosterMap[aId] || {};
-      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-      const aPlacement = placementMap[aId] ?? null;
-
       matchupsRows.push({
-        matchup_id: keys[ki],
-        season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-        week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
-        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, placement: null },
-        participantsCount: 1
+        matchup_id: k, season: selectedSeason ?? null, week: a.week ?? a.w ?? playoffStart,
+        teamA: { rosterId: aId, name: aMeta.team_name || aMeta.owner_name || ('Roster ' + aId), avatar: aMeta.team_avatar || aMeta.owner_avatar || null, points: safeNum(a.points ?? a.points_for ?? a.pts ?? null) },
+        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null }, participantsCount: 1
       });
       continue;
     }
-
-    // two participants -> normal row
     if (entries.length === 2) {
-      const a = entries[0];
-      const b = entries[1];
+      const a = entries[0], b = entries[1];
       const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
       const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
-      const aMeta = rosterMap[aId] || {};
-      const bMeta = rosterMap[bId] || {};
-      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
-      const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
-      const aPlacement = placementMap[aId] ?? null;
-      const bPlacement = placementMap[bId] ?? null;
-
+      const aMeta = rosterMap[aId] || {}, bMeta = rosterMap[bId] || {};
       matchupsRows.push({
-        matchup_id: keys[ki],
-        season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-        week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
-        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts, placement: bPlacement },
+        matchup_id: k, season: selectedSeason ?? null, week: a.week ?? a.w ?? playoffStart,
+        teamA: { rosterId: aId, name: aMeta.team_name || aMeta.owner_name || ('Roster ' + aId), avatar: aMeta.team_avatar || aMeta.owner_avatar || null, points: safeNum(a.points ?? a.points_for ?? a.pts ?? null) },
+        teamB: { rosterId: bId, name: bMeta.team_name || bMeta.owner_name || ('Roster ' + bId), avatar: bMeta.team_avatar || bMeta.owner_avatar || null, points: safeNum(b.points ?? b.points_for ?? b.pts ?? null) },
         participantsCount: 2
       });
-      continue;
+    } else {
+      const participants = entries.map(ent => {
+        const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
+        const meta = rosterMap[pid] || {};
+        return { rosterId: pid, name: meta.team_name || meta.owner_name || ('Roster ' + pid), avatar: meta.team_avatar || meta.owner_avatar || null, points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0) };
+      });
+      matchupsRows.push({
+        matchup_id: k, season: selectedSeason ?? null, week: entries[0].week ?? entries[0].w ?? playoffStart,
+        combinedParticipants: participants, combinedLabel: participants.map(p=>p.name).join(' / '), participantsCount: participants.length
+      });
     }
-
-    // multi-participant: aggregate
-    const participants = entries.map(ent => {
-      const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
-      const meta = rosterMap[pid] || {};
-      return {
-        rosterId: pid,
-        name: meta.team_name || meta.owner_name || ('Roster ' + pid),
-        avatar: meta.team_avatar || meta.owner_avatar || null,
-        points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0),
-        placement: placementMap[pid] ?? null
-      };
-    });
-    const combinedLabel = participants.map(p => p.name).join(' / ');
-    matchupsRows.push({
-      matchup_id: keys[ki],
-      season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-      week: entries[0].week ?? entries[0].w ?? null,
-      combinedParticipants: participants,
-      combinedLabel,
-      participantsCount: participants.length
-    });
   }
 
-  // sort rows by week desc then placement ascending (so finals / higher rounds first)
-  matchupsRows.sort((x,y) => {
-    const wx = Number(x.week ?? 0), wy = Number(y.week ?? 0);
-    if (wy !== wx) return wy - wx;
-    // prefer matches involving higher-placed teams earlier
-    const ax = x.teamA?.placement ?? (x.combinedParticipants ? (x.combinedParticipants[0]?.placement ?? 999) : 999);
-    const by = y.teamA?.placement ?? (y.combinedParticipants ? (y.combinedParticipants[0]?.placement ?? 999) : 999);
-    return (ax - by);
-  });
+  // Helper: find roster id by display name (owner/team) using rosterMap
+  function findRosterByDisplayName(displayName) {
+    if (!displayName) return null;
+    const needle = String(displayName).toLowerCase();
+    for (const rid of Object.keys(rosterMap || {})) {
+      const m = rosterMap[rid] || {};
+      const ownerName = (m.owner_name || '').toLowerCase();
+      const teamName = (m.team_name || '').toLowerCase();
+      if (ownerName && ownerName === needle) return String(rid);
+      if (teamName && teamName === needle) return String(rid);
+      if (ownerName && ownerName.includes(needle)) return String(rid);
+      if (teamName && teamName.includes(needle)) return String(rid);
+    }
+    return null;
+  }
+
+  // Helper: find matchupsRows entry for roster pair (order-agnostic). Accept an array of weeks to search (priority order).
+  function findMatchupRowForPair(rosterA, rosterB, weeks = [playoffStart, playoffStart+1, playoffStart+2]) {
+    if (!rosterA || !rosterB) return null;
+    const a = String(rosterA), b = String(rosterB);
+    // search prioritized by week order passed
+    for (const wk of weeks) {
+      for (const row of matchupsRows) {
+        if (!row || row.participantsCount !== 2) continue;
+        if (String(row.week) !== String(wk)) continue;
+        const rA = String(row.teamA.rosterId), rB = String(row.teamB.rosterId);
+        if ((rA === a && rB === b) || (rA === b && rB === a)) return row;
+      }
+    }
+    // fallback: search any week
+    for (const row of matchupsRows) {
+      if (!row || row.participantsCount !== 2) continue;
+      const rA = String(row.teamA.rosterId), rB = String(row.teamB.rosterId);
+      if ((rA === a && rB === b) || (rA === b && rB === a)) return row;
+    }
+    return null;
+  }
+
+  // Helper to pick winner rosterId from a matchup row (fallback to higher seed when no score)
+  function winnerFromRow(row, preferHigherSeed = null) {
+    if (!row) return null;
+    const aPts = safeNum(row.teamA.points ?? 0);
+    const bPts = safeNum(row.teamB.points ?? 0);
+    if (aPts > bPts + 1e-9) return String(row.teamA.rosterId);
+    if (bPts > aPts + 1e-9) return String(row.teamB.rosterId);
+    // tie / no scores: if preferHigherSeed is provided, use it; else prefer teamA
+    if (preferHigherSeed) return String(preferHigherSeed);
+    return String(row.teamA.rosterId);
+  }
+
+  // Build seeds array for winners bracket from FINAL_STANDINGS for the selected season (display-name -> rosterId)
+  const yearKey = selectedSeason ? String(selectedSeason) : null;
+  const finalStandingsForYear = (yearKey && FINAL_STANDINGS[yearKey]) ? FINAL_STANDINGS[yearKey] : null;
+  let seeds = []; // ordered rosterIds, 1-based seed at index 0 -> seed1
+  if (finalStandingsForYear) {
+    for (let i = 0; i < finalStandingsForYear.length; i++) {
+      const display = finalStandingsForYear[i];
+      const rid = findRosterByDisplayName(display);
+      if (rid) seeds.push(String(rid));
+      else {
+        // fallback: if rosterMap still contains entries not used, push the first unused roster id
+        const allIds = Object.keys(rosterMap || {});
+        const unused = allIds.filter(x => !seeds.includes(String(x)));
+        if (unused.length) seeds.push(String(unused[0]));
+      }
+    }
+  } else {
+    // fallback: use rosterMap roster order
+    seeds = Object.keys(rosterMap || {}).slice();
+  }
+
+  // bracket builders
+  function buildWinnersAndLosers(seedsArr) {
+    const winners = [];
+    const losers = [];
+
+    // determine winners bracket size (2022 special-case = top 6 in winners bracket; else 8)
+    const is2022 = yearKey === '2022';
+    const winnersSize = is2022 ? 6 : 8;
+
+    // if not enough seeds, fallback to seedsArr length
+    const N = Math.min(winnersSize, seedsArr.length);
+
+    // map seed -> roster
+    const seeded = seedsArr.slice(0, N); // seed1 = seeded[0]
+    // helper get seed roster
+    const seed = (n) => seeded[n - 1] ?? null;
+
+    // weeks mapping: quarter = playoffStart, semi = playoffStart+1, final = playoffStart+2
+    const qW = playoffStart, sW = playoffStart + 1, fW = playoffStart + 2;
+    // winners rounds
+    const winnerRounds = [];
+
+    if (is2022 && N === 6) {
+      // Quarterfinals: 3v6 and 4v5
+      const qMatches = [
+        { seedA: 3, seedB: 6, label: 'Quarterfinals' },
+        { seedA: 4, seedB: 5, label: 'Quarterfinals' }
+      ].map(m => {
+        const a = seed(m.seedA), b = seed(m.seedB);
+        const row = findMatchupRowForPair(a, b, [qW, sW, fW]);
+        const winner = row ? winnerFromRow(row) : (a || b);
+        return { label: 'Quarterfinals', week: qW, seedA: m.seedA, seedB: m.seedB, rosterA: a, rosterB: b, row, winner };
+      });
+      winnerRounds.push({ label: 'Quarterfinals', week: qW, matches: qMatches });
+
+      // Semifinals: seed1 vs winner(4v5), seed2 vs winner(3v6) — highest seed plays lowest seed among winners
+      const winner1 = winnerRounds[0].matches[0].winner; // winner of 3v6
+      const winner2 = winnerRounds[0].matches[1].winner; // winner of 4v5
+      const semiMatches = [
+        { seedA: 1, seedB: null, rosterA: seed(1), rosterB: winner2, label: 'Semifinals' },
+        { seedA: 2, seedB: null, rosterA: seed(2), rosterB: winner1, label: 'Semifinals' }
+      ].map(m => {
+        const row = m.rosterA && m.rosterB ? findMatchupRowForPair(m.rosterA, m.rosterB, [sW, fW, qW]) : null;
+        const winner = row ? winnerFromRow(row) : (m.rosterA || m.rosterB);
+        return { label: 'Semifinals', week: sW, seedA: m.seedA, seedB: null, rosterA: m.rosterA, rosterB: m.rosterB, row, winner };
+      });
+      winnerRounds.push({ label: 'Semifinals', week: sW, matches: semiMatches });
+
+      // Final: winners of semis
+      const finalA = winnerRounds[1].matches[0].winner;
+      const finalB = winnerRounds[1].matches[1].winner;
+      const finalRow = (finalA && finalB) ? findMatchupRowForPair(finalA, finalB, [fW, sW, qW]) : null;
+      const finalWinner = finalRow ? winnerFromRow(finalRow) : (finalA || finalB);
+      winnerRounds.push({ label: 'Championship', week: fW, matches: [{ label: 'Championship', week: fW, rosterA: finalA, rosterB: finalB, row: finalRow, winner: finalWinner }] });
+
+      // Build losers bracket per requested rules:
+      // losers of quarterfinals: losers of (3v6) and (4v5) -> play each other in Losers Round (week qW or sW)
+      const losersQ = winnerRounds[0].matches.map(m => {
+        const loser = (m.rosterA && m.rosterB) ? (String(m.winner) === String(m.rosterA) ? m.rosterB : m.rosterA) : null;
+        return loser;
+      }).filter(Boolean);
+      // order by seed (highest seed plays lowest seed)
+      const losersOrdered = [...losersQ].sort((x,y) => {
+        const sidx = (rid => seeded.indexOf(rid) + 1);
+        return sidx(x) - sidx(y);
+      });
+      // if there are two losers, pair them
+      const losersMatches = [];
+      if (losersOrdered.length === 2) {
+        const ra = losersOrdered[0], rb = losersOrdered[1];
+        const row = findMatchupRowForPair(ra, rb, [sW, fW, qW]);
+        const winner = row ? winnerFromRow(row) : (ra || rb);
+        losersMatches.push({ label: 'Losers Round', week: sW, rosterA: ra, rosterB: rb, row, winner });
+        // winners of losersMatches play for 5th place (consolation) — week fW
+        const winnerOfLosers = losersMatches[0].winner;
+        // losers of losers match play for 7th (not always present)
+        const loserOfLosers = (losersMatches[0].rosterA && losersMatches[0].rosterB) ? (String(losersMatches[0].winner) === String(losersMatches[0].rosterA) ? losersMatches[0].rosterB : losersMatches[0].rosterA) : null;
+        // 5th place: winnerOfLosers vs (maybe a team dropping from winners semis?), but user asked winners of loser round play for 5th.
+        // We'll label the 5th place slot but we need an opponent — in many brackets it's the best-of losers path; here we will build a 5th-place match entry with winner vs TBD if not found.
+        const consolationRow = null; // attempt to find a match for this pairing across weeks — complex; leave as constructed object
+        const consolation = { label: 'Consolation (5th place)', week: fW, rosterA: winnerOfLosers, rosterB: null, row: consolationRow, winner: null };
+        losers.push({ round: 'Losers Round', matches: losersMatches });
+        losers.push({ round: 'Consolation (5th place)', matches: [consolation] });
+        if (loserOfLosers) {
+          losers.push({ round: 'Consolation (7th place)', matches: [{ label: 'Consolation (7th place)', week: fW, rosterA: loserOfLosers, rosterB: null, row: null, winner: null }] });
+        }
+      }
+
+      // 3rd place match: losers of semifinals play each other
+      const semiLosers = winnerRounds[1].matches.map(m => (m.rosterA && m.rosterB) ? (String(m.winner) === String(m.rosterA) ? m.rosterB : m.rosterA) : null).filter(Boolean);
+      if (semiLosers.length === 2) {
+        const row = findMatchupRowForPair(semiLosers[0], semiLosers[1], [fW, sW, qW]);
+        const winner = row ? winnerFromRow(row) : (semiLosers[0] || semiLosers[1]);
+        losers.push({ round: 'Third place', matches: [{ label: 'Third place', week: fW, rosterA: semiLosers[0], rosterB: semiLosers[1], row, winner }] });
+      }
+
+      // consolidate winners rounds into winners array
+      winners.push(...winnerRounds);
+    } else {
+      // 8-team winners bracket standard
+      // Quarterfinal pairs: 1 vs 8, 2 vs 7, 3 vs 6, 4 vs 5
+      const qPairs = [
+        { seedA: 1, seedB: 8 }, { seedA: 2, seedB: 7 },
+        { seedA: 3, seedB: 6 }, { seedA: 4, seedB: 5 }
+      ];
+      const qMatches = qPairs.map(p => {
+        const a = seed(p.seedA), b = seed(p.seedB);
+        const row = findMatchupRowForPair(a, b, [qW, sW, fW]);
+        const winner = row ? winnerFromRow(row) : (a || b);
+        return { label: 'Quarterfinals', week: qW, seedA: p.seedA, seedB: p.seedB, rosterA: a, rosterB: b, row, winner };
+      });
+      winnerRounds.push({ label: 'Quarterfinals', week: qW, matches: qMatches });
+
+      // Semifinal pairing: highest-seed winner vs lowest-seed winner,
+      // We'll order quarter winners by original seed and pair highest vs lowest.
+      const quarterWinnersOrdered = qMatches.map(m => ({ seedA: m.seedA, seedB: m.seedB, winner: m.winner }))
+        .map((m) => {
+          // compute winning seed number
+          const winSeed = (String(m.winner) === String(seed(m.seedA))) ? m.seedA : m.seedB;
+          return { winSeed, winner: m.winner };
+        })
+        .sort((x,y)=> x.winSeed - y.winSeed);
+      // pair highest vs lowest: [0] vs [3], [1] vs [2]
+      const semiMatches = [];
+      if (quarterWinnersOrdered.length === 4) {
+        const pairing = [[0,3],[1,2]];
+        for (const pr of pairing) {
+          const left = quarterWinnersOrdered[pr[0]];
+          const right = quarterWinnersOrdered[pr[1]];
+          const row = findMatchupRowForPair(left.winner, right.winner, [sW, fW, qW]);
+          const winner = row ? winnerFromRow(row) : (left.winner || right.winner);
+          semiMatches.push({ label: 'Semifinals', week: sW, rosterA: left.winner, rosterB: right.winner, row, winner, seedA: left.winSeed, seedB: right.winSeed });
+        }
+        winnerRounds.push({ label: 'Semifinals', week: sW, matches: semiMatches });
+
+        // Championship: winners of semis
+        const finalA = semiMatches[0].winner, finalB = semiMatches[1].winner;
+        const finalRow = (finalA && finalB) ? findMatchupRowForPair(finalA, finalB, [fW, sW, qW]) : null;
+        const finalWinner = finalRow ? winnerFromRow(finalRow) : (finalA || finalB);
+        winnerRounds.push({ label: 'Championship', week: fW, matches: [{ label: 'Championship', week: fW, rosterA: finalA, rosterB: finalB, row: finalRow, winner: finalWinner }] });
+
+        // LOSERS bracket (per instructions):
+        // losers of first round (quarterfinals) play each other — pair highest seed vs lowest seed among them.
+        const quarterLosers = qMatches.map(m => {
+          const loser = (String(m.winner) === String(m.rosterA)) ? m.rosterB : m.rosterA;
+          const losingSeed = (String(m.winner) === String(m.rosterA)) ? m.seedB : m.seedA;
+          return { roster: loser, losingSeed };
+        }).filter(Boolean);
+
+        // order losers by seed ascending (highest seed = 1)
+        quarterLosers.sort((x,y) => x.losingSeed - y.losingSeed);
+        // Pair highest vs lowest
+        const losersPairs = [];
+        while (quarterLosers.length >= 2) {
+          const a = quarterLosers.shift(); // highest seed among remaining
+          const b = quarterLosers.pop();   // lowest seed among remaining
+          losersPairs.push([a.roster, b.roster, a.losingSeed, b.losingSeed]);
+        }
+        const losersRoundMatches = [];
+        for (const p of losersPairs) {
+          const [ra, rb] = p;
+          const row = findMatchupRowForPair(ra, rb, [sW, fW, qW]);
+          const winner = row ? winnerFromRow(row) : (ra || rb);
+          losersRoundMatches.push({ label: 'Losers Round', week: sW, rosterA: ra, rosterB: rb, row, winner });
+        }
+        if (losersRoundMatches.length) losers.push({ round: 'Losers Round', matches: losersRoundMatches });
+
+        // winners of losersRound play for 5th place (consolation)
+        const losersWinners = losersRoundMatches.map(m => m.winner).filter(Boolean);
+        if (losersWinners.length === 2) {
+          const row = findMatchupRowForPair(losersWinners[0], losersWinners[1], [fW, sW, qW]);
+          const winner = row ? winnerFromRow(row) : (losersWinners[0] || losersWinners[1]);
+          losers.push({ round: 'Consolation (5th place)', matches: [{ label: 'Consolation (5th place)', week: fW, rosterA: losersWinners[0], rosterB: losersWinners[1], row, winner }] });
+        }
+
+        // losers of losersRound play for 7th
+        const losersLosers = losersRoundMatches.map(m => {
+          return (String(m.winner) === String(m.rosterA)) ? m.rosterB : m.rosterA;
+        }).filter(Boolean);
+        if (losersLosers.length === 2) {
+          const row = findMatchupRowForPair(losersLosers[0], losersLosers[1], [fW, sW, qW]);
+          const winner = row ? winnerFromRow(row) : (losersLosers[0] || losersLosers[1]);
+          losers.push({ round: 'Consolation (7th place)', matches: [{ label: 'Consolation (7th place)', week: fW, rosterA: losersLosers[0], rosterB: losersLosers[1], row, winner }] });
+        }
+
+        // third place: losers of semis
+        const semiLosers = semiMatches.map(m => (String(m.winner) === String(m.rosterA)) ? m.rosterB : m.rosterA).filter(Boolean);
+        if (semiLosers.length === 2) {
+          const row = findMatchupRowForPair(semiLosers[0], semiLosers[1], [fW, sW, qW]);
+          const winner = row ? winnerFromRow(row) : (semiLosers[0] || semiLosers[1]);
+          losers.push({ round: 'Third place', matches: [{ label: 'Third place', week: fW, rosterA: semiLosers[0], rosterB: semiLosers[1], row, winner }] });
+        }
+      } // end if quarterWinners length 4
+      winners.push(...winnerRounds);
+    } // end else (8-team)
+    return { winners, losers };
+  } // end buildWinnersAndLosers
+
+  const { winners: winnersBracket, losers: losersBracket } = buildWinnersAndLosers(seeds);
 
   return {
     seasons,
-    selectedSeason: selectedSeasonParam,
+    weeks: Array.from({length: MAX_WEEKS}, (_,i)=>i+1),
+    selectedSeason,
     selectedLeagueId,
     playoffStart,
     playoffEnd,
+    rosterMap,
     matchupsRows,
-    regularStandings,
     messages,
-    prevChain
+    winnersBracket,
+    losersBracket
   };
 }
