@@ -2,8 +2,6 @@
 import { error } from '@sveltejs/kit';
 
 const API_BASE = 'https://api.sleeper.app/v1';
-
-// default fallback league id you provided
 const FALLBACK_LEAGUE_ID = '1219816671624048640';
 const BASE_LEAGUE_ID = process.env.BASE_LEAGUE_ID || FALLBACK_LEAGUE_ID;
 
@@ -13,48 +11,9 @@ function numeric(v) {
   return Number.isNaN(n) ? null : n;
 }
 
-// resolveRosterId: slot can be number/string, or object like { w: matchId } / { l: matchId }
-// bracketByMatch is a Map(matchId -> matchObj)
-function resolveRosterId(slot, bracketByMatch) {
-  if (!slot) return null;
-
-  // direct roster id (string or number)
-  if (typeof slot === 'number' || typeof slot === 'string') {
-    const n = numeric(slot);
-    if (n !== null) return n;
-  }
-
-  // slot may be object like { w: 3 } or { l: 2 }
-  if (typeof slot === 'object') {
-    if (slot.w != null) {
-      const match = bracketByMatch.get(slot.w);
-      if (!match) return null;
-      // if that match already recorded a winner use it
-      if (match.w != null) return numeric(match.w);
-      // otherwise attempt to resolve t1/t2 for that match
-      const r1 = resolveRosterId(match.t1 ?? match.t1_from, bracketByMatch);
-      if (r1 != null) return r1;
-      return resolveRosterId(match.t2 ?? match.t2_from, bracketByMatch);
-    }
-    if (slot.l != null) {
-      const match = bracketByMatch.get(slot.l);
-      if (!match) return null;
-      if (match.l != null) return numeric(match.l);
-      // can't reliably infer loser without winner info; attempt but may return null
-      const r1 = resolveRosterId(match.t1 ?? match.t1_from, bracketByMatch);
-      const r2 = resolveRosterId(match.t2 ?? match.t2_from, bracketByMatch);
-      if (r1 != null && r2 == null) return r1;
-      if (r2 != null && r1 == null) return r2;
-      return null;
-    }
-  }
-
-  return null;
-}
-
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ fetch, url, setHeaders }) {
-  // short edge cache
+  // short cache for edge
   setHeaders?.({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const messages = [];
@@ -62,12 +21,10 @@ export async function load({ fetch, url, setHeaders }) {
   try {
     if (!BASE_LEAGUE_ID) {
       messages.push('BASE_LEAGUE_ID not set in environment — cannot fetch seasons.');
-      return { seasons: [], seasonsMeta: [], selectedSeason: null, rounds: {}, messages };
+      return { seasons: [], seasonsMeta: [], selectedSeason: null, selectedLeagueId: null, rounds: {}, messages };
     }
 
-    // -------------------------
-    // 1) Build seasons chain (walk previous_league_id)
-    // -------------------------
+    // 1) Build seasons chain by walking previous_league_id (same approach as matchups)
     const seasonsMeta = [];
     let curr = String(BASE_LEAGUE_ID);
     let steps = 0;
@@ -94,12 +51,10 @@ export async function load({ fetch, url, setHeaders }) {
 
     if (!seasonsMeta.length) {
       messages.push('No seasons discovered from BASE_LEAGUE_ID.');
-      return { seasons: [], seasonsMeta: [], selectedSeason: null, rounds: {}, messages };
+      return { seasons: [], seasonsMeta: [], selectedSeason: null, selectedLeagueId: null, rounds: {}, messages };
     }
 
-    // -------------------------
     // 2) Determine selected season and league_id (season param can be season or league_id)
-    // -------------------------
     const seasonParam = url.searchParams.get('season') ?? seasonsMeta[0].season;
     let selectedLeagueId = null;
     let selectedSeason = seasonParam;
@@ -115,9 +70,7 @@ export async function load({ fetch, url, setHeaders }) {
       selectedSeason = seasonsMeta[0].season;
     }
 
-    // -------------------------
-    // 3) Fetch league meta (to detect playoff start week)
-    // -------------------------
+    // 3) Get league meta to determine playoff start week
     let leagueMeta = null;
     try {
       const lm = await fetch(`${API_BASE}/league/${selectedLeagueId}`);
@@ -133,21 +86,7 @@ export async function load({ fetch, url, setHeaders }) {
       leagueMeta?.playoff_week_start
     ) ?? null;
 
-    // -------------------------
-    // 4) Fetch winners_bracket for the selected league (structure)
-    // -------------------------
-    let bracket = [];
-    try {
-      const bres = await fetch(`${API_BASE}/league/${selectedLeagueId}/winners_bracket`);
-      if (bres.ok) bracket = await bres.json();
-      else messages.push(`Failed to fetch winners_bracket: ${bres.status}`);
-    } catch (e) {
-      messages.push(`Error fetching winners_bracket: ${e?.message ?? e}`);
-    }
-
-    // -------------------------
-    // 5) Fetch rosters & users for the selected league (to resolve names/avatars)
-    // -------------------------
+    // 4) Fetch rosters & users for selected league (to resolve names/avatars)
     let rosters = [], users = [];
     try {
       const [rs, us] = await Promise.all([
@@ -172,22 +111,12 @@ export async function load({ fetch, url, setHeaders }) {
       });
     }
 
-    // -------------------------
-    // 6) Build bracketByMatch map for resolving {w:..} / {l:..}
-    // -------------------------
-    const bracketByMatch = new Map();
-    for (const m of bracket || []) bracketByMatch.set(m.m, m);
-
-    // -------------------------
-    // 7) Decide playoff weeks to fetch scores for
-    // -------------------------
+    // 5) Decide playoff weeks to fetch scores for (playoffStart or fallback to last 3 weeks)
     const MAX_WEEKS_FALLBACK = 25;
     const startWeek = playoffStart && playoffStart >= 1 ? playoffStart : Math.max(1, MAX_WEEKS_FALLBACK - 2);
     const playoffWeeks = [startWeek, startWeek + 1, startWeek + 2];
 
-    // -------------------------
-    // 8) Fetch weekly matchups for each playoff week to extract points
-    // -------------------------
+    // 6) Fetch weekly matchups for each playoff week to extract matchups + points
     const weekMatchups = {};
     for (const wk of playoffWeeks) {
       try {
@@ -200,52 +129,110 @@ export async function load({ fetch, url, setHeaders }) {
       }
     }
 
-    // build lookup: `${week}_${rosterId}` -> points
-    const pointsLookup = {};
-    for (const wk of Object.keys(weekMatchups)) {
-      const arr = weekMatchups[wk] || [];
-      for (const ent of arr) {
-        const rid = String(ent.roster_id ?? ent.rosterId ?? ent.rosterId);
-        pointsLookup[`${wk}_${rid}`] = ent.points ?? ent.points_for ?? ent.pts ?? null;
+    // 7) Build match rows for each week by grouping by matchup_id (like matchups tab)
+    // We'll produce rounds[1], rounds[2], rounds[3] corresponding to playoffWeeks indices
+    const rounds = {}; // {1: [...], 2: [...], 3: [...]}
+    for (let idx = 0; idx < playoffWeeks.length; idx++) {
+      const wk = playoffWeeks[idx];
+      const rows = [];
+      const raw = weekMatchups[wk] || [];
+
+      // group entries by matchup id; Sleeper returns one entry per roster in matchups
+      const byMatch = {};
+      for (let i = 0; i < raw.length; i++) {
+        const e = raw[i];
+        const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
+        const key = mid != null ? `${mid}|${wk}` : `auto|${wk}|${i}`;
+        if (!byMatch[key]) byMatch[key] = [];
+        byMatch[key].push(e);
       }
+
+      // convert groups into row objects (teamA vs teamB or multi)
+      for (const key of Object.keys(byMatch)) {
+        const entries = byMatch[key];
+        if (!entries || entries.length === 0) continue;
+
+        // BYE (single participant)
+        if (entries.length === 1) {
+          const a = entries[0];
+          const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+          const aMeta = rosterMap.get(aId) || {};
+          const aName = aMeta.display_name || aMeta.owner_display || ('Roster ' + aId);
+          const aAvatar = aMeta.avatar || null;
+          const aPts = numeric(a.points ?? a.points_for ?? a.pts ?? null);
+
+          rows.push({
+            matchup_id: key,
+            week: wk,
+            round: idx + 1,
+            teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
+            teamB: { rosterId: null, name: 'BYE', avatar: null, points: null },
+            participantsCount: 1
+          });
+          continue;
+        }
+
+        // exactly 2 participants -> standard head-to-head
+        if (entries.length === 2) {
+          const a = entries[0];
+          const b = entries[1];
+          const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+          const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
+          const aMeta = rosterMap.get(aId) || {};
+          const bMeta = rosterMap.get(bId) || {};
+          const aName = aMeta.display_name || aMeta.owner_display || ('Roster ' + aId);
+          const bName = bMeta.display_name || bMeta.owner_display || ('Roster ' + bId);
+          const aAvatar = aMeta.avatar || null;
+          const bAvatar = bMeta.avatar || null;
+          const aPts = numeric(a.points ?? a.points_for ?? a.pts ?? null);
+          const bPts = numeric(b.points ?? b.points_for ?? b.pts ?? null);
+
+          rows.push({
+            matchup_id: key,
+            week: wk,
+            round: idx + 1,
+            teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
+            teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
+            participantsCount: 2
+          });
+        } else {
+          // multi-participant matchup -- aggregate
+          const participants = entries.map(ent => {
+            const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
+            const meta = rosterMap.get(pid) || {};
+            return {
+              rosterId: pid,
+              name: meta.display_name || meta.owner_display || ('Roster ' + pid),
+              avatar: meta.avatar || null,
+              points: numeric(ent.points ?? ent.points_for ?? ent.pts ?? 0)
+            };
+          });
+          const combinedLabel = participants.map(p => p.name).join(' / ');
+          rows.push({
+            matchup_id: key,
+            week: wk,
+            round: idx + 1,
+            combinedParticipants: participants,
+            combinedLabel,
+            participantsCount: participants.length
+          });
+        }
+      }
+
+      // attach to rounds (1-based index)
+      rounds[idx + 1] = rows;
     }
 
-    // -------------------------
-    // 9) Group bracket matches by round and enrich with roster info + points
-    // -------------------------
-    const rounds = {};
-    for (const m of bracket || []) {
-      const rnum = Number(m.r ?? 0);
-      if (!rounds[rnum]) rounds[rnum] = [];
-
-      const t1_roster = resolveRosterId(m.t1 ?? m.t1_from, bracketByMatch);
-      const t2_roster = resolveRosterId(m.t2 ?? m.t2_from, bracketByMatch);
-
-      const t1_key = t1_roster != null ? String(t1_roster) : null;
-      const t2_key = t2_roster != null ? String(t2_roster) : null;
-
-      const weekForRound = startWeek + (rnum - 1);
-      const t1_points = t1_key ? (pointsLookup[`${weekForRound}_${t1_key}`] ?? null) : null;
-      const t2_points = t2_key ? (pointsLookup[`${weekForRound}_${t2_key}`] ?? null) : null;
-
-      rounds[rnum].push({
-        match: m.m,
-        round: rnum,
-        week: weekForRound,
-        t1: t1_key ? (rosterMap.get(t1_key) ?? { roster_id: t1_key, display_name: `Roster ${t1_key}` }) : null,
-        t2: t2_key ? (rosterMap.get(t2_key) ?? { roster_id: t2_key, display_name: `Roster ${t2_key}` }) : null,
-        t1_points,
-        t2_points,
-        winner_roster_id: m.w != null ? String(m.w) : null,
-        raw: m
+    // 8) Sort rounds entries (optional)
+    for (const k of Object.keys(rounds)) {
+      rounds[k].sort((x, y) => {
+        const ax = (x.teamA && x.teamA.points != null) ? x.teamA.points : 0;
+        const by = (y.teamA && y.teamA.points != null) ? y.teamA.points : 0;
+        return by - ax;
       });
     }
 
-    // sort rounds ascending (1,2,3,...)
-    const sortedRounds = {};
-    Object.keys(rounds).sort((a, b) => Number(a) - Number(b)).forEach(k => { sortedRounds[k] = rounds[k]; });
-
-    // seasons list for dropdown (same shape as matchups tab expects)
+    // seasons list for dropdown (matchups tab format)
     const seasons = seasonsMeta.map(s => ({ league_id: s.league_id, season: s.season, name: s.name }));
 
     return {
@@ -253,18 +240,18 @@ export async function load({ fetch, url, setHeaders }) {
       seasonsMeta,
       selectedSeason,
       selectedLeagueId,
-      rounds: sortedRounds,
+      rounds,
       messages
     };
 
   } catch (err) {
-    // return messages for UI instead of throwing 500
     const msg = `Failed to load playoff data: ${err?.message ?? err}`;
     console.error(msg, err);
     return {
       seasons: [],
       seasonsMeta: [],
       selectedSeason: null,
+      selectedLeagueId: null,
       rounds: {},
       messages: [msg]
     };
