@@ -1,9 +1,12 @@
 <script>
   // src/lib/PlayoffBrackets.svelte
-  export let standings = [];
+  // Renders winners + losers brackets in a single column view.
+  // Prefers final standings for names/avatars/seeding and pulls scores from matchupsRows.
+
+  export let standings = [];       // ordered by placement (index 0 == 1st)
   export let season = null;
   export let titlePrefix = '';
-  export let matchupsRows = [];
+  export let matchupsRows = [];    // from loader; contains round, teamA/teamB, points, roster_id/placement, etc.
 
   const is2022 = String(season) === '2022';
   const winnersSize = is2022 ? 6 : 8;
@@ -15,9 +18,9 @@
     return {
       id: entry.id ?? entry.roster_id ?? null,
       name: entry.name ?? entry.display_name ?? entry.team ?? `Team ${idx + 1}`,
-      avatar: entry.avatar ?? null,
-      placement: entry.placement ?? idx + 1,
-      owner_display: entry.owner_display ?? null
+      avatar: entry.avatar ?? entry.photo_url ?? entry.logo ?? null,
+      placement: entry.placement ?? (idx + 1),
+      owner_display: entry.owner_display ?? entry.owner ?? null
     };
   }
 
@@ -67,6 +70,18 @@
   const winnersBracket = buildBracket(winnersParticipants);
   const losersBracket = buildBracket(losersParticipants);
 
+  // build lookup maps from final standings for reliable enrichment
+  const placementMap = {};
+  const idMap = {};
+  const lowerNameMap = {};
+  for (const t of normalized) {
+    if (!t) continue;
+    if (t.placement != null) placementMap[Number(t.placement)] = t;
+    if (t.id != null) idMap[String(t.id)] = t;
+    if (t.name) lowerNameMap[String(t.name).trim().toLowerCase()] = t;
+  }
+
+  // fuzzy matching helpers
   function lc(x){ return x ? String(x).trim().toLowerCase() : ''; }
   function fuzzyMatchName(a, b) {
     if (!a || !b) return false;
@@ -79,6 +94,69 @@
     return false;
   }
 
+  // enrich a side of a match with seeded team info (name/avatar/placement) when possible
+  function enrichSide(side) {
+    if (!side) return side;
+    // clone so we don't alter original rows
+    const s = { ...(side || {}) };
+
+    // try roster_id / id match (most reliable)
+    if (s.roster_id && idMap[String(s.roster_id)]) {
+      const seed = idMap[String(s.roster_id)];
+      s._seedMatched = true;
+      s.name = seed.name || s.name;
+      s.avatar = s.avatar || seed.avatar;
+      s.placement = seed.placement ?? s.placement;
+      return s;
+    }
+    if (s.id && idMap[String(s.id)]) {
+      const seed = idMap[String(s.id)];
+      s._seedMatched = true;
+      s.name = seed.name || s.name;
+      s.avatar = s.avatar || seed.avatar;
+      s.placement = seed.placement ?? s.placement;
+      return s;
+    }
+
+    // try placement match
+    if (s.placement && placementMap[Number(s.placement)]) {
+      const seed = placementMap[Number(s.placement)];
+      s._seedMatched = true;
+      s.name = seed.name || s.name;
+      s.avatar = s.avatar || seed.avatar;
+      s.placement = seed.placement ?? s.placement;
+      return s;
+    }
+
+    // try fuzzy name->seed match
+    if (s.name) {
+      const lower = lc(s.name);
+      if (lowerNameMap[lower]) {
+        const seed = lowerNameMap[lower];
+        s._seedMatched = true;
+        s.name = seed.name || s.name;
+        s.avatar = s.avatar || seed.avatar;
+        s.placement = seed.placement ?? s.placement;
+        return s;
+      }
+      // otherwise search through normalized for the best fuzzy match
+      for (const cand of normalized) {
+        if (!cand || !cand.name) continue;
+        if (fuzzyMatchName(cand.name, s.name)) {
+          s._seedMatched = true;
+          s.name = cand.name || s.name;
+          s.avatar = s.avatar || cand.avatar;
+          s.placement = cand.placement ?? s.placement;
+          return s;
+        }
+      }
+    }
+
+    // nothing matched — return original (but keep avatar/name if present)
+    return s;
+  }
+
+  // find a match from matchupsRows for a seeded slot (aSeed,bSeed) in roundNumber (1-based)
   function findMatchForSlot(aSeed, bSeed, roundNumber, isWinners) {
     if (!Array.isArray(matchupsRows) || matchupsRows.length === 0) return null;
     const cand = matchupsRows.filter(r => Number(r.round ?? 0) === Number(roundNumber));
@@ -91,12 +169,14 @@
 
     // 1) placement exact match
     for (const r of cand) {
-      const rAplace = r.teamA?.placement ?? null;
-      const rBplace = r.teamB?.placement ?? null;
+      const rAplace = r.teamA?.placement ?? r.teamA?.seed ?? null;
+      const rBplace = r.teamB?.placement ?? r.teamB?.seed ?? null;
       if (aPlace && bPlace && rAplace && rBplace) {
         if ((Number(rAplace) === Number(aPlace) && Number(rBplace) === Number(bPlace)) ||
             (Number(rAplace) === Number(bPlace) && Number(rBplace) === Number(aPlace))) {
-          return r;
+          // enrich both sides with seeded info when possible
+          const found = { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          return found;
         }
       }
     }
@@ -107,12 +187,13 @@
       if (ra && rb && aName && bName) {
         if ((fuzzyMatchName(ra, aName) && fuzzyMatchName(rb, bName)) ||
             (fuzzyMatchName(ra, bName) && fuzzyMatchName(rb, aName))) {
-          return r;
+          const found = { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          return found;
         }
       }
     }
 
-    // 3) single-side fuzzy match preference
+    // 3) single-side fuzzy preference (useful for BYE or missing teams)
     for (const r of cand) {
       const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
       const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
@@ -122,10 +203,12 @@
       const altAMatches = aName && (fuzzyMatchName(rb, aName) || (aPlace && Number(rBplace) === Number(aPlace)));
       const altBMatches = bName && (fuzzyMatchName(ra, bName) || (bPlace && Number(rAplace) === Number(bPlace)));
 
-      if ((aMatches && !bName) || (bMatches && !aName)) return r;
-      if (aMatches && bMatches) return r;
-      if (altAMatches && altBMatches) return r;
-      if (aMatches || bMatches || altAMatches || altBMatches) return r;
+      if ((aMatches && !bName) || (bMatches && !aName)) {
+        return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+      }
+      if (aMatches && bMatches) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+      if (altAMatches && altBMatches) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+      if (aMatches || bMatches || altAMatches || altBMatches) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
     }
 
     // 4) fallback by placement bracket membership
@@ -133,9 +216,13 @@
       const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
       if (rAplace || rBplace) {
         if (isWinners) {
-          if ((rAplace && rAplace <= winnersSize) || (rBplace && rBplace <= winnersSize)) return r;
+          if ((rAplace && rAplace <= winnersSize) || (rBplace && rBplace <= winnersSize)) {
+            return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          }
         } else {
-          if ((rAplace && rAplace > winnersSize) || (rBplace && rBplace > winnersSize)) return r;
+          if ((rAplace && rAplace > winnersSize) || (rBplace && rBplace > winnersSize)) {
+            return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          }
         }
       }
     }
@@ -143,22 +230,14 @@
     return null;
   }
 
-  // build lookup maps to use in template (avoid inline variable declarations)
-  $: winnersFound = winnersBracket.map((round, rIdx) =>
-    round.map((match, mIdx) => findMatchForSlot(match.a, match.b, rIdx + 1, true))
-  );
-
-  $: losersFound = losersBracket.map((round, rIdx) =>
-    round.map((match, mIdx) => findMatchForSlot(match.a, match.b, rIdx + 1, false))
-  );
-
-  // maps with keys "r_m" -> found object, used for simpler template lookups
+  // precompute lookups so template stays simple
   $: winnersFoundMap = {};
   $: {
     winnersFoundMap = {};
-    winnersFound.forEach((roundArr, rIdx) => {
-      roundArr.forEach((found, mIdx) => {
-        winnersFoundMap[`${rIdx}_${mIdx}`] = found;
+    winnersBracket.forEach((round, rIdx) => {
+      round.forEach((match, mIdx) => {
+        const f = findMatchForSlot(match.a, match.b, rIdx + 1, true);
+        winnersFoundMap[`${rIdx}_${mIdx}`] = f;
       });
     });
   }
@@ -166,9 +245,10 @@
   $: losersFoundMap = {};
   $: {
     losersFoundMap = {};
-    losersFound.forEach((roundArr, rIdx) => {
-      roundArr.forEach((found, mIdx) => {
-        losersFoundMap[`${rIdx}_${mIdx}`] = found;
+    losersBracket.forEach((round, rIdx) => {
+      round.forEach((match, mIdx) => {
+        const f = findMatchForSlot(match.a, match.b, rIdx + 1, false);
+        losersFoundMap[`${rIdx}_${mIdx}`] = f;
       });
     });
   }
@@ -196,6 +276,7 @@
     --accent: #9ec6ff;
     --text: #e6eef8;
   }
+
   .col { display:flex; flex-direction:column; gap:18px; width:100%; max-width:1100px; margin:0 auto; padding:12px; box-sizing:border-box; }
   .section { background: var(--bg-card); padding:12px; border-radius:12px; }
   .titleRow { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
@@ -213,8 +294,6 @@
   .teamMeta { color:var(--muted); font-size:.85rem; }
   .scoreBox { margin-left:auto; min-width:90px; text-align:center; font-weight:800; color:var(--text); }
   .vs { color:var(--muted); font-weight:700; padding:0 8px; }
-
-  .bye { background: linear-gradient(90deg, rgba(17,204,102,0.12), rgba(17,204,102,0.08)); color:#0b2b18; padding:6px 10px; border-radius:8px; font-weight:800; }
 
   .seedBadge { background:#071628; color:var(--accent); border-radius:999px; padding:4px 8px; font-weight:800; margin-right:6px; font-size:12px; border:1px solid rgba(255,255,255,0.03); }
 
@@ -239,13 +318,13 @@
     {#each winnersBracket as round, rIdx}
       <div class="roundBlock">
         <div class="roundHeader">
-          {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else if rIdx === 2}Final{/if}
+          {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else}Final{/if}
         </div>
 
         <div class="matches">
           {#each round as match, mIdx}
             {#if winnersFoundMap[`${rIdx}_${mIdx}`]}
-              <!-- Use real matchup row -->
+              { /* real matchup found; display enriched sides (prefer seeded names & avatars) */ }
               <div class="matchRow">
                 <div class="teamCol">
                   {#if winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.placement}
@@ -271,7 +350,7 @@
                 <div class="scoreBox">{fmtScore(winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.points)} — {fmtScore(winnersFoundMap[`${rIdx}_${mIdx}`].teamB?.points)}</div>
               </div>
             {:else}
-              <!-- Fallback seeded placeholder -->
+              { /* fallback: seeded placeholder from standings */ }
               <div class="matchRow">
                 <div class="teamCol">
                   {#if match.a?.placement}
@@ -316,7 +395,7 @@
     {#each losersBracket as round, rIdx}
       <div class="roundBlock">
         <div class="roundHeader">
-          {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else if rIdx === 2}Final{/if}
+          {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else}Final{/if}
         </div>
 
         <div class="matches">
