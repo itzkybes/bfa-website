@@ -1,19 +1,25 @@
 <!-- src/routes/honor-hall/+page.svelte -->
 <script>
-  // render playoff matchups only, using the same style as Matchups tab
   export let data;
 
-  const { seasons = [], selectedSeason, playoffWeeks = [], matchupsRows = [], rosterMap = {}, league = null, errors = [] } = data ?? {};
+  const {
+    seasons = [],
+    selectedSeason,
+    playoffWeeks = [],
+    matchupsRows = [],
+    rosterMap = {},
+    league = null,
+    errors = []
+  } = data ?? {};
 
-  // group matchups by week for display
   function groupByWeek(rows) {
-    const m = new Map();
+    const map = new Map();
     for (const r of rows) {
       const w = r.week ?? 'unknown';
-      if (!m.has(w)) m.set(w, []);
-      m.get(w).push(r);
+      if (!map.has(w)) map.set(w, []);
+      map.get(w).push(r);
     }
-    return m;
+    return map;
   }
 
   const matchupsByWeek = groupByWeek(matchupsRows);
@@ -32,7 +38,6 @@
     return `https://ui-avatars.com/api/?size=${size}&name=${encodeURIComponent(letter)}&background=0D1B2A&color=fff`;
   }
 
-  // label mapping for rounds
   const roundLabel = (index) => {
     if (index === 0) return 'Quarterfinals';
     if (index === 1) return 'Semifinals';
@@ -41,17 +46,8 @@
 </script>
 
 <style>
-  .page {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 18px;
-  }
-  .heading {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:18px;
-  }
+  .page { max-width:1100px; margin:0 auto; padding:18px; }
+  .heading { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
   .title { font-size:1.8rem; font-weight:800; color:#e6eef8; }
   .subtitle { color:#9ca3af; }
 
@@ -82,7 +78,12 @@
 
     <div>
       <label class="subtitle" for="seasonSelect">Season</label>
-      <select id="seasonSelect" on:change={(e) => { const s = e.target.value; const u = new URL(window.location.href); u.searchParams.set('season', s); window.location.href = u.toString(); }}>
+      <select id="seasonSelect" on:change={(e) => {
+        const s = e.target.value;
+        const u = new URL(window.location.href);
+        u.searchParams.set('season', s);
+        window.location.href = u.toString();
+      }}>
         {#each seasons as s}
           <option value={s} selected={String(s) === String(selectedSeason)}>{s}</option>
         {/each}
