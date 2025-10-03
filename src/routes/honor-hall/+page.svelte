@@ -1,128 +1,78 @@
 <script>
   export let data;
 
-  const seasons = data?.seasons ?? [];
-  let selectedSeason = data?.selectedSeason ?? null;
-  const matchupsRows = data?.matchupsRows ?? [];
-
   const roundNames = {
     1: "Quarterfinals",
     2: "Semifinals",
-    3: "Finals",
-    4: "Championship"
+    3: "Finals"
   };
-
-  function getRoundLabel(r) {
-    return roundNames[r] ?? `Round ${r}`;
-  }
-
-  function avatarOrPlaceholder(url, name, size = 40) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0D1B2A&color=fff&size=${size}`;
-  }
-
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else form?.submit();
-  }
 </script>
 
-<style>
-  .page { padding: 1.2rem 1.6rem; max-width: 1000px; margin: auto; }
+<div class="p-6 space-y-10">
+  <h1 class="text-3xl font-bold text-center">🏆 Honor Hall – {data.season} Playoffs</h1>
 
-  h1 { margin-bottom: 1rem; }
+  {#each Object.entries(data.rounds) as [round, matches]}
+    <div class="space-y-4">
+      <h2 class="text-2xl font-semibold text-gray-800 text-center">
+        {roundNames[round] || `Round ${round}`}
+      </h2>
 
-  .season-select {
-    font-size: 1.1rem;
-    padding: 10px 14px;
-    border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.2);
-    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-    color: #fff;
-    font-weight: 600;
-  }
-
-  table { width:100%; border-collapse: collapse; margin-top: 1rem; }
-  th, td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-  th { text-align: left; font-weight: 700; color:#9ca3af; }
-  td { vertical-align: middle; }
-
-  .team { display:flex; align-items:center; gap:.6rem; }
-  .team-name { font-weight: 600; }
-  .avatar { width:40px; height:40px; border-radius:6px; object-fit:cover; }
-  .score { font-weight:600; text-align:center; }
-  .winner { color:#fff; background: rgba(99,102,241,0.25); padding:4px 6px; border-radius:6px; }
-  .bye { color:#9ca3af; font-style:italic; }
-</style>
-
-<div class="page">
-  <h1>Honor Hall</h1>
-
-  <form id="filters" method="get">
-    <select id="season" name="season" class="season-select" on:change={submitFilters}>
-      {#each seasons as s}
-        <option value={s.season} selected={s.season === selectedSeason}>{s.name}</option>
-      {/each}
-    </select>
-  </form>
-
-  {#if matchupsRows.length}
-    <table>
-      <thead>
-        <tr>
-          <th>Team A</th>
-          <th style="text-align:center;">Score</th>
-          <th>Team B</th>
-          <th style="text-align:center;">Round</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each matchupsRows as row}
+      <table class="w-full border-collapse shadow rounded-xl overflow-hidden">
+        <thead class="bg-gray-100 text-gray-700">
           <tr>
-            <td>
-              {#if row.teamA}
-                <div class="team">
-                  <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
-                  <div>
-                    <div class="team-name">{row.teamA.name}</div>
-                    <div class="small">{row.teamA.ownerName}</div>
-                  </div>
-                </div>
-              {/if}
-            </td>
-
-            <td class="score">
-              {#if row.teamA && row.teamB}
-                <span class={row.teamA.points > row.teamB.points ? 'winner' : ''}>{row.teamA.points}</span>
-                –
-                <span class={row.teamB.points > row.teamA.points ? 'winner' : ''}>{row.teamB.points}</span>
-              {:else}
-                <span>–</span>
-              {/if}
-            </td>
-
-            <td>
-              {#if row.teamB}
-                <div class="team">
-                  <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="">
-                  <div>
-                    <div class="team-name">{row.teamB.name}</div>
-                    <div class="small">{row.teamB.ownerName}</div>
-                  </div>
-                </div>
-              {:else}
-                <span class="bye">BYE</span>
-              {/if}
-            </td>
-
-            <td style="text-align:center;">{getRoundLabel(row.round)}</td>
+            <th class="p-3 text-left">Team 1</th>
+            <th class="p-3 text-center">Score</th>
+            <th class="p-3 text-center">vs</th>
+            <th class="p-3 text-center">Score</th>
+            <th class="p-3 text-right">Team 2</th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
-  {:else}
-    <div>No playoff matchups found for the selected season.</div>
-  {/if}
+        </thead>
+        <tbody>
+          {#each matches as match}
+            <tr class="border-b hover:bg-gray-50">
+              <td class="p-3 flex items-center space-x-2">
+                {#if match.t1?.avatar}
+                  <img
+                    src={"https://sleepercdn.com/avatars/" + match.t1.avatar}
+                    alt={match.t1.display_name}
+                    class="w-8 h-8 rounded-full"
+                  />
+                {/if}
+                <span class={match.winner?.roster_id === match.t1?.roster_id
+                  ? "font-bold text-green-600"
+                  : ""}>
+                  {match.t1?.display_name || "TBD"}
+                </span>
+              </td>
+
+              <td class="p-3 text-center font-medium">
+                {match.t1_score ?? "-"}
+              </td>
+
+              <td class="p-3 text-center">vs</td>
+
+              <td class="p-3 text-center font-medium">
+                {match.t2_score ?? "-"}
+              </td>
+
+              <td class="p-3 flex items-center justify-end space-x-2">
+                <span class={match.winner?.roster_id === match.t2?.roster_id
+                  ? "font-bold text-green-600"
+                  : ""}>
+                  {match.t2?.display_name || "TBD"}
+                </span>
+                {#if match.t2?.avatar}
+                  <img
+                    src={"https://sleepercdn.com/avatars/" + match.t2.avatar}
+                    alt={match.t2.display_name}
+                    class="w-8 h-8 rounded-full"
+                  />
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/each}
 </div>
