@@ -14,8 +14,9 @@
   }
 
   function fmt2(n) {
+    if (n == null) return '—';
     const x = Number(n);
-    if (isNaN(x) || x == null) return '—';
+    if (isNaN(x)) return '—';
     return x.toFixed(2);
   }
 
@@ -54,7 +55,8 @@
   td { padding:12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align:middle; }
   .team { display:flex; align-items:center; gap:.6rem; }
   .avatar { width:44px; height:44px; border-radius:8px; object-fit:cover; background:#091018; }
-  .team-name { font-weight:700; }
+  .team-name { font-weight:700; display:flex; gap:8px; align-items:center; }
+  .placement { font-weight:700; background:rgba(255,255,255,0.04); padding:3px 6px; border-radius:6px; color:#cbd5e1; font-size:0.85rem; }
   .score { text-align:center; font-weight:700; }
   .bye { color:#9ca3af; font-style:italic; }
 </style>
@@ -99,7 +101,12 @@
                 <div class="team">
                   <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="avatar">
                   <div>
-                    <div class="team-name">{row.teamA.name}</div>
+                    <div class="team-name">
+                      <span>{row.teamA.name}</span>
+                      {#if row.teamA.placement}
+                        <span class="placement">#{row.teamA.placement}</span>
+                      {/if}
+                    </div>
                     {#if row.teamA.rosterId}<div class="small">#{row.teamA.rosterId}</div>{/if}
                   </div>
                 </div>
@@ -113,7 +120,12 @@
                 <div class="team">
                   <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="avatar">
                   <div>
-                    <div class="team-name">{row.teamB.name}</div>
+                    <div class="team-name">
+                      <span>{row.teamB.name}</span>
+                      {#if row.teamB.placement}
+                        <span class="placement">#{row.teamB.placement}</span>
+                      {/if}
+                    </div>
                     {#if row.teamB.rosterId}<div class="small">#{row.teamB.rosterId}</div>{/if}
                   </div>
                 </div>
@@ -127,7 +139,12 @@
                 <div class="team">
                   <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="avatar">
                   <div>
-                    <div class="team-name">{row.teamA.name}</div>
+                    <div class="team-name">
+                      <span>{row.teamA.name}</span>
+                      {#if row.teamA.placement}
+                        <span class="placement">#{row.teamA.placement}</span>
+                      {/if}
+                    </div>
                     {#if row.teamA.rosterId}<div class="small">#{row.teamA.rosterId}</div>{/if}
                   </div>
                 </div>
