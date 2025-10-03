@@ -1,10 +1,8 @@
 <script>
   export let data;
 
-  // page data
   const seasons = data?.seasons ?? [];
   const weeks = data?.weeks ?? [];
-  // sensible defaults: last season in chain, last week in weeks
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[seasons.length - 1].league_id : null);
   let selectedWeek = Number(data?.selectedWeek ?? (weeks.length ? weeks[weeks.length - 1] : 1));
   if (!selectedWeek || isNaN(selectedWeek) || selectedWeek < 1) selectedWeek = 1;
@@ -13,7 +11,6 @@
   const messages = data?.messages ?? [];
   const originalRecords = data?.originalRecords ?? {};
 
-  // helpers
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
     const letter = name ? name[0] : 'T';
@@ -43,23 +40,34 @@
 </script>
 
 <style>
-  .container { padding: 1rem; }
+  .page { padding: 1rem; }
   .muted { color: #9ca3af; font-size:.9rem; }
-  .playoff-header h2 { margin: 0 0 .4rem 0; font-size:1.25rem; }
   .team-cell { display:flex; gap:.6rem; align-items:center; width:100%; min-width:0; }
   .team-meta { display:flex; flex-direction:column; min-width:0; }
   .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
   .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; display:inline-block; min-width:72px; text-align:center; }
   .score.winner { background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22)); border-radius:8px; color:#eef8ff; }
+  .score.tie { background: rgba(255,255,255,0.02); color: #e6eef8; font-weight:700; }
+  table { width:100%; border-collapse:collapse; }
+  thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:#9ca3af; }
+  td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; color:#e6eef8; }
   .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
   .inner-table th { text-align:left; color:#9ca3af; font-size:.8rem; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.03); }
   .inner-table td { padding:8px 8px; }
   .select { padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
 </style>
 
-<div class="container">
-  <!-- seasons / week controls -->
+<div class="page">
+  <div class="muted" style="margin-bottom:.5rem;">
+    {#if messages.length}
+      <div><strong>Debug</strong></div>
+      {#each messages as m, i}
+        <div>{i+1}. {m}</div>
+      {/each}
+    {/if}
+  </div>
+
   <div style="display:flex; gap:.8rem; align-items:center; margin-bottom:0.8rem;">
     <div>
       <label class="muted">Season</label><br/>
@@ -79,70 +87,118 @@
     </div>
   </div>
 
-  <div class="playoff-header" style="margin:1rem 0;">
+  <div style="margin:1rem 0;">
     <h2>{playoffRangeLabel}</h2>
-    {#if messages && messages.length}
-      <div class="muted" style="margin-top:.4rem;">
-        {#each messages as m}
-          <div>{m}</div>
-        {/each}
-      </div>
-    {/if}
   </div>
 
   {#if matchupsRows && matchupsRows.length}
-    <div>
-      {#each matchupsRows as row (row.key)}
-        {#if row.type === 'pair'}
-          <div style="display:flex; gap:1rem; align-items:center; padding:8px; border-radius:8px; margin-bottom:.6rem; background: rgba(255,255,255,0.01);">
-            <div style="display:flex; align-items:center; gap:.8rem; min-width:0;">
-              <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="A" />
-              <div class="team-meta">
-                <div class="team-name">{row.teamA.name}</div>
-                <div class="muted">Roster {row.teamA.roster_id}</div>
-              </div>
-            </div>
-            <div class="score {row.teamA.points > row.teamB.points ? 'winner' : ''}">{fmt2(row.teamA.points)}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:48%;">Team A</th>
+          <th style="width:4%;"></th>
+          <th style="width:48%;">Team B</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each matchupsRows as row (row.matchup_id ?? row.key)}
+          {#if row.participantsCount === 2}
+            <tr>
+              <td>
+                <div class="team-cell">
+                  <img class="avatar" src={row.teamA.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
+                  <div class="team-meta" style="min-width:0;">
+                    <div class="team-name">{row.teamA.name}</div>
+                    {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                  </div>
+                  {#if row.teamA.points != null}
+                    {#if row.teamA.points > row.teamB.points}
+                      <div class="score winner" title="Winning score">{fmt2(row.teamA.points)}</div>
+                    {:else if row.teamA.points === row.teamB.points}
+                      <div class="score tie" title="Tie">{fmt2(row.teamA.points)}</div>
+                    {:else}
+                      <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
+                    {/if}
+                  {/if}
+                </div>
+              </td>
 
-            <div style="padding:0 0.6rem; color:#9ca3af;">vs</div>
+              <td style="text-align:center; vertical-align:middle;">
+                <div class="muted">Week {row.week}</div>
+              </td>
 
-            <div style="display:flex; align-items:center; gap:.8rem; min-width:0;">
-              <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="B" />
-              <div class="team-meta">
-                <div class="team-name">{row.teamB.name}</div>
-                <div class="muted">Roster {row.teamB.roster_id}</div>
-              </div>
-            </div>
-            <div class="score {row.teamB.points > row.teamA.points ? 'winner' : ''}">{fmt2(row.teamB.points)}</div>
-          </div>
-        {:else}
-          <!-- multi participant matchup -->
-          <div style="padding:8px; border-radius:8px; margin-bottom:.6rem; background: rgba(255,255,255,0.01);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div style="font-weight:700;">Multi-Team Matchup — Week {row.week}</div>
-            </div>
-            <table class="inner-table" style="margin-top:.6rem;">
-              <thead><tr><th>Team</th><th style="text-align:right">Points</th></tr></thead>
-              <tbody>
-                {#each row.combinedParticipants as p}
-                  <tr>
-                    <td>
-                      <div class="team-cell">
-                        <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name, 40)} alt="">
-                        <div class="team-meta">
-                          <div class="team-name">{p.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style="text-align:right; font-weight:700;">{fmt2(p.points)}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
-      {/each}
-    </div>
+              <td>
+                <div class="team-cell" style="justify-content:flex-end;">
+                  {#if row.teamB.points != null}
+                    {#if row.teamB.points > row.teamA.points}
+                      <div class="score winner" title="Winning score">{fmt2(row.teamB.points)}</div>
+                    {:else if row.teamB.points === row.teamA.points}
+                      <div class="score tie" title="Tie">{fmt2(row.teamB.points)}</div>
+                    {:else}
+                      <div class="score" title="Score">{fmt2(row.teamB.points)}</div>
+                    {/if}
+                  {/if}
+                  <div class="team-meta" style="text-align:right; min-width:0;">
+                    <div class="team-name">{row.teamB.name}</div>
+                    {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
+                  </div>
+                  <img class="avatar" src={row.teamB.avatar ? row.teamB.avatar : avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
+                </div>
+              </td>
+            </tr>
+          {:else if row.participantsCount === 1}
+            <tr>
+              <td>
+                <div class="team-cell">
+                  <img class="avatar" src={row.teamA.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
+                  <div class="team-meta" style="min-width:0;">
+                    <div class="team-name">{row.teamA.name}</div>
+                    {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                  </div>
+                  {#if row.teamA.points != null}
+                    <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
+                  {/if}
+                </div>
+              </td>
+              <td style="text-align:center; vertical-align:middle;">
+                <div class="muted">Week {row.week}</div>
+              </td>
+              <td>
+                <div class="team-cell" style="justify-content:flex-end;">
+                  <div class="team-meta" style="text-align:right; min-width:0;">
+                    <div class="team-name">BYE</div>
+                    <div class="muted">No opponent</div>
+                  </div>
+                </div>
+              </td>
+          {:else}
+            <tr>
+              <td colspan="3">
+                <div style="font-weight:700; margin-bottom:.4rem;">Multi-Team Matchup — Week {row.week}</div>
+                <table class="inner-table">
+                  <thead><tr><th>Team</th><th style="text-align:right">Points</th></tr></thead>
+                  <tbody>
+                    {#each row.combinedParticipants as p}
+                      <tr>
+                        <td>
+                          <div class="team-cell">
+                            <img class="avatar" src={p.avatar ? p.avatar : avatarOrPlaceholder(p.avatar, p.name, 40)} alt="">
+                            <div class="team-meta">
+                              <div class="team-name">{p.name}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style="text-align:right; font-weight:700;">{fmt2(p.points)}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          {/if}
+        {/each}
+      </tbody>
+    </table>
   {:else}
     <div class="muted">No playoff matchups found for the selected season/week. The loader returns the aggregated playoff weeks.</div>
   {/if}
