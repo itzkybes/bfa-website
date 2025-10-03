@@ -32,7 +32,12 @@ export async function load(event) {
   let seasons = [];
   try {
     let mainLeague = null;
-    try { mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 }); } catch (e) { mainLeague = null; messages.push('Failed to fetch base league: ' + (e?.message ?? e)); }
+    try {
+      mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
+    } catch (e) {
+      mainLeague = null;
+      messages.push('Failed to fetch base league: ' + (e?.message ?? e));
+    }
 
     if (mainLeague) {
       seasons.push({ league_id: String(mainLeague.league_id), season: mainLeague.season ?? null, name: mainLeague.name ?? null });
@@ -42,87 +47,86 @@ export async function load(event) {
         steps++;
         try {
           const prev = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
-          if (!prev) break;
+          if (!prev) { messages.push('Could not fetch league for previous_league_id ' + currPrev); break; }
           seasons.push({ league_id: String(prev.league_id), season: prev.season ?? null, name: prev.name ?? null });
           currPrev = prev.previous_league_id ? String(prev.previous_league_id) : null;
-        } catch (err) { messages.push('Error fetching prev league ' + currPrev + ' — ' + (err?.message ?? err)); break; }
+        } catch (err) {
+          messages.push('Error fetching previous_league_id: ' + currPrev + ' — ' + (err?.message ?? String(err)));
+          break;
+        }
       }
     }
   } catch (err) {
-    messages.push('Season chain error: ' + (err?.message ?? err));
+    messages.push('Error while building seasons chain: ' + (err?.message ?? String(err)));
   }
 
-  // de-dupe + sort ascending by season
-  const byId = {};
-  for (const s of seasons) byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
-  seasons = Object.values(byId);
-  seasons.sort((a,b) => {
-    if (a.season == null && b.season == null) return 0;
-    if (a.season == null) return 1;
-    if (b.season == null) return -1;
-    const na = Number(a.season), nb = Number(b.season);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return (a.season < b.season ? -1 : (a.season > b.season ? 1 : 0));
-  });
-
-  // choose season param or default to most recent
+  // determine selected season (league id) and week from query params
   const url = event.url;
-  const seasonParam = url.searchParams.get('season') ?? null;
-  let selectedSeason = seasonParam;
-  if (!selectedSeason) {
-    // pick the last season in the sorted array (most recent)
-    if (seasons.length) selectedSeason = seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id;
-  }
+  let selectedSeason = url.searchParams.get('season') || (seasons.length ? seasons[seasons.length - 1].league_id : null);
+  let selectedWeek = Number(url.searchParams.get('week') || (MAX_WEEKS > 0 ? MAX_WEEKS : 1));
+  if (!selectedWeek || selectedWeek < 1) selectedWeek = 1;
 
-  // find matching league id for selectedSeason (either season value or league_id)
-  let selectedLeagueId = null;
-  for (const s of seasons) {
-    if (String(s.season) === String(selectedSeason) || String(s.league_id) === String(selectedSeason)) {
-      selectedLeagueId = String(s.league_id);
-      selectedSeason = s.season ?? selectedSeason;
-      break;
-    }
-  }
-  // fallback - use BASE_LEAGUE_ID
-  if (!selectedLeagueId && seasons.length) selectedLeagueId = seasons[seasons.length - 1].league_id;
+  // build weeks array (1..MAX_WEEKS)
+  const weeks = [];
+  for (let i = 1; i <= MAX_WEEKS; i++) weeks.push(i);
 
   // load league metadata to determine playoff start
   let leagueMeta = null;
   try {
-    leagueMeta = selectedLeagueId ? await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }) : null;
+    leagueMeta = selectedSeason ? await sleeper.getLeague(selectedSeason, { ttl: 60 * 5 }) : null;
   } catch (e) {
     leagueMeta = null;
     messages.push('Failed fetching league meta for selected season: ' + (e?.message ?? e));
   }
 
-  let playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 15;
-  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-  // regular season weeks: 1 .. playoffStart - 1
-  const weeks = [];
-  const lastRegularWeek = Math.max(1, playoffStart - 1);
-  for (let w = 1; w <= lastRegularWeek; w++) weeks.push(w);
+  let playoffStart = null;
+  if (leagueMeta && leagueMeta.settings) {
+    playoffStart = Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek ?? 0) || null;
+  }
 
-  // selected week param (or default to latest regular week if not provided)
-  const weekParam = Number(url.searchParams.get('week') ?? 1);
-  let selectedWeek = Number.isFinite(weekParam) && weekParam >= 1 ? weekParam : 1;
-  if (selectedWeek > lastRegularWeek) selectedWeek = lastRegularWeek;
-
-  // fetch roster map for selected league (to use latest team names/avatars)
+  // fetch roster map (with owner metadata)
   let rosterMap = {};
   try {
-    if (selectedLeagueId) rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
-    else rosterMap = {};
-  } catch (e) { rosterMap = {}; messages.push('Failed to fetch roster map: ' + (e?.message ?? e)); }
+    if (selectedSeason) {
+      rosterMap = await sleeper.getRosterMapWithOwners(selectedSeason, { ttl: 60 * 5 });
+      messages.push('Loaded rosters (' + Object.keys(rosterMap).length + ')');
+    }
+  } catch (e) {
+    rosterMap = {};
+    messages.push('Failed to fetch rosters for season: ' + (e?.message ?? e));
+  }
 
-  // fetch matchups for the selected week (regular season only)
+  // fetch playoff matchups (fetch matchups for playoff window)
   let rawMatchups = [];
   try {
-    if (selectedLeagueId && selectedWeek >= 1) {
-      rawMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, selectedWeek, { ttl: 60 * 5 }) || [];
+    if (selectedSeason) {
+      // Determine playoff start from league metadata if available
+      let startWeek = playoffStart && Number(playoffStart) >= 1 ? Number(playoffStart) : null;
+      // If not available, assume final 3 weeks are playoffs (fallback)
+      if (!startWeek) {
+        startWeek = Math.max(1, MAX_WEEKS - 2);
+        messages.push('Playoff start not found in league metadata — defaulting to week ' + startWeek);
+      }
+      // Fetch matchups for each playoff week up to MAX_WEEKS
+      for (let wk = startWeek; wk <= MAX_WEEKS; wk++) {
+        try {
+          const wkMatchups = await sleeper.getMatchupsForWeek(selectedSeason, wk, { ttl: 60 * 5 });
+          if (Array.isArray(wkMatchups) && wkMatchups.length) {
+            // ensure week property is set for each matchup entry
+            for (const m of wkMatchups) {
+              if (m && (m.week == null && m.w == null)) m.week = wk;
+              rawMatchups.push(m);
+            }
+          }
+        } catch (we) {
+          messages.push('Failed to fetch matchups for week ' + wk + ': ' + (we?.message ?? we));
+          // continue to next week
+        }
+      }
     }
   } catch (e) {
     rawMatchups = [];
-    messages.push('Failed to fetch matchups: ' + (e?.message ?? e));
+    messages.push('Failed to fetch playoff matchups: ' + (e?.message ?? e));
   }
 
   // group matchups by matchup id / week so we present pair rows
@@ -152,47 +156,56 @@ export async function load(event) {
       const bMeta = rosterMap[bId] || {};
       const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
       const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
+
       const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? 0);
       const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? 0);
+
       matchupsRows.push({
-        matchup_id: k,
-        season: selectedSeason ?? null,
-        week: selectedWeek,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
-        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
-        participantsCount: 2
+        key: k,
+        type: 'pair',
+        week: Number(entries[0].week ?? entries[0].w ?? selectedWeek),
+        teamA: {
+          roster_id: aId,
+          owner_id: a.owner_id ?? a.ownerId ?? null,
+          name: aName,
+          avatar: aMeta.team_avatar || aMeta.owner_avatar || null,
+          points: aPts
+        },
+        teamB: {
+          roster_id: bId,
+          owner_id: b.owner_id ?? b.ownerId ?? null,
+          name: bName,
+          avatar: bMeta.team_avatar || bMeta.owner_avatar || null,
+          points: bPts
+        }
       });
     } else {
-      // multi-participant matchups: show friendly joined representation
-      const participants = entries.map(ent => {
-        const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
-        const meta = rosterMap[pid] || {};
+      // multi-participant matchup -- aggregate into combinedParticipants for display
+      const participants = entries.map((ent) => {
+        const rid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'unknown');
+        const meta = rosterMap[rid] || {};
         return {
-          rosterId: pid,
-          name: meta.team_name || meta.owner_name || ('Roster ' + pid),
+          roster_id: rid,
+          owner_id: ent.owner_id ?? ent.ownerId ?? null,
+          name: meta.team_name || meta.owner_name || ('Roster ' + rid),
           avatar: meta.team_avatar || meta.owner_avatar || null,
           points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0)
         };
-      });
-      // build a combined label
-      const combinedNames = participants.map(p => p.name).join(' / ');
+      }).sort((x,y) => (y.points - x.points));
+
       matchupsRows.push({
-        matchup_id: k,
-        season: selectedSeason ?? null,
-        week: selectedWeek,
-        combinedParticipants: participants,
-        combinedLabel: combinedNames,
-        participantsCount: participants.length
+        key: k,
+        type: 'multi',
+        week: Number(entries[0].week ?? entries[0].w ?? selectedWeek),
+        combinedParticipants: participants
       });
     }
   }
 
-  // sort rows by teamA.points desc when possible
+  // sort rows by primary team points desc
   matchupsRows.sort((x,y) => {
-    const ax = (x.teamA && x.teamA.points) ? x.teamA.points : (x.combinedParticipants ? (x.combinedParticipants[0]?.points || 0) : 0);
-    const by = (y.teamA && y.teamA.points) ? y.teamA.points : (y.combinedParticipants ? (y.combinedParticipants[0]?.points || 0) : 0);
+    const ax = (x.teamA && x.teamA.points) ? safeNum(x.teamA.points) : (x.combinedParticipants ? (safeNum(x.combinedParticipants[0]?.points) || 0) : 0);
+    const by = (y.teamA && y.teamA.points) ? safeNum(y.teamA.points) : (y.combinedParticipants ? (safeNum(y.combinedParticipants[0]?.points) || 0) : 0);
     return (by - ax);
   });
 
