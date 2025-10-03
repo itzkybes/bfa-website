@@ -107,8 +107,6 @@
     }
 
     // --- Fallback: use week-based inference when placements unavailable ---
-    // If we have a maxWeekForSeason (computed from available rows), map:
-    // maxWeek -> Championship, maxWeek-1 -> Semi Finals, maxWeek-2 -> Quarter Finals, else Consolation match
     const wk = Number(row.week ?? 0);
     if (maxWeekForSeason && wk > 0) {
       if (wk === maxWeekForSeason) return { label: 'Championship', winnerPosition: null };
@@ -126,6 +124,12 @@
     const s = ["th","st","nd","rd"];
     const v = n % 100;
     return n + (s[(v-20)%10] || s[v] || s[0]);
+  }
+
+  // Determine winnersSize per season rule you specified
+  function winnersSizeForSeason(season) {
+    if (String(season) === '2022') return 6;
+    return 8;
   }
 
   function avatarOrPlaceholder(url, name, size = 40) {
@@ -152,7 +156,7 @@
   }
   let maxWeekForSeason = null;
 
-  // compute label and winnerPosition for each row, then sort by label order and points
+  // compute label and winnerPosition for each row
   const LABEL_ORDER = {
     'Championship': 0,
     'Semi Finals': 1,
@@ -167,19 +171,80 @@
     return { ...r, _label: info.label, _winnerPosition: info.winnerPosition ?? null };
   });
 
-  $: sortedRows = labeledRows.slice().sort((a,b) => {
-    const la = LABEL_ORDER[a._label] ?? 99;
-    const lb = LABEL_ORDER[b._label] ?? 99;
-    if (la !== lb) return la - lb;
-    // tie-breaker: sort by teamA.points descending if available, else by week desc
-    const ap = Number(a.teamA?.points ?? 0);
-    const bp = Number(b.teamA?.points ?? 0);
-    if (ap !== bp) return bp - ap;
-    const aw = Number(a.week ?? 0), bw = Number(b.week ?? 0);
-    return bw - aw;
-  });
+  // A helper to determine bracket membership (winners/losers/unassigned)
+  function bracketForRow(row) {
+    if (!row) return 'unassigned';
+    // winnersSize depends on season
+    const season = row.season ?? selectedSeason;
+    const winnersSize = winnersSizeForSeason(season);
 
-  // submit filters (form)
+    // find placements for both teams (reuse previous heuristics)
+    const aNames = [row.teamA?.name, row.teamA?.ownerName, row.teamA?.displayName].filter(Boolean);
+    const bNames = [row.teamB?.name, row.teamB?.ownerName, row.teamB?.displayName].filter(Boolean);
+
+    let aPlacement = null;
+    for (const nm of aNames) {
+      aPlacement = findPlacementForName(nm, season);
+      if (aPlacement) break;
+    }
+    if (!aPlacement && row.teamA?.rosterId) aPlacement = findPlacementForName(String(row.teamA.rosterId), season);
+
+    let bPlacement = null;
+    for (const nm of bNames) {
+      bPlacement = findPlacementForName(nm, season);
+      if (bPlacement) break;
+    }
+    if (!bPlacement && row.teamB?.rosterId) bPlacement = findPlacementForName(String(row.teamB.rosterId), season);
+
+    // If both placements known:
+    if (aPlacement && bPlacement) {
+      const aIsWinner = aPlacement <= winnersSize;
+      const bIsWinner = bPlacement <= winnersSize;
+      if (aIsWinner && bIsWinner) return 'winners';
+      if (!aIsWinner && !bIsWinner) return 'losers';
+      // mixed case: prefer winners bracket if one of them is in winners seeds
+      if (aIsWinner || bIsWinner) return 'winners';
+    }
+
+    // If only one side has placement:
+    if (aPlacement && !bPlacement) return (aPlacement <= winnersSize) ? 'winners' : 'losers';
+    if (bPlacement && !aPlacement) return (bPlacement <= winnersSize) ? 'winners' : 'losers';
+
+    // If neither placement available, use label inference: championship/semi/quarter => winners, else losers
+    const label = row._label ?? null;
+    if (label === 'Championship' || label === 'Semi Finals' || label === 'Quarter Finals') return 'winners';
+    if (label === 'Consolation match' || label === 'Bye' || label === 'Match') return 'losers';
+
+    return 'unassigned';
+  }
+
+  // split rows into winners / losers / unassigned and sort within bracket
+  $: {
+    winnersRows = [];
+    losersRows = [];
+    unassignedRows = [];
+
+    // pre-sort labeledRows by label order and tie-breakers (week/points)
+    const preSorted = labeledRows.slice().sort((a,b) => {
+      const la = LABEL_ORDER[a._label] ?? 99;
+      const lb = LABEL_ORDER[b._label] ?? 99;
+      if (la !== lb) return la - lb;
+      // tie-breaker: teamA.points desc, then week desc
+      const ap = Number(a.teamA?.points ?? 0), bp = Number(b.teamA?.points ?? 0);
+      if (ap !== bp) return bp - ap;
+      const aw = Number(a.week ?? 0), bw = Number(b.week ?? 0);
+      return bw - aw;
+    });
+
+    for (const r of preSorted) {
+      const b = bracketForRow(r);
+      if (b === 'winners') winnersRows.push(r);
+      else if (b === 'losers') losersRows.push(r);
+      else unassignedRows.push(r);
+    }
+  }
+
+  // helpers
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form?.requestSubmit) form.requestSubmit();
@@ -220,7 +285,12 @@
     border-radius: 8px;
   }
 
-  table { width:100%; border-collapse: collapse; margin-top: 1rem; }
+  .brackets { display:flex; flex-direction:column; gap:18px; }
+
+  .bracket { background: rgba(255,255,255,0.02); padding:12px; border-radius:10px; }
+  .bracketTitle { font-weight:800; color:#e6eef8; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+
+  table { width:100%; border-collapse: collapse; margin-top: 8px; }
   th, td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
   th { text-align: left; font-weight: 700; color:#9ca3af; }
   td { vertical-align: middle; }
@@ -251,7 +321,7 @@
 <div class="page">
   <h1>Honor Hall</h1>
 
-  <form id="filters" method="get">
+  <form id="filters" method="get" style="margin-bottom:12px;">
     <label class="season-label" for="season">Season</label>
     <select id="season" name="season" class="season-select" on:change={submitFilters}>
       {#each seasons as s}
@@ -273,95 +343,245 @@
     </div>
   {/if}
 
-  {#if sortedRows.length}
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Team A</th>
-          <th style="text-align:center;">Score</th>
-          <th>Team B</th>
-          <th style="text-align:center;">Week</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each sortedRows as row (row.matchup_id ?? row.key)}
-          {#if row.participantsCount === 2}
-            {@const label = row._label}
+  <div class="brackets">
+    <!-- Winners bracket -->
+    <div class="bracket">
+      <div class="bracketTitle">
+        <div>Winners Bracket</div>
+        <div style="color:#9ca3af; font-size:.95rem;">Top seeds (per final standings)</div>
+      </div>
+
+      {#if winnersRows.length}
+        <table>
+          <thead>
             <tr>
-              <td>
-                {#if label === 'Championship'}
-                  <span class="label-badge lbl-champ">{label}</span>
-                {:else if label === 'Semi Finals'}
-                  <span class="label-badge lbl-semi">{label}</span>
-                {:else if label === 'Quarter Finals'}
-                  <span class="label-badge lbl-quarter">{label}</span>
-                {:else if label === 'Consolation match'}
-                  <span class="label-badge lbl-consol">
-                    {label}
-                    {#if row._winnerPosition}
-                      &nbsp; (Winner: {ordinal(row._winnerPosition)})
+              <th>Type</th>
+              <th>Team A</th>
+              <th style="text-align:center;">Score</th>
+              <th>Team B</th>
+              <th style="text-align:center;">Week</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each winnersRows as row (row.matchup_id ?? row.key)}
+              {#if row.participantsCount === 2}
+                {@const label = row._label}
+                <tr>
+                  <td>
+                    {#if label === 'Championship'}
+                      <span class="label-badge lbl-champ">{label}</span>
+                    {:else if label === 'Semi Finals'}
+                      <span class="label-badge lbl-semi">{label}</span>
+                    {:else if label === 'Quarter Finals'}
+                      <span class="label-badge lbl-quarter">{label}</span>
+                    {:else if label === 'Consolation match'}
+                      <span class="label-badge lbl-consol">
+                        {label}
+                        {#if row._winnerPosition}
+                          &nbsp; (Winner: {ordinal(row._winnerPosition)})
+                        {:else}
+                          &nbsp; (Winner: TBD)
+                        {/if}
+                      </span>
+                    {:else if label === 'Bye'}
+                      <span class="label-badge lbl-bye">{label}</span>
                     {:else}
-                      &nbsp; (Winner: TBD)
+                      <span class="label-badge lbl-match">{label}</span>
                     {/if}
-                  </span>
-                {:else if label === 'Bye'}
-                  <span class="label-badge lbl-bye">{label}</span>
-                {:else}
-                  <span class="label-badge lbl-match">{label}</span>
-                {/if}
-              </td>
+                  </td>
 
-              <td>
-                <div class="team">
-                  <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
-                  <div>
-                    <div class="team-name">{row.teamA.name}</div>
-                    {#if row.teamA.ownerName}<div class="small">{row.teamA.ownerName}</div>{/if}
-                  </div>
-                </div>
-              </td>
+                  <td>
+                    <div class="team">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
+                      <div>
+                        <div class="team-name">{row.teamA.name}</div>
+                        {#if row.teamA.ownerName}<div class="small">{row.teamA.ownerName}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
 
-              <td class="score">
-                <span class={row.teamA.points > row.teamB.points ? 'winner' : ''}>{fmt2(row.teamA.points)}</span>
-                –
-                <span class={row.teamB.points > row.teamA.points ? 'winner' : ''}>{fmt2(row.teamB.points)}</span>
-              </td>
+                  <td class="score">
+                    <span class={row.teamA.points > row.teamB.points ? 'winner' : ''}>{fmt2(row.teamA.points)}</span>
+                    –
+                    <span class={row.teamB.points > row.teamA.points ? 'winner' : ''}>{fmt2(row.teamB.points)}</span>
+                  </td>
 
-              <td>
-                <div class="team">
-                  <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="">
-                  <div>
-                    <div class="team-name">{row.teamB.name}</div>
-                    {#if row.teamB.ownerName}<div class="small">{row.teamB.ownerName}</div>{/if}
-                  </div>
-                </div>
-              </td>
+                  <td>
+                    <div class="team">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="">
+                      <div>
+                        <div class="team-name">{row.teamB.name}</div>
+                        {#if row.teamB.ownerName}<div class="small">{row.teamB.ownerName}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
 
-              <td style="text-align:center;">{row.week}</td>
-            </tr>
+                  <td style="text-align:center;">{row.week}</td>
+                </tr>
+              {:else if row.participantsCount === 1}
+                <tr>
+                  <td><span class="label-badge lbl-bye">Bye</span></td>
+                  <td>
+                    <div class="team">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
+                      <div>
+                        <div class="team-name">{row.teamA.name}</div>
+                        {#if row.teamA.ownerName}<div class="small">{row.teamA.ownerName}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="score">–</td>
+                  <td class="bye">BYE</td>
+                  <td style="text-align:center;">{row.week}</td>
+                </tr>
+              {/if}
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <div style="color:#9ca3af;">No winners bracket matchups found for the selected season.</div>
+      {/if}
+    </div>
 
-          {:else if row.participantsCount === 1}
+    <!-- Losers bracket -->
+    <div class="bracket">
+      <div class="bracketTitle">
+        <div>Losers Bracket</div>
+        <div style="color:#9ca3af; font-size:.95rem;">Lower seeds (per final standings)</div>
+      </div>
+
+      {#if losersRows.length}
+        <table>
+          <thead>
             <tr>
-              <td><span class="label-badge lbl-bye">Bye</span></td>
-              <td>
-                <div class="team">
-                  <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
-                  <div>
-                    <div class="team-name">{row.teamA.name}</div>
-                    {#if row.teamA.ownerName}<div class="small">{row.teamA.ownerName}</div>{/if}
-                  </div>
-                </div>
-              </td>
-              <td class="score">–</td>
-              <td class="bye">BYE</td>
-              <td style="text-align:center;">{row.week}</td>
+              <th>Type</th>
+              <th>Team A</th>
+              <th style="text-align:center;">Score</th>
+              <th>Team B</th>
+              <th style="text-align:center;">Week</th>
             </tr>
-          {/if}
-        {/each}
-      </tbody>
-    </table>
-  {:else}
-    <div>No playoff matchups found for the selected season.</div>
-  {/if}
+          </thead>
+          <tbody>
+            {#each losersRows as row (row.matchup_id ?? row.key)}
+              {#if row.participantsCount === 2}
+                {@const label = row._label}
+                <tr>
+                  <td>
+                    {#if label === 'Championship'}
+                      <span class="label-badge lbl-champ">{label}</span>
+                    {:else if label === 'Semi Finals'}
+                      <span class="label-badge lbl-semi">{label}</span>
+                    {:else if label === 'Quarter Finals'}
+                      <span class="label-badge lbl-quarter">{label}</span>
+                    {:else if label === 'Consolation match'}
+                      <span class="label-badge lbl-consol">
+                        {label}
+                        {#if row._winnerPosition}
+                          &nbsp; (Winner: {ordinal(row._winnerPosition)})
+                        {:else}
+                          &nbsp; (Winner: TBD)
+                        {/if}
+                      </span>
+                    {:else if label === 'Bye'}
+                      <span class="label-badge lbl-bye">{label}</span>
+                    {:else}
+                      <span class="label-badge lbl-match">{label}</span>
+                    {/if}
+                  </td>
+
+                  <td>
+                    <div class="team">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
+                      <div>
+                        <div class="team-name">{row.teamA.name}</div>
+                        {#if row.teamA.ownerName}<div class="small">{row.teamA.ownerName}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="score">
+                    <span class={row.teamA.points > row.teamB.points ? 'winner' : ''}>{fmt2(row.teamA.points)}</span>
+                    –
+                    <span class={row.teamB.points > row.teamA.points ? 'winner' : ''}>{fmt2(row.teamB.points)}</span>
+                  </td>
+
+                  <td>
+                    <div class="team">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="">
+                      <div>
+                        <div class="team-name">{row.teamB.name}</div>
+                        {#if row.teamB.ownerName}<div class="small">{row.teamB.ownerName}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
+
+                  <td style="text-align:center;">{row.week}</td>
+                </tr>
+              {:else if row.participantsCount === 1}
+                <tr>
+                  <td><span class="label-badge lbl-bye">Bye</span></td>
+                  <td>
+                    <div class="team">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
+                      <div>
+                        <div class="team-name">{row.teamA.name}</div>
+                        {#if row.teamA.ownerName}<div class="small">{row.teamA.ownerName}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="score">–</td>
+                  <td class="bye">BYE</td>
+                  <td style="text-align:center;">{row.week}</td>
+                </tr>
+              {/if}
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <div style="color:#9ca3af;">No losers bracket matchups found for the selected season.</div>
+      {/if}
+    </div>
+
+    {#if unassignedRows.length}
+      <div class="bracket">
+        <div class="bracketTitle"><div>Unassigned / Unknown</div><div style="color:#9ca3af;">Matches we couldn't classify</div></div>
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Team A</th>
+              <th style="text-align:center;">Score</th>
+              <th>Team B</th>
+              <th style="text-align:center;">Week</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each unassignedRows as row (row.matchup_id ?? row.key)}
+              <tr>
+                <td><span class="label-badge lbl-match">{row._label}</span></td>
+                <td>
+                  <div class="team">
+                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="">
+                    <div>
+                      <div class="team-name">{row.teamA.name}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="score">{fmt2(row.teamA.points)} – {fmt2(row.teamB?.points)}</td>
+                <td>
+                  <div class="team">
+                    <img class="avatar" src={avatarOrPlaceholder(row.teamB?.avatar, row.teamB?.name)} alt="">
+                    <div>
+                      <div class="team-name">{row.teamB?.name ?? 'TBD'}</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="text-align:center;">{row.week}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
+  </div>
 </div>
