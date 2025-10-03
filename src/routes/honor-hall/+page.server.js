@@ -3,8 +3,9 @@ import { error } from '@sveltejs/kit';
 
 const API_BASE = 'https://api.sleeper.app/v1';
 
-// Use the env var if present, otherwise default to the league id you provided
-const BASE_LEAGUE_ID = process.env.BASE_LEAGUE_ID || '1219816671624048640';
+// default fallback league id you provided
+const FALLBACK_LEAGUE_ID = '1219816671624048640';
+const BASE_LEAGUE_ID = process.env.BASE_LEAGUE_ID || FALLBACK_LEAGUE_ID;
 
 function numeric(v) {
   if (v == null) return null;
@@ -12,12 +13,12 @@ function numeric(v) {
   return Number.isNaN(n) ? null : n;
 }
 
-// resolveRosterId: slot can be number, null, or { w: matchId } / { l: matchId }
+// resolveRosterId: slot can be number/string, or object like { w: matchId } / { l: matchId }
 // bracketByMatch is a Map(matchId -> matchObj)
 function resolveRosterId(slot, bracketByMatch) {
   if (!slot) return null;
 
-  // direct numeric roster id (string or number)
+  // direct roster id (string or number)
   if (typeof slot === 'number' || typeof slot === 'string') {
     const n = numeric(slot);
     if (n !== null) return n;
@@ -28,9 +29,9 @@ function resolveRosterId(slot, bracketByMatch) {
     if (slot.w != null) {
       const match = bracketByMatch.get(slot.w);
       if (!match) return null;
-      // If that match already has a winner field, use it
+      // if that match already recorded a winner use it
       if (match.w != null) return numeric(match.w);
-      // otherwise try to resolve t1/t2 recursively
+      // otherwise attempt to resolve t1/t2 for that match
       const r1 = resolveRosterId(match.t1 ?? match.t1_from, bracketByMatch);
       if (r1 != null) return r1;
       return resolveRosterId(match.t2 ?? match.t2_from, bracketByMatch);
@@ -39,10 +40,9 @@ function resolveRosterId(slot, bracketByMatch) {
       const match = bracketByMatch.get(slot.l);
       if (!match) return null;
       if (match.l != null) return numeric(match.l);
-      // can't reliably infer loser without winner info — attempt to resolve t1/t2 but may return null
+      // can't reliably infer loser without winner info; attempt but may return null
       const r1 = resolveRosterId(match.t1 ?? match.t1_from, bracketByMatch);
       const r2 = resolveRosterId(match.t2 ?? match.t2_from, bracketByMatch);
-      // if only one side resolves, return that; otherwise null (can't infer)
       if (r1 != null && r2 == null) return r1;
       if (r2 != null && r1 == null) return r2;
       return null;
@@ -54,19 +54,20 @@ function resolveRosterId(slot, bracketByMatch) {
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ fetch, url, setHeaders }) {
-  // cache short time at edge
+  // short edge cache
   setHeaders?.({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const messages = [];
+
   try {
     if (!BASE_LEAGUE_ID) {
       messages.push('BASE_LEAGUE_ID not set in environment — cannot fetch seasons.');
       return { seasons: [], seasonsMeta: [], selectedSeason: null, rounds: {}, messages };
     }
 
-    // ----------------------------------------------------------------------------
-    // 1) Build seasons chain by walking previous_league_id (same approach as matchups)
-    // ----------------------------------------------------------------------------
+    // -------------------------
+    // 1) Build seasons chain (walk previous_league_id)
+    // -------------------------
     const seasonsMeta = [];
     let curr = String(BASE_LEAGUE_ID);
     let steps = 0;
@@ -96,9 +97,9 @@ export async function load({ fetch, url, setHeaders }) {
       return { seasons: [], seasonsMeta: [], selectedSeason: null, rounds: {}, messages };
     }
 
-    // ----------------------------------------------------------------------------
-    // 2) Determine selected season/league
-    // ----------------------------------------------------------------------------
+    // -------------------------
+    // 2) Determine selected season and league_id (season param can be season or league_id)
+    // -------------------------
     const seasonParam = url.searchParams.get('season') ?? seasonsMeta[0].season;
     let selectedLeagueId = null;
     let selectedSeason = seasonParam;
@@ -114,9 +115,9 @@ export async function load({ fetch, url, setHeaders }) {
       selectedSeason = seasonsMeta[0].season;
     }
 
-    // ----------------------------------------------------------------------------
-    // 3) Get league metadata (to determine playoff start week if available)
-    // ----------------------------------------------------------------------------
+    // -------------------------
+    // 3) Fetch league meta (to detect playoff start week)
+    // -------------------------
     let leagueMeta = null;
     try {
       const lm = await fetch(`${API_BASE}/league/${selectedLeagueId}`);
@@ -132,9 +133,9 @@ export async function load({ fetch, url, setHeaders }) {
       leagueMeta?.playoff_week_start
     ) ?? null;
 
-    // ----------------------------------------------------------------------------
+    // -------------------------
     // 4) Fetch winners_bracket for the selected league (structure)
-    // ----------------------------------------------------------------------------
+    // -------------------------
     let bracket = [];
     try {
       const bres = await fetch(`${API_BASE}/league/${selectedLeagueId}/winners_bracket`);
@@ -144,9 +145,9 @@ export async function load({ fetch, url, setHeaders }) {
       messages.push(`Error fetching winners_bracket: ${e?.message ?? e}`);
     }
 
-    // ----------------------------------------------------------------------------
-    // 5) Fetch rosters & users for selected league (to resolve names/avatars)
-    // ----------------------------------------------------------------------------
+    // -------------------------
+    // 5) Fetch rosters & users for the selected league (to resolve names/avatars)
+    // -------------------------
     let rosters = [], users = [];
     try {
       const [rs, us] = await Promise.all([
@@ -159,6 +160,7 @@ export async function load({ fetch, url, setHeaders }) {
       messages.push(`Error fetching rosters/users: ${e?.message ?? e}`);
     }
 
+    // rosterId -> info
     const rosterMap = new Map();
     for (const r of rosters || []) {
       const user = (users || []).find(u => String(u.user_id) === String(r.owner_id));
@@ -170,22 +172,22 @@ export async function load({ fetch, url, setHeaders }) {
       });
     }
 
-    // ----------------------------------------------------------------------------
+    // -------------------------
     // 6) Build bracketByMatch map for resolving {w:..} / {l:..}
-    // ----------------------------------------------------------------------------
+    // -------------------------
     const bracketByMatch = new Map();
     for (const m of bracket || []) bracketByMatch.set(m.m, m);
 
-    // ----------------------------------------------------------------------------
-    // 7) Decide which weeks to fetch for scores (playoffStart or fallback)
-    // ----------------------------------------------------------------------------
+    // -------------------------
+    // 7) Decide playoff weeks to fetch scores for
+    // -------------------------
     const MAX_WEEKS_FALLBACK = 25;
     const startWeek = playoffStart && playoffStart >= 1 ? playoffStart : Math.max(1, MAX_WEEKS_FALLBACK - 2);
     const playoffWeeks = [startWeek, startWeek + 1, startWeek + 2];
 
-    // ----------------------------------------------------------------------------
+    // -------------------------
     // 8) Fetch weekly matchups for each playoff week to extract points
-    // ----------------------------------------------------------------------------
+    // -------------------------
     const weekMatchups = {};
     for (const wk of playoffWeeks) {
       try {
@@ -198,6 +200,7 @@ export async function load({ fetch, url, setHeaders }) {
       }
     }
 
+    // build lookup: `${week}_${rosterId}` -> points
     const pointsLookup = {};
     for (const wk of Object.keys(weekMatchups)) {
       const arr = weekMatchups[wk] || [];
@@ -207,9 +210,9 @@ export async function load({ fetch, url, setHeaders }) {
       }
     }
 
-    // ----------------------------------------------------------------------------
-    // 9) Group bracket matches by round and enrich with roster info + scores
-    // ----------------------------------------------------------------------------
+    // -------------------------
+    // 9) Group bracket matches by round and enrich with roster info + points
+    // -------------------------
     const rounds = {};
     for (const m of bracket || []) {
       const rnum = Number(m.r ?? 0);
@@ -238,9 +241,11 @@ export async function load({ fetch, url, setHeaders }) {
       });
     }
 
+    // sort rounds ascending (1,2,3,...)
     const sortedRounds = {};
     Object.keys(rounds).sort((a, b) => Number(a) - Number(b)).forEach(k => { sortedRounds[k] = rounds[k]; });
 
+    // seasons list for dropdown (same shape as matchups tab expects)
     const seasons = seasonsMeta.map(s => ({ league_id: s.league_id, season: s.season, name: s.name }));
 
     return {
@@ -251,7 +256,9 @@ export async function load({ fetch, url, setHeaders }) {
       rounds: sortedRounds,
       messages
     };
+
   } catch (err) {
+    // return messages for UI instead of throwing 500
     const msg = `Failed to load playoff data: ${err?.message ?? err}`;
     console.error(msg, err);
     return {
