@@ -1,32 +1,31 @@
 // src/routes/honor-hall/+page.server.js
-import { env } from '$env/dynamic/private';
-
 /**
  * Server load for Honor Hall (playoff view).
- * - Uses BASE_LEAGUE_ID from env
+ * - BASE_LEAGUE_ID is hardcoded to 1219816671624048640
  * - Accepts ?season=YYYY (defaults to current year)
  * - Fetches league metadata, rosters, users, and matchups for playoff weeks
  * - Returns { seasons, selectedSeason, playoffWeeks, matchupsRows, rosterMap, errors }
  *
  * Notes:
- * - This attempts to read playoff start week from the league object. If not present,
- *   it falls back to commonly used playoff weeks (23..25).
- * - Sleeps endpoints used:
+ * - This attempts to read playoff_start week from the league object. If not present,
+ *   it falls back to common week 23.
+ * - Endpoints:
  *   GET https://api.sleeper.app/v1/league/{league_id}
  *   GET https://api.sleeper.app/v1/league/{league_id}/rosters
  *   GET https://api.sleeper.app/v1/league/{league_id}/users
  *   GET https://api.sleeper.app/v1/league/{league_id}/matchups/{week}
- *
- * If your project already has helper functions or different endpoints, you can adapt.
  */
+
 export async function load({ fetch, url }) {
   const errors = [];
-  const BASE_LEAGUE_ID = env.BASE_LEAGUE_ID ?? null;
+
+  // Hardcoded league id per request:
+  const BASE_LEAGUE_ID = '1219816671624048640';
 
   const selectedSeason = url.searchParams.get('season') ?? String(new Date().getFullYear());
 
   if (!BASE_LEAGUE_ID) {
-    errors.push('BASE_LEAGUE_ID not set in environment — cannot fetch league data.');
+    errors.push('BASE_LEAGUE_ID not set — cannot fetch league data.');
     return {
       seasons: [selectedSeason],
       selectedSeason,
@@ -64,7 +63,6 @@ export async function load({ fetch, url }) {
   // derive playoff start week
   let playoffStart = null;
   try {
-    // Try various common places where this can be stored
     playoffStart = league?.settings?.playoff_week_start ?? league?.playoff_week_start ?? league?.metadata?.playoff_week_start ?? null;
     if (playoffStart != null) playoffStart = Number(playoffStart);
   } catch (e) {
@@ -117,14 +115,11 @@ export async function load({ fetch, url }) {
   }
 
   // 3) fetch matchups for each playoff week and flatten into rows
-  // we'll group each week's returned array by 'matchup_id' because Sleeper
-  // returns one entry per roster for a matchup, usually with the same matchup_id value.
   const allMatchupsRows = [];
   for (const week of playoffWeeks) {
     const mUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/matchups/${week}`;
     const mRes = await safeFetchJson(mUrl);
     if (!mRes.ok) {
-      // accumulate but continue
       errors.push(`Failed to fetch matchups for week ${week}: ${mRes.status} ${mRes.statusText}`);
       continue;
     }
@@ -151,13 +146,11 @@ export async function load({ fetch, url }) {
     for (const [key, members] of groups.entries()) {
       if (!members || members.length === 0) continue;
 
-      // prefer two-member groups; if more/less, we attempt to detect two sides
       let teamA = null;
       let teamB = null;
 
       if (members.length === 1) {
         const e = members[0].entry;
-        // lone entry -> display it as teamA vs BYE
         const rosterId = String(e.roster_id ?? e.roster ?? e.rosterId ?? '');
         const owner = rosterMap[rosterId] ?? null;
         teamA = {
@@ -169,7 +162,6 @@ export async function load({ fetch, url }) {
         };
         teamB = { roster_id: null, name: null, avatar: null, points: null, placement: null };
       } else {
-        // try to partition to two sides
         const e0 = members[0].entry;
         const e1 = members[1].entry;
         const r0 = String(e0.roster_id ?? e0.roster ?? e0.rosterId ?? '');
@@ -208,7 +200,7 @@ export async function load({ fetch, url }) {
 
   // The UI expects a flattened matchupsRows array; we also provide a rosterMap for display lookups.
   return {
-    seasons: [selectedSeason], // minimal; matchups tab used base-league discovery for seasons — keep simple
+    seasons: [selectedSeason],
     selectedSeason,
     playoffWeeks,
     matchupsRows: allMatchupsRows,
