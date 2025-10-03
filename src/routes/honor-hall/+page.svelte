@@ -1,285 +1,190 @@
 <script>
-  // src/lib/PlayoffBrackets.svelte
-  // Bracket column renderer — visual bracket layout with simple connectors
-  export let standings = [];
-  export let season = null;
-  export let titlePrefix = '';
+  // src/routes/honor-hall/+page.svelte
+  export let data;
 
-  // Determine bracket sizes
-  const is2022 = String(season) === '2022';
-  const winnersSize = is2022 ? 6 : 8;
-  const losersSize = is2022 ? 8 : 6;
+  import PlayoffBrackets from '$lib/PlayoffBrackets.svelte';
 
-  // normalize an entry
-  function teamObj(entry, idx) {
-    if (!entry) return null;
-    if (typeof entry === 'string') {
-      return { id: null, name: entry, placement: idx + 1, avatar: null };
-    }
-    return {
-      id: entry.id ?? entry.roster_id ?? null,
-      name: entry.name ?? entry.display_name ?? entry.team ?? `Team ${idx + 1}`,
-      avatar: entry.avatar ?? null,
-      placement: entry.placement ?? idx + 1
-    };
+  const seasons = data?.seasons ?? [];
+  let selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[0].season : null);
+
+  const matchupsRows = data?.matchupsRows ?? [];
+  const standings = data?.standings ?? null;
+  const messages = data?.messages ?? [];
+
+  function submitFilters(e) {
+    const form = e.currentTarget.form || document.getElementById('filters');
+    if (form && form.requestSubmit) form.requestSubmit();
+    else if (form) form.submit();
   }
 
-  function fill(arr, n) {
-    const out = arr.slice(0, n);
-    while (out.length < n) out.push(null);
-    return out;
-  }
-
-  const normalized = (standings || []).map((s, i) => teamObj(s, i));
-  const winnersParticipants = fill(normalized.slice(0, winnersSize), winnersSize);
-  const losersParticipants = fill(normalized.slice(winnersSize, winnersSize + losersSize), losersSize);
-
-  // Build bracket structures (same as before)
-  function build8(participants) {
-    const qPairs = [[0,7],[3,4],[2,5],[1,6]];
-    const quarter = qPairs.map((p, i) => ({ a: participants[p[0]] ?? null, b: participants[p[1]] ?? null, id: `q${i+1}` }));
-    const semi = [
-      { a: { from: { round: 0, match: 0 } }, b: { from: { round: 0, match: 1 } }, id: 's1' },
-      { a: { from: { round: 0, match: 2 } }, b: { from: { round: 0, match: 3 } }, id: 's2' }
-    ];
-    const final = [{ a: { from: { round: 1, match: 0 } }, b: { from: { round: 1, match: 1 } }, id: 'f1' }];
-    return [quarter, semi, final];
-  }
-
-  function build6(participants) {
-    const quarter = [
-      { a: participants[2] ?? null, b: participants[5] ?? null, id: 'q1' },
-      { a: participants[3] ?? null, b: participants[4] ?? null, id: 'q2' }
-    ];
-    const semi = [
-      { a: participants[0] ?? null, b: { from: { round: 0, match: 1 } }, id: 's1' },
-      { a: participants[1] ?? null, b: { from: { round: 0, match: 0 } }, id: 's2' }
-    ];
-    const final = [{ a: { from: { round: 1, match: 0 } }, b: { from: { round: 1, match: 1 } }, id: 'f1' }];
-    return [quarter, semi, final];
-  }
-
-  function buildBracket(participants) {
-    if (!participants || participants.length === 0) return [];
-    if (participants.length === 8) return build8(participants);
-    if (participants.length === 6) return build6(participants);
-    // fallback: pad to 8
-    const arr = participants.slice(0, 8);
-    while (arr.length < 8) arr.push(null);
-    return build8(arr);
-  }
-
-  const winnersBracket = buildBracket(winnersParticipants);
-  const losersBracket = buildBracket(losersParticipants);
-
-  // helpers for display
-  function displayName(slot) {
-    if (!slot) return 'TBD';
-    if (slot.from) return 'Winner →';
-    return slot.name ?? 'TBD';
-  }
-  function displaySeed(slot) {
-    if (!slot) return '';
-    if (slot.from) return '';
-    if (slot.placement) return `#${slot.placement}`;
-    return '';
-  }
-
-  // layout helpers: compute a "gap" for a column so rounds stack correctly
-  // baseGap controls vertical spacing in round 0 (quarterfinals)
-  const baseGap = 12; // px
-  function gapForRound(roundIdx) {
-    // doubling gap gives proper stacking alignment (quarter < semi < final)
-    return baseGap * Math.pow(2, roundIdx);
-  }
-
-  // small utility to generate avatar placeholder URL
-  function avatarOrPlaceholder(url, name, size=48) {
-    if (url) return url;
+  function avatarOrPlaceholder(avatar, name, size = 64) {
+    if (avatar) return avatar;
     const letter = name ? name[0] : 'T';
-    return `https://ui-avatars.com/api/?size=${size}&name=${encodeURIComponent(letter)}&background=0D1B2A&color=fff`;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0D1B2A&color=fff&size=${size}`;
   }
+
+  function fmt2(n) {
+    const x = Number(n);
+    if (isNaN(x)) return '0.0';
+    return x.toFixed(1);
+  }
+
+  $: filteredRows = Array.isArray(matchupsRows) && selectedSeason
+    ? matchupsRows.filter(r => String(r.season ?? '') === String(selectedSeason))
+    : matchupsRows.slice();
+
+  $: groupedByWeek = (function () {
+    const map = new Map();
+    for (const r of filteredRows) {
+      const w = Number(r.week ?? r.w ?? r.week_number ?? NaN) || 0;
+      if (!map.has(w)) map.set(w, []);
+      map.get(w).push(r);
+    }
+    const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([week, rows]) => ({ week, rows }));
+    return entries;
+  })();
+
+  const roundNames = { 1: 'Quarterfinals', 2: 'Semifinals', 3: 'Finals' };
+  function roundLabel(idx) { return roundNames[idx] ?? `Round ${idx}`; }
 </script>
 
 <style>
-  .wrapper { display:flex; gap:1.2rem; align-items:flex-start; flex-wrap:wrap; }
-  .bracketCard { flex:1 1 420px; min-width:300px; background: rgba(255,255,255,0.01); padding:14px; border-radius:12px; }
-  .bracketTitle { margin:0 0 10px 0; font-weight:700; color:#e6eef8; }
-  .rounds { display:flex; gap:1.2rem; align-items:flex-start; position:relative; }
-
-  .round { display:flex; flex-direction:column; align-items:stretch; min-width:180px; }
-  .roundHeader { text-align:center; font-weight:800; color:#9ec6ff; font-size:.95rem; margin-bottom:8px; }
-  .roundSub { text-align:center; font-size:.82rem; color:#9ca3af; margin-bottom:6px; }
-
-  .matchBox {
-    display:flex;
-    align-items:center;
-    gap:0.8rem;
-    padding:10px;
-    border-radius:10px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-    color:inherit;
-    min-height:56px;
-    box-sizing: border-box;
-    position:relative;
-    flex-shrink:0;
-  }
-
-  .matchBox .left { display:flex; gap:.6rem; align-items:center; min-width:0; }
+  :global(body){ background: linear-gradient(180deg,#070809,#0b0c0f); color: #e6eef8; }
+  .page { padding: 1.2rem 1.6rem; max-width: 1100px; margin: 0 auto; }
+  .header { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; }
+  h1 { margin:0; font-size:1.25rem; }
+  .controls { display:flex; gap:.6rem; align-items:center; margin-left:auto; }
+  .season-select { padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); color:inherit; font-weight:600; }
+  .muted { color:#9ca3af; font-size:.9rem; }
+  .week-header { margin-top: 1rem; margin-bottom: .5rem; font-weight: 700; font-size: .98rem; color: #e6eef8; padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.02); }
+  .row-card { display:flex; gap:1rem; align-items:center; padding:8px; border-radius:10px; background: rgba(255,255,255,0.01); }
+  .team-cell { display:flex; gap:.6rem; align-items:center; min-width:0; }
+  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 260px; }
   .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .teamInfo { display:flex; flex-direction:column; min-width:0; }
-  .teamName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
-  .seed { color:#9ca3af; font-size:.82rem; }
-
-  /* connector – small horizontal line from match to the right (points to next column).
-     We'll hide for last round. */
-  .matchBox::after {
-    content: "";
-    position:absolute;
-    right:-22px;
-    top:50%;
-    transform:translateY(-50%);
-    width:18px;
-    height:2px;
-    background: rgba(156,163,175,0.25);
-    border-radius:2px;
-    display:block;
-  }
-  .noConnector::after { display:none; }
-
-  /* vertical connector stub to visually link to next round chunk
-     This is a subtle rounded bar that helps feel like a bracket */
-  .connectorStub {
-    position:absolute;
-    right:-22px;
-    top:50%;
-    transform:translateY(-50%);
-    width:18px;
-    height:8px;
-    border-radius:4px;
-    background: rgba(156,163,175,0.12);
-    display:block;
-  }
-
-  /* smaller seed badge on the avatar */
-  .seedBadge {
-    position:absolute;
-    left: -6px;
-    top: -6px;
-    background: #0b1220;
-    color: #9ec6ff;
-    font-weight:700;
-    font-size:11px;
-    padding:3px 6px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,0.04);
-  }
-
-  .roundCol { display:flex; flex-direction:column; gap:var(--gap, 12px); align-items:stretch; }
-
-  .labelSuffix { font-size:12px; color:#9ca3af; margin-top:6px; text-align:center; }
-  @media (max-width:900px) {
-    .avatar { width:40px; height:40px; }
-    .teamName { max-width:120px; }
-    .bracketCard { padding:10px; }
-    .round { min-width:150px; }
-  }
+  .score { font-weight:600; padding:6px 10px; border-radius:8px; background: rgba(255,255,255,0.02); color:#e6eef8; }
+  .score.winner { background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22)); color:#fff; }
+  .messages { background: rgba(255,255,255,0.02); padding:8px; border-radius:8px; margin-bottom:12px; color:#cfe7f6; }
 </style>
 
-<div class="wrapper">
-  <!-- Winners bracket -->
-  <div class="bracketCard">
-    <div class="bracketTitle">{titlePrefix ? `${titlePrefix} ` : ''}Winners Bracket</div>
-    <div class="rounds" role="group" aria-label="Winners bracket rounds">
-      {#each winnersBracket as round, rIdx}
-        <!-- compute gap for this round -->
-        <div class="round" style="--gap: {gapForRound(rIdx)}px;">
-          <div class="roundHeader">
-            {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else if rIdx === 2}Final{/if}
-          </div>
-          <div class="roundSub">Round {rIdx + 1}</div>
-
-          <div class="roundCol" style="--gap: {gapForRound(rIdx)}px;">
-            {#each round as match, mIdx}
-              <div class="matchBox {rIdx === winnersBracket.length - 1 ? 'noConnector' : ''}" aria-label={"W-match-" + rIdx + "-" + mIdx}>
-                <div class="left" style="position:relative;">
-                  <!-- seed badge -->
-                  {#if match.a && match.a.placement}
-                    <div class="seedBadge">{match.a.placement}</div>
-                  {/if}
-                  {#if match.a && match.a.avatar}
-                    <img class="avatar" src={match.a.avatar} alt="" />
-                  {:else}
-                    <img class="avatar" src={avatarOrPlaceholder(match.a?.avatar, displayName(match.a))} alt="" />
-                  {/if}
-                </div>
-
-                <div class="teamInfo">
-                  <div class="teamName">{displayName(match.a)}</div>
-                  <div class="seed">{displaySeed(match.a)}</div>
-                </div>
-
-                <div style="margin-left:auto; text-align:center; min-width:64px;">
-                  <div style="font-weight:800; color:#e6eef8;">{ /* scoreboard placeholder */ }—</div>
-                  <div style="font-size:11px; color:#9ca3af;">{/* small helper */}</div>
-                </div>
-
-                <!-- connector stub only if not last round -->
-                {#if rIdx !== winnersBracket.length - 1}
-                  <div class="connectorStub" aria-hidden="true"></div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/each}
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>Honor Hall</h1>
+      <div class="muted">Playoff view</div>
     </div>
-    <div class="labelSuffix">Winners bracket seeded top → bottom</div>
+
+    <form id="filters" method="get" class="controls" aria-label="filters">
+      <label class="muted" for="season">Season</label>
+      <select id="season" name="season" class="season-select" on:change={submitFilters} aria-label="Select season">
+        {#each seasons as s}
+          <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
+        {/each}
+      </select>
+    </form>
   </div>
 
-  <!-- Losers bracket -->
-  <div class="bracketCard">
-    <div class="bracketTitle">{titlePrefix ? `${titlePrefix} ` : ''}Losers Bracket</div>
-    <div class="rounds" role="group" aria-label="Losers bracket rounds">
-      {#each losersBracket as round, rIdx}
-        <div class="round" style="--gap: {gapForRound(rIdx)}px;">
-          <div class="roundHeader">
-            {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else if rIdx === 2}Final{/if}
-          </div>
-          <div class="roundSub">Round {rIdx + 1}</div>
-
-          <div class="roundCol" style="--gap: {gapForRound(rIdx)}px;">
-            {#each round as match, mIdx}
-              <div class="matchBox {rIdx === losersBracket.length - 1 ? 'noConnector' : ''}" aria-label={"L-match-" + rIdx + "-" + mIdx}>
-                <div class="left" style="position:relative;">
-                  {#if match.a && match.a.placement}
-                    <div class="seedBadge">{match.a.placement}</div>
-                  {/if}
-                  {#if match.a && match.a.avatar}
-                    <img class="avatar" src={match.a.avatar} alt="" />
-                  {:else}
-                    <img class="avatar" src={avatarOrPlaceholder(match.a?.avatar, displayName(match.a))} alt="" />
-                  {/if}
-                </div>
-
-                <div class="teamInfo">
-                  <div class="teamName">{displayName(match.a)}</div>
-                  <div class="seed">{displaySeed(match.a)}</div>
-                </div>
-
-                <div style="margin-left:auto; text-align:center; min-width:64px;">
-                  <div style="font-weight:800; color:#e6eef8;">—</div>
-                </div>
-
-                {#if rIdx !== losersBracket.length - 1}
-                  <div class="connectorStub" aria-hidden="true"></div>
-                {/if>
-              </div>
-            {/each}
-          </div>
-        </div>
+  {#if messages && messages.length}
+    <div class="messages">
+      {#each messages as m}
+        <div>{m}</div>
       {/each}
     </div>
-    <div class="labelSuffix">Losers bracket seeded top → bottom</div>
-  </div>
+  {/if}
+
+  {#if standings && Array.isArray(standings) && standings.length}
+    <!-- Render generated brackets from standings and pass matchupsRows so component can show real scores -->
+    <PlayoffBrackets standings={standings} season={selectedSeason} matchupsRows={matchupsRows} titlePrefix={String(selectedSeason)} />
+  {:else}
+    <!-- Fallback: render playoff matchups grouped by week (unchanged) -->
+    {#if groupedByWeek.length}
+      {#each groupedByWeek as group, gi}
+        <div class="week-header">Week {group.week} — {roundLabel(gi+1)}</div>
+        <table style="width:100%; border-collapse:collapse;">
+          <tbody>
+            {#each group.rows as row (row.matchup_id ?? row.key)}
+              {#if row.participantsCount === 2}
+                <tr>
+                  <td style="padding:10px;">
+                    <div class="row-card">
+                      <div class="team-cell" style="min-width:0;">
+                        <img class="avatar" src={row.teamA.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
+                        <div style="min-width:0;">
+                          <div class="team-name">{row.teamA.name}</div>
+                          {#if row.teamA.owner_display}<div class="muted">{row.teamA.owner_display}</div>{/if}
+                        </div>
+                      </div>
+
+                      <div style="padding:0 0.8rem; color:#9ca3af;">vs</div>
+
+                      <div class="team-cell" style="margin-left:auto; align-items:center;">
+                        <div style="text-align:right; margin-right:.6rem;">
+                          <div class="team-name">{row.teamB.name}</div>
+                          {#if row.teamB.owner_display}<div class="muted">{row.teamB.owner_display}</div>{/if}
+                        </div>
+                        <img class="avatar" src={row.teamB.avatar ? row.teamB.avatar : avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      </div>
+                    </div>
+                  </td>
+
+                  <td style="width:130px; text-align:center;">
+                    {#if row.teamA.points != null && row.teamB.points != null}
+                      <div class="score {row.teamA.points > row.teamB.points ? 'winner' : ''}">{fmt2(row.teamA.points)} — {fmt2(row.teamB.points)}</div>
+                    {:else}
+                      <div class="score">—</div>
+                    {/if}
+                  </td>
+                </tr>
+
+              {:else if row.participantsCount === 1}
+                <tr>
+                  <td style="padding:10px;">
+                    <div class="row-card">
+                      <div class="team-cell">
+                        <img class="avatar" src={row.teamA.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} on:error={(e)=>e.target.style.visibility='hidden'} />
+                        <div style="min-width:0;">
+                          <div class="team-name">{row.teamA.name}</div>
+                          {#if row.teamA.owner_display}<div class="muted">{row.teamA.owner_display}</div>{/if}
+                        </div>
+                      </div>
+                      <div style="margin-left:auto; text-align:right;">
+                        <div class="muted">BYE</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style="text-align:center;"><div class="muted">Week {row.week}</div></td>
+                </tr>
+
+              {:else}
+                <tr>
+                  <td colspan="2" style="padding:10px;">
+                    <div style="font-weight:700; margin-bottom:.4rem;">Multi-Team Matchup — Week {row.week}</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                      <thead><tr><th style="text-align:left; color:#9ca3af; padding:6px 8px;">Team</th><th style="text-align:right; color:#9ca3af; padding:6px 8px;">Points</th></tr></thead>
+                      <tbody>
+                        {#each row.combinedParticipants as p}
+                          <tr>
+                            <td style="padding:6px 8px;">
+                              <div class="team-cell">
+                                <img class="avatar" src={p.avatar ? p.avatar : avatarOrPlaceholder(p.avatar, p.name, 40)} alt="">
+                                <div style="margin-left:.6rem;">
+                                  <div class="team-name" style="font-weight:700;">{p.name}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td style="padding:6px 8px; text-align:right; font-weight:700;">{fmt2(p.points)}</td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              {/if}
+            {/each}
+          </tbody>
+        </table>
+      {/each}
+    {:else}
+      <div class="muted">No playoff matchups or standings found for the selected season.</div>
+    {/if}
+  {/if}
 </div>
