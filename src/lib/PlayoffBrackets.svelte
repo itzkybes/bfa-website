@@ -6,7 +6,7 @@
   export let standings = [];       // ordered by placement (index 0 == 1st)
   export let season = null;
   export let titlePrefix = '';
-  export let matchupsRows = [];    // from loader; contains round, teamA/teamB, points, roster_id/placement, etc.
+  export let matchupsRows = [];
 
   const is2022 = String(season) === '2022';
   const winnersSize = is2022 ? 6 : 8;
@@ -97,10 +97,8 @@
   // enrich a side of a match with seeded team info (name/avatar/placement) when possible
   function enrichSide(side) {
     if (!side) return side;
-    // clone so we don't alter original rows
     const s = { ...(side || {}) };
 
-    // try roster_id / id match (most reliable)
     if (s.roster_id && idMap[String(s.roster_id)]) {
       const seed = idMap[String(s.roster_id)];
       s._seedMatched = true;
@@ -118,7 +116,6 @@
       return s;
     }
 
-    // try placement match
     if (s.placement && placementMap[Number(s.placement)]) {
       const seed = placementMap[Number(s.placement)];
       s._seedMatched = true;
@@ -128,7 +125,6 @@
       return s;
     }
 
-    // try fuzzy name->seed match
     if (s.name) {
       const lower = lc(s.name);
       if (lowerNameMap[lower]) {
@@ -139,7 +135,6 @@
         s.placement = seed.placement ?? s.placement;
         return s;
       }
-      // otherwise search through normalized for the best fuzzy match
       for (const cand of normalized) {
         if (!cand || !cand.name) continue;
         if (fuzzyMatchName(cand.name, s.name)) {
@@ -152,7 +147,6 @@
       }
     }
 
-    // nothing matched — return original (but keep avatar/name if present)
     return s;
   }
 
@@ -174,7 +168,6 @@
       if (aPlace && bPlace && rAplace && rBplace) {
         if ((Number(rAplace) === Number(aPlace) && Number(rBplace) === Number(bPlace)) ||
             (Number(rAplace) === Number(bPlace) && Number(rBplace) === Number(aPlace))) {
-          // enrich both sides with seeded info when possible
           const found = { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
           return found;
         }
@@ -230,14 +223,14 @@
     return null;
   }
 
-  // precompute lookups so template stays simple
+  // precompute lookups so template stays simple (use concatenated keys — safe for parser)
   $: winnersFoundMap = {};
   $: {
     winnersFoundMap = {};
     winnersBracket.forEach((round, rIdx) => {
       round.forEach((match, mIdx) => {
         const f = findMatchForSlot(match.a, match.b, rIdx + 1, true);
-        winnersFoundMap[`${rIdx}_${mIdx}`] = f;
+        winnersFoundMap[rIdx + '_' + mIdx] = f;
       });
     });
   }
@@ -248,7 +241,7 @@
     losersBracket.forEach((round, rIdx) => {
       round.forEach((match, mIdx) => {
         const f = findMatchForSlot(match.a, match.b, rIdx + 1, false);
-        losersFoundMap[`${rIdx}_${mIdx}`] = f;
+        losersFoundMap[rIdx + '_' + mIdx] = f;
       });
     });
   }
@@ -323,34 +316,32 @@
 
         <div class="matches">
           {#each round as match, mIdx}
-            {#if winnersFoundMap[`${rIdx}_${mIdx}`]}
-              { /* real matchup found; display enriched sides (prefer seeded names & avatars) */ }
+            {#if winnersFoundMap[rIdx + '_' + mIdx]}
               <div class="matchRow">
                 <div class="teamCol">
-                  {#if winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.placement}
-                    <div class="seedBadge">#{winnersFoundMap[`${rIdx}_${mIdx}`].teamA.placement}</div>
+                  {#if winnersFoundMap[rIdx + '_' + mIdx].teamA?.placement}
+                    <div class="seedBadge">#{winnersFoundMap[rIdx + '_' + mIdx].teamA.placement}</div>
                   {/if}
-                  <img class="avatar" src={winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.avatar ? winnersFoundMap[`${rIdx}_${mIdx}`].teamA.avatar : avatarOrPlaceholder(winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.name)} alt="">
+                  <img class="avatar" src={winnersFoundMap[rIdx + '_' + mIdx].teamA?.avatar ? winnersFoundMap[rIdx + '_' + mIdx].teamA.avatar : avatarOrPlaceholder(winnersFoundMap[rIdx + '_' + mIdx].teamA?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.name ?? 'TBD'}</div>
-                    {#if winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.owner_display}<div class="teamMeta">{winnersFoundMap[`${rIdx}_${mIdx}`].teamA.owner_display}</div>{/if}
+                    <div class="teamName">{winnersFoundMap[rIdx + '_' + mIdx].teamA?.name ?? 'TBD'}</div>
+                    {#if winnersFoundMap[rIdx + '_' + mIdx].teamA?.owner_display}<div class="teamMeta">{winnersFoundMap[rIdx + '_' + mIdx].teamA.owner_display}</div>{/if}
                   </div>
                 </div>
 
                 <div class="vs">vs</div>
 
                 <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={winnersFoundMap[`${rIdx}_${mIdx}`].teamB?.avatar ? winnersFoundMap[`${rIdx}_${mIdx}`].teamB.avatar : avatarOrPlaceholder(winnersFoundMap[`${rIdx}_${mIdx}`].teamB?.name)} alt="">
+                  <img class="avatar" src={winnersFoundMap[rIdx + '_' + mIdx].teamB?.avatar ? winnersFoundMap[rIdx + '_' + mIdx].teamB.avatar : avatarOrPlaceholder(winnersFoundMap[rIdx + '_' + mIdx].teamB?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{winnersFoundMap[`${rIdx}_${mIdx}`].teamB?.name ?? 'TBD'}</div>
-                    {#if winnersFoundMap[`${rIdx}_${mIdx}`].teamB?.owner_display}<div class="teamMeta">{winnersFoundMap[`${rIdx}_${mIdx}`].teamB.owner_display}</div>{/if}
+                    <div class="teamName">{winnersFoundMap[rIdx + '_' + mIdx].teamB?.name ?? 'TBD'}</div>
+                    {#if winnersFoundMap[rIdx + '_' + mIdx].teamB?.owner_display}<div class="teamMeta">{winnersFoundMap[rIdx + '_' + mIdx].teamB.owner_display}</div>{/if}
                   </div>
                 </div>
 
-                <div class="scoreBox">{fmtScore(winnersFoundMap[`${rIdx}_${mIdx}`].teamA?.points)} — {fmtScore(winnersFoundMap[`${rIdx}_${mIdx}`].teamB?.points)}</div>
+                <div class="scoreBox">{fmtScore(winnersFoundMap[rIdx + '_' + mIdx].teamA?.points)} — {fmtScore(winnersFoundMap[rIdx + '_' + mIdx].teamB?.points)}</div>
               </div>
             {:else}
-              { /* fallback: seeded placeholder from standings */ }
               <div class="matchRow">
                 <div class="teamCol">
                   {#if match.a?.placement}
@@ -400,30 +391,30 @@
 
         <div class="matches">
           {#each round as match, mIdx}
-            {#if losersFoundMap[`${rIdx}_${mIdx}`]}
+            {#if losersFoundMap[rIdx + '_' + mIdx]}
               <div class="matchRow">
                 <div class="teamCol">
-                  {#if losersFoundMap[`${rIdx}_${mIdx}`].teamA?.placement}
-                    <div class="seedBadge">#{losersFoundMap[`${rIdx}_${mIdx}`].teamA.placement}</div>
+                  {#if losersFoundMap[rIdx + '_' + mIdx].teamA?.placement}
+                    <div class="seedBadge">#{losersFoundMap[rIdx + '_' + mIdx].teamA.placement}</div>
                   {/if}
-                  <img class="avatar" src={losersFoundMap[`${rIdx}_${mIdx}`].teamA?.avatar ? losersFoundMap[`${rIdx}_${mIdx}`].teamA.avatar : avatarOrPlaceholder(losersFoundMap[`${rIdx}_${mIdx}`].teamA?.name)} alt="">
+                  <img class="avatar" src={losersFoundMap[rIdx + '_' + mIdx].teamA?.avatar ? losersFoundMap[rIdx + '_' + mIdx].teamA.avatar : avatarOrPlaceholder(losersFoundMap[rIdx + '_' + mIdx].teamA?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{losersFoundMap[`${rIdx}_${mIdx}`].teamA?.name ?? 'TBD'}</div>
-                    {#if losersFoundMap[`${rIdx}_${mIdx}`].teamA?.owner_display}<div class="teamMeta">{losersFoundMap[`${rIdx}_${mIdx}`].teamA.owner_display}</div>{/if}
+                    <div class="teamName">{losersFoundMap[rIdx + '_' + mIdx].teamA?.name ?? 'TBD'}</div>
+                    {#if losersFoundMap[rIdx + '_' + mIdx].teamA?.owner_display}<div class="teamMeta">{losersFoundMap[rIdx + '_' + mIdx].teamA.owner_display}</div>{/if}
                   </div>
                 </div>
 
                 <div class="vs">vs</div>
 
                 <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={losersFoundMap[`${rIdx}_${mIdx}`].teamB?.avatar ? losersFoundMap[`${rIdx}_${mIdx}`].teamB.avatar : avatarOrPlaceholder(losersFoundMap[`${rIdx}_${mIdx}`].teamB?.name)} alt="">
+                  <img class="avatar" src={losersFoundMap[rIdx + '_' + mIdx].teamB?.avatar ? losersFoundMap[rIdx + '_' + mIdx].teamB.avatar : avatarOrPlaceholder(losersFoundMap[rIdx + '_' + mIdx].teamB?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{losersFoundMap[`${rIdx}_${mIdx}`].teamB?.name ?? 'TBD'}</div>
-                    {#if losersFoundMap[`${rIdx}_${mIdx}`].teamB?.owner_display}<div class="teamMeta">{losersFoundMap[`${rIdx}_${mIdx}`].teamB.owner_display}</div>{/if}
+                    <div class="teamName">{losersFoundMap[rIdx + '_' + mIdx].teamB?.name ?? 'TBD'}</div>
+                    {#if losersFoundMap[rIdx + '_' + mIdx].teamB?.owner_display}<div class="teamMeta">{losersFoundMap[rIdx + '_' + mIdx].teamB.owner_display}</div>{/if}
                   </div>
                 </div>
 
-                <div class="scoreBox">{fmtScore(losersFoundMap[`${rIdx}_${mIdx}`].teamA?.points)} — {fmtScore(losersFoundMap[`${rIdx}_${mIdx}`].teamB?.points)}</div>
+                <div class="scoreBox">{fmtScore(losersFoundMap[rIdx + '_' + mIdx].teamA?.points)} — {fmtScore(losersFoundMap[rIdx + '_' + mIdx].teamB?.points)}</div>
               </div>
             {:else}
               <div class="matchRow">
