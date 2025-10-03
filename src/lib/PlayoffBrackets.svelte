@@ -1,12 +1,12 @@
 <script>
   // src/lib/PlayoffBrackets.svelte
-  // Prevents reuse of the same matchup row across multiple seeded slots.
-  // Prefers display_name from standings and robust avatar fallbacks.
+  // Simpler approach: use final standings to assign display names to every bracket slot.
+  // Only use matchupsRows to fill scores when there's an exact placement->placement match for the round.
 
-  export let standings = [];       // ordered by placement (index 0 == 1st)
+  export let standings = [];       // ordered by placement (index 0 == 1st). prefer display_name
   export let season = null;
   export let titlePrefix = '';
-  export let matchupsRows = [];    // server-provided match rows; expected to have teamA/teamB/round/points/placement/roster_id etc.
+  export let matchupsRows = [];    // used only for exact placement score matching (round + placements)
 
   const is2022 = String(season) === '2022';
   const winnersSize = is2022 ? 6 : 8;
@@ -16,24 +16,22 @@
     if (!entry) return null;
     return entry.avatar ?? entry.photo_url ?? entry.logo ?? entry.team_avatar ?? entry.owner_avatar ?? entry.image_url ?? null;
   }
-
   function pickName(entry, idx) {
     if (!entry) return null;
-    // prefer display_name which your loader uses
     return entry.display_name ?? entry.name ?? entry.owner_display ?? entry.owner ?? entry.team ?? `Team ${idx + 1}`;
   }
 
-  function teamObj(entry, idx) {
-    if (!entry) return null;
-    if (typeof entry === 'string') return { id: null, name: entry, placement: idx + 1, avatar: null, owner_display: null };
+  // normalize standings into simple objects we will seed into brackets
+  const normalized = (standings || []).map((s, i) => {
+    if (!s) return null;
     return {
-      id: entry.id ?? entry.roster_id ?? null,
-      name: pickName(entry, idx),
-      avatar: pickAvatar(entry),
-      placement: entry.placement ?? (idx + 1),
-      owner_display: entry.owner_display ?? entry.owner ?? null
+      id: s.id ?? s.roster_id ?? null,
+      name: pickName(s, i),
+      avatar: pickAvatar(s),
+      placement: s.placement ?? (i + 1),
+      owner_display: s.owner_display ?? s.owner ?? null
     };
-  }
+  });
 
   function fill(arr, n) {
     const out = arr.slice(0, n);
@@ -41,11 +39,10 @@
     return out;
   }
 
-  // normalized standings use the correct display_name & avatar fallback
-  const normalized = (standings || []).map((s, i) => teamObj(s, i));
   const winnersParticipants = fill(normalized.slice(0, winnersSize), winnersSize);
   const losersParticipants = fill(normalized.slice(winnersSize, winnersSize + losersSize), losersSize);
 
+  // build bracket slot shapes (same shapes as before)
   function build8(participants) {
     const qPairs = [[0,7],[3,4],[2,5],[1,6]];
     const quarter = qPairs.map((p, i) => ({ a: participants[p[0]] ?? null, b: participants[p[1]] ?? null, id: `q${i+1}` }));
@@ -82,194 +79,81 @@
   const winnersBracket = buildBracket(winnersParticipants);
   const losersBracket = buildBracket(losersParticipants);
 
-  // maps for easy enrichment from standings
-  const placementMap = {};
-  const idMap = {};
-  const lowerNameMap = {};
-  for (const t of normalized) {
-    if (!t) continue;
-    if (t.placement != null) placementMap[Number(t.placement)] = t;
-    if (t.id != null) idMap[String(t.id)] = t;
-    if (t.name) lowerNameMap[String(t.name).trim().toLowerCase()] = t;
-  }
-
-  function lc(x){ return x ? String(x).trim().toLowerCase() : ''; }
-  function fuzzyMatchName(a, b) {
-    if (!a || !b) return false;
-    const A = lc(a), B = lc(b);
-    if (!A || !B) return false;
-    if (A === B) return true;
-    if (A.includes(B) || B.includes(A)) return true;
-    const a2 = A.replace(/[^a-z0-9]/g,''), b2 = B.replace(/[^a-z0-9]/g,'');
-    if (a2 && b2 && (a2 === b2 || a2.includes(b2) || b2.includes(a2))) return true;
-    return false;
-  }
-
-  // enrich match side using standings (prefer roster_id / id -> placement -> fuzzy name)
-  function enrichSide(side) {
-    if (!side) return side;
-    const s = { ...(side || {}) };
-
-    if (s.roster_id && idMap[String(s.roster_id)]) {
-      const seed = idMap[String(s.roster_id)];
-      s._seedMatched = true;
-      s.name = seed.name || s.name;
-      s.avatar = s.avatar || seed.avatar;
-      s.placement = seed.placement ?? s.placement;
-      return s;
-    }
-    if (s.id && idMap[String(s.id)]) {
-      const seed = idMap[String(s.id)];
-      s._seedMatched = true;
-      s.name = seed.name || s.name;
-      s.avatar = s.avatar || seed.avatar;
-      s.placement = seed.placement ?? s.placement;
-      return s;
-    }
-
-    if (s.placement && placementMap[Number(s.placement)]) {
-      const seed = placementMap[Number(s.placement)];
-      s._seedMatched = true;
-      s.name = seed.name || s.name;
-      s.avatar = s.avatar || seed.avatar;
-      s.placement = seed.placement ?? s.placement;
-      return s;
-    }
-
-    if (s.name) {
-      const lower = lc(s.name);
-      if (lowerNameMap[lower]) {
-        const seed = lowerNameMap[lower];
-        s._seedMatched = true;
-        s.name = seed.name || s.name;
-        s.avatar = s.avatar || seed.avatar;
-        s.placement = seed.placement ?? s.placement;
-        return s;
-      }
-      for (const cand of normalized) {
-        if (!cand || !cand.name) continue;
-        if (fuzzyMatchName(cand.name, s.name)) {
-          s._seedMatched = true;
-          s.name = cand.name || s.name;
-          s.avatar = s.avatar || cand.avatar;
-          s.placement = cand.placement ?? s.placement;
-          return s;
-        }
-      }
-    }
-
-    return s;
-  }
-
-  // usedIndices to mark matchupsRows entries that have already been assigned to a bracket slot
-  let usedIndices = new Set();
-
-  // find match in matchupsRows for seeded slot (aSeed,bSeed) using roundNumber (1-based)
-  // marks chosen index in usedIndices so it's not reused
-  function findMatchForSlot(aSeed, bSeed, roundNumber, isWinners) {
+  // find a match in matchupsRows based on exact placement matching (no fuzzy).
+  // We'll mark usedIndices so we don't reuse the same matchup row multiple times.
+  function findMatchByPlacement(aPlacement, bPlacement, roundNumber, usedIndices) {
     if (!Array.isArray(matchupsRows) || matchupsRows.length === 0) return null;
-
-    const aName = aSeed?.name ?? null;
-    const bName = bSeed?.name ?? null;
-    const aPlace = aSeed?.placement ?? null;
-    const bPlace = bSeed?.placement ?? null;
-
-    // helper to try select a candidate (enrich & mark used)
-    const trySelect = (r, idx) => {
-      usedIndices.add(idx);
-      return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
-    };
-
-    // 1) placement exact match (iterate original array to get indexes)
     for (let i = 0; i < matchupsRows.length; i++) {
       if (usedIndices.has(i)) continue;
       const r = matchupsRows[i];
       if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
+
+      // only consider rows with explicit placements on both sides
       const rAplace = r.teamA?.placement ?? r.teamA?.seed ?? null;
       const rBplace = r.teamB?.placement ?? r.teamB?.seed ?? null;
-      if (aPlace && bPlace && rAplace && rBplace) {
-        if ((Number(rAplace) === Number(aPlace) && Number(rBplace) === Number(bPlace)) ||
-            (Number(rAplace) === Number(bPlace) && Number(rBplace) === Number(aPlace))) {
-          return trySelect(r, i);
-        }
+      if (!rAplace || !rBplace) continue;
+
+      if ((Number(rAplace) === Number(aPlacement) && Number(rBplace) === Number(bPlacement)) ||
+          (Number(rAplace) === Number(bPlacement) && Number(rBplace) === Number(aPlacement))) {
+        usedIndices.add(i);
+        // normalize returned object: teamA/teamB with name/avatar/points/placement
+        return {
+          teamA: {
+            name: r.teamA?.display_name ?? r.teamA?.name ?? r.teamA?.owner_display ?? r.teamA?.owner ?? null,
+            avatar: r.teamA?.avatar ?? r.teamA?.photo_url ?? r.teamA?.logo ?? null,
+            placement: rAplace,
+            points: r.teamA?.points ?? r.teamA?.score ?? r.teamA?.total_points ?? null
+          },
+          teamB: {
+            name: r.teamB?.display_name ?? r.teamB?.name ?? r.teamB?.owner_display ?? r.teamB?.owner ?? null,
+            avatar: r.teamB?.avatar ?? r.teamB?.photo_url ?? r.teamB?.logo ?? null,
+            placement: rBplace,
+            points: r.teamB?.points ?? r.teamB?.score ?? r.teamB?.total_points ?? null
+          }
+        };
       }
     }
-
-    // 2) both-team fuzzy name match
-    for (let i = 0; i < matchupsRows.length; i++) {
-      if (usedIndices.has(i)) continue;
-      const r = matchupsRows[i];
-      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
-      const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
-      if (ra && rb && aName && bName) {
-        if ((fuzzyMatchName(ra, aName) && fuzzyMatchName(rb, bName)) ||
-            (fuzzyMatchName(ra, bName) && fuzzyMatchName(rb, aName))) {
-          return trySelect(r, i);
-        }
-      }
-    }
-
-    // 3) single-side fuzzy preference (useful for BYE or missing teams)
-    for (let i = 0; i < matchupsRows.length; i++) {
-      if (usedIndices.has(i)) continue;
-      const r = matchupsRows[i];
-      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
-      const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
-      const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
-
-      const aMatches = aName && (fuzzyMatchName(ra, aName) || (aPlace && Number(rAplace) === Number(aPlace)));
-      const bMatches = bName && (fuzzyMatchName(rb, bName) || (bPlace && Number(rBplace) === Number(bPlace)));
-      const altAMatches = aName && (fuzzyMatchName(rb, aName) || (aPlace && Number(rBplace) === Number(aPlace)));
-      const altBMatches = bName && (fuzzyMatchName(ra, bName) || (bPlace && Number(rAplace) === Number(bPlace)));
-
-      if ((aMatches && !bName) || (bMatches && !aName)) return trySelect(r, i);
-      if (aMatches && bMatches) return trySelect(r, i);
-      if (altAMatches && altBMatches) return trySelect(r, i);
-      if (aMatches || bMatches || altAMatches || altBMatches) return trySelect(r, i);
-    }
-
-    // 4) fallback by bracket membership (winners vs losers)
-    for (let i = 0; i < matchupsRows.length; i++) {
-      if (usedIndices.has(i)) continue;
-      const r = matchupsRows[i];
-      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
-      const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
-      if (rAplace || rBplace) {
-        if (isWinners) {
-          if ((rAplace && rAplace <= winnersSize) || (rBplace && rBplace <= winnersSize)) return trySelect(r, i);
-        } else {
-          if ((rAplace && rAplace > winnersSize) || (rBplace && rBplace > winnersSize)) return trySelect(r, i);
-        }
-      }
-    }
-
     return null;
   }
 
-  // precompute found maps using safe concatenated keys (no template literal in template)
+  // compute score lookups once using a fresh usedIndices set
+  $: winnersScoreMap = {};
+  $: losersScoreMap = {};
   $: {
-    // reset usedIndices before computing maps so each rebuild starts fresh.
-    usedIndices = new Set();
-    winnersFoundMap = {};
+    winnersScoreMap = {};
+    losersScoreMap = {};
+    const used = new Set();
+
+    // winners: round indexes are 0-based in bracket; treat roundNumber = rIdx + 1
     winnersBracket.forEach((round, rIdx) => {
       round.forEach((match, mIdx) => {
+        const aPlace = match.a?.placement ?? null;
+        const bPlace = match.b?.placement ?? null;
         const key = rIdx + '_' + mIdx;
-        winnersFoundMap[key] = findMatchForSlot(match.a, match.b, rIdx + 1, true);
+        if (aPlace && bPlace) {
+          const found = findMatchByPlacement(aPlace, bPlace, rIdx + 1, used);
+          winnersScoreMap[key] = found;
+        } else {
+          winnersScoreMap[key] = null;
+        }
       });
     });
 
-    losersFoundMap = {};
+    // losers
     losersBracket.forEach((round, rIdx) => {
       round.forEach((match, mIdx) => {
+        const aPlace = match.a?.placement ?? null;
+        const bPlace = match.b?.placement ?? null;
         const key = rIdx + '_' + mIdx;
-        // note: we intentionally keep usedIndices (so winners-consumed rows are not reused).
-        losersFoundMap[key] = findMatchForSlot(match.a, match.b, rIdx + 1, false);
+        if (aPlace && bPlace) {
+          const found = findMatchByPlacement(aPlace, bPlace, rIdx + 1, used);
+          losersScoreMap[key] = found;
+        } else {
+          losersScoreMap[key] = null;
+        }
       });
     });
   }
-
-  let winnersFoundMap = {};
-  let losersFoundMap = {};
 
   function fmtScore(v) {
     if (v == null) return '—';
@@ -341,57 +225,36 @@
 
         <div class="matches">
           {#each round as match, mIdx}
-            {#if winnersFoundMap[rIdx + '_' + mIdx]}
-              <div class="matchRow">
-                <div class="teamCol">
-                  {#if winnersFoundMap[rIdx + '_' + mIdx].teamA?.placement}
-                    <div class="seedBadge">#{winnersFoundMap[rIdx + '_' + mIdx].teamA.placement}</div>
-                  {/if}
-                  <img class="avatar" src={winnersFoundMap[rIdx + '_' + mIdx].teamA?.avatar ? winnersFoundMap[rIdx + '_' + mIdx].teamA.avatar : avatarOrPlaceholder(winnersFoundMap[rIdx + '_' + mIdx].teamA?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{winnersFoundMap[rIdx + '_' + mIdx].teamA?.name ?? 'TBD'}</div>
-                    {#if winnersFoundMap[rIdx + '_' + mIdx].teamA?.owner_display}<div class="teamMeta">{winnersFoundMap[rIdx + '_' + mIdx].teamA.owner_display}</div>{/if}
-                  </div>
+            <div class="matchRow">
+              <div class="teamCol">
+                {#if match.a?.placement}
+                  <div class="seedBadge">#{match.a.placement}</div>
+                {/if}
+                <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
+                <div style="min-width:0;">
+                  <div class="teamName">{match.a?.name ?? 'TBD'}</div>
+                  {#if match.a?.owner_display}<div class="teamMeta">{match.a.owner_display}</div>{/if}
                 </div>
-
-                <div class="vs">vs</div>
-
-                <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={winnersFoundMap[rIdx + '_' + mIdx].teamB?.avatar ? winnersFoundMap[rIdx + '_' + mIdx].teamB.avatar : avatarOrPlaceholder(winnersFoundMap[rIdx + '_' + mIdx].teamB?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{winnersFoundMap[rIdx + '_' + mIdx].teamB?.name ?? 'TBD'}</div>
-                    {#if winnersFoundMap[rIdx + '_' + mIdx].teamB?.owner_display}<div class="teamMeta">{winnersFoundMap[rIdx + '_' + mIdx].teamB.owner_display}</div>{/if}
-                  </div>
-                </div>
-
-                <div class="scoreBox">{fmtScore(winnersFoundMap[rIdx + '_' + mIdx].teamA?.points)} — {fmtScore(winnersFoundMap[rIdx + '_' + mIdx].teamB?.points)}</div>
               </div>
-            {:else}
-              <div class="matchRow">
-                <div class="teamCol">
-                  {#if match.a?.placement}
-                    <div class="seedBadge">#{match.a.placement}</div>
-                  {/if}
-                  <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{match.a?.name ?? 'TBD'}</div>
-                    {#if match.a?.owner_display}<div class="teamMeta">{match.a.owner_display}</div>{/if}
-                  </div>
+
+              <div class="vs">vs</div>
+
+              <div class="teamCol" style="margin-left:8px;">
+                <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
+                <div style="min-width:0;">
+                  <div class="teamName">{match.b?.name ?? 'TBD'}</div>
+                  {#if match.b?.owner_display}<div class="teamMeta">{match.b.owner_display}</div>{/if}
                 </div>
-
-                <div class="vs">vs</div>
-
-                <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{match.b?.name ?? 'TBD'}</div>
-                    {#if match.b?.owner_display}<div class="teamMeta">{match.b.owner_display}</div>{/if}
-                  </div>
-                </div>
-
-                <div class="scoreBox">—</div>
               </div>
-            {/if}
+
+              <div class="scoreBox">
+                {#if winnersScoreMap[rIdx + '_' + mIdx]}
+                  {fmtScore(winnersScoreMap[rIdx + '_' + mIdx].teamA?.points)} — {fmtScore(winnersScoreMap[rIdx + '_' + mIdx].teamB?.points)}
+                {:else}
+                  —
+                {/if}
+              </div>
+            </div>
           {/each}
         </div>
       </div>
@@ -416,57 +279,36 @@
 
         <div class="matches">
           {#each round as match, mIdx}
-            {#if losersFoundMap[rIdx + '_' + mIdx]}
-              <div class="matchRow">
-                <div class="teamCol">
-                  {#if losersFoundMap[rIdx + '_' + mIdx].teamA?.placement}
-                    <div class="seedBadge">#{losersFoundMap[rIdx + '_' + mIdx].teamA.placement}</div>
-                  {/if}
-                  <img class="avatar" src={losersFoundMap[rIdx + '_' + mIdx].teamA?.avatar ? losersFoundMap[rIdx + '_' + mIdx].teamA.avatar : avatarOrPlaceholder(losersFoundMap[rIdx + '_' + mIdx].teamA?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{losersFoundMap[rIdx + '_' + mIdx].teamA?.name ?? 'TBD'}</div>
-                    {#if losersFoundMap[rIdx + '_' + mIdx].teamA?.owner_display}<div class="teamMeta">{losersFoundMap[rIdx + '_' + mIdx].teamA.owner_display}</div>{/if}
-                  </div>
+            <div class="matchRow">
+              <div class="teamCol">
+                {#if match.a?.placement}
+                  <div class="seedBadge">#{match.a.placement}</div>
+                {/if}
+                <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
+                <div style="min-width:0;">
+                  <div class="teamName">{match.a?.name ?? 'TBD'}</div>
+                  {#if match.a?.owner_display}<div class="teamMeta">{match.a.owner_display}</div>{/if}
                 </div>
-
-                <div class="vs">vs</div>
-
-                <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={losersFoundMap[rIdx + '_' + mIdx].teamB?.avatar ? losersFoundMap[rIdx + '_' + mIdx].teamB.avatar : avatarOrPlaceholder(losersFoundMap[rIdx + '_' + mIdx].teamB?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{losersFoundMap[rIdx + '_' + mIdx].teamB?.name ?? 'TBD'}</div>
-                    {#if losersFoundMap[rIdx + '_' + mIdx].teamB?.owner_display}<div class="teamMeta">{losersFoundMap[rIdx + '_' + mIdx].teamB.owner_display}</div>{/if}
-                  </div>
-                </div>
-
-                <div class="scoreBox">{fmtScore(losersFoundMap[rIdx + '_' + mIdx].teamA?.points)} — {fmtScore(losersFoundMap[rIdx + '_' + mIdx].teamB?.points)}</div>
               </div>
-            {:else}
-              <div class="matchRow">
-                <div class="teamCol">
-                  {#if match.a?.placement}
-                    <div class="seedBadge">#{match.a.placement}</div>
-                  {/if}
-                  <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{match.a?.name ?? 'TBD'}</div>
-                    {#if match.a?.owner_display}<div class="teamMeta">{match.a.owner_display}</div>{/if}
-                  </div>
+
+              <div class="vs">vs</div>
+
+              <div class="teamCol" style="margin-left:8px;">
+                <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
+                <div style="min-width:0;">
+                  <div class="teamName">{match.b?.name ?? 'TBD'}</div>
+                  {#if match.b?.owner_display}<div class="teamMeta">{match.b.owner_display}</div>{/if}
                 </div>
-
-                <div class="vs">vs</div>
-
-                <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
-                  <div style="min-width:0;">
-                    <div class="teamName">{match.b?.name ?? 'TBD'}</div>
-                    {#if match.b?.owner_display}<div class="teamMeta">{match.b.owner_display}</div>{/if}
-                  </div>
-                </div>
-
-                <div class="scoreBox">—</div>
               </div>
-            {/if}
+
+              <div class="scoreBox">
+                {#if losersScoreMap[rIdx + '_' + mIdx]}
+                  {fmtScore(losersScoreMap[rIdx + '_' + mIdx].teamA?.points)} — {fmtScore(losersScoreMap[rIdx + '_' + mIdx].teamB?.points)}
+                {:else}
+                  —
+                {/if}
+              </div>
+            </div>
           {/each}
         </div>
       </div>
