@@ -1,6 +1,7 @@
 <script>
   // src/lib/PlayoffBrackets.svelte
-  // Prefer display_name from standings and robust avatar fallbacks
+  // Prevents reuse of the same matchup row across multiple seeded slots.
+  // Prefers display_name from standings and robust avatar fallbacks.
 
   export let standings = [];       // ordered by placement (index 0 == 1st)
   export let season = null;
@@ -160,42 +161,59 @@
     return s;
   }
 
+  // usedIndices to mark matchupsRows entries that have already been assigned to a bracket slot
+  let usedIndices = new Set();
+
   // find match in matchupsRows for seeded slot (aSeed,bSeed) using roundNumber (1-based)
+  // marks chosen index in usedIndices so it's not reused
   function findMatchForSlot(aSeed, bSeed, roundNumber, isWinners) {
     if (!Array.isArray(matchupsRows) || matchupsRows.length === 0) return null;
-    const cand = matchupsRows.filter(r => Number(r.round ?? 0) === Number(roundNumber));
-    if (!cand.length) return null;
 
     const aName = aSeed?.name ?? null;
     const bName = bSeed?.name ?? null;
     const aPlace = aSeed?.placement ?? null;
     const bPlace = bSeed?.placement ?? null;
 
-    // 1) exact placement match
-    for (const r of cand) {
+    // helper to try select a candidate (enrich & mark used)
+    const trySelect = (r, idx) => {
+      usedIndices.add(idx);
+      return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+    };
+
+    // 1) placement exact match (iterate original array to get indexes)
+    for (let i = 0; i < matchupsRows.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const r = matchupsRows[i];
+      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
       const rAplace = r.teamA?.placement ?? r.teamA?.seed ?? null;
       const rBplace = r.teamB?.placement ?? r.teamB?.seed ?? null;
       if (aPlace && bPlace && rAplace && rBplace) {
         if ((Number(rAplace) === Number(aPlace) && Number(rBplace) === Number(bPlace)) ||
             (Number(rAplace) === Number(bPlace) && Number(rBplace) === Number(aPlace))) {
-          return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          return trySelect(r, i);
         }
       }
     }
 
-    // 2) fuzzy both-team match
-    for (const r of cand) {
+    // 2) both-team fuzzy name match
+    for (let i = 0; i < matchupsRows.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const r = matchupsRows[i];
+      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
       const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
       if (ra && rb && aName && bName) {
         if ((fuzzyMatchName(ra, aName) && fuzzyMatchName(rb, bName)) ||
             (fuzzyMatchName(ra, bName) && fuzzyMatchName(rb, aName))) {
-          return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          return trySelect(r, i);
         }
       }
     }
 
-    // 3) single-side fuzzy / placement heuristics
-    for (const r of cand) {
+    // 3) single-side fuzzy preference (useful for BYE or missing teams)
+    for (let i = 0; i < matchupsRows.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const r = matchupsRows[i];
+      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
       const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
       const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
 
@@ -204,20 +222,23 @@
       const altAMatches = aName && (fuzzyMatchName(rb, aName) || (aPlace && Number(rBplace) === Number(aPlace)));
       const altBMatches = bName && (fuzzyMatchName(ra, bName) || (bPlace && Number(rAplace) === Number(bPlace)));
 
-      if ((aMatches && !bName) || (bMatches && !aName)) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
-      if (aMatches && bMatches) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
-      if (altAMatches && altBMatches) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
-      if (aMatches || bMatches || altAMatches || altBMatches) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+      if ((aMatches && !bName) || (bMatches && !aName)) return trySelect(r, i);
+      if (aMatches && bMatches) return trySelect(r, i);
+      if (altAMatches && altBMatches) return trySelect(r, i);
+      if (aMatches || bMatches || altAMatches || altBMatches) return trySelect(r, i);
     }
 
     // 4) fallback by bracket membership (winners vs losers)
-    for (const r of cand) {
+    for (let i = 0; i < matchupsRows.length; i++) {
+      if (usedIndices.has(i)) continue;
+      const r = matchupsRows[i];
+      if (Number(r.round ?? 0) !== Number(roundNumber)) continue;
       const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
       if (rAplace || rBplace) {
         if (isWinners) {
-          if ((rAplace && rAplace <= winnersSize) || (rBplace && rBplace <= winnersSize)) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          if ((rAplace && rAplace <= winnersSize) || (rBplace && rBplace <= winnersSize)) return trySelect(r, i);
         } else {
-          if ((rAplace && rAplace > winnersSize) || (rBplace && rBplace > winnersSize)) return { teamA: enrichSide(r.teamA), teamB: enrichSide(r.teamB) };
+          if ((rAplace && rAplace > winnersSize) || (rBplace && rBplace > winnersSize)) return trySelect(r, i);
         }
       }
     }
@@ -226,8 +247,9 @@
   }
 
   // precompute found maps using safe concatenated keys (no template literal in template)
-  $: winnersFoundMap = {};
   $: {
+    // reset usedIndices before computing maps so each rebuild starts fresh.
+    usedIndices = new Set();
     winnersFoundMap = {};
     winnersBracket.forEach((round, rIdx) => {
       round.forEach((match, mIdx) => {
@@ -235,18 +257,19 @@
         winnersFoundMap[key] = findMatchForSlot(match.a, match.b, rIdx + 1, true);
       });
     });
-  }
 
-  $: losersFoundMap = {};
-  $: {
     losersFoundMap = {};
     losersBracket.forEach((round, rIdx) => {
       round.forEach((match, mIdx) => {
         const key = rIdx + '_' + mIdx;
+        // note: we intentionally keep usedIndices (so winners-consumed rows are not reused).
         losersFoundMap[key] = findMatchForSlot(match.a, match.b, rIdx + 1, false);
       });
     });
   }
+
+  let winnersFoundMap = {};
+  let losersFoundMap = {};
 
   function fmtScore(v) {
     if (v == null) return '—';
