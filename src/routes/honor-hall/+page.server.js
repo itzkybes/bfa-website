@@ -62,7 +62,25 @@ export async function load(event) {
 
   // determine selected season (league id) and week from query params
   const url = event.url;
-  let selectedSeason = url.searchParams.get('season') || (seasons.length ? seasons[seasons.length - 1].league_id : null);
+  const seasonParam = url.searchParams.get('season') ?? null;
+  let selectedSeason = seasonParam;
+  if (!selectedSeason) {
+    if (seasons.length) selectedSeason = seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id;
+  }
+
+  // find matching league id for selectedSeason (either season value or league_id)
+  let selectedLeagueId = null;
+  for (const s of seasons) {
+    if (String(s.season) === String(selectedSeason) || String(s.league_id) === String(selectedSeason)) {
+      selectedLeagueId = String(s.league_id);
+      selectedSeason = s.season ?? selectedSeason;
+      break;
+    }
+  }
+  // fallback - use BASE_LEAGUE_ID
+  if (!selectedLeagueId && seasons.length) selectedLeagueId = seasons[seasons.length - 1].league_id;
+
+  // selected week param (or default to last week)
   let selectedWeek = Number(url.searchParams.get('week') || (MAX_WEEKS > 0 ? MAX_WEEKS : 1));
   if (!selectedWeek || selectedWeek < 1) selectedWeek = 1;
 
@@ -73,7 +91,7 @@ export async function load(event) {
   // load league metadata to determine playoff start
   let leagueMeta = null;
   try {
-    leagueMeta = selectedSeason ? await sleeper.getLeague(selectedSeason, { ttl: 60 * 5 }) : null;
+    leagueMeta = selectedLeagueId ? await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }) : null;
   } catch (e) {
     leagueMeta = null;
     messages.push('Failed fetching league meta for selected season: ' + (e?.message ?? e));
@@ -87,8 +105,8 @@ export async function load(event) {
   // fetch roster map (with owner metadata)
   let rosterMap = {};
   try {
-    if (selectedSeason) {
-      rosterMap = await sleeper.getRosterMapWithOwners(selectedSeason, { ttl: 60 * 5 });
+    if (selectedLeagueId) {
+      rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
       messages.push('Loaded rosters (' + Object.keys(rosterMap).length + ')');
     }
   } catch (e) {
@@ -99,7 +117,7 @@ export async function load(event) {
   // fetch playoff matchups (fetch matchups for playoff window)
   let rawMatchups = [];
   try {
-    if (selectedSeason) {
+    if (selectedLeagueId) {
       // Determine playoff start from league metadata if available
       let startWeek = playoffStart && Number(playoffStart) >= 1 ? Number(playoffStart) : null;
       // If not available, assume final 3 weeks are playoffs (fallback)
@@ -111,7 +129,7 @@ export async function load(event) {
       const endWeek = Math.min(MAX_WEEKS, startWeek + 2);
       for (let wk = startWeek; wk <= endWeek; wk++) {
         try {
-          const wkMatchups = await sleeper.getMatchupsForWeek(selectedSeason, wk, { ttl: 60 * 5 });
+          const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
           if (Array.isArray(wkMatchups) && wkMatchups.length) {
             // ensure week property is set for each matchup entry
             for (const m of wkMatchups) {
