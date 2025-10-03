@@ -2,29 +2,22 @@
   // src/routes/honor-hall/+page.svelte
   export let data;
 
-  // seasons for dropdown (array of { league_id, season, name })
   const seasons = data?.seasons ?? [];
   const selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[0].season : null);
 
-  // rounds object: { "1": [...], "2": [...], ... }
-  const roundsObj = data?.rounds ?? {};
+  const rows = data?.matchupsRows ?? [];
+  const messages = data?.messages ?? [];
 
-  // sorted numeric round keys
-  $: roundKeys = Object.keys(roundsObj || {})
-    .map(k => Number(k))
-    .filter(n => !Number.isNaN(n))
-    .sort((a, b) => a - b);
-
-  const roundNames = {
-    1: 'Quarterfinals',
-    2: 'Semifinals',
-    3: 'Finals',
-    4: 'Championship'
-  };
-
-  function roundLabel(n) {
-    return roundNames[n] ?? `Round ${n}`;
-  }
+  // Group rows by week (sorted)
+  $: grouped = (function() {
+    const map = new Map();
+    for (const r of rows) {
+      const w = Number(r.week ?? r.w ?? 0) || 0;
+      if (!map.has(w)) map.set(w, []);
+      map.get(w).push(r);
+    }
+    return Array.from(map.entries()).sort((a,b) => a[0] - b[0]).map(([week, items]) => ({ week, items }));
+  })();
 
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
@@ -43,6 +36,16 @@
     if (isNaN(x) || x === null) return '—';
     return x.toFixed(1).replace(/\.0$/, '');
   }
+
+  const roundNames = {
+    1: 'Quarterfinals',
+    2: 'Semifinals',
+    3: 'Finals'
+  };
+
+  function roundLabel(roundIndex) {
+    return roundNames[roundIndex] ?? `Round ${roundIndex}`;
+  }
 </script>
 
 <style>
@@ -54,14 +57,14 @@
   .season-select { font-size:1.02rem; padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color:inherit; min-width:120px; }
   .muted { color:#9ca3af; font-size:.92rem; }
   .messages { background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; margin-bottom:12px; color:#cfe7f6; }
-  .round-title { font-weight:700; margin-top:1.2rem; margin-bottom:0.6rem; font-size:1.05rem; }
-  table { width:100%; border-collapse:collapse; background:transparent; border-radius:8px; overflow:hidden; }
+  .week-header { margin-top: 1rem; margin-bottom: .5rem; font-weight:700; font-size:.98rem; color:#e6eef8; padding:8px 12px; border-radius:8px; background: rgba(255,255,255,0.02); }
+  table { width:100%; border-collapse:collapse; }
   th, td { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
   thead th { text-align:left; color:#9ca3af; font-weight:700; background: rgba(255,255,255,0.01); }
   .team { display:flex; gap:.6rem; align-items:center; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px; }
-  .avatar { width:40px; height:40px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .score { font-weight:700; text-align:center; min-width:68px; }
+  .team-name { font-weight:700; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; }
+  .score { font-weight:700; text-align:center; min-width:80px; }
   .winner { background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22)); padding:4px 8px; border-radius:8px; color:#fff; display:inline-block; }
   .bye { color:#9ca3af; font-style:italic; }
   .inner-table { width:100%; border-collapse:collapse; }
@@ -73,12 +76,12 @@
   <div class="header">
     <div>
       <h1>Honor Hall</h1>
-      <div class="muted">Playoff matchups grouped by round</div>
+      <div class="muted">Playoff matchups</div>
     </div>
 
     <form id="filters" method="get" class="controls" aria-label="filters">
       <label class="muted" for="season" style="margin-right:.4rem;">Season</label>
-      <select id="season" name="season" class="season-select" on:change={submitFilters} aria-label="Select season">
+      <select id="season" name="season" class="season-select" on:change={submitFilters}>
         {#each seasons as s}
           <option value={s.season} selected={String(s.season) === String(selectedSeason)}>{s.season}{s.name ? ` — ${s.name}` : ''}</option>
         {/each}
@@ -86,122 +89,118 @@
     </form>
   </div>
 
-  {#if data.messages && data.messages.length}
+  {#if messages && messages.length}
     <div class="messages" role="status" aria-live="polite">
-      {#each data.messages as m}
+      {#each messages as m}
         <div>{m}</div>
       {/each}
     </div>
   {/if}
 
-  {#if roundKeys.length === 0}
+  {#if grouped.length === 0}
     <div class="no-data">No playoff matchups found for the selected season.</div>
   {:else}
-    {#each roundKeys as r}
-      <section aria-labelledby={"round-" + r}>
-        <div id={"round-" + r} class="round-title">{roundLabel(r)}</div>
-
-        <table role="table" aria-labelledby={"round-" + r}>
-          <thead>
-            <tr>
-              <th>Team A</th>
-              <th style="text-align:center; width:110px;">Score</th>
-              <th style="text-align:center; width:60px;">vs</th>
-              <th style="text-align:center; width:110px;">Score</th>
-              <th style="text-align:right;">Team B</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each roundsObj[r] as row (row.matchup_id ?? row.match ?? row.key)}
-              {#if row.participantsCount === 2}
-                <tr>
-                  <td>
-                    <div class="team">
-                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.teamA.name)} />
-                      <div>
-                        <div class="team-name">{row.teamA.name}</div>
-                        {#if row.teamA.owner_display}<div class="muted" style="font-size:.85rem;">{row.teamA.owner_display}</div>{/if}
-                      </div>
+    {#each grouped as g, gi}
+      <div class="week-header">Week {g.week} — {roundLabel(gi+1)}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Team A</th>
+            <th style="text-align:center; width:120px;">Score</th>
+            <th style="text-align:center; width:60px;">vs</th>
+            <th style="text-align:center; width:120px;">Score</th>
+            <th style="text-align:right;">Team B</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each g.items as row (row.matchup_id ?? row.match ?? row.key)}
+            {#if row.participantsCount === 2}
+              <tr>
+                <td>
+                  <div class="team">
+                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.teamA.name)} />
+                    <div>
+                      <div class="team-name">{row.teamA.name}</div>
+                      {#if row.teamA.owner_display}<div class="muted" style="font-size:.85rem;">{row.teamA.owner_display}</div>{/if}
                     </div>
-                  </td>
+                  </div>
+                </td>
 
-                  <td class="score">
-                    {#if row.teamA.points != null}
-                      <span class={row.teamA.points > (row.teamB.points ?? -Infinity) ? 'winner' : ''}>{fmt(row.teamA.points)}</span>
-                    {:else}
-                      <span>—</span>
-                    {/if}
-                  </td>
+                <td class="score">
+                  {#if row.teamA.points != null}
+                    <span class={row.teamA.points > (row.teamB.points ?? -Infinity) ? 'winner' : ''}>{fmt(row.teamA.points)}</span>
+                  {:else}
+                    <span>—</span>
+                  {/if}
+                </td>
 
-                  <td style="text-align:center;">vs</td>
+                <td style="text-align:center;">vs</td>
 
-                  <td class="score">
-                    {#if row.teamB.points != null}
-                      <span class={row.teamB.points > (row.teamA.points ?? -Infinity) ? 'winner' : ''}>{fmt(row.teamB.points)}</span>
-                    {:else}
-                      <span>—</span>
-                    {/if}
-                  </td>
+                <td class="score">
+                  {#if row.teamB.points != null}
+                    <span class={row.teamB.points > (row.teamA.points ?? -Infinity) ? 'winner' : ''}>{fmt(row.teamB.points)}</span>
+                  {:else}
+                    <span>—</span>
+                  {/if}
+                </td>
 
-                  <td style="text-align:right;">
-                    <div class="team" style="justify-content:flex-end;">
-                      <div style="text-align:right;">
-                        <div class="team-name">{row.teamB.name}</div>
-                        {#if row.teamB.owner_display}<div class="muted" style="font-size:.85rem;">{row.teamB.owner_display}</div>{/if}
-                      </div>
-                      <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.teamB.name)} />
+                <td style="text-align:right;">
+                  <div class="team" style="justify-content:flex-end;">
+                    <div style="text-align:right;">
+                      <div class="team-name">{row.teamB.name}</div>
+                      {#if row.teamB.owner_display}<div class="muted" style="font-size:.85rem;">{row.teamB.owner_display}</div>{/if}
                     </div>
-                  </td>
-                </tr>
+                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.teamB.name)} />
+                  </div>
+                </td>
+              </tr>
 
-              {:else if row.participantsCount === 1}
-                <tr>
-                  <td>
-                    <div class="team">
-                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.teamA.name)} />
-                      <div>
-                        <div class="team-name">{row.teamA.name}</div>
-                        {#if row.teamA.owner_display}<div class="muted" style="font-size:.85rem;">{row.teamA.owner_display}</div>{/if}
-                      </div>
+            {:else if row.participantsCount === 1}
+              <tr>
+                <td>
+                  <div class="team">
+                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.teamA.name)} />
+                    <div>
+                      <div class="team-name">{row.teamA.name}</div>
+                      {#if row.teamA.owner_display}<div class="muted" style="font-size:.85rem;">{row.teamA.owner_display}</div>{/if}
                     </div>
-                  </td>
+                  </div>
+                </td>
 
-                  <td class="score">—</td>
-                  <td style="text-align:center;">—</td>
-                  <td class="score"><span class="bye">BYE</span></td>
+                <td class="score">—</td>
+                <td style="text-align:center;">—</td>
+                <td class="score"><span class="bye">BYE</span></td>
 
-                  <td style="text-align:right;"></td>
-                </tr>
+                <td style="text-align:right;"></td>
+              </tr>
 
-              {:else}
-                <!-- multi-team matchup -->
-                <tr>
-                  <td colspan="5">
-                    <div style="font-weight:700; margin-bottom:.4rem;">Multi-Team Matchup</div>
-                    <table class="inner-table" role="table">
-                      <tbody>
-                        {#each row.combinedParticipants as p}
-                          <tr>
-                            <td>
-                              <div class="team">
-                                <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name, 36)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, p.name, 36)} />
-                                <div style="margin-left:.5rem;">
-                                  <div style="font-weight:700;">{p.name}</div>
-                                </div>
+            {:else}
+              <tr>
+                <td colspan="5">
+                  <div style="font-weight:700; margin-bottom:.4rem;">Multi-Team Matchup</div>
+                  <table class="inner-table">
+                    <tbody>
+                      {#each row.combinedParticipants as p}
+                        <tr>
+                          <td>
+                            <div class="team">
+                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name, 36)} alt="" on:error={(e)=>e.target.src = avatarOrPlaceholder(null, p.name, 36)} />
+                              <div style="margin-left:.5rem;">
+                                <div style="font-weight:700;">{p.name}</div>
                               </div>
-                            </td>
-                            <td style="text-align:right; font-weight:700; width:120px;">{fmt(p.points)}</td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
-              {/if}
-            {/each}
-          </tbody>
-        </table>
-      </section>
+                            </div>
+                          </td>
+                          <td style="text-align:right; font-weight:700; width:120px;">{fmt(p.points)}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            {/if}
+          {/each}
+        </tbody>
+      </table>
     {/each}
   {/if}
 </div>
