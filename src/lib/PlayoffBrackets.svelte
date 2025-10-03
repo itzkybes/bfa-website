@@ -1,16 +1,14 @@
 <script>
   // src/lib/PlayoffBrackets.svelte
-  // Single-column bracket renderer that shows actual scores if matchupsRows contains them.
   export let standings = [];
   export let season = null;
   export let titlePrefix = '';
-  export let matchupsRows = []; // array of matchup rows from loader
+  export let matchupsRows = [];
 
   const is2022 = String(season) === '2022';
   const winnersSize = is2022 ? 6 : 8;
   const losersSize = is2022 ? 8 : 6;
 
-  // normalize an entry
   function teamObj(entry, idx) {
     if (!entry) return null;
     if (typeof entry === 'string') return { id: null, name: entry, placement: idx + 1, avatar: null };
@@ -33,7 +31,6 @@
   const winnersParticipants = fill(normalized.slice(0, winnersSize), winnersSize);
   const losersParticipants = fill(normalized.slice(winnersSize, winnersSize + losersSize), losersSize);
 
-  // Build seeded bracket structure (8 or 6)
   function build8(participants) {
     const qPairs = [[0,7],[3,4],[2,5],[1,6]];
     const quarter = qPairs.map((p, i) => ({ a: participants[p[0]] ?? null, b: participants[p[1]] ?? null, id: `q${i+1}` }));
@@ -70,44 +67,32 @@
   const winnersBracket = buildBracket(winnersParticipants);
   const losersBracket = buildBracket(losersParticipants);
 
-  // helper maps for matching
-  const placementByName = {};
-  for (const t of normalized) {
-    if (t && t.name) placementByName[String(t.name).trim().toLowerCase()] = t.placement;
-  }
-
+  // match lookup / fuzzy helpers
   function lc(x){ return x ? String(x).trim().toLowerCase() : ''; }
   function fuzzyMatchName(a, b) {
     if (!a || !b) return false;
     const A = lc(a), B = lc(b);
     if (!A || !B) return false;
     if (A === B) return true;
-    // loosened matching: if one contains the other
     if (A.includes(B) || B.includes(A)) return true;
-    // remove non-alphanumerics and compare
     const a2 = A.replace(/[^a-z0-9]/g,''), b2 = B.replace(/[^a-z0-9]/g,'');
     if (a2 && b2 && (a2 === b2 || a2.includes(b2) || b2.includes(a2))) return true;
     return false;
   }
 
-  // find a matchupsRows entry corresponding to a seeded slot (aSeed, bSeed), roundNumber is 1-based
+  // find a match in matchupsRows for seeded slot
   function findMatchForSlot(aSeed, bSeed, roundNumber, isWinners) {
     if (!Array.isArray(matchupsRows) || matchupsRows.length === 0) return null;
-    // filter by round
     const cand = matchupsRows.filter(r => Number(r.round ?? 0) === Number(roundNumber));
     if (!cand.length) return null;
 
-    // normalized seeded names
     const aName = aSeed?.name ?? null;
     const bName = bSeed?.name ?? null;
     const aPlace = aSeed?.placement ?? null;
     const bPlace = bSeed?.placement ?? null;
 
-    // 1) exact both-team match using placement (if available on rows)
+    // 1) placement exact match
     for (const r of cand) {
-      const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
-      if (!ra && !rb) continue;
-      // placements if present on row
       const rAplace = r.teamA?.placement ?? null;
       const rBplace = r.teamB?.placement ?? null;
       if (aPlace && bPlace && rAplace && rBplace) {
@@ -118,20 +103,21 @@
       }
     }
 
-    // 2) exact name match both sides
+    // 2) both-team fuzzy name match
     for (const r of cand) {
       const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
-      if (ra && rb && aName && bName && (fuzzyMatchName(ra, aName) && fuzzyMatchName(rb, bName) || fuzzyMatchName(ra, bName) && fuzzyMatchName(rb, aName))) {
-        return r;
+      if (ra && rb && aName && bName) {
+        if ((fuzzyMatchName(ra, aName) && fuzzyMatchName(rb, bName)) ||
+            (fuzzyMatchName(ra, bName) && fuzzyMatchName(rb, aName))) {
+          return r;
+        }
       }
     }
 
-    // 3) partial single-side match (if the seeded slot was BYE on one side or order mismatch)
-    // prefer matches where at least one participant matches a seeded name or placement
+    // 3) single-side fuzzy match preference
     for (const r of cand) {
       const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
-      const rAplace = r.teamA?.placement ?? null;
-      const rBplace = r.teamB?.placement ?? null;
+      const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
 
       const aMatches = aName && (fuzzyMatchName(ra, aName) || (aPlace && Number(rAplace) === Number(aPlace)));
       const bMatches = bName && (fuzzyMatchName(rb, bName) || (bPlace && Number(rBplace) === Number(bPlace)));
@@ -139,16 +125,14 @@
       const altBMatches = bName && (fuzzyMatchName(ra, bName) || (bPlace && Number(rAplace) === Number(bPlace)));
 
       if ((aMatches && !bName) || (bMatches && !aName)) return r;
-      if ((aMatches && bMatches) || (altAMatches && altBMatches)) return r;
-      // also accept cases where at least one side matches
+      if (aMatches && bMatches) return r;
+      if (altAMatches && altBMatches) return r;
       if (aMatches || bMatches || altAMatches || altBMatches) return r;
     }
 
-    // 4) as a last resort, return first candidate that appears to belong to the bracket (by placement)
+    // 4) fallback by placement bracket membership
     for (const r of cand) {
-      const ra = r.teamA?.name ?? null, rb = r.teamB?.name ?? null;
       const rAplace = r.teamA?.placement ?? null, rBplace = r.teamB?.placement ?? null;
-      // is this match in winners or losers by placement?
       if (rAplace || rBplace) {
         if (isWinners) {
           if ((rAplace && rAplace <= winnersSize) || (rBplace && rBplace <= winnersSize)) return r;
@@ -161,12 +145,19 @@
     return null;
   }
 
-  // format score
+  // reactive precomputed lookup arrays so template doesn't call findMatchForSlot inline
+  $: winnersFound = winnersBracket.map((round, rIdx) =>
+    round.map((match, mIdx) => findMatchForSlot(match.a, match.b, rIdx + 1, true))
+  );
+
+  $: losersFound = losersBracket.map((round, rIdx) =>
+    round.map((match, mIdx) => findMatchForSlot(match.a, match.b, rIdx + 1, false))
+  );
+
   function fmtScore(v) {
     if (v == null) return '—';
     const n = Number(v);
     if (Number.isNaN(n)) return '—';
-    // show one decimal to match other tabs; remove trailing 0
     let s = n.toFixed(2);
     s = s.replace(/\.?0+$/, '');
     return s;
@@ -216,7 +207,7 @@
 </style>
 
 <div class="col">
-  <!-- Winners bracket section -->
+  <!-- Winners bracket -->
   <div class="section">
     <div class="titleRow">
       <div>
@@ -226,7 +217,6 @@
       <div class="subtitle">Quarterfinals • Semifinals • Final</div>
     </div>
 
-    <!-- rounds vertically stacked inside the same section -->
     {#each winnersBracket as round, rIdx}
       <div class="roundBlock">
         <div class="roundHeader">
@@ -235,14 +225,9 @@
 
         <div class="matches">
           {#each round as match, mIdx}
-            { /* seeded slot: match.a (seeded team) vs match.b (seeded team) */ }
-            {@const seededA = match.a}
-            {@const seededB = match.b}
-            {@const roundNumber = rIdx + 1}
-            {@const found = findMatchForSlot(seededA, seededB, roundNumber, true)}
-
-            {#if found}
-              <!-- render the actual matchup row using found.teamA/ teamB and scores -->
+            {#if winnersFound[rIdx] && winnersFound[rIdx][mIdx]}
+              { /* Use real matchup row */ }
+              {@const found = winnersFound[rIdx][mIdx]}
               <div class="matchRow">
                 <div class="teamCol">
                   {#if found.teamA?.placement}
@@ -265,31 +250,29 @@
                   </div>
                 </div>
 
-                <div class="scoreBox">
-                  <div>{fmtScore(found.teamA?.points)} — {fmtScore(found.teamB?.points)}</div>
-                </div>
+                <div class="scoreBox">{fmtScore(found.teamA?.points)} — {fmtScore(found.teamB?.points)}</div>
               </div>
             {:else}
-              <!-- fallback to seeded placeholder row -->
+              { /* Fallback seeded placeholder */ }
               <div class="matchRow">
                 <div class="teamCol">
-                  {#if seededA?.placement}
-                    <div class="seedBadge">#{seededA.placement}</div>
+                  {#if match.a?.placement}
+                    <div class="seedBadge">#{match.a.placement}</div>
                   {/if}
-                  <img class="avatar" src={seededA?.avatar ? seededA.avatar : avatarOrPlaceholder(seededA?.name)} alt="">
+                  <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{seededA?.name ?? 'TBD'}</div>
-                    {#if seededA?.owner_display}<div class="teamMeta">{seededA.owner_display}</div>{/if}
+                    <div class="teamName">{match.a?.name ?? 'TBD'}</div>
+                    {#if match.a?.owner_display}<div class="teamMeta">{match.a.owner_display}</div>{/if}
                   </div>
                 </div>
 
                 <div class="vs">vs</div>
 
                 <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={seededB?.avatar ? seededB.avatar : avatarOrPlaceholder(seededB?.name)} alt="">
+                  <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{seededB?.name ?? 'TBD'}</div>
-                    {#if seededB?.owner_display}<div class="teamMeta">{seededB.owner_display}</div>{/if}
+                    <div class="teamName">{match.b?.name ?? 'TBD'}</div>
+                    {#if match.b?.owner_display}<div class="teamMeta">{match.b.owner_display}</div>{/if}
                   </div>
                 </div>
 
@@ -302,7 +285,7 @@
     {/each}
   </div>
 
-  <!-- Losers bracket section -->
+  <!-- Losers bracket -->
   <div class="section">
     <div class="titleRow">
       <div>
@@ -320,12 +303,8 @@
 
         <div class="matches">
           {#each round as match, mIdx}
-            {@const seededA = match.a}
-            {@const seededB = match.b}
-            {@const roundNumber = rIdx + 1}
-            {@const found = findMatchForSlot(seededA, seededB, roundNumber, false)}
-
-            {#if found}
+            {#if losersFound[rIdx] && losersFound[rIdx][mIdx]}
+              {@const found = losersFound[rIdx][mIdx]}
               <div class="matchRow">
                 <div class="teamCol">
                   {#if found.teamA?.placement}
@@ -348,30 +327,28 @@
                   </div>
                 </div>
 
-                <div class="scoreBox">
-                  <div>{fmtScore(found.teamA?.points)} — {fmtScore(found.teamB?.points)}</div>
-                </div>
+                <div class="scoreBox">{fmtScore(found.teamA?.points)} — {fmtScore(found.teamB?.points)}</div>
               </div>
             {:else}
               <div class="matchRow">
                 <div class="teamCol">
-                  {#if seededA?.placement}
-                    <div class="seedBadge">#{seededA.placement}</div>
+                  {#if match.a?.placement}
+                    <div class="seedBadge">#{match.a.placement}</div>
                   {/if}
-                  <img class="avatar" src={seededA?.avatar ? seededA.avatar : avatarOrPlaceholder(seededA?.name)} alt="">
+                  <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{seededA?.name ?? 'TBD'}</div>
-                    {#if seededA?.owner_display}<div class="teamMeta">{seededA.owner_display}</div>{/if}
+                    <div class="teamName">{match.a?.name ?? 'TBD'}</div>
+                    {#if match.a?.owner_display}<div class="teamMeta">{match.a.owner_display}</div>{/if}
                   </div>
                 </div>
 
                 <div class="vs">vs</div>
 
                 <div class="teamCol" style="margin-left:8px;">
-                  <img class="avatar" src={seededB?.avatar ? seededB.avatar : avatarOrPlaceholder(seededB?.name)} alt="">
+                  <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
                   <div style="min-width:0;">
-                    <div class="teamName">{seededB?.name ?? 'TBD'}</div>
-                    {#if seededB?.owner_display}<div class="teamMeta">{seededB.owner_display}</div>{/if}
+                    <div class="teamName">{match.b?.name ?? 'TBD'}</div>
+                    {#if match.b?.owner_display}<div class="teamMeta">{match.b.owner_display}</div>{/if}
                   </div>
                 </div>
 
