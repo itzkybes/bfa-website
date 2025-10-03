@@ -1,84 +1,109 @@
 // src/routes/honor-hall/+page.server.js
 import { error } from '@sveltejs/kit';
 
-export async function load({ url }) {
-  const season = url.searchParams.get('season');
-  if (!season) return { seasons: [], matchupsRows: [] };
+const API_BASE = "https://api.sleeper.app/v1";
 
-  // 1. Get league info
-  const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${season}`);
-  if (!leagueRes.ok) throw error(500, 'Failed to fetch league');
-  const league = await leagueRes.json();
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed fetch ${url}: ${res.status}`);
+  return res.json();
+}
 
-  const playoffStart = league.settings?.playoff_week_start ?? 15;
-  const playoffWeeks = [playoffStart, playoffStart + 1, playoffStart + 2];
+// Resolve roster_id from a slot (can be number, {w: X}, or {l: X})
+function resolveRosterId(slot, bracket) {
+  if (!slot) return null;
+  if (typeof slot === "number") return slot;
 
-  // 2. Get rosters & users
-  const [rostersRes, usersRes] = await Promise.all([
-    fetch(`https://api.sleeper.app/v1/league/${season}/rosters`),
-    fetch(`https://api.sleeper.app/v1/league/${season}/users`)
-  ]);
-  const rosters = await rostersRes.json();
-  const users = await usersRes.json();
-
-  const userMap = new Map(users.map(u => [u.user_id, u]));
-  const rosterMap = new Map(rosters.map(r => [r.roster_id, r]));
-
-  // 3. Get winners bracket
-  const bracketRes = await fetch(`https://api.sleeper.app/v1/league/${season}/winners_bracket`);
-  const bracket = bracketRes.ok ? await bracketRes.json() : [];
-
-  // 4. Fetch all playoff week matchups (for scores)
-  const weeklyMatchups = {};
-  for (const week of playoffWeeks) {
-    const res = await fetch(`https://api.sleeper.app/v1/league/${season}/matchups/${week}`);
-    weeklyMatchups[week] = res.ok ? await res.json() : [];
+  if (slot.w) {
+    const match = bracket.find(b => b.m === slot.w);
+    return match?.w ?? null;
   }
+  if (slot.l) {
+    const match = bracket.find(b => b.m === slot.l);
+    return match?.l ?? null;
+  }
+  return null;
+}
 
-  // Map matchup_id+roster_id → points
-  const pointsLookup = {};
-  for (const week of playoffWeeks) {
-    for (const m of weeklyMatchups[week]) {
-      pointsLookup[`${week}_${m.roster_id}`] = m.points;
+/** @type {import('./$types').PageServerLoad} */
+export async function load({ params, url }) {
+  try {
+    const season = url.searchParams.get("season") || new Date().getFullYear();
+    const leagueId = process.env.SLEEPER_LEAGUE_ID; // ⚠️ set this in .env
+
+    // --- Get metadata & rosters/users
+    const league = await fetchJson(`${API_BASE}/league/${leagueId}`);
+    const rosters = await fetchJson(`${API_BASE}/league/${leagueId}/rosters`);
+    const users = await fetchJson(`${API_BASE}/league/${leagueId}/users`);
+
+    const playoffStart = league.playoff_week_start ?? 15;
+
+    // --- Get playoff bracket
+    const bracket = await fetchJson(`${API_BASE}/league/${leagueId}/winners_bracket`);
+
+    // --- Map roster_id → user info
+    const rosterMap = {};
+    for (const r of rosters) {
+      const user = users.find(u => u.user_id === r.owner_id);
+      rosterMap[r.roster_id] = {
+        roster_id: r.roster_id,
+        display_name: user?.display_name || "Unknown",
+        avatar: user?.avatar || null
+      };
     }
-  }
 
-  // 5. Build matchupsRows
-  const matchupsRows = bracket.map(m => {
-    const teamA = rosterMap.get(m.t1);
-    const teamB = rosterMap.get(m.t2);
+    // --- Group bracket matches by round
+    const rounds = {};
+    for (const match of bracket) {
+      const r = match.r;
+      if (!rounds[r]) rounds[r] = [];
+      rounds[r].push(match);
+    }
 
-    const userA = teamA ? userMap.get(teamA.owner_id) : null;
-    const userB = teamB ? userMap.get(teamB.owner_id) : null;
+    // --- Fetch scores for playoff weeks
+    const scores = {};
+    for (let r = 1; r <= Object.keys(rounds).length; r++) {
+      const week = playoffStart + (r - 1);
+      try {
+        const weekMatchups = await fetchJson(`${API_BASE}/league/${leagueId}/matchups/${week}`);
+        scores[week] = weekMatchups;
+      } catch (err) {
+        scores[week] = [];
+      }
+    }
 
-    // determine correct week for this round
-    const week = playoffWeeks[m.r - 1];
+    // --- Enrich bracket with team info + scores
+    const enrichedRounds = {};
+    for (const [round, matches] of Object.entries(rounds)) {
+      const week = playoffStart + (Number(round) - 1);
+      const weekScores = scores[week] || [];
+
+      enrichedRounds[round] = matches.map(m => {
+        const t1_roster = resolveRosterId(m.t1, bracket);
+        const t2_roster = resolveRosterId(m.t2, bracket);
+
+        const t1_score = weekScores.find(x => x.roster_id === t1_roster)?.points ?? null;
+        const t2_score = weekScores.find(x => x.roster_id === t2_roster)?.points ?? null;
+
+        return {
+          round,
+          match: m.m,
+          t1: rosterMap[t1_roster] || null,
+          t2: rosterMap[t2_roster] || null,
+          t1_score,
+          t2_score,
+          winner: rosterMap[m.w] || null
+        };
+      });
+    }
 
     return {
-      round: m.r,
-      week,
-      teamA: teamA
-        ? {
-            name: userA?.metadata?.team_name || userA?.display_name,
-            ownerName: userA?.display_name ?? '',
-            avatar: userA?.avatar ? `https://sleepercdn.com/avatars/${userA.avatar}` : null,
-            points: pointsLookup[`${week}_${teamA.roster_id}`] ?? 0
-          }
-        : null,
-      teamB: teamB
-        ? {
-            name: userB?.metadata?.team_name || userB?.display_name,
-            ownerName: userB?.display_name ?? '',
-            avatar: userB?.avatar ? `https://sleepercdn.com/avatars/${userB.avatar}` : null,
-            points: pointsLookup[`${week}_${teamB.roster_id}`] ?? 0
-          }
-        : null
+      season,
+      league,
+      rounds: enrichedRounds
     };
-  });
-
-  return {
-    seasons: [{ season, name: league.name }],
-    selectedSeason: season,
-    matchupsRows
-  };
+  } catch (err) {
+    console.error("Honor Hall load failed:", err);
+    throw error(500, "Failed to load playoff data");
+  }
 }
