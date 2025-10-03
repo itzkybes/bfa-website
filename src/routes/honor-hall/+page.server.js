@@ -1,294 +1,219 @@
 // src/routes/honor-hall/+page.server.js
-import { error } from '@sveltejs/kit';
-import { createSleeperClient } from '$lib/server/sleeperClient';
-import { createMemoryCache, createKVCache } from '$lib/server/cache';
+import { env } from '$env/dynamic/private';
 
-let cache;
-try {
-  // prefer a KV backing in edge environment if available (same pattern as Matchups)
-  if (typeof globalThis !== 'undefined' && globalThis.KV) cache = createKVCache(globalThis.KV);
-  else cache = createMemoryCache();
-} catch (e) {
-  cache = createMemoryCache();
-}
+/**
+ * Server load for Honor Hall (playoff view).
+ * - Uses BASE_LEAGUE_ID from env
+ * - Accepts ?season=YYYY (defaults to current year)
+ * - Fetches league metadata, rosters, users, and matchups for playoff weeks
+ * - Returns { seasons, selectedSeason, playoffWeeks, matchupsRows, rosterMap, errors }
+ *
+ * Notes:
+ * - This attempts to read playoff start week from the league object. If not present,
+ *   it falls back to commonly used playoff weeks (23..25).
+ * - Sleeps endpoints used:
+ *   GET https://api.sleeper.app/v1/league/{league_id}
+ *   GET https://api.sleeper.app/v1/league/{league_id}/rosters
+ *   GET https://api.sleeper.app/v1/league/{league_id}/users
+ *   GET https://api.sleeper.app/v1/league/{league_id}/matchups/{week}
+ *
+ * If your project already has helper functions or different endpoints, you can adapt.
+ */
+export async function load({ fetch, url }) {
+  const errors = [];
+  const BASE_LEAGUE_ID = env.BASE_LEAGUE_ID ?? null;
 
-const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
-const sleeper = createSleeperClient({ cache, concurrency: SLEEPER_CONCURRENCY });
+  const selectedSeason = url.searchParams.get('season') ?? String(new Date().getFullYear());
 
-// fallback/base league id (use env var in production)
-const BASE_LEAGUE_ID = process.env.BASE_LEAGUE_ID ?? '1219816671624048640';
-const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 25;
-
-function safeNum(v) {
-  if (v == null) return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
-}
-
-/** @type {import('./$types').PageServerLoad} */
-export async function load(event) {
-  // edge caching hints (same as your other loaders)
-  event.setHeaders?.({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
-
-  const messages = [];
-
-  try {
-    if (!BASE_LEAGUE_ID) {
-      messages.push('BASE_LEAGUE_ID not set in environment — cannot fetch seasons.');
-      return { seasons: [], seasonsMeta: [], selectedSeason: null, matchupsRows: [], standings: null, messages };
-    }
-
-    // 1) Build seasons chain by walking previous_league_id (same as Matchups)
-    const seasonsMeta = [];
-    try {
-      // start from the base league and walk back
-      let main = null;
-      try {
-        main = await sleeper.getLeague(String(BASE_LEAGUE_ID), { ttl: 60 * 5 });
-      } catch (e) {
-        main = null;
-        messages.push(`Error fetching base league ${BASE_LEAGUE_ID}: ${e?.message ?? e}`);
-      }
-      if (main) {
-        seasonsMeta.push({ league_id: String(main.league_id), season: main.season ?? null, name: main.name ?? null });
-        let prev = main.previous_league_id ? String(main.previous_league_id) : null;
-        let steps = 0;
-        while (prev && steps < 50) {
-          steps++;
-          try {
-            const p = await sleeper.getLeague(prev, { ttl: 60 * 5 });
-            if (!p) {
-              messages.push('Could not fetch league for previous_league_id: ' + prev);
-              break;
-            }
-            seasonsMeta.push({ league_id: String(p.league_id), season: p.season ?? null, name: p.name ?? null });
-            prev = p.previous_league_id ? String(p.previous_league_id) : null;
-          } catch (pe) {
-            messages.push('Error fetching previous_league_id ' + prev + ': ' + (pe?.message ?? pe));
-            break;
-          }
-        }
-      } else {
-        messages.push(`Failed to fetch base league ${BASE_LEAGUE_ID}`);
-      }
-    } catch (e) {
-      messages.push('Error while discovering seasons: ' + (e?.message ?? e));
-    }
-
-    if (seasonsMeta.length === 0) {
-      messages.push('No seasons discovered from BASE_LEAGUE_ID.');
-      return { seasons: [], seasonsMeta: [], selectedSeason: null, matchupsRows: [], standings: null, messages };
-    }
-
-    // 2) Determine selected season/league id (season param may be season-year or league_id)
-    const url = event.url;
-    const seasonParam = url.searchParams.get('season') ?? seasonsMeta[0].season;
-    let selectedLeagueId = null;
-    let selectedSeason = seasonParam;
-    for (const s of seasonsMeta) {
-      if (String(s.season) === String(seasonParam) || String(s.league_id) === String(seasonParam)) {
-        selectedLeagueId = s.league_id;
-        selectedSeason = s.season ?? s.season;
-        break;
-      }
-    }
-    if (!selectedLeagueId) {
-      selectedLeagueId = seasonsMeta[0].league_id;
-      selectedSeason = seasonsMeta[0].season;
-    }
-
-    // 3) Fetch league meta to detect playoff start (use same getLeague)
-    let leagueMeta = null;
-    try {
-      leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 });
-    } catch (e) {
-      leagueMeta = null;
-      messages.push('Failed fetching league meta for selected season: ' + (e?.message ?? e));
-    }
-
-    const playoffStart = safeNum(
-      leagueMeta?.settings?.playoff_week_start ??
-      leagueMeta?.settings?.playoffStartWeek ??
-      leagueMeta?.playoff_week_start
-    ) ?? null;
-
-    // 4) Fetch roster map with owners (same helper used by Matchups)
-    let rosterMap = {};
-    try {
-      rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
-      messages.push(`Loaded rosters (${Object.keys(rosterMap).length})`);
-    } catch (e) {
-      rosterMap = {};
-      messages.push('Failed to fetch rosters/users: ' + (e?.message ?? e));
-    }
-
-    // 5) Determine playoff weeks to fetch
-    let startWeek = playoffStart && Number(playoffStart) >= 1 ? Number(playoffStart) : null;
-    if (!startWeek) {
-      startWeek = Math.max(1, MAX_WEEKS - 2);
-      messages.push('Playoff start not found in league metadata — defaulting to week ' + startWeek);
-    }
-    const endWeek = Math.min(MAX_WEEKS, startWeek + 2);
-    const playoffWeeks = [];
-    for (let w = startWeek; w <= endWeek; w++) playoffWeeks.push(w);
-
-    // 6) Fetch matchups for each playoff week using the same helper as Matchups
-    const weekMatchups = {};
-    for (const wk of playoffWeeks) {
-      try {
-        const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
-        weekMatchups[wk] = Array.isArray(wkMatchups) ? wkMatchups : [];
-      } catch (e) {
-        messages.push(`Failed to fetch matchups for week ${wk}: ${e?.message ?? e}`);
-        weekMatchups[wk] = [];
-      }
-    }
-
-    // 7) Group matchups by matchup id and build matchupsRows matching Matchups tab shape
-    const matchupsRows = [];
-    for (let idx = 0; idx < playoffWeeks.length; idx++) {
-      const wk = playoffWeeks[idx];
-      const raw = weekMatchups[wk] || [];
-
-      // group by matchup id, fallback to index-based key
-      const groups = new Map();
-      for (let i = 0; i < raw.length; i++) {
-        const ent = raw[i];
-        const mid = ent.matchup_id ?? ent.matchupId ?? ent.matchup ?? null;
-        const key = mid != null ? `${mid}|${wk}` : `auto|${wk}|${i}`;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(ent);
-      }
-
-      for (const [key, entries] of groups.entries()) {
-        if (!entries || entries.length === 0) continue;
-
-        // BYE (single participant)
-        if (entries.length === 1) {
-          const a = entries[0];
-          const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknown');
-          const aMeta = rosterMap[aId] || {};
-          const aName = aMeta.team_name || aMeta.display_name || aMeta.owner_display || ('Roster ' + aId);
-          const aAvatar = aMeta.team_avatar || aMeta.avatar || null;
-          const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-
-          matchupsRows.push({
-            matchup_id: key,
-            season: selectedSeason,
-            week: a.week ?? a.w ?? wk,
-            round: idx + 1,
-            participantsCount: 1,
-            teamA: { rosterId: aId, name: aName, avatar: aAvatar, owner_display: aMeta.owner_display, points: aPts },
-            teamB: null
-          });
-          continue;
-        }
-
-        // standard head-to-head (2 participants)
-        if (entries.length === 2) {
-          const a = entries[0];
-          const b = entries[1];
-          const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'a');
-          const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'b');
-          const aMeta = rosterMap[aId] || {};
-          const bMeta = rosterMap[bId] || {};
-          const aName = aMeta.team_name || aMeta.display_name || aMeta.owner_display || ('Roster ' + aId);
-          const bName = bMeta.team_name || bMeta.display_name || bMeta.owner_display || ('Roster ' + bId);
-          const aAvatar = aMeta.team_avatar || aMeta.avatar || null;
-          const bAvatar = bMeta.team_avatar || bMeta.avatar || null;
-          const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-          const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
-
-          matchupsRows.push({
-            matchup_id: key,
-            season: selectedSeason,
-            week: a.week ?? a.w ?? wk,
-            round: idx + 1,
-            participantsCount: 2,
-            teamA: { rosterId: aId, name: aName, avatar: aAvatar, owner_display: aMeta.owner_display, points: aPts },
-            teamB: { rosterId: bId, name: bName, avatar: bAvatar, owner_display: bMeta.owner_display, points: bPts }
-          });
-          continue;
-        }
-
-        // multi-team
-        const participants = entries.map(ent => {
-          const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
-          const meta = rosterMap[pid] || {};
-          return {
-            rosterId: pid,
-            name: meta.team_name || meta.display_name || meta.owner_display || ('Roster ' + pid),
-            avatar: meta.team_avatar || meta.avatar || null,
-            points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0),
-            owner_display: meta.owner_display || null
-          };
-        });
-
-        matchupsRows.push({
-          matchup_id: key,
-          season: selectedSeason,
-          week: entries[0].week ?? entries[0].w ?? wk,
-          round: idx + 1,
-          combinedParticipants: participants,
-          combinedLabel: participants.map(p => p.name).join(' / '),
-          participantsCount: participants.length
-        });
-      }
-    }
-
-    // sort matchupsRows similar to Matchups tab (optional)
-    matchupsRows.sort((a, b) => {
-      const ax = (a.teamA && a.teamA.points != null) ? a.teamA.points : 0;
-      const by = (b.teamA && b.teamA.points != null) ? b.teamA.points : 0;
-      return by - ax;
-    });
-
-    // 8) Injected fixed standings (owner names) — provided earlier
-    const standingsMap = {
-      '2024': [
-        "riguy506","smallvt","JakePratt","Kybes",
-        "TLupinetti","samsilverman12","armyjunior","JFK4312",
-        "WebbWarrior","slawflesh","jewishhorsemen","noahlap01",
-        "zamt","WillMichael"
-      ],
-      '2023': [
-        "armyjunior","jewishhorsemen","Kybes","riguy506",
-        "zamt","slawflesh","JFK4312","smallvt",
-        "samsilverman12","WebbWarrior","TLupinetti","noahlap01",
-        "JakePratt","WillMichael"
-      ],
-      '2022': [
-        "riguy506","smallvt","jewishhorsemen","zamt",
-        "noahlap01","Kybes","armyjunior","slawflesh",
-        "WillMichael","JFK4312","WebbWarrior","TLupinetti",
-        "JakePratt","samsilverman12"
-      ]
-    };
-    const rawStandings = standingsMap[String(selectedSeason)] ?? null;
-    const standings = rawStandings ? rawStandings.map((name, i) => ({ id: null, name, placement: i + 1 })) : null;
-
-    const seasons = seasonsMeta.map(s => ({ league_id: s.league_id, season: s.season, name: s.name }));
-
+  if (!BASE_LEAGUE_ID) {
+    errors.push('BASE_LEAGUE_ID not set in environment — cannot fetch league data.');
     return {
-      seasons,
-      seasonsMeta,
+      seasons: [selectedSeason],
       selectedSeason,
-      selectedLeagueId,
-      matchupsRows,
-      standings,
-      messages
-    };
-  } catch (err) {
-    const msg = `Failed to load playoff matchups: ${err?.message ?? err}`;
-    console.error(msg, err);
-    return {
-      seasons: [],
-      seasonsMeta: [],
-      selectedSeason: null,
-      selectedLeagueId: null,
+      playoffWeeks: [],
       matchupsRows: [],
-      standings: null,
-      messages: [msg]
+      rosterMap: {},
+      errors
     };
   }
+
+  // helper to fetch and parse JSON with error handling
+  async function safeFetchJson(urlStr, opts = {}) {
+    try {
+      const res = await fetch(urlStr, opts);
+      if (!res.ok) {
+        return { ok: false, status: res.status, statusText: res.statusText, body: null };
+      }
+      const body = await res.json();
+      return { ok: true, status: 200, body };
+    } catch (e) {
+      return { ok: false, status: 0, statusText: String(e), body: null };
+    }
+  }
+
+  // 1) fetch league metadata (used to detect playoff_week_start when available)
+  const leagueUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}`;
+  const leagueRes = await safeFetchJson(leagueUrl);
+  let league = null;
+  if (leagueRes.ok) {
+    league = leagueRes.body;
+  } else {
+    errors.push(`Failed fetching league metadata for ${BASE_LEAGUE_ID}: ${leagueRes.status} ${leagueRes.statusText}`);
+  }
+
+  // derive playoff start week
+  let playoffStart = null;
+  try {
+    // Try various common places where this can be stored
+    playoffStart = league?.settings?.playoff_week_start ?? league?.playoff_week_start ?? league?.metadata?.playoff_week_start ?? null;
+    if (playoffStart != null) playoffStart = Number(playoffStart);
+  } catch (e) {
+    playoffStart = null;
+  }
+
+  // fallback weeks if we couldn't detect
+  const fallbackStart = 23;
+  const ws = playoffStart && Number.isFinite(playoffStart) ? playoffStart : fallbackStart;
+  const playoffWeeks = [ws, ws + 1, ws + 2];
+
+  // 2) fetch rosters + users so we can map roster_id -> display_name and avatar
+  const rostersUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/rosters`;
+  const usersUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/users`;
+
+  const [rostersRes, usersRes] = await Promise.all([safeFetchJson(rostersUrl), safeFetchJson(usersUrl)]);
+  let rosters = [];
+  let users = [];
+
+  if (rostersRes.ok) rosters = Array.isArray(rostersRes.body) ? rostersRes.body : [];
+  else errors.push(`Failed fetching rosters: ${rostersRes.status} ${rostersRes.statusText}`);
+
+  if (usersRes.ok) users = Array.isArray(usersRes.body) ? usersRes.body : [];
+  else errors.push(`Failed fetching users: ${usersRes.status} ${usersRes.statusText}`);
+
+  // build rosterMap: roster_id -> { roster_id, owner_id, display_name, avatar }
+  const userMap = {};
+  for (const u of users) {
+    if (!u) continue;
+    userMap[String(u.user_id ?? u.id ?? '')] = {
+      user_id: u.user_id ?? u.id,
+      display_name: u.display_name ?? u.username ?? u.name ?? null,
+      avatar: u.avatar ?? u.photo_url ?? null
+    };
+  }
+
+  const rosterMap = {};
+  for (const r of rosters) {
+    if (!r) continue;
+    const rid = String(r.roster_id ?? r.id ?? r.roster ?? '');
+    const ownerId = r.owner_id ?? r.user_id ?? r.owner ?? null;
+    const owner = ownerId ? userMap[String(ownerId)] : null;
+    rosterMap[rid] = {
+      roster_id: rid,
+      owner_id: ownerId,
+      display_name: owner?.display_name ?? r.settings?.team_name ?? r.name ?? r.metadata?.team_name ?? null,
+      avatar: owner?.avatar ?? r.settings?.team_logo ?? r.metadata?.logo ?? null,
+      settings: r.settings ?? null
+    };
+  }
+
+  // 3) fetch matchups for each playoff week and flatten into rows
+  // we'll group each week's returned array by 'matchup_id' because Sleeper
+  // returns one entry per roster for a matchup, usually with the same matchup_id value.
+  const allMatchupsRows = [];
+  for (const week of playoffWeeks) {
+    const mUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/matchups/${week}`;
+    const mRes = await safeFetchJson(mUrl);
+    if (!mRes.ok) {
+      // accumulate but continue
+      errors.push(`Failed to fetch matchups for week ${week}: ${mRes.status} ${mRes.statusText}`);
+      continue;
+    }
+    const arr = Array.isArray(mRes.body) ? mRes.body : [];
+    if (!arr.length) continue;
+
+    // group by matchup_id (or fallback to pair-up by index if absent)
+    const groups = new Map();
+    arr.forEach((entry, idx) => {
+      const mid = entry.matchup_id ?? entry.matchup ?? entry.matchupId ?? null;
+      if (mid != null) {
+        const key = String(mid);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ entry, idx });
+      } else {
+        // fallback: bucket by Math.floor(idx/2)
+        const key = `i${Math.floor(idx / 2)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ entry, idx });
+      }
+    });
+
+    // transform each group into a unified matchup row: { week, matchup_id, teamA:{...}, teamB:{...} }
+    for (const [key, members] of groups.entries()) {
+      if (!members || members.length === 0) continue;
+
+      // prefer two-member groups; if more/less, we attempt to detect two sides
+      let teamA = null;
+      let teamB = null;
+
+      if (members.length === 1) {
+        const e = members[0].entry;
+        // lone entry -> display it as teamA vs BYE
+        const rosterId = String(e.roster_id ?? e.roster ?? e.rosterId ?? '');
+        const owner = rosterMap[rosterId] ?? null;
+        teamA = {
+          roster_id: rosterId || null,
+          name: owner?.display_name ?? e.display_name ?? e.owner_display ?? null,
+          avatar: owner?.avatar ?? null,
+          points: e.points ?? e.score ?? e.total_points ?? e.starters_points ?? null,
+          placement: e.placement ?? e.seed ?? null
+        };
+        teamB = { roster_id: null, name: null, avatar: null, points: null, placement: null };
+      } else {
+        // try to partition to two sides
+        const e0 = members[0].entry;
+        const e1 = members[1].entry;
+        const r0 = String(e0.roster_id ?? e0.roster ?? e0.rosterId ?? '');
+        const r1 = String(e1.roster_id ?? e1.roster ?? e1.rosterId ?? '');
+
+        const owner0 = rosterMap[r0] ?? null;
+        const owner1 = rosterMap[r1] ?? null;
+
+        teamA = {
+          roster_id: r0 || null,
+          name: owner0?.display_name ?? e0.display_name ?? e0.owner_display ?? null,
+          avatar: owner0?.avatar ?? null,
+          points: e0.points ?? e0.score ?? e0.total_points ?? null,
+          placement: e0.placement ?? e0.seed ?? null
+        };
+
+        teamB = {
+          roster_id: r1 || null,
+          name: owner1?.display_name ?? e1.display_name ?? e1.owner_display ?? null,
+          avatar: owner1?.avatar ?? null,
+          points: e1.points ?? e1.score ?? e1.total_points ?? null,
+          placement: e1.placement ?? e1.seed ?? null
+        };
+      }
+
+      allMatchupsRows.push({
+        week,
+        matchup_key: key,
+        matchup_id: (members[0]?.entry?.matchup_id ?? members[0]?.entry?.matchup ?? null),
+        teamA,
+        teamB,
+        raw: members.map(m => m.entry)
+      });
+    }
+  }
+
+  // The UI expects a flattened matchupsRows array; we also provide a rosterMap for display lookups.
+  return {
+    seasons: [selectedSeason], // minimal; matchups tab used base-league discovery for seasons — keep simple
+    selectedSeason,
+    playoffWeeks,
+    matchupsRows: allMatchupsRows,
+    rosterMap,
+    league,
+    errors
+  };
 }
