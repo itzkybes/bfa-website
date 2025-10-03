@@ -176,14 +176,8 @@ export async function load(event) {
             stats[bId].points_against += aPts;
             stats[bId].games += 1;
 
-            // compare result
-            if (!Number.isFinite(aPts) || !Number.isFinite(bPts) || (aPts === 0 && bPts === 0 && aPts === bPts)) {
-              // if both 0 or not provided, treat as tie/skip? We'll treat equal numeric as tie
-              if (aPts === bPts) {
-                stats[aId].ties += 1;
-                stats[bId].ties += 1;
-              }
-            } else {
+            // compare result - only numeric comparison (if both are present)
+            if (Number.isFinite(aPts) && Number.isFinite(bPts)) {
               if (aPts > bPts) {
                 stats[aId].wins += 1;
                 stats[bId].losses += 1;
@@ -191,10 +185,13 @@ export async function load(event) {
                 stats[bId].wins += 1;
                 stats[aId].losses += 1;
               } else {
-                // equal points -> tie
                 stats[aId].ties += 1;
                 stats[bId].ties += 1;
               }
+            } else {
+              // if one or both scores missing, treat as tie (safe fallback)
+              stats[aId].ties += 1;
+              stats[bId].ties += 1;
             }
           } else {
             // not a simple 2-team matchup: we skip affecting wins/losses, but accumulate points if present
@@ -228,12 +225,14 @@ export async function load(event) {
       });
     }
 
-    // Sort: wins desc, ties desc, points_for desc, points_against asc
+    // Sort by: wins desc, then points_for (PF) desc (tiebreaker), then ties desc, then points_against asc, then rosterId
     statEntries.sort((A, B) => {
       if ((B.wins - A.wins) !== 0) return (B.wins - A.wins);
-      if ((B.ties - A.ties) !== 0) return (B.ties - A.ties);
       if ((B.points_for - A.points_for) !== 0) return (B.points_for - A.points_for);
-      return (A.points_against - B.points_against);
+      if ((B.ties - A.ties) !== 0) return (B.ties - A.ties);
+      if ((A.points_against - B.points_against) !== 0) return (A.points_against - B.points_against);
+      // stable fallback
+      return String(A.rosterId).localeCompare(String(B.rosterId));
     });
 
     // assign placement map (1-based)
