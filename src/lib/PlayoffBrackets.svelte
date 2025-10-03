@@ -1,8 +1,14 @@
 <script>
   // src/lib/PlayoffBrackets.svelte
+  // Props:
+  //   standings: array ordered by placement (index 0 = 1st...)
+  //   season: string/number
+  //   titlePrefix: optional string
+  //   matchupsRows: optional array of matchups (from loader) — used to display real scores
   export let standings = [];
   export let season = null;
   export let titlePrefix = '';
+  export let matchupsRows = []; // <-- new prop
 
   const is2022 = String(season) === '2022';
   const winnersSize = is2022 ? 6 : 8;
@@ -11,7 +17,12 @@
   function teamObj(entry, idx) {
     if (!entry) return null;
     if (typeof entry === 'string') return { id: null, name: entry, placement: idx + 1, avatar: null };
-    return { id: entry.id ?? entry.roster_id ?? null, name: entry.name ?? entry.display_name ?? `Team ${idx+1}`, avatar: entry.avatar ?? null, placement: entry.placement ?? idx+1 };
+    return {
+      id: entry.id ?? entry.roster_id ?? null,
+      name: entry.name ?? entry.display_name ?? entry.team ?? `Team ${idx + 1}`,
+      avatar: entry.avatar ?? null,
+      placement: entry.placement ?? idx + 1
+    };
   }
 
   function fill(arr, n) {
@@ -24,6 +35,7 @@
   const winnersParticipants = fill(normalized.slice(0, winnersSize), winnersSize);
   const losersParticipants = fill(normalized.slice(winnersSize, winnersSize + losersSize), losersSize);
 
+  // build bracket (seeded) structures (same logic as previous component)
   function build8(participants) {
     const qPairs = [[0,7],[3,4],[2,5],[1,6]];
     const quarter = qPairs.map((p, i) => ({ a: participants[p[0]] ?? null, b: participants[p[1]] ?? null, id: `q${i+1}` }));
@@ -52,13 +64,63 @@
     if (!participants || participants.length === 0) return [];
     if (participants.length === 8) return build8(participants);
     if (participants.length === 6) return build6(participants);
-    const arr = participants.slice(0,8);
+    const arr = participants.slice(0, 8);
     while (arr.length < 8) arr.push(null);
     return build8(arr);
   }
 
   const winnersBracket = buildBracket(winnersParticipants);
   const losersBracket = buildBracket(losersParticipants);
+
+  // ---- helpers for matching matchupsRows to seeded teams ----
+  const placementByName = {};
+  for (const t of normalized) {
+    if (t && t.name) placementByName[String(t.name).toLowerCase()] = t.placement;
+  }
+
+  function nameEq(a, b) {
+    if (!a || !b) return false;
+    return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+  }
+
+  // Filter matchupsRows for a given round and bracket type (winners/losers)
+  function rowsForRoundAndBracket(roundNum, isWinners) {
+    if (!Array.isArray(matchupsRows)) return [];
+    return matchupsRows.filter(r => {
+      const rr = Number(r.round ?? 0);
+      if (rr !== Number(roundNum)) return false;
+
+      // if participantsCount === 1 (bye), it's still a valid row
+      const aName = r.teamA?.name ?? null;
+      const bName = r.teamB?.name ?? null;
+
+      // check placements to ensure match belongs to winners or losers bracket
+      const aPlacement = aName ? placementByName[aName.toLowerCase()] : null;
+      const bPlacement = bName ? placementByName[bName.toLowerCase()] : null;
+
+      // If either participant has placement; use that to determine bracket
+      const anyPlacement = aPlacement ?? bPlacement ?? null;
+      if (anyPlacement != null) {
+        if (isWinners) return (aPlacement && aPlacement <= winnersSize) || (bPlacement && bPlacement <= winnersSize);
+        else return (aPlacement && aPlacement > winnersSize) || (bPlacement && bPlacement > winnersSize);
+      }
+
+      // If no placement info, fallback to string matching vs winners participants names
+      const winnersNames = new Set(winnersParticipants.filter(Boolean).map(x => String(x.name).toLowerCase()));
+      const losersNames = new Set(losersParticipants.filter(Boolean).map(x => String(x.name).toLowerCase()));
+      if (isWinners) {
+        return (aName && winnersNames.has(aName.toLowerCase())) || (bName && winnersNames.has(bName.toLowerCase()));
+      } else {
+        return (aName && losersNames.has(aName.toLowerCase())) || (bName && losersNames.has(bName.toLowerCase()));
+      }
+    });
+  }
+
+  // layout gap helper
+  const baseGap = 12;
+  function gapForRound(roundIdx) {
+    return baseGap * Math.pow(2, roundIdx);
+  }
 
   function displayName(slot) {
     if (!slot) return 'TBD';
@@ -71,100 +133,296 @@
     if (slot.placement) return `#${slot.placement}`;
     return '';
   }
+
+  function fmtScore(v) {
+    if (v == null) return '—';
+    const n = Number(v);
+    if (Number.isNaN(n)) return '—';
+    // show 1 decimal like matchups tab
+    return n.toFixed(2).replace(/\.?0+$/, (n.toFixed(2).includes('.') ? n.toFixed(2).replace(/0+$/,'') : ''));
+  }
+
+  function avatarOrPlaceholder(url, name, size=48) {
+    if (url) return url;
+    const letter = name ? name[0] : 'T';
+    return `https://ui-avatars.com/api/?size=${size}&name=${encodeURIComponent(letter)}&background=0D1B2A&color=fff`;
+  }
 </script>
 
 <style>
-  .brackets { display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap; }
-  .bracket { flex:1 1 420px; background: rgba(255,255,255,0.01); padding:12px; border-radius:10px; }
-  .bracket h3 { margin:0 0 8px 0; font-size:1.05rem; }
-  .round { margin-bottom:12px; }
-  .round-title { font-weight:700; margin-bottom:8px; color:#cfe7f6; }
-  .match { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:8px; border-radius:8px; background: rgba(255,255,255,0.01); margin-bottom:8px; }
-  .team { display:flex; align-items:center; gap:.6rem; min-width:0; }
-  .team .name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
-  .seed { color:#9ca3af; font-size:.85rem; }
-  .label { color:#9ca3af; font-size:.95rem; }
-  img.avatar { width:36px; height:36px; border-radius:6px; object-fit:cover; background:#081018; flex-shrink:0; }
+  .wrapper { display:flex; gap:1.2rem; align-items:flex-start; flex-wrap:wrap; }
+  .bracketCard { flex:1 1 420px; min-width:300px; background: rgba(255,255,255,0.01); padding:14px; border-radius:12px; }
+  .bracketTitle { margin:0 0 10px 0; font-weight:700; color:#e6eef8; }
+  .rounds { display:flex; gap:1.2rem; align-items:flex-start; position:relative; }
+
+  .round { display:flex; flex-direction:column; align-items:stretch; min-width:180px; }
+  .roundHeader { text-align:center; font-weight:800; color:#9ec6ff; font-size:.95rem; margin-bottom:8px; }
+  .roundSub { text-align:center; font-size:.82rem; color:#9ca3af; margin-bottom:6px; }
+
+  .matchBox {
+    display:flex;
+    align-items:center;
+    gap:0.8rem;
+    padding:10px;
+    border-radius:10px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    color:inherit;
+    min-height:56px;
+    box-sizing: border-box;
+    position:relative;
+    flex-shrink:0;
+  }
+
+  .matchBox .left { display:flex; gap:.6rem; align-items:center; min-width:0; }
+  .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; }
+  .teamInfo { display:flex; flex-direction:column; min-width:0; }
+  .teamName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+  .seed { color:#9ca3af; font-size:.82rem; }
+
+  .matchScore { margin-left:auto; text-align:center; min-width:72px; font-weight:800; color:#e6eef8; }
+
+  .matchBox::after {
+    content: "";
+    position:absolute;
+    right:-22px;
+    top:50%;
+    transform:translateY(-50%);
+    width:18px;
+    height:2px;
+    background: rgba(156,163,175,0.25);
+    border-radius:2px;
+    display:block;
+  }
+  .noConnector::after { display:none; }
+
+  .connectorStub {
+    position:absolute;
+    right:-22px;
+    top:50%;
+    transform:translateY(-50%);
+    width:18px;
+    height:8px;
+    border-radius:4px;
+    background: rgba(156,163,175,0.12);
+    display:block;
+  }
+
+  .seedBadge {
+    position:absolute;
+    left: -6px;
+    top: -6px;
+    background: #0b1220;
+    color: #9ec6ff;
+    font-weight:700;
+    font-size:11px;
+    padding:3px 6px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,0.04);
+  }
+
+  .roundCol { display:flex; flex-direction:column; gap:var(--gap, 12px); align-items:stretch; }
+
+  .labelSuffix { font-size:12px; color:#9ca3af; margin-top:6px; text-align:center; }
+  @media (max-width:900px) {
+    .avatar { width:40px; height:40px; }
+    .teamName { max-width:120px; }
+    .bracketCard { padding:10px; }
+    .round { min-width:150px; }
+  }
 </style>
 
-<div class="brackets">
-  <div class="bracket">
-    <h3>{titlePrefix ? `${titlePrefix} ` : ''}Winners Bracket ({winnersParticipants.length})</h3>
-    {#if winnersBracket.length === 0}
-      <div class="label">No winners bracket data</div>
-    {:else}
+<div class="wrapper">
+  <!-- Winners bracket -->
+  <div class="bracketCard">
+    <div class="bracketTitle">{titlePrefix ? `${titlePrefix} ` : ''}Winners Bracket</div>
+    <div class="rounds" role="group" aria-label="Winners bracket rounds">
       {#each winnersBracket as round, rIdx}
-        <div class="round">
-          <div class="round-title">
+        <div class="round" style="--gap: {gapForRound(rIdx)}px;">
+          <div class="roundHeader">
             {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else if rIdx === 2}Final{/if}
           </div>
-          {#each round as match, mIdx}
-            <div class="match" aria-label={"W-match-" + rIdx + "-" + mIdx}>
-              <div class="team">
-                {#if match.a && match.a.avatar}
-                  <img class="avatar" src={match.a.avatar} alt="" />
-                {/if}
-                <div>
-                  <div class="name">{displayName(match.a)}</div>
-                  <div class="seed">{displaySeed(match.a)}</div>
-                </div>
-              </div>
+          <div class="roundSub">Round {rIdx + 1}</div>
 
-              <div class="label">vs</div>
+          <div class="roundCol" style="--gap: {gapForRound(rIdx)}px;">
+            {#if rowsForRoundAndBracket(rIdx+1, true).length}
+              {#each rowsForRoundAndBracket(rIdx+1, true) as row}
+                <div class="matchBox {rIdx === winnersBracket.length - 1 ? 'noConnector' : ''}">
+                  <div class="left" style="position:relative;">
+                    {#if row.teamA?.placement}
+                      <div class="seedBadge">{row.teamA.placement}</div>
+                    {/if}
+                    <img class="avatar" src={row.teamA?.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA?.name)} alt="">
+                  </div>
 
-              <div class="team" style="justify-content:flex-end;">
-                <div style="text-align:right;">
-                  <div class="name">{displayName(match.b)}</div>
-                  <div class="seed">{displaySeed(match.b)}</div>
+                  <div class="teamInfo">
+                    <div class="teamName">{row.teamA?.name ?? 'TBD'}</div>
+                    <div class="seed">{row.teamA?.owner_display ?? ''}</div>
+                  </div>
+
+                  <div class="matchScore">{fmtScore(row.teamA?.points)}</div>
                 </div>
-                {#if match.b && match.b.avatar}
-                  <img class="avatar" src={match.b.avatar} alt="" />
+
+                <!-- match opponent -->
+                {#if row.teamB}
+                  <div class="matchBox {rIdx === winnersBracket.length - 1 ? 'noConnector' : ''}">
+                    <div class="left" style="position:relative;">
+                      {#if row.teamB?.placement}
+                        <div class="seedBadge">{row.teamB.placement}</div>
+                      {/if}
+                      <img class="avatar" src={row.teamB?.avatar ? row.teamB.avatar : avatarOrPlaceholder(row.teamB?.name)} alt="">
+                    </div>
+
+                    <div class="teamInfo">
+                      <div class="teamName">{row.teamB?.name ?? 'TBD'}</div>
+                      <div class="seed">{row.teamB?.owner_display ?? ''}</div>
+                    </div>
+
+                    <div class="matchScore">{fmtScore(row.teamB?.points)}</div>
+                  </div>
+                {:else}
+                  <div class="matchBox {rIdx === winnersBracket.length - 1 ? 'noConnector' : ''}">
+                    <div class="left"><img class="avatar" src={avatarOrPlaceholder('BYE')} alt=""></div>
+                    <div class="teamInfo"><div class="teamName">BYE</div></div>
+                    <div class="matchScore">—</div>
+                  </div>
                 {/if}
-              </div>
-            </div>
-          {/each}
+              {/each}
+            {:else}
+              <!-- fallback to seeded bracket placeholders -->
+              {#each round as match, mIdx}
+                <div class="matchBox {rIdx === winnersBracket.length - 1 ? 'noConnector' : ''}">
+                  <div class="left" style="position:relative;">
+                    {#if match.a && match.a.placement}
+                      <div class="seedBadge">{match.a.placement}</div>
+                    {/if}
+                    <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
+                  </div>
+
+                  <div class="teamInfo">
+                    <div class="teamName">{displayName(match.a)}</div>
+                    <div class="seed">{displaySeed(match.a)}</div>
+                  </div>
+
+                  <div class="matchScore">—</div>
+                </div>
+
+                <div class="matchBox {rIdx === winnersBracket.length - 1 ? 'noConnector' : ''}">
+                  <div class="left" style="position:relative;">
+                    {#if match.b && match.b.placement}
+                      <div class="seedBadge">{match.b.placement}</div>
+                    {/if}
+                    <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
+                  </div>
+
+                  <div class="teamInfo">
+                    <div class="teamName">{displayName(match.b)}</div>
+                    <div class="seed">{displaySeed(match.b)}</div>
+                  </div>
+
+                  <div class="matchScore">—</div>
+                </div>
+              {/each}
+            {/if}
+          </div>
         </div>
       {/each}
-    {/if}
+    </div>
+    <div class="labelSuffix">Winners bracket seeded top → bottom</div>
   </div>
 
-  <div class="bracket">
-    <h3>{titlePrefix ? `${titlePrefix} ` : ''}Losers Bracket ({losersParticipants.length})</h3>
-    {#if losersBracket.length === 0}
-      <div class="label">No losers bracket data</div>
-    {:else}
+  <!-- Losers bracket (same logic) -->
+  <div class="bracketCard">
+    <div class="bracketTitle">{titlePrefix ? `${titlePrefix} ` : ''}Losers Bracket</div>
+    <div class="rounds" role="group" aria-label="Losers bracket rounds">
       {#each losersBracket as round, rIdx}
-        <div class="round">
-          <div class="round-title">
+        <div class="round" style="--gap: {gapForRound(rIdx)}px;">
+          <div class="roundHeader">
             {#if rIdx === 0}Quarterfinals{:else if rIdx === 1}Semifinals{:else if rIdx === 2}Final{/if}
           </div>
-          {#each round as match, mIdx}
-            <div class="match" aria-label={"L-match-" + rIdx + "-" + mIdx}>
-              <div class="team">
-                {#if match.a && match.a.avatar}
-                  <img class="avatar" src={match.a.avatar} alt="" />
-                {/if}
-                <div>
-                  <div class="name">{displayName(match.a)}</div>
-                  <div class="seed">{displaySeed(match.a)}</div>
-                </div>
-              </div>
+          <div class="roundSub">Round {rIdx + 1}</div>
 
-              <div class="label">vs</div>
+          <div class="roundCol" style="--gap: {gapForRound(rIdx)}px;">
+            {#if rowsForRoundAndBracket(rIdx+1, false).length}
+              {#each rowsForRoundAndBracket(rIdx+1, false) as row}
+                <div class="matchBox {rIdx === losersBracket.length - 1 ? 'noConnector' : ''}">
+                  <div class="left" style="position:relative;">
+                    {#if row.teamA?.placement}
+                      <div class="seedBadge">{row.teamA.placement}</div>
+                    {/if}
+                    <img class="avatar" src={row.teamA?.avatar ? row.teamA.avatar : avatarOrPlaceholder(row.teamA?.name)} alt="">
+                  </div>
 
-              <div class="team" style="justify-content:flex-end;">
-                <div style="text-align:right;">
-                  <div class="name">{displayName(match.b)}</div>
-                  <div class="seed">{displaySeed(match.b)}</div>
+                  <div class="teamInfo">
+                    <div class="teamName">{row.teamA?.name ?? 'TBD'}</div>
+                    <div class="seed">{row.teamA?.owner_display ?? ''}</div>
+                  </div>
+
+                  <div class="matchScore">{fmtScore(row.teamA?.points)}</div>
                 </div>
-                {#if match.b && match.b.avatar}
-                  <img class="avatar" src={match.b.avatar} alt="" />
+
+                {#if row.teamB}
+                  <div class="matchBox {rIdx === losersBracket.length - 1 ? 'noConnector' : ''}">
+                    <div class="left" style="position:relative;">
+                      {#if row.teamB?.placement}
+                        <div class="seedBadge">{row.teamB.placement}</div>
+                      {/if}
+                      <img class="avatar" src={row.teamB?.avatar ? row.teamB.avatar : avatarOrPlaceholder(row.teamB?.name)} alt="">
+                    </div>
+
+                    <div class="teamInfo">
+                      <div class="teamName">{row.teamB?.name ?? 'TBD'}</div>
+                      <div class="seed">{row.teamB?.owner_display ?? ''}</div>
+                    </div>
+
+                    <div class="matchScore">{fmtScore(row.teamB?.points)}</div>
+                  </div>
+                {:else}
+                  <div class="matchBox {rIdx === losersBracket.length - 1 ? 'noConnector' : ''}">
+                    <div class="left"><img class="avatar" src={avatarOrPlaceholder('BYE')} alt=""></div>
+                    <div class="teamInfo"><div class="teamName">BYE</div></div>
+                    <div class="matchScore">—</div>
+                  </div>
                 {/if}
-              </div>
-            </div>
-          {/each}
+              {/each}
+            {:else}
+              {#each round as match, mIdx}
+                <div class="matchBox {rIdx === losersBracket.length - 1 ? 'noConnector' : ''}">
+                  <div class="left" style="position:relative;">
+                    {#if match.a && match.a.placement}
+                      <div class="seedBadge">{match.a.placement}</div>
+                    {/if}
+                    <img class="avatar" src={match.a?.avatar ? match.a.avatar : avatarOrPlaceholder(match.a?.name)} alt="">
+                  </div>
+
+                  <div class="teamInfo">
+                    <div class="teamName">{displayName(match.a)}</div>
+                    <div class="seed">{displaySeed(match.a)}</div>
+                  </div>
+
+                  <div class="matchScore">—</div>
+                </div>
+
+                <div class="matchBox {rIdx === losersBracket.length - 1 ? 'noConnector' : ''}">
+                  <div class="left" style="position:relative;">
+                    {#if match.b && match.b.placement}
+                      <div class="seedBadge">{match.b.placement}</div>
+                    {/if}
+                    <img class="avatar" src={match.b?.avatar ? match.b.avatar : avatarOrPlaceholder(match.b?.name)} alt="">
+                  </div>
+
+                  <div class="teamInfo">
+                    <div class="teamName">{displayName(match.b)}</div>
+                    <div class="seed">{displaySeed(match.b)}</div>
+                  </div>
+
+                  <div class="matchScore">—</div>
+                </div>
+              {/each}
+            {/if}
+          </div>
         </div>
       {/each}
-    {/if}
+    </div>
+    <div class="labelSuffix">Losers bracket seeded top → bottom</div>
   </div>
 </div>
