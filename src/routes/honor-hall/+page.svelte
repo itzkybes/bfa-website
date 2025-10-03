@@ -23,30 +23,14 @@
     ]
   };
 
-  // helper to get seed map (display_name -> seed number)
-  function buildSeedMapForSeason(seasonKey) {
-    const arr = FINAL_STANDINGS[String(seasonKey)] || [];
-    const map = {};
-    for (let i = 0; i < arr.length; i++) {
-      map[String(arr[i]).toLowerCase()] = i + 1; // seed = index+1
-    }
-    return map;
-  }
-
-  // ---------------------------
-  // Helper: normalize a team name from matchup row to match a final-standings owner name
-  // We'll try multiple heuristics: exact match (case-insensitive) to team name or owner name,
-  // substring match, otherwise null.
   function nameKey(name) {
     if (!name) return '';
     return String(name).toLowerCase().trim();
   }
 
   // Create a roster lookup (map rosterId -> enriched info from matchupsRows)
-  // attempt to extract owner/team names & avatars from matchups rows
   const rosterInfo = {};
   for (const r of matchupsRows) {
-    // for two participant rows:
     if (r.teamA) {
       rosterInfo[String(r.teamA.rosterId)] = rosterInfo[String(r.teamA.rosterId)] || {
         rosterId: String(r.teamA.rosterId),
@@ -76,23 +60,18 @@
   // Determine playoff weeks from matchupsRows (unique weeks sorted ascending)
   const uniqueWeeks = Array.from(new Set(matchupsRows.map(m => m.week).filter(w => w != null))).map(x => Number(x)).filter(n => !isNaN(n));
   uniqueWeeks.sort((a,b) => a - b);
-  // Map round names by index
   const ROUND_LABELS = ['Quarterfinals','Semifinals','Final'];
-  // if uniqueWeeks length < 3 we still map available weeks to labels (index)
-  // use week -> round label mapping:
   const weekToRoundLabel = {};
   for (let i = 0; i < uniqueWeeks.length; i++) {
     weekToRoundLabel[uniqueWeeks[i]] = (ROUND_LABELS[i] || `Round ${i+1}`);
   }
 
-  // ---------------------------
   // Utility: find a matchup row by two roster ids (order-agnostic) and week optional
   function findMatchup(rosterA, rosterB, week = null) {
     if (rosterA == null && rosterB == null) return null;
     rosterA = rosterA != null ? String(rosterA) : null;
     rosterB = rosterB != null ? String(rosterB) : null;
     for (const r of matchupsRows) {
-      // two-team rows:
       if (r.teamA && r.teamB) {
         const a = String(r.teamA.rosterId);
         const b = String(r.teamB.rosterId);
@@ -100,7 +79,6 @@
         const wkMatch = (week == null || Number(r.week) === Number(week));
         if (samePair && wkMatch) return r;
       } else if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
-        // multi-team: check if both roster ids are present (rare in playoffs)
         const ids = r.combinedParticipants.map(p => String(p.rosterId));
         if (rosterA && rosterB && ids.includes(rosterA) && ids.includes(rosterB)) {
           if (week == null || Number(r.week) === Number(week)) return r;
@@ -113,74 +91,58 @@
     return null;
   }
 
-  // ---------------------------
-  // Build seed lists for the selected season using the final standings arrays
-  function buildSeeds(seasonKey) {
-    const seedMap = buildSeedMapForSeason(seasonKey);
-    // we'll produce an array of objects { seed, ownerName, rosterId, displayName, avatar }.
-    // but we only have rosterId->name mapping from rosterInfo; we must match rosterInfo names to the ownerName to map rosterId.
-    // Attempt to match by owner/team name containing the owner username (or vice versa).
-    const rosterEntries = Object.values(rosterInfo);
-    // build reverse map by nameKey for quick lookups
-    const nameToRosterIds = {};
-    for (const entry of rosterEntries) {
-      const k = nameKey(entry.name);
-      if (!k) continue;
-      if (!nameToRosterIds[k]) nameToRosterIds[k] = [];
-      nameToRosterIds[k].push(entry.rosterId);
-    }
+  // Build seed map for season
+  function buildSeedMapForSeason(seasonKey) {
+    const arr = FINAL_STANDINGS[String(seasonKey)] || [];
+    const map = {};
+    for (let i = 0; i < arr.length; i++) map[String(arr[i]).toLowerCase()] = i + 1;
+    return map;
+  }
 
-    // We'll produce an ordered list of rosterIds following FINAL_STANDINGS order where possible.
+  // Build seeds list (match final standings to rosterInfo heuristically)
+  function buildSeeds(seasonKey) {
+    const rosterEntries = Object.values(rosterInfo);
     const final = FINAL_STANDINGS[String(seasonKey)] || [];
     const seeds = [];
-    // track which rosterIds already used
     const used = new Set();
 
-    // First, try to map by exact match or substring
     for (let i = 0; i < final.length; i++) {
       const owner = final[i];
       const lowOwner = String(owner).toLowerCase();
-      // try exact match on rosterInfo.name
-      let matchedRoster = null;
+      let matched = null;
       for (const entry of rosterEntries) {
         if (used.has(entry.rosterId)) continue;
         const nm = nameKey(entry.name || '');
         if (!nm) continue;
-        if (nm === lowOwner) { matchedRoster = entry; break; }
+        if (nm === lowOwner) { matched = entry; break; }
       }
-      // try substring (owner text appears inside team name)
-      if (!matchedRoster) {
+      if (!matched) {
         for (const entry of rosterEntries) {
           if (used.has(entry.rosterId)) continue;
           const nm = nameKey(entry.name || '');
           if (!nm) continue;
-          if (nm.includes(lowOwner) || lowOwner.includes(nm)) {
-            matchedRoster = entry;
-            break;
-          }
+          if (nm.includes(lowOwner) || lowOwner.includes(nm)) { matched = entry; break; }
         }
       }
-      // fallback: match by presence of owner username as token in name
-      if (!matchedRoster) {
+      if (!matched) {
         for (const entry of rosterEntries) {
           if (used.has(entry.rosterId)) continue;
           const nm = nameKey(entry.name || '');
           if (!nm) continue;
-          if (nm.indexOf(lowOwner) !== -1) { matchedRoster = entry; break; }
+          if (nm.indexOf(lowOwner) !== -1) { matched = entry; break; }
         }
       }
 
-      if (matchedRoster) {
-        used.add(matchedRoster.rosterId);
+      if (matched) {
+        used.add(matched.rosterId);
         seeds.push({
           seed: i+1,
           ownerName: owner,
-          rosterId: matchedRoster.rosterId,
-          displayName: matchedRoster.name || owner,
-          avatar: matchedRoster.avatar || null
+          rosterId: matched.rosterId,
+          displayName: matched.name || owner,
+          avatar: matched.avatar || null
         });
       } else {
-        // unknown roster id for that seed (maybe owner not present in rosterInfo)
         seeds.push({
           seed: i+1,
           ownerName: owner,
@@ -191,7 +153,7 @@
       }
     }
 
-    // add any leftover roster entries not matched to a seed at the end
+    // append any leftover rosters
     for (const entry of rosterEntries) {
       if (!used.has(entry.rosterId)) {
         seeds.push({
@@ -203,41 +165,24 @@
         });
       }
     }
-
     return seeds;
   }
 
-  // ---------------------------
-  // Build bracket pairings using the seed lists and mapping rules
+  // Build brackets per requested seeding rules
   function buildBracketsForSeason(seasonKey) {
     const seeds = buildSeeds(seasonKey);
-
-    // Determine winnersBracket size (2022 -> 6, others -> 8)
     const winnersSize = (String(seasonKey) === '2022') ? 6 : 8;
-    const winnersSeeds = seeds.slice(0, winnersSize); // top winnersSize entries (some may have rosterId null)
-    const losersSeeds = seeds.slice(winnersSize); // rest go to losers bracket
+    const winnersSeeds = seeds.slice(0, winnersSize);
+    const losersSeeds = seeds.slice(winnersSize);
 
-    // Helper to get rosterId for a seed index (0-based)
-    function ridAt(idx) {
-      return winnersSeeds[idx] ? winnersSeeds[idx].rosterId : null;
-    }
-
-    // Winners Round1 pairings (according to your requested pairing order)
-    // index pairs: [0 vs 7], [1 vs 6], [5 vs 2], [3 vs 4]  (0-based)
     const winnersPairsRound1Indices = [];
-    if (winnersSize >= 8) {
-      winnersPairsRound1Indices.push([0,7],[1,6],[5,2],[3,4]);
-    } else if (winnersSize === 6) {
-      // For 6-team winners (2022) typical bye structure: seeds 1-2 get byes maybe — but user said winners bracket had 6 teams.
-      // We'll form Round1 as: 1 & 2 get byes to semis; round1: 3v6 and 4v5 (common structure)
-      winnersPairsRound1Indices.push([2,5],[3,4]); // 3v6, 4v5
-    } else {
-      // fallback simple top-vs-bottom pairs
+    if (winnersSize >= 8) winnersPairsRound1Indices.push([0,7],[1,6],[5,2],[3,4]);
+    else if (winnersSize === 6) winnersPairsRound1Indices.push([2,5],[3,4]);
+    else {
       const n = winnersSeeds.length;
       for (let i = 0; i < Math.floor(n/2); i++) winnersPairsRound1Indices.push([i, n-1-i]);
     }
 
-    // build pair objects
     const winnersRound1 = winnersPairsRound1Indices.map(([iA,iB]) => {
       const a = winnersSeeds[iA] || null;
       const b = winnersSeeds[iB] || null;
@@ -253,13 +198,6 @@
       };
     });
 
-    // Winners Round2: find matchups between winners of Round1.
-    // We'll derive the rosterIds present in matchupsRows for the second playoff week (if available),
-    // otherwise create placeholders: for each winnersRound1 pairing find the match in week2 that contains either roster in winnersPairsRound1Indices (we'll rely on the real match data)
-    // For display we'll attempt to find the actual matchup using roster ids & week mapping later when rendering.
-
-    // Losers bracket pairings: seed top->bottom among losersSeeds
-    // pair highest seed with lowest seed (within losers bracket), etc.
     const loserSeedList = losersSeeds.map(s => ({ seed: s.seed, rosterId: s.rosterId, display: s.displayName, avatar: s.avatar }));
     const losersPairsRound1 = [];
     for (let i = 0; i < Math.floor(loserSeedList.length/2); i++) {
@@ -280,17 +218,12 @@
     return { winnersSeeds, winnersRound1, loserSeedList, losersPairsRound1 };
   }
 
-  // ---------------------------
-  // For rendering, compute the bracket objects for the currently selected season
   $: brackets = buildBracketsForSeason(selectedSeason);
 
-  // For mapping rounds to weeks: use uniqueWeeks array.
-  // quarter = uniqueWeeks[0], semi = uniqueWeeks[1], final = uniqueWeeks[2]
   const quarterWeek = uniqueWeeks[0] ?? null;
   const semiWeek = uniqueWeeks[1] ?? null;
   const finalWeek = uniqueWeeks[2] ?? null;
 
-  // small UI helper: format points from row object
   function fmtPts(n) {
     if (n === null || n === undefined || isNaN(Number(n))) return '—';
     return (Math.round(Number(n) * 100) / 100).toFixed(2);
@@ -301,9 +234,6 @@
     const letter = name ? String(name)[0] : 'T';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
-
-  // Determine label for a losers-pair that becomes a consolation: e.g., the winners of losers round play for 5th, losers play for 7th, second round losers play for 3rd.
-  // We'll apply labels in the render by index positions.
 </script>
 
 <style>
@@ -374,7 +304,7 @@
 
       <div class="label">Round 1 — {quarterWeek ? `Week ${quarterWeek}` : 'Quarterfinals'}</div>
       {#each brackets.winnersRound1 as p, idx}
-        { /* find actual matchup row for this pair in quarterWeek if exists */ }
+        <!-- find actual matchup row for this pair in quarterWeek if exists -->
         {@const match = findMatchup(p.rosterA, p.rosterB, quarterWeek)}
         <div class="pair">
           <div class="team" style="min-width:220px">
@@ -414,21 +344,16 @@
       <div style="height:6px"></div>
       <div class="label">Round 2 — {semiWeek ? `Week ${semiWeek}` : 'Semifinals'}</div>
 
-      {#each Array(brackets.winnersRound1.length / 2) as _, i}
-        { /* Attempt to derive the second-round pairing by locating the match in semiWeek involving any roster from the first-round pair set */ }
+      {#each Array(Math.max(1, Math.floor(brackets.winnersRound1.length / 2))) as _, i}
         {@const semiMatch = (() => {
-          // collect the two winners candidate rosters from relevant Round1 pairs by using matchupsRows for quarterWeek results:
           const pA = brackets.winnersRound1[i*2];
           const pB = brackets.winnersRound1[i*2 + 1];
-          // Look for any matchup in semiWeek that contains a roster from either pA or pB
           if (!pA || !pB) return null;
-          // Search semiWeek matchupsRows for a match that contains roster from pA or pB (best-effort)
           for (const r of matchupsRows) {
             if (Number(r.week) !== Number(semiWeek)) continue;
             const a = r.teamA && r.teamA.rosterId ? String(r.teamA.rosterId) : null;
             const b = r.teamB && r.teamB.rosterId ? String(r.teamB.rosterId) : null;
             if (!a || !b) continue;
-            // if either side contains any roster from the two Round1 pairs, accept
             const candidates = [String(pA.rosterA), String(pA.rosterB), String(pB.rosterA), String(pB.rosterB)];
             if (candidates.includes(a) || candidates.includes(b)) return r;
           }
@@ -552,19 +477,12 @@
       <div class="label">Losers Round 2 / Consolations — {semiWeek ? `Week ${semiWeek}` : 'Round 2'}</div>
 
       {#each brackets.losersPairsRound1 as lp, idx}
-        { /* for second-round losers logic:
-             - winners of losers round1 play for 5th place (consolation)
-             - losers of losers round1 play for 7th place (consolation)
-             - label accordingly by index: we'll show both match types if match rows exist in semiWeek/finalWeek
-          */ }
         {@const possible5th = (() => {
-          // look for a match in semiWeek containing either roster of lp
           for (const r of matchupsRows) {
             if (Number(r.week) !== Number(semiWeek)) continue;
             const a = r.teamA && r.teamA.rosterId ? String(r.teamA.rosterId) : null;
             const b = r.teamB && r.teamB.rosterId ? String(r.teamB.rosterId) : null;
             if (!a || !b) continue;
-            // if this semiWeek match includes one of the losersRound1 winners candidates it might be the 5th-place bracket
             const candidates = [String(lp.rosterA), String(lp.rosterB)];
             if (candidates.includes(a) || candidates.includes(b)) return r;
           }
@@ -597,7 +515,7 @@
             <div class="score"><div class="scoreVal">TBD</div><div class="sub">Week {semiWeek ?? '—'}</div></div>
           {/if}
         </div>
-      {/each}
+      {/each>
 
     </div>
   </div>
