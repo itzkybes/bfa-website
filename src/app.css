@@ -1,0 +1,154 @@
+/* src/app.css
+   Global baseline styles + darker gray background (site-wide).
+   Tweak variables below as needed.
+*/
+
+/* ----- Fonts (optional, remove if you're using a different approach) ----- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+:root {
+  /* Darker gray gradient (matches your requested look) */
+  --bg-start: #111316;   /* top */
+  --bg-end:   #020203;   /* bottom (near-black) */
+
+  /* tokens */
+  --panel-bg: #0f1724;
+  --nav-text: #e6eef8;
+  --muted: #9aa6b2;
+  --accent: #0ea5b7;
+
+  /* small helpers */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+}
+
+/* ----- Reset / sensible defaults ----- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--nav-text);
+  background: linear-gradient(180deg, var(--bg-start), var(--bg-end)) fixed;
+  background-attachment: fixed;
+}
+
+/* sensible defaults for text */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0 0 .5rem 0;
+  color: #dfe9f3;
+  line-height: 1.15;
+}
+
+p {
+  margin: 0 0 1rem 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* links */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+/* images */
+img { max-width: 100%; display: block; }
+
+/* container helper */
+.container, .wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* accessibility helpers */
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px,1px,1px,1px);
+  white-space: nowrap;
+}
+
+/* small utility classes */
+.center { text-align: center; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+
+/* form defaults */
+input, textarea, select, button {
+  font-family: inherit;
+  color: inherit;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.01);
+  padding: 0.45rem 0.6rem;
+}
+
+/* subtle focus ring for keyboard navigation */
+:focus {
+  outline: 3px solid rgba(14,165,183,0.12);
+  outline-offset: 2px;
+}
+
+/* small responsive tweaks */
+@media (max-width: 720px) {
+  .wrap { padding: 0 0.75rem; }
+}
+
+/* Optional: give panels a slight separation from the page background
+   (keep subtle so layout stays flat — remove box-shadow if you prefer) */
+.panel, .card {
+  background: linear-gradient(180deg, rgba(7,18,38,0.96), rgba(7,14,26,0.96));
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: var(--radius-md);
+}
+
+/* Specific helpers you were using in layout (so duplication is avoided) */
+.teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 3rem;
+  justify-content: center;
+  padding: 1rem 2rem;
+}
+
+.team-card {
+  background: var(--panel-bg);
+  border-radius: 12px;
+  padding: 1.5rem 1.5rem 2rem 1.5rem;
+  color: #fff;
+  width: 100%;
+}
+
+/* pill & headshot defaults used by rosters */
+.pos-pill {
+  min-width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #071122;
+}
+
+.headshot {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.03);
+}
