@@ -13,7 +13,6 @@ try {
 const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
 const sleeper = createSleeperClient({ cache, concurrency: SLEEPER_CONCURRENCY });
 
-// default BASE_LEAGUE_ID falls back to provided ID if env not set
 const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process.env.BASE_LEAGUE_ID)
   ? process.env.BASE_LEAGUE_ID
   : '1219816671624048640';
@@ -25,11 +24,11 @@ function safeNum(v) {
 }
 
 export async function load(event) {
-  // cache for edge
+  // edge cache header
   event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const messages = [];
-  // build season chain
+  // build season chain (same approach as records page)
   let seasons = [];
   try {
     let mainLeague = null;
@@ -61,7 +60,7 @@ export async function load(event) {
     messages.push('Error while building seasons chain: ' + (err?.message ?? String(err)));
   }
 
-  // determine selected season (league id) from query params
+  // determine selected season (league id) and week from query params
   const url = event.url;
   const seasonParam = url.searchParams.get('season') ?? null;
   let selectedSeason = seasonParam;
@@ -112,67 +111,140 @@ export async function load(event) {
     messages.push('Failed to fetch rosters for season: ' + (e?.message ?? e));
   }
 
-  // --- NEW: fetch standings and build a placement map ---
+  // ---------- compute placements by scrubbing matchups through the regular season ----------
   const placementMap = {}; // rosterId -> placement (1-based)
   try {
-    if (selectedLeagueId) {
-      let standings = null;
-      // try a few method names commonly used in clients
-      try {
-        if (typeof sleeper.getStandings === 'function') {
-          standings = await sleeper.getStandings(selectedLeagueId, { ttl: 60 * 5 });
-        } else if (typeof sleeper.getStandingsForLeague === 'function') {
-          standings = await sleeper.getStandingsForLeague(selectedLeagueId, { ttl: 60 * 5 });
-        } else if (typeof sleeper.getLeagueStandings === 'function') {
-          standings = await sleeper.getLeagueStandings(selectedLeagueId, { ttl: 60 * 5 });
-        } else {
-          // no standings helper available on sleeper client
-          messages.push('No standings helper function found on sleeper client — skipping standings fetch.');
-        }
-      } catch (se) {
-        messages.push('Error fetching standings (via helper): ' + (se?.message ?? se));
-        standings = null;
-      }
+    // initialize stats for every roster known from rosterMap
+    const stats = {}; // rosterId -> { wins, losses, ties, points_for, points_against, games }
+    for (const rid of Object.keys(rosterMap || {})) {
+      stats[rid] = { wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0, games: 0 };
+    }
 
-      // If standings returned as array-of-objects (common), map roster->placement
-      if (Array.isArray(standings) && standings.length) {
-        // attempt to interpret standard shapes: objects with roster_id/rosterId and rank/placement/position
-        for (let i = 0; i < standings.length; i++) {
-          const r = standings[i];
-          const rid = String(r.roster_id ?? r.rosterId ?? r.roster ?? r.id ?? r.roster_id ?? r.owner_id ?? '').trim();
-          const rank = Number(r.rank ?? r.placement ?? r.position ?? r.position ?? (i + 1));
-          if (rid) placementMap[rid] = Number.isFinite(rank) ? rank : (i + 1);
+    // define regular season weeks: 1 .. (playoffStart - 1) if playoffStart exists, else 1..MAX_WEEKS
+    let regStart = 1;
+    let regEnd = MAX_WEEKS;
+    if (playoffStart && Number(playoffStart) >= 2) {
+      regEnd = Number(playoffStart) - 1;
+    } else {
+      // If playoffStart not set, assume regular-season is up to MAX_WEEKS (fallback).
+      regEnd = MAX_WEEKS;
+      messages.push('Playoff start not found in metadata — using weeks 1..' + regEnd + ' for standings calculation.');
+    }
+
+    // fetch matchups for each regular-season week and update stats
+    for (let wk = regStart; wk <= regEnd; wk++) {
+      try {
+        const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
+        if (!Array.isArray(wkMatchups) || wkMatchups.length === 0) continue;
+
+        // group by matchup id like we do later (some libraries return objects with roster_id fields)
+        const grouped = {};
+        for (let i = 0; i < wkMatchups.length; i++) {
+          const e = wkMatchups[i];
+          const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
+          const key = mid != null ? `${mid}` : `auto_${wk}_${i}`;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(e);
         }
-        messages.push('Loaded standings for ' + standings.length + ' entries from standings helper.');
-      } else if (!standings) {
-        // If no helper results, try to build placements from rosterMap if it contains a "placement" or "settings" field
-        // Sometimes rosterMap entries may contain final_placement or points_rank - check and fall back
-        for (const [rid, meta] of Object.entries(rosterMap || {})) {
-          const explicit = meta?.placement ?? meta?.final_placement ?? meta?.rank ?? meta?.position ?? null;
-          if (explicit != null) {
-            placementMap[String(rid)] = Number(explicit);
+
+        // iterate each grouped matchup
+        for (const key of Object.keys(grouped)) {
+          const entries = grouped[key];
+          if (!entries || entries.length === 0) continue;
+
+          // if exactly two-side matchup (common case), compute winner
+          if (entries.length === 2) {
+            const a = entries[0];
+            const b = entries[1];
+
+            const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? (a.roster ?? a.team ?? 'unknownA'));
+            const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? (b.roster ?? b.team ?? 'unknownB'));
+
+            // ensure a/b exist in stats map
+            if (!stats[aId]) stats[aId] = { wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0, games: 0 };
+            if (!stats[bId]) stats[bId] = { wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0, games: 0 };
+
+            const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? a.score ?? null);
+            const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? b.score ?? null);
+
+            // accumulate points
+            stats[aId].points_for += aPts;
+            stats[aId].points_against += bPts;
+            stats[aId].games += 1;
+
+            stats[bId].points_for += bPts;
+            stats[bId].points_against += aPts;
+            stats[bId].games += 1;
+
+            // compare result
+            if (!Number.isFinite(aPts) || !Number.isFinite(bPts) || (aPts === 0 && bPts === 0 && aPts === bPts)) {
+              // if both 0 or not provided, treat as tie/skip? We'll treat equal numeric as tie
+              if (aPts === bPts) {
+                stats[aId].ties += 1;
+                stats[bId].ties += 1;
+              }
+            } else {
+              if (aPts > bPts) {
+                stats[aId].wins += 1;
+                stats[bId].losses += 1;
+              } else if (bPts > aPts) {
+                stats[bId].wins += 1;
+                stats[aId].losses += 1;
+              } else {
+                // equal points -> tie
+                stats[aId].ties += 1;
+                stats[bId].ties += 1;
+              }
+            }
+          } else {
+            // not a simple 2-team matchup: we skip affecting wins/losses, but accumulate points if present
+            for (const ent of entries) {
+              const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? (ent.roster ?? 'r'));
+              if (!stats[pid]) stats[pid] = { wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0, games: 0 };
+              const pts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? ent.score ?? 0);
+              stats[pid].points_for += pts;
+              stats[pid].games += 1;
+            }
           }
         }
-        if (Object.keys(placementMap).length) {
-          messages.push('Derived placements from rosterMap metadata (' + Object.keys(placementMap).length + ' entries).');
-        } else {
-          messages.push('Standings not available via helper and rosterMap had no placement metadata — placements unavailable.');
-        }
-      } else {
-        // If standings object has a different shape (object keyed by roster ids), attempt to parse
-        if (standings && typeof standings === 'object' && !Array.isArray(standings)) {
-          // iterate keys
-          for (const [k,v] of Object.entries(standings)) {
-            // if value is object with rank
-            const rank = Number((v && (v.rank ?? v.placement ?? v.position)) ?? NaN);
-            if (!Number.isNaN(rank)) placementMap[String(k)] = rank;
-          }
-          if (Object.keys(placementMap).length) messages.push('Parsed placement map from standings object.');
-        }
+
+      } catch (we) {
+        messages.push('Failed to fetch matchups for reg-week ' + wk + ': ' + (we?.message ?? we));
+        // continue
       }
     }
+
+    // Now we have stats map for rosterIds; build a sortable array
+    const statEntries = [];
+    for (const [rid, s] of Object.entries(stats)) {
+      statEntries.push({
+        rosterId: rid,
+        wins: s.wins || 0,
+        losses: s.losses || 0,
+        ties: s.ties || 0,
+        points_for: s.points_for || 0,
+        points_against: s.points_against || 0,
+        games: s.games || 0
+      });
+    }
+
+    // Sort: wins desc, ties desc, points_for desc, points_against asc
+    statEntries.sort((A, B) => {
+      if ((B.wins - A.wins) !== 0) return (B.wins - A.wins);
+      if ((B.ties - A.ties) !== 0) return (B.ties - A.ties);
+      if ((B.points_for - A.points_for) !== 0) return (B.points_for - A.points_for);
+      return (A.points_against - B.points_against);
+    });
+
+    // assign placement map (1-based)
+    for (let i = 0; i < statEntries.length; i++) {
+      const rid = String(statEntries[i].rosterId);
+      placementMap[rid] = i + 1;
+    }
+    messages.push('Computed placements by scrubbing regular-season matchups (weeks ' + regStart + '–' + regEnd + ').');
+
   } catch (e) {
-    messages.push('Failed to fetch/parse standings: ' + (e?.message ?? e));
+    messages.push('Failed to compute placements by scrubbing matchups: ' + (e?.message ?? e));
   }
 
   // fetch playoff matchups (fetch matchups for playoff window)
