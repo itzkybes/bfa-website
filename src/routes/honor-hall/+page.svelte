@@ -150,11 +150,11 @@
     : matchupsRows.slice();
 
   // compute maxWeek present for the selected season (used for week-based labeling fallback)
+  let maxWeekForSeason = null;
   $: {
     const weeksPresent = (filteredRows || []).map(r => Number(r.week ?? 0)).filter(v => Number.isFinite(v) && v > 0);
     maxWeekForSeason = weeksPresent.length ? Math.max(...weeksPresent) : null;
   }
-  let maxWeekForSeason = null;
 
   // compute label and winnerPosition for each row
   const LABEL_ORDER = {
@@ -170,6 +170,11 @@
     const info = getLabelAndWinnerPosition(r, maxWeekForSeason);
     return { ...r, _label: info.label, _winnerPosition: info.winnerPosition ?? null };
   });
+
+  // Declare bracket arrays up front so runtime can reference them
+  let winnersRows = [];
+  let losersRows = [];
+  let unassignedRows = [];
 
   // A helper to determine bracket membership (winners/losers/unassigned)
   function bracketForRow(row) {
@@ -225,7 +230,7 @@
     unassignedRows = [];
 
     // pre-sort labeledRows by label order and tie-breakers (week/points)
-    const preSorted = labeledRows.slice().sort((a,b) => {
+    const preSorted = (labeledRows || []).slice().sort((a,b) => {
       const la = LABEL_ORDER[a._label] ?? 99;
       const lb = LABEL_ORDER[b._label] ?? 99;
       if (la !== lb) return la - lb;
@@ -244,7 +249,7 @@
     }
   }
 
-  // helpers
+  // submit filters (form)
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form?.requestSubmit) form.requestSubmit();
