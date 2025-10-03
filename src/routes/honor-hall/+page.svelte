@@ -64,7 +64,8 @@
   }
 
   // return label and optional winnerPosition (number) for consolation
-  function getLabelAndWinnerPosition(row) {
+  // Uses placements first; if placements missing, falls back to week-based inference
+  function getLabelAndWinnerPosition(row, maxWeekForSeason) {
     if (!row) return { label: 'Match', winnerPosition: null };
     if (row.participantsCount === 1) return { label: 'Bye', winnerPosition: null };
 
@@ -92,20 +93,32 @@
       bPlacement = findPlacementForName(String(row.teamB.rosterId), season);
     }
 
-    // If neither can be found, default to generic 'Match'
-    if (!aPlacement && !bPlacement) {
-      return { label: 'Match', winnerPosition: null };
+    // If at least one placement exists, prefer placement-based labeling
+    if (aPlacement || bPlacement) {
+      const maxPlacement = Math.max(aPlacement || 999, bPlacement || 999);
+
+      if (maxPlacement <= 2) return { label: 'Championship', winnerPosition: null };
+      if (maxPlacement <= 4) return { label: 'Semi Finals', winnerPosition: null };
+      if (maxPlacement <= 8) return { label: 'Quarter Finals', winnerPosition: null };
+
+      // Consolation match: compute winner position (better placement = smaller number)
+      const winnerPos = Math.min(aPlacement || Infinity, bPlacement || Infinity);
+      return { label: 'Consolation match', winnerPosition: Number.isFinite(winnerPos) ? winnerPos : null };
     }
 
-    const maxPlacement = Math.max(aPlacement || 999, bPlacement || 999);
+    // --- Fallback: use week-based inference when placements unavailable ---
+    // If we have a maxWeekForSeason (computed from available rows), map:
+    // maxWeek -> Championship, maxWeek-1 -> Semi Finals, maxWeek-2 -> Quarter Finals, else Consolation match
+    const wk = Number(row.week ?? 0);
+    if (maxWeekForSeason && wk > 0) {
+      if (wk === maxWeekForSeason) return { label: 'Championship', winnerPosition: null };
+      if (wk === maxWeekForSeason - 1) return { label: 'Semi Finals', winnerPosition: null };
+      if (wk === maxWeekForSeason - 2) return { label: 'Quarter Finals', winnerPosition: null };
+      return { label: 'Consolation match', winnerPosition: null }; // can't infer winner position without placements
+    }
 
-    if (maxPlacement <= 2) return { label: 'Championship', winnerPosition: null };
-    if (maxPlacement <= 4) return { label: 'Semi Finals', winnerPosition: null };
-    if (maxPlacement <= 8) return { label: 'Quarter Finals', winnerPosition: null };
-
-    // Consolation match: compute winner position (better placement = smaller number)
-    const winnerPos = Math.min(aPlacement || Infinity, bPlacement || Infinity);
-    return { label: 'Consolation match', winnerPosition: Number.isFinite(winnerPos) ? winnerPos : null };
+    // final fallback
+    return { label: 'Match', winnerPosition: null };
   }
 
   function ordinal(n) {
@@ -127,10 +140,17 @@
     return x.toFixed(1);
   }
 
-  // Create filteredRows (by selectedSeason) as before
+  // Create filteredRows (by selectedSeason)
   $: filteredRows = Array.isArray(matchupsRows) && selectedSeason
     ? matchupsRows.filter(r => String(r.season ?? '') === String(selectedSeason))
     : matchupsRows.slice();
+
+  // compute maxWeek present for the selected season (used for week-based labeling fallback)
+  $: {
+    const weeksPresent = (filteredRows || []).map(r => Number(r.week ?? 0)).filter(v => Number.isFinite(v) && v > 0);
+    maxWeekForSeason = weeksPresent.length ? Math.max(...weeksPresent) : null;
+  }
+  let maxWeekForSeason = null;
 
   // compute label and winnerPosition for each row, then sort by label order and points
   const LABEL_ORDER = {
@@ -143,7 +163,7 @@
   };
 
   $: labeledRows = filteredRows.map(r => {
-    const info = getLabelAndWinnerPosition(r);
+    const info = getLabelAndWinnerPosition(r, maxWeekForSeason);
     return { ...r, _label: info.label, _winnerPosition: info.winnerPosition ?? null };
   });
 
@@ -151,10 +171,12 @@
     const la = LABEL_ORDER[a._label] ?? 99;
     const lb = LABEL_ORDER[b._label] ?? 99;
     if (la !== lb) return la - lb;
-    // tie-breaker: sort by teamA.points descending if available
+    // tie-breaker: sort by teamA.points descending if available, else by week desc
     const ap = Number(a.teamA?.points ?? 0);
     const bp = Number(b.teamA?.points ?? 0);
-    return bp - ap;
+    if (ap !== bp) return bp - ap;
+    const aw = Number(a.week ?? 0), bw = Number(b.week ?? 0);
+    return bw - aw;
   });
 
   // submit filters (form)
@@ -245,6 +267,9 @@
       {#each messages as m}
         <div>{m}</div>
       {/each}
+      {#if maxWeekForSeason}
+        <div style="margin-top:8px;color:#9ca3af;font-size:0.93rem;">Detected highest playoff week for season: {maxWeekForSeason}</div>
+      {/if}
     </div>
   {/if}
 
