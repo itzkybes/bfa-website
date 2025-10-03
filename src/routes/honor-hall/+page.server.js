@@ -1,32 +1,38 @@
 // src/routes/honor-hall/+page.server.js
-// Server-side loader for Honor Hall (playoff matchups).
-// Uses server `fetch` to call Sleeper endpoints and returns:
-// { seasons, selectedSeason, playoffWeeks, matchupsRows, rosterMap, league, errors }
+import { env } from '$env/dynamic/private';
 
-const HARD_CODED_LEAGUE_ID = '1219816671624048640';
+/**
+ * Honor Hall server loader
+ * - Reuses the same robust matchups-fetching logic commonly used by the matchups page
+ * - Only difference: fetch matchups for playoff_week_start .. playoff_week_start + 2
+ *
+ * Returns:
+ * { seasons, selectedSeason, playoffWeeks, matchupsRows, rosterMap, league, errors }
+ */
 
 export async function load({ fetch, url }) {
   const errors = [];
+
+  // Prefer env BASE_LEAGUE_ID but fall back to the value you gave
+  const BASE_LEAGUE_ID = env.BASE_LEAGUE_ID ?? '1219816671624048640';
   const selectedSeason = url.searchParams.get('season') ?? String(new Date().getFullYear());
 
-  // helper wrapper for fetch with JSON parse and unified errors
-  async function safeFetchJson(endpoint) {
+  // Helper wrapper for server-side fetch with consistent return shape
+  async function safeFetchJson(endpoint, opts = {}) {
     try {
-      const resp = await fetch(endpoint);
-      if (!resp.ok) {
-        return { ok: false, status: resp.status, statusText: resp.statusText, body: null };
+      const res = await fetch(endpoint, opts);
+      if (!res.ok) {
+        return { ok: false, status: res.status, statusText: res.statusText, body: null };
       }
-      const body = await resp.json();
+      const body = await res.json();
       return { ok: true, status: 200, body };
     } catch (err) {
       return { ok: false, status: 0, statusText: String(err), body: null };
     }
   }
 
-  // quick guard
-  const BASE_LEAGUE_ID = HARD_CODED_LEAGUE_ID;
   if (!BASE_LEAGUE_ID) {
-    errors.push('No BASE_LEAGUE_ID configured');
+    errors.push('BASE_LEAGUE_ID not configured.');
     return {
       seasons: [selectedSeason],
       selectedSeason,
@@ -38,7 +44,7 @@ export async function load({ fetch, url }) {
     };
   }
 
-  // 1) league metadata
+  // 1) fetch league metadata (used for seasons discovery and playoff start detection)
   const leagueUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}`;
   const leagueRes = await safeFetchJson(leagueUrl);
   let league = null;
@@ -48,36 +54,33 @@ export async function load({ fetch, url }) {
     errors.push(`Failed fetching league metadata for ${BASE_LEAGUE_ID}: ${leagueRes.status} ${leagueRes.statusText}`);
   }
 
-  // 2) attempt to build seasons list (try a few metadata locations; fallback to last 3 years)
+  // 2) discover seasons (try league metadata, then fallback to last 3 years)
   let seasons = [];
   try {
-    // Some league metadata may contain a history array or seasons property; try to read it
     if (league) {
-      // Example fields that some leagues or tools expose
+      // common fields where seasons might be stored
       if (Array.isArray(league.seasons)) seasons = league.seasons.map(String);
       else if (Array.isArray(league.years)) seasons = league.years.map(String);
       else if (Array.isArray(league.history)) seasons = league.history.map(String);
+      else if (league.season) seasons = [String(league.season)];
     }
   } catch (e) {
     seasons = [];
   }
   if (!seasons || seasons.length === 0) {
-    // fallback: current year and two previous years
     const now = new Date().getFullYear();
     seasons = [String(now), String(now - 1), String(now - 2)];
   }
-
-  // If the selectedSeason isn't in the seasons list, make sure the dropdown can show it
+  // ensure selectedSeason appears in front
   if (!seasons.includes(String(selectedSeason))) {
     seasons = [String(selectedSeason), ...seasons.filter(s => String(s) !== String(selectedSeason))];
   }
 
-  // 3) determine playoff start week from league metadata if present, else default to 23
+  // 3) figure playoff start week from league metadata (try common locations) else fallback
   let playoffStart = null;
   try {
-    // common locations
     playoffStart =
-      (league && league.settings && league.settings.playoff_week_start) ??
+      league?.settings?.playoff_week_start ??
       league?.playoff_week_start ??
       league?.metadata?.playoff_week_start ??
       null;
@@ -89,19 +92,21 @@ export async function load({ fetch, url }) {
   const startWeek = (Number.isFinite(playoffStart) && playoffStart > 0) ? playoffStart : fallbackStart;
   const playoffWeeks = [startWeek, startWeek + 1, startWeek + 2];
 
-  // 4) fetch rosters + users so we can display team names and avatars
+  // 4) fetch rosters and users to build roster map (roster_id -> display_name/avatar)
   const rostersUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/rosters`;
   const usersUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/users`;
 
   const [rostersRes, usersRes] = await Promise.all([safeFetchJson(rostersUrl), safeFetchJson(usersUrl)]);
   let rosters = [];
   let users = [];
+
   if (rostersRes.ok) rosters = Array.isArray(rostersRes.body) ? rostersRes.body : [];
   else errors.push(`Failed fetching rosters: ${rostersRes.status} ${rostersRes.statusText}`);
+
   if (usersRes.ok) users = Array.isArray(usersRes.body) ? usersRes.body : [];
   else errors.push(`Failed fetching users: ${usersRes.status} ${usersRes.statusText}`);
 
-  // build quick user map
+  // build user map by id
   const userMap = {};
   for (const u of users) {
     if (!u) continue;
@@ -113,7 +118,7 @@ export async function load({ fetch, url }) {
     };
   }
 
-  // rosterMap: roster_id -> display_name, avatar, settings
+  // build roster map
   const rosterMap = {};
   for (const r of rosters) {
     if (!r) continue;
@@ -129,8 +134,10 @@ export async function load({ fetch, url }) {
     };
   }
 
-  // 5) fetch matchups for the playoff weeks and transform into rows (matchup pair -> teamA/teamB)
+  // 5) fetch matchups for playoff weeks only and transform to flattened rows
+  // We group by matchup_id if present; otherwise pair by index.
   const allMatchupsRows = [];
+
   for (const week of playoffWeeks) {
     const matchupsUrl = `https://api.sleeper.app/v1/league/${BASE_LEAGUE_ID}/matchups/${week}`;
     const mRes = await safeFetchJson(matchupsUrl);
@@ -138,10 +145,14 @@ export async function load({ fetch, url }) {
       errors.push(`Failed to fetch matchups for week ${week}: ${mRes.status} ${mRes.statusText}`);
       continue;
     }
-    const arr = Array.isArray(mRes.body) ? mRes.body : [];
-    if (!arr.length) continue;
 
-    // group by matchup id if present; else pair by index
+    const arr = Array.isArray(mRes.body) ? mRes.body : [];
+    if (!arr.length) {
+      // no matchups returned for that week
+      continue;
+    }
+
+    // group entries by matchup id
     const groups = new Map();
     arr.forEach((entry, idx) => {
       const mid = entry.matchup_id ?? entry.matchup ?? entry.matchupId ?? null;
@@ -150,12 +161,14 @@ export async function load({ fetch, url }) {
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push({ entry, idx });
       } else {
+        // fallback to pairing by index / 2
         const key = `i${Math.floor(idx / 2)}`;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push({ entry, idx });
       }
     });
 
+    // transform groups into { week, matchup_key, matchup_id, teamA, teamB, raw }
     for (const [key, members] of groups.entries()) {
       if (!members || members.length === 0) continue;
 
@@ -163,6 +176,7 @@ export async function load({ fetch, url }) {
       let teamB = null;
 
       if (members.length === 1) {
+        // single entry: treat as teamA vs bye
         const e = members[0].entry;
         const rosterId = String(e.roster_id ?? e.roster ?? e.rosterId ?? '');
         const owner = rosterMap[rosterId] ?? null;
@@ -175,6 +189,7 @@ export async function load({ fetch, url }) {
         };
         teamB = { roster_id: null, name: null, avatar: null, points: null, placement: null };
       } else {
+        // pair entries
         const e0 = members[0].entry;
         const e1 = members[1].entry;
         const r0 = String(e0.roster_id ?? e0.roster ?? e0.rosterId ?? '');
@@ -189,7 +204,6 @@ export async function load({ fetch, url }) {
           points: e0.points ?? e0.score ?? e0.total_points ?? null,
           placement: e0.placement ?? e0.seed ?? null
         };
-
         teamB = {
           roster_id: r1 || null,
           name: owner1?.display_name ?? e1.display_name ?? e1.owner_display ?? null,
@@ -210,7 +224,7 @@ export async function load({ fetch, url }) {
     }
   }
 
-  // final payload
+  // final payload - same shape the matchups tab expects
   return {
     seasons,
     selectedSeason,
