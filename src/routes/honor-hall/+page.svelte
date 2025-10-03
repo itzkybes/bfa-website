@@ -171,6 +171,7 @@
                   </div>
                 </div>
               </td>
+              </tr>
           {:else}
             <tr>
               <td colspan="3">
