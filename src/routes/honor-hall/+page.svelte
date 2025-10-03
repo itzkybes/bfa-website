@@ -63,10 +63,10 @@
     return null;
   }
 
-  // compute label for a matchup row
-  function getMatchLabel(row) {
-    if (!row) return 'Match';
-    if (row.participantsCount === 1) return 'Bye';
+  // return label and optional winnerPosition (number) for consolation
+  function getLabelAndWinnerPosition(row) {
+    if (!row) return { label: 'Match', winnerPosition: null };
+    if (row.participantsCount === 1) return { label: 'Bye', winnerPosition: null };
 
     // Use season from row if available; otherwise fallback to selectedSeason
     const season = row.season ?? selectedSeason;
@@ -74,13 +74,11 @@
     const aNames = [row.teamA?.name, row.teamA?.ownerName, row.teamA?.displayName].filter(Boolean);
     const bNames = [row.teamB?.name, row.teamB?.ownerName, row.teamB?.displayName].filter(Boolean);
 
-    // pick best candidate name to search for
     let aPlacement = null;
     for (const nm of aNames) {
       aPlacement = findPlacementForName(nm, season);
       if (aPlacement) break;
     }
-    // fallback try row.teamA.rosterId string
     if (!aPlacement && row.teamA?.rosterId) {
       aPlacement = findPlacementForName(String(row.teamA.rosterId), season);
     }
@@ -94,26 +92,27 @@
       bPlacement = findPlacementForName(String(row.teamB.rosterId), season);
     }
 
-    // If neither can be found, fall back to week-based inference or generic label
+    // If neither can be found, default to generic 'Match'
     if (!aPlacement && !bPlacement) {
-      // prefer Week -> Round mapping: assume selectedSeason playoff weeks are final 3
-      // If row.week is highest (final), label Championship; round before -> Semi; else Quarter
-      const weekVal = Number(row.week ?? 0);
-      if (weekVal > 0) {
-        // naive mapping: final (highest week) -> Championship, previous -> Semi, previous -> Quarter
-        // We can't reliably infer highest week here without server exposing playoff start, so default:
-        return 'Match';
-      }
-      return 'Match';
+      return { label: 'Match', winnerPosition: null };
     }
 
-    // If one placement exists and the other doesn't, we can still attempt:
     const maxPlacement = Math.max(aPlacement || 999, bPlacement || 999);
 
-    if (maxPlacement <= 2) return 'Championship';
-    if (maxPlacement <= 4) return 'Semi Finals';
-    if (maxPlacement <= 8) return 'Quarter Finals';
-    return 'Consolation match';
+    if (maxPlacement <= 2) return { label: 'Championship', winnerPosition: null };
+    if (maxPlacement <= 4) return { label: 'Semi Finals', winnerPosition: null };
+    if (maxPlacement <= 8) return { label: 'Quarter Finals', winnerPosition: null };
+
+    // Consolation match: compute winner position (better placement = smaller number)
+    const winnerPos = Math.min(aPlacement || Infinity, bPlacement || Infinity);
+    return { label: 'Consolation match', winnerPosition: Number.isFinite(winnerPos) ? winnerPos : null };
+  }
+
+  function ordinal(n) {
+    if (n == null) return 'TBD';
+    const s = ["th","st","nd","rd"];
+    const v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
   }
 
   function avatarOrPlaceholder(url, name, size = 40) {
@@ -128,10 +127,37 @@
     return x.toFixed(1);
   }
 
+  // Create filteredRows (by selectedSeason) as before
   $: filteredRows = Array.isArray(matchupsRows) && selectedSeason
     ? matchupsRows.filter(r => String(r.season ?? '') === String(selectedSeason))
     : matchupsRows.slice();
 
+  // compute label and winnerPosition for each row, then sort by label order and points
+  const LABEL_ORDER = {
+    'Championship': 0,
+    'Semi Finals': 1,
+    'Quarter Finals': 2,
+    'Consolation match': 3,
+    'Bye': 4,
+    'Match': 5
+  };
+
+  $: labeledRows = filteredRows.map(r => {
+    const info = getLabelAndWinnerPosition(r);
+    return { ...r, _label: info.label, _winnerPosition: info.winnerPosition ?? null };
+  });
+
+  $: sortedRows = labeledRows.slice().sort((a,b) => {
+    const la = LABEL_ORDER[a._label] ?? 99;
+    const lb = LABEL_ORDER[b._label] ?? 99;
+    if (la !== lb) return la - lb;
+    // tie-breaker: sort by teamA.points descending if available
+    const ap = Number(a.teamA?.points ?? 0);
+    const bp = Number(b.teamA?.points ?? 0);
+    return bp - ap;
+  });
+
+  // submit filters (form)
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form?.requestSubmit) form.requestSubmit();
@@ -222,7 +248,7 @@
     </div>
   {/if}
 
-  {#if filteredRows.length}
+  {#if sortedRows.length}
     <table>
       <thead>
         <tr>
@@ -234,9 +260,9 @@
         </tr>
       </thead>
       <tbody>
-        {#each filteredRows as row (row.matchup_id ?? row.key)}
+        {#each sortedRows as row (row.matchup_id ?? row.key)}
           {#if row.participantsCount === 2}
-            {@const label = getMatchLabel(row)}
+            {@const label = row._label}
             <tr>
               <td>
                 {#if label === 'Championship'}
@@ -246,7 +272,14 @@
                 {:else if label === 'Quarter Finals'}
                   <span class="label-badge lbl-quarter">{label}</span>
                 {:else if label === 'Consolation match'}
-                  <span class="label-badge lbl-consol">{label}</span>
+                  <span class="label-badge lbl-consol">
+                    {label}
+                    {#if row._winnerPosition}
+                      &nbsp; (Winner: {ordinal(row._winnerPosition)})
+                    {:else}
+                      &nbsp; (Winner: TBD)
+                    {/if}
+                  </span>
                 {:else if label === 'Bye'}
                   <span class="label-badge lbl-bye">{label}</span>
                 {:else}
