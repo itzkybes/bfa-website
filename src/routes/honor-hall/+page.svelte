@@ -75,7 +75,16 @@
   .header { display:flex; align-items:center; gap:1rem; margin-bottom: 1rem; }
   h1 { margin:0; font-size:1.25rem; }
   .controls { display:flex; gap:.6rem; align-items:center; margin-left:auto; }
-  .select { padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; }
+  .select {
+    transition: box-shadow .12s ease, transform .06s ease; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; }
+  .season-select {
+    font-size: 1.02rem;
+    padding:8px 12px;
+    border:1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    box-shadow: 0 4px 12px rgba(2,6,23,0.45);
+  }
+
   .muted { color: #9ca3af; font-size:.9rem; }
   .small { font-size:.85rem; color:#9ca3af; }
 
@@ -113,21 +122,12 @@
     </div>
 
     <form id="filters" method="get" class="controls" aria-label="filters">
-      <label class="small muted" for="season">Season</label>
+      <label class="small muted" for="season" style="font-weight:700; color:#e6eef8;">Season</label>
       <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
         {#each seasons as s}
           <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
         {/each}
-      </select>
-
-      <label class="small muted" for="week">Week</label>
-      <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-        {#each weeks as w}
-          <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-        {/each}
-      </select>
-
-      <noscript><button type="submit" class="select">Go</button></noscript>
+      </select><noscript><button type="submit" class="select">Go</button></noscript>
       {#if messages && messages.length}
         <button type="button" on:click={() => showDebug = !showDebug} class="debug-toggle">{showDebug ? 'Hide logs' : 'Show logs ('+messages.length+')'}</button>
       {/if}
