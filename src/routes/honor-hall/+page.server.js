@@ -29,7 +29,7 @@ export async function load(event) {
   event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const messages = [];
-  // build season chain (same approach as records page)
+  // build season chain
   let seasons = [];
   try {
     let mainLeague = null;
@@ -112,6 +112,69 @@ export async function load(event) {
     messages.push('Failed to fetch rosters for season: ' + (e?.message ?? e));
   }
 
+  // --- NEW: fetch standings and build a placement map ---
+  const placementMap = {}; // rosterId -> placement (1-based)
+  try {
+    if (selectedLeagueId) {
+      let standings = null;
+      // try a few method names commonly used in clients
+      try {
+        if (typeof sleeper.getStandings === 'function') {
+          standings = await sleeper.getStandings(selectedLeagueId, { ttl: 60 * 5 });
+        } else if (typeof sleeper.getStandingsForLeague === 'function') {
+          standings = await sleeper.getStandingsForLeague(selectedLeagueId, { ttl: 60 * 5 });
+        } else if (typeof sleeper.getLeagueStandings === 'function') {
+          standings = await sleeper.getLeagueStandings(selectedLeagueId, { ttl: 60 * 5 });
+        } else {
+          // no standings helper available on sleeper client
+          messages.push('No standings helper function found on sleeper client — skipping standings fetch.');
+        }
+      } catch (se) {
+        messages.push('Error fetching standings (via helper): ' + (se?.message ?? se));
+        standings = null;
+      }
+
+      // If standings returned as array-of-objects (common), map roster->placement
+      if (Array.isArray(standings) && standings.length) {
+        // attempt to interpret standard shapes: objects with roster_id/rosterId and rank/placement/position
+        for (let i = 0; i < standings.length; i++) {
+          const r = standings[i];
+          const rid = String(r.roster_id ?? r.rosterId ?? r.roster ?? r.id ?? r.roster_id ?? r.owner_id ?? '').trim();
+          const rank = Number(r.rank ?? r.placement ?? r.position ?? r.position ?? (i + 1));
+          if (rid) placementMap[rid] = Number.isFinite(rank) ? rank : (i + 1);
+        }
+        messages.push('Loaded standings for ' + standings.length + ' entries from standings helper.');
+      } else if (!standings) {
+        // If no helper results, try to build placements from rosterMap if it contains a "placement" or "settings" field
+        // Sometimes rosterMap entries may contain final_placement or points_rank - check and fall back
+        for (const [rid, meta] of Object.entries(rosterMap || {})) {
+          const explicit = meta?.placement ?? meta?.final_placement ?? meta?.rank ?? meta?.position ?? null;
+          if (explicit != null) {
+            placementMap[String(rid)] = Number(explicit);
+          }
+        }
+        if (Object.keys(placementMap).length) {
+          messages.push('Derived placements from rosterMap metadata (' + Object.keys(placementMap).length + ' entries).');
+        } else {
+          messages.push('Standings not available via helper and rosterMap had no placement metadata — placements unavailable.');
+        }
+      } else {
+        // If standings object has a different shape (object keyed by roster ids), attempt to parse
+        if (standings && typeof standings === 'object' && !Array.isArray(standings)) {
+          // iterate keys
+          for (const [k,v] of Object.entries(standings)) {
+            // if value is object with rank
+            const rank = Number((v && (v.rank ?? v.placement ?? v.position)) ?? NaN);
+            if (!Number.isNaN(rank)) placementMap[String(k)] = rank;
+          }
+          if (Object.keys(placementMap).length) messages.push('Parsed placement map from standings object.');
+        }
+      }
+    }
+  } catch (e) {
+    messages.push('Failed to fetch/parse standings: ' + (e?.message ?? e));
+  }
+
   // fetch playoff matchups (fetch matchups for playoff window)
   let rawMatchups = [];
   try {
@@ -171,13 +234,14 @@ export async function load(event) {
       const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
       const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
       const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
+      const aPlacement = placementMap[aId] ?? null;
 
       matchupsRows.push({
         matchup_id: k,
         season: selectedSeason ?? null,
         week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
-        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null },
+        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
+        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, placement: null },
         participantsCount: 1
       });
       continue;
@@ -199,12 +263,15 @@ export async function load(event) {
       const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
       const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
 
+      const aPlacement = placementMap[aId] ?? null;
+      const bPlacement = placementMap[bId] ?? null;
+
       matchupsRows.push({
         matchup_id: k,
         season: selectedSeason ?? null,
         week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
-        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
+        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
+        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts, placement: bPlacement },
         participantsCount: 2
       });
     } else {
@@ -216,7 +283,8 @@ export async function load(event) {
           rosterId: pid,
           name: meta.team_name || meta.owner_name || ('Roster ' + pid),
           avatar: meta.team_avatar || meta.owner_avatar || null,
-          points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0)
+          points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0),
+          placement: placementMap[pid] ?? null
         };
       });
       // build a combined label
