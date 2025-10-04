@@ -66,10 +66,10 @@
 </script>
 
 <style>
-  /* Removed global page background color to allow host page to control it */
-  :global(body) { color: #0b1723; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+  /* Keep host page background but use light text so header/nav remains visible on dark backgrounds */
+  :global(body) { color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
-  /* Container centers content and provides a subtle card feel */
+  /* Container centers content */
   .container {
     max-width: 1180px;
     margin: 24px auto;
@@ -81,25 +81,27 @@
   }
 
   .header { grid-column: 1 / span 2; display:flex; justify-content:space-between; align-items:center; gap:12px; }
-  h1 { font-size: 1.6rem; margin:0; color: #0b1723; }
-  .subtitle { color: #566270; margin-top:6px; font-size:.95rem; }
+  h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
+  .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
 
-  /* card styles */
+  /* translucent dark cards (no bright white) */
   .main, .side {
-    background: #ffffff;
+    background: rgba(6,8,12,0.65);
     border-radius: 12px;
     padding: 16px;
-    border: 1px solid rgba(15,23,42,0.04);
-    box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+    border: 1px solid rgba(255,255,255,0.04);
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    backdrop-filter: blur(6px);
+    color: inherit;
   }
 
   /* filters */
   .filters { display:flex; align-items:center; gap:.75rem; }
-  .season-label { color:#344055; font-weight:700; margin-right:.4rem; }
+  .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
   select.season-select {
-    background: white;
-    border: 1px solid rgba(15,23,42,0.08);
-    color: #0b1723;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #e6eef8;
     padding: 8px 12px;
     border-radius: 10px;
     font-weight: 700;
@@ -117,29 +119,30 @@
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
-    color: #7b8794;
+    color: #9aa3ad;
     font-size: 0.9rem;
   }
+  select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
 
   /* debug box */
-  .debug { background: #fbfdff; border:1px solid rgba(15,23,42,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#334155; max-height:260px; overflow:auto; }
+  .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
   .debug ul { margin:0; padding-left:18px; }
 
   /* final standings list */
   .standings-list { list-style:none; margin:0; padding:0; }
-  .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(15,23,42,0.04); }
-  .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#0b1723; justify-content:flex-start; }
+  .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); }
+  .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#e6eef8; justify-content:flex-start; }
   .player { display:flex; align-items:center; gap:12px; min-width:0; }
-  .avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(15,23,42,0.06); }
-  .teamName { font-weight:800; color:#071226; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
-  .teamMeta { color:#566270; font-size:.9rem; margin-top:4px; }
-  .seedCol { margin-left:auto; color:#6b7280; font-weight:700; min-width:56px; text-align:right; }
+  .avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(255,255,255,0.04); }
+  .teamName { font-weight:800; color:#e6eef8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
+  .teamMeta { color: #9aa3ad; font-size:.9rem; margin-top:4px; }
+  .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; min-width:56px; text-align:right; }
 
   .outcome-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-  .outcome-name { font-weight:700; color:#0b1723; }
-  .small { color:#5b6a75; font-size:.9rem; }
+  .outcome-name { font-weight:700; color:#e6eef8; }
+  .small { color:#9aa3ad; font-size:.9rem; }
 
-  .no-debug { color:#566270; }
+  .no-debug { color:#9aa3ad; }
 
   @media (max-width: 980px) {
     .container { grid-template-columns: 1fr; padding:12px; }
