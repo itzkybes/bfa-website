@@ -1,138 +1,55 @@
-import { getMatchupsForSeason } from '$lib/matchups';
+import { getMatchupsForSeason } from '$lib/matchups.js';
 
 export async function load({ params }) {
-  const season = parseInt(params.season, 10);
-  const playoffStart = 15; // or dynamic based on league settings
+  const season = params.season ?? '2023';
 
-  // Fetch regular + playoff matchups
-  const matchupsRows = await getMatchupsForSeason(season);
+  const { matchupsRows, placementMap } = await getMatchupsForSeason(season);
 
-  // Build placement map (seed by standings from season scrubbing)
-  const placementMap = {}; // rosterId → seed
-  // TODO: fill with standings scrubbing logic (wins, PF tiebreaker)
-  // Example: placementMap[3] = 1; // roster 3 = seed 1
+  // Walk bracket + compute final standings (simplified)
+  const finalStandings = {};
 
-  function resolveWinnerLoser(row) {
-    const aPts = row.teamA?.points ?? 0;
-    const bPts = row.teamB?.points ?? 0;
-    if (aPts === bPts) {
-      const aSeed = placementMap[row.teamA?.rosterId];
-      const bSeed = placementMap[row.teamB?.rosterId];
-      return aSeed < bSeed
-        ? { winner: row.teamA, loser: row.teamB }
-        : { winner: row.teamB, loser: row.teamA };
+  matchupsRows.forEach(m => {
+    const homeScore = m.home.score ?? 0;
+    const awayScore = m.away.score ?? 0;
+    const winner = homeScore >= awayScore ? m.home : m.away;
+    const loser  = homeScore >= awayScore ? m.away : m.home;
+
+    // Label winners/losers rounds here if needed:
+    if (m.round === 1) m.roundLabel = 'Quarterfinals';
+    if (m.round === 2) m.roundLabel = 'Semifinals';
+    if (m.round === 3) m.roundLabel = 'Championship';
+    if (m.round === '5th') m.roundLabel = 'Consolation (5th Place)';
+    if (m.round === '7th') m.roundLabel = 'Consolation (7th Place)';
+
+    // Put champion / final places in finalStandings
+    if (m.roundLabel === 'Championship') {
+      finalStandings[placementMap[winner.rosterId].seed] = 1;
+      finalStandings[placementMap[loser.rosterId].seed] = 2;
     }
-    return aPts > bPts
-      ? { winner: row.teamA, loser: row.teamB }
-      : { winner: row.teamB, loser: row.teamA };
-  }
-
-  const byWeek = {};
-  for (const row of matchupsRows) {
-    if (!byWeek[row.week]) byWeek[row.week] = [];
-    byWeek[row.week].push(row);
-  }
-
-  const finalStandings = {}; // seed → final place
-  const labeledRows = [];
-
-  // === Championship Bracket (Seeds 1–8) ===
-  const champSeeds = [1,2,3,4,5,6,7,8];
-
-  const qf = (byWeek[playoffStart] || []).filter(r =>
-    champSeeds.includes(placementMap[r.teamA?.rosterId]) &&
-    champSeeds.includes(placementMap[r.teamB?.rosterId])
-  );
-  for (const row of qf) {
-    row.roundLabel = "Quarterfinals";
-    labeledRows.push(row);
-  }
-
-  const sf = (byWeek[playoffStart+1] || []).filter(r =>
-    champSeeds.includes(placementMap[r.teamA?.rosterId]) &&
-    champSeeds.includes(placementMap[r.teamB?.rosterId])
-  );
-  for (const row of sf) {
-    row.roundLabel = "Semifinals";
-    labeledRows.push(row);
-  }
-
-  const finals = (byWeek[playoffStart+2] || []).filter(r =>
-    champSeeds.includes(placementMap[r.teamA?.rosterId]) &&
-    champSeeds.includes(placementMap[r.teamB?.rosterId])
-  );
-  for (const row of finals) {
-    const { winner, loser } = resolveWinnerLoser(row);
-    row.roundLabel = "Championship / 3rd Place";
-    finalStandings[placementMap[winner.rosterId]] = 1; // champ
-    finalStandings[placementMap[loser.rosterId]] = 2; // runner-up
-    labeledRows.push(row);
-  }
-
-  // Semifinal losers → 3rd/4th
-  for (const row of sf) {
-    const { loser } = resolveWinnerLoser(row);
-    finalStandings[placementMap[loser.rosterId]] = 4; // adjust to 3rd/4th
-  }
-
-  // QF losers → 5th–8th
-  for (const row of qf) {
-    const { loser } = resolveWinnerLoser(row);
-    // will be slotted later by their consolation results
-    labeledRows.push({
-      ...row,
-      roundLabel: "Consolation (5th–8th)"
-    });
-  }
-
-  // === Consolation Bracket (Seeds 9–14) ===
-  const consSeeds = [9,10,11,12,13,14];
-
-  const consR1 = (byWeek[playoffStart] || []).filter(r =>
-    consSeeds.includes(placementMap[r.teamA?.rosterId]) &&
-    consSeeds.includes(placementMap[r.teamB?.rosterId])
-  );
-  for (const row of consR1) {
-    row.roundLabel = "Consolation Round 1";
-    labeledRows.push(row);
-  }
-
-  const consSF = (byWeek[playoffStart+1] || []).filter(r =>
-    consSeeds.includes(placementMap[r.teamA?.rosterId]) &&
-    consSeeds.includes(placementMap[r.teamB?.rosterId])
-  );
-  for (const row of consSF) {
-    row.roundLabel = "Consolation Semifinals";
-    labeledRows.push(row);
-  }
-
-  const consF = (byWeek[playoffStart+2] || []).filter(r =>
-    consSeeds.includes(placementMap[r.teamA?.rosterId]) &&
-    consSeeds.includes(placementMap[r.teamB?.rosterId])
-  );
-  for (const row of consF) {
-    row.roundLabel = "Consolation Finals (9th–14th)";
-    const { winner, loser } = resolveWinnerLoser(row);
-    // slot into final standings
-    finalStandings[placementMap[winner.rosterId]] = 9;
-    finalStandings[placementMap[loser.rosterId]] = 10; // adjust for placement
-    labeledRows.push(row);
-  }
-
-  // === Fill in missing seeds ===
-  for (const [rosterId, seed] of Object.entries(placementMap)) {
-    if (!finalStandings[seed]) {
-      // fallback: assign bottom
-      finalStandings[seed] = 14;
+    if (m.roundLabel === 'Consolation (5th Place)') {
+      finalStandings[placementMap[winner.rosterId].seed] = 5;
+      finalStandings[placementMap[loser.rosterId].seed] = 6;
     }
-  }
+    if (m.roundLabel === 'Consolation (7th Place)') {
+      finalStandings[placementMap[winner.rosterId].seed] = 7;
+      finalStandings[placementMap[loser.rosterId].seed] = 8;
+    }
+    // …etc (fill in for all spots down to 14th)
+  });
 
+  // Convert to array with names
   const standingsArray = Object.entries(finalStandings)
-    .map(([seed, place]) => ({ seed: parseInt(seed, 10), place }))
-    .sort((a,b) => a.place - b.place);
+    .map(([seed, place]) => {
+      const rosterId = Object.keys(placementMap)
+        .find(r => placementMap[r].seed === parseInt(seed, 10));
+      const teamName = placementMap[rosterId]?.name ?? `Seed ${seed}`;
+      return { seed: parseInt(seed, 10), place, teamName };
+    })
+    .sort((a, b) => a.place - b.place);
 
   return {
-    matchupsRows: labeledRows,
+    season,
+    matchupsRows,
     finalStandings: standingsArray
   };
 }
