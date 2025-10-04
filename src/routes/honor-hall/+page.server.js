@@ -1,7 +1,4 @@
 // src/routes/honor-hall/+page.server.js
-// Honor Hall loader: fetch playoff matchups and compute placements by scrubbing regular-season matchups
-// Mirrors the approach used in src/routes/standings/+page.server.js for consistency.
-
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
@@ -26,7 +23,6 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-// compute streaks (copied from standings loader style)
 function computeStreaks(resultsArray) {
   let maxW = 0, maxL = 0, curW = 0, curL = 0;
   if (!resultsArray || !Array.isArray(resultsArray)) return { maxW: 0, maxL: 0 };
@@ -49,328 +45,488 @@ function computeStreaks(resultsArray) {
 }
 
 /**
- * Bracket simulation function.
- * Accepts context: matchupsRows (playoff rows), placementMap, rosterMap, regularStandings, seasonKey, playoffStart, playoffEnd
- * Returns { finalStandings, placeMap, debugLog }.
+ * Find a match row in matchupsRows for two rosterIds (order-insensitive).
+ * Returns the match object or null.
+ * Prefer an exact roster-id match with scores present.
  */
-function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandings, seasonKey, playoffStart, playoffEnd }) {
-  const debugLog = [];
-  debugLog.push(`Loaded rosters (${Object.keys(rosterMap || {}).length})`);
-
-  // Build seed->roster mapping from placementMap (placementMap: rosterId -> placement)
-  const seedToRoster = {};
-  for (const rid of Object.keys(placementMap || {})) {
-    const seed = Number(placementMap[rid]);
-    if (!isNaN(seed)) seedToRoster[seed] = String(rid);
+function findMatchRowForRosterPair(matchupsRows, rA, rB) {
+  if (!Array.isArray(matchupsRows)) return null;
+  // Find exact entry where two participants are present and rosterIds match
+  for (const m of matchupsRows) {
+    if (m.participantsCount === 2 && m.teamA && m.teamB) {
+      const ids = [String(m.teamA.rosterId), String(m.teamB.rosterId)];
+      if (ids.indexOf(String(rA)) !== -1 && ids.indexOf(String(rB)) !== -1) return m;
+    }
+    // Combined/multi entries will be ignored for bracket matching
   }
+  return null;
+}
 
-  // Ensure at least N=14 mapping; fill holes with rosterMap entries deterministically
-  const allRosterIds = Object.keys(rosterMap || {}).map(String);
-  const N = Math.max(14, allRosterIds.length || 14);
-  for (let s = 1; s <= N; s++) {
-    if (!seedToRoster[s]) {
-      const candidate = allRosterIds.find(id => !Object.values(seedToRoster).includes(id));
-      if (candidate) seedToRoster[s] = candidate;
+/**
+ * Compare two roster's outcome using: matchup score (if available) -> regular PF -> seed (lower number is better).
+ * Returns winnerRosterId (string) and an object { method: 'matchup'|'pf'|'seed', reason } for debug.
+ */
+function decideWinner(rA, rB, matchupsRows, regularPfMap = {}, placementMap = {}) {
+  // Try direct matchup
+  const row = findMatchRowForRosterPair(matchupsRows, rA, rB);
+  if (row && row.participantsCount === 2 && typeof row.teamA.points === 'number' && typeof row.teamB.points === 'number') {
+    // determine which roster is teamA/teamB in that row
+    const aId = String(row.teamA.rosterId), bId = String(row.teamB.rosterId);
+    const aPts = safeNum(row.teamA.points), bPts = safeNum(row.teamB.points);
+    if (Math.abs(aPts - bPts) < 1e-9) {
+      // tie on matchup points -> fall through to PF
+    } else {
+      const winner = aPts > bPts ? aId : bId;
+      return { winner: winner, method: 'matchup', reason: `${aPts} vs ${bPts}` };
     }
   }
 
-  // helper metadata for rosterId
-  function metaFor(rid) {
-    const m = (rosterMap && rosterMap[String(rid)]) ? rosterMap[String(rid)] : {};
-    return {
-      rosterId: String(rid),
-      team_name: m.team_name || m.owner_name || ('Roster ' + String(rid)),
-      avatar: m.team_avatar || m.owner_avatar || null,
-      seed: (placementMap && placementMap[String(rid)]) ? Number(placementMap[String(rid)]) : null
-    };
+  // fallback: regular season PF (higher is better)
+  const aPf = safeNum(regularPfMap[String(rA)] ?? 0);
+  const bPf = safeNum(regularPfMap[String(rB)] ?? 0);
+  if (Math.abs(aPf - bPf) > 1e-9) {
+    const winner = aPf > bPf ? String(rA) : String(rB);
+    return { winner, method: 'pf', reason: `${aPf} vs ${bPf}` };
   }
 
-  // locate an actual matchup result (uses matchupsRows entries). returns object or null
-  function findMatchupResult(aRid, bRid) {
-    aRid = String(aRid); bRid = String(bRid);
-    for (const r of (matchupsRows || [])) {
-      if (r.participantsCount === 2) {
-        const a = String(r.teamA?.rosterId ?? '');
-        const b = String(r.teamB?.rosterId ?? '');
-        if ((a === aRid && b === bRid) || (a === bRid && b === aRid)) {
-          const aPts = Number(r.teamA?.points ?? 0);
-          const bPts = Number(r.teamB?.points ?? 0);
-          // if both points present and unequal -> decide by points
-          if (!isNaN(aPts) && !isNaN(bPts) && Math.abs(aPts - bPts) > 1e-9) {
-            if (aPts > bPts) return { winnerRosterId: a, loserRosterId: b, kind: 'matchup' };
-            return { winnerRosterId: b, loserRosterId: a, kind: 'matchup' };
-          }
-          // if tied or missing points, return null (force fallback)
-          return null;
+  // final fallback: seed (lower seed number wins)
+  const aSeed = Number(placementMap[String(rA)] ?? 999);
+  const bSeed = Number(placementMap[String(rB)] ?? 999);
+  let winner = String(rA);
+  if (aSeed === bSeed) {
+    // If same seed fallback consistent: smaller rosterId string
+    winner = String(rA) < String(rB) ? String(rA) : String(rB);
+  } else {
+    winner = (aSeed < bSeed) ? String(rA) : String(rB);
+  }
+  return { winner, method: 'seed', reason: `${aSeed} vs ${bSeed}` };
+}
+
+/**
+ * Simulates brackets and returns final standings array (1..N) plus debug trace.
+ *
+ * Rules implemented:
+ * - For season '2022' use the special winners size=6 layout described previously.
+ * - For other seasons winners bracket is seeds 1..8, losers 9..14.
+ * - Use real matchup results when present; fallback to regular pf then seed.
+ *
+ * Input:
+ *  - matchupsRows: array of playoff match rows
+ *  - placementMap: rosterId -> placement (1..14)
+ *  - rosterMap: rosterId -> roster metadata (for names/owner)
+ *  - regularPfMap: rosterId -> regular season pf (numeric)
+ *  - leagueSeason: string season (used to test '2022' special-case)
+ *
+ * Returns:
+ *  { finalStandings: [ { rank, rosterId, team_name, owner_name, avatar, seed, pf }, ... ],
+ *    debugLog: [string,...] }
+ */
+function simulateBracket(matchupsRows, placementMap, rosterMap, regularPfMap, leagueSeason) {
+  const debug = [];
+  const totalTeams = Object.keys(placementMap).length || 14;
+
+  debug.push(`Loaded rosters (${totalTeams})`);
+
+  // helper to build roster entry object
+  function makeEntry(rid) {
+    const meta = rosterMap[String(rid)] || {};
+    // owner_name fallback guarantees
+    let owner_name = meta.owner_name ?? null;
+    if (!owner_name && meta.user_raw) {
+      owner_name = meta.user_raw.display_name || meta.user_raw.username || null;
+    }
+    owner_name = owner_name || 'Unknown Owner';
+
+    const team_name = meta.team_name || meta.owner_name || ('Roster ' + String(rid));
+    const avatar = meta.team_avatar || meta.owner_avatar || null;
+    const seed = placementMap[String(rid)] ?? null;
+    const pf = regularPfMap[String(rid)] ?? 0;
+    return { rosterId: String(rid), team_name, owner_name, avatar, seed, pf };
+  }
+
+  // build seed->roster mapping (where seed numbers are unique)
+  const seedToRoster = {};
+  for (const rId in placementMap) {
+    const seed = Number(placementMap[rId]);
+    if (!isNaN(seed)) seedToRoster[seed] = String(rId);
+  }
+
+  // convenience arrays for seeds
+  // special 2022 rule: top 6 winners bracket
+  const is2022 = String(leagueSeason) === '2022';
+  let winnersSeeds = [];
+  let losersSeeds = [];
+
+  if (is2022) {
+    // winners: top 6 seeds (1..6). losers: rest 7..14.
+    winnersSeeds = [1,2,3,4,5,6].filter(s => seedToRoster[s]);
+    losersSeeds = [];
+    for (let s = 7; s <= 14; s++) if (seedToRoster[s]) losersSeeds.push(s);
+  } else {
+    // normal seasons: winners 1..8, losers 9..14
+    winnersSeeds = [];
+    for (let s = 1; s <= 8; s++) if (seedToRoster[s]) winnersSeeds.push(s);
+    losersSeeds = [];
+    for (let s = 9; s <= 14; s++) if (seedToRoster[s]) losersSeeds.push(s);
+  }
+
+  // helper to pick winner given two seeds (not rosterIds). Uses placementMap -> rosterId resolution and decideWinner.
+  function decideWinnerBySeeds(seedA, seedB) {
+    const ra = seedToRoster[seedA] ?? null;
+    const rb = seedToRoster[seedB] ?? null;
+    if (!ra && !rb) return { winner: null, method: 'nomatch', reason: 'no rosters' };
+    if (!ra) return { winner: rb, method: 'fallback', reason: 'only one roster present' };
+    if (!rb) return { winner: ra, method: 'fallback', reason: 'only one roster present' };
+
+    const res = decideWinner(ra, rb, matchupsRows, regularPfMap, placementMap);
+    const winner = res.winner;
+    const loser = (String(winner) === String(ra)) ? rb : ra;
+    return { winner, loser, method: res.method, reason: res.reason, pair: [ra, rb], seeds: [seedA, seedB] };
+  }
+
+  // Now simulate per the bracket rules.
+  // We'll collect ranking assignments into an array placeIndex -> rosterId
+  const place = {}; // place[n] = rosterId
+
+  // ========= Winners bracket (main race) =========
+  // For 8-team winners (non-2022) rounds:
+  //  R1: 1v8, 2v7, 3v6, 4v5 -> produce 4 winners and 4 losers
+  //  Semis: winners sorted by seed ascending -> highest vs lowest, middle two -> produce final winners and semilosers
+  //  Final: winners play -> champion; semilosers play -> 3rd place
+  //
+  // For 2022 winners 6-team layout we follow the exception described by you.
+  //
+  const winnersFirstPairs = [];
+
+  if (is2022) {
+    // The 2022 pairing in your examples used: W1 4v5 and W1 3v6 with top seeds getting byes to semis
+    // We'll implement that:
+    // Round1 (W1): 3v6, 4v5  (seeds 1 and 2 get byes to semis)
+    if (seedToRoster[3] && seedToRoster[6]) winnersFirstPairs.push([3,6]);
+    if (seedToRoster[4] && seedToRoster[5]) winnersFirstPairs.push([4,5]);
+    debug.push(`W1 3v6 -> ${decideWinnerBySeeds(3,6).winner ? (placementMap[decideWinnerBySeeds(3,6).winner]) : 'fallback' } (matchup)`);
+    debug.push(`W1 4v5 -> ${decideWinnerBySeeds(4,5).winner ? (placementMap[decideWinnerBySeeds(4,5).winner]) : 'fallback' } (matchup)`);
+  } else {
+    // standard 8-team winners
+    const standardPairs = [[1,8],[2,7],[3,6],[4,5]];
+    for (const p of standardPairs) {
+      if (seedToRoster[p[0]] || seedToRoster[p[1]]) {
+        winnersFirstPairs.push(p);
+        const r = decideWinnerBySeeds(p[0], p[1]);
+        debug.push(`W1 ${p[0]}v${p[1]} -> ${r.winner ? (placementMap[String(r.winner)]) : 'fallback'} (${r.method})`);
+      }
+    }
+  }
+
+  // Evaluate first-round winners/lossers for winners bracket
+  const winnersRosters = []; // winners rosterIds
+  const winnersSeedsActual = []; // winners seeds
+  const winnersFirstLosers = []; // losers rosterIds from winners first round
+
+  for (const p of winnersFirstPairs) {
+    const seedA = p[0], seedB = p[1];
+    const res = decideWinnerBySeeds(seedA, seedB);
+    if (res.winner) {
+      winnersRosters.push(String(res.winner));
+      winnersSeedsActual.push(placementMap[String(res.winner)]);
+      winnersFirstLosers.push(String(res.loser));
+    } else {
+      // if no actual match evaluation was possible, decide deterministically by seed presence
+      const aRid = seedToRoster[seedA] ?? null;
+      const bRid = seedToRoster[seedB] ?? null;
+      if (aRid && !bRid) {
+        winnersRosters.push(String(aRid));
+        winnersFirstLosers.push(String(bRid || ''));
+        winnersSeedsActual.push(seedA);
+      } else if (!aRid && bRid) {
+        winnersRosters.push(String(bRid));
+        winnersFirstLosers.push(String(aRid || ''));
+        winnersSeedsActual.push(seedB);
+      }
+    }
+  }
+
+  // For 8-team (non-2022) if we had exactly 4 winners above, arrange semis:
+  let semifinalPairs = [];
+  let semifinalLosers = [];
+  if (is2022) {
+    // For 2022 semis: seeds 1 and 2 had byes and play winners from the first round.
+    // Semis: 1 vs (winner of 4v5), 2 vs (winner of 3v6)
+    const seed1Rid = seedToRoster[1] ?? null;
+    const seed2Rid = seedToRoster[2] ?? null;
+    const winnerOf45 = winnersRosters.length >= 2 ? winnersRosters[1] : (seedToRoster[4] || seedToRoster[5]) || null; // second pair winner
+    const winnerOf36 = winnersRosters.length >= 1 ? winnersRosters[0] : (seedToRoster[3] || seedToRoster[6]) || null; // first pair winner
+
+    if (seed1Rid && winnerOf45) semifinalPairs.push([placementMap[String(seed1Rid)], placementMap[String(winnerOf45)]]);
+    if (seed2Rid && winnerOf36) semifinalPairs.push([placementMap[String(seed2Rid)], placementMap[String(winnerOf36)]]);
+    for (const sp of semifinalPairs) {
+      const r = decideWinnerBySeeds(sp[0], sp[1]);
+      debug.push(`Semi ${sp[0]}v${sp[1]} -> ${r.winner ? placementMap[String(r.winner)] : 'fallback'} (${r.method})`);
+      semifinalLosers.push(String(r.loser ?? ''));
+    }
+  } else {
+    // Standard 4 winners -> semis. We must sort winners by seed ascending (highest seed = lowest number)
+    // and pair highest vs lowest, second-highest vs second-lowest.
+    const winnersWithSeeds = winnersRosters.map((rid, idx) => ({ rid, seed: Number(placementMap[String(rid)]) }));
+    winnersWithSeeds.sort((a,b) => a.seed - b.seed); // ascending
+    if (winnersWithSeeds.length === 4) {
+      semicandidates = winnersWithSeeds;
+      semifinalPairs = [
+        [semicandidates[0].seed, semicandidates[3].seed],
+        [semicandidates[1].seed, semicandidates[2].seed]
+      ];
+      for (const sp of semifinalPairs) {
+        const r = decideWinnerBySeeds(sp[0], sp[1]);
+        debug.push(`Semi ${sp[0]}v${sp[1]} -> ${r.winner ? placementMap[String(r.winner)] : 'fallback'} (${r.method})`);
+        semifinalLosers.push(String(r.loser ?? ''));
+      }
+    }
+  }
+
+  // Determine final & 3rd place
+  let finalPair = null;
+  let finalWinnerRid = null;
+  let finalLoserRid = null;
+  if (semifinalPairs.length === 2) {
+    // determine winners of semis again by reusing decideWinnerBySeeds
+    const semiWinners = [];
+    for (const sp of semifinalPairs) {
+      const r = decideWinnerBySeeds(sp[0], sp[1]);
+      if (r.winner) semiWinners.push({ seed: placementMap[String(r.winner)], rid: r.winner });
+      else {
+        // fallback: pick smaller seed present
+        const aRid = seedToRoster[sp[0]] ?? null;
+        const bRid = seedToRoster[sp[1]] ?? null;
+        if (aRid && !bRid) semiWinners.push({ seed: sp[0], rid: aRid });
+        else if (!aRid && bRid) semiWinners.push({ seed: sp[1], rid: bRid });
+      }
+    }
+    if (semiWinners.length === 2) {
+      // final pair: seeds of winners
+      const sA = semiWinners[0].seed, sB = semiWinners[1].seed;
+      finalPair = [sA, sB];
+      const rf = decideWinnerBySeeds(sA, sB);
+      finalWinnerRid = rf.winner;
+      finalLoserRid = rf.loser;
+      debug.push(`Final ${sA}v${sB} -> ${finalWinnerRid ? placementMap[String(finalWinnerRid)] : 'fallback'} (${rf.method})`);
+      // 3rd place: the semilosers -> determine by their matchup if present
+      const semilosers = semifinalLosers.filter(Boolean);
+      if (semilosers.length === 2) {
+        const r3 = decideWinner(semilosers[0], semilosers[1], matchupsRows, regularPfMap, placementMap);
+        const thirdWinner = r3.winner;
+        const thirdLoser = (String(thirdWinner) === String(semilosers[0])) ? semilosers[1] : semilosers[0];
+        debug.push(`3rd ${placementMap[semilosers[0]]}v${placementMap[semilosers[1]]} -> ${thirdWinner ? placementMap[String(thirdWinner)] : 'fallback'} (${r3.method})`);
+        // assign places: 1 finalWinner, 2 finalLoser, 3 thirdWinner, 4 thirdLoser
+        if (finalWinnerRid) place[1] = String(finalWinnerRid);
+        if (finalLoserRid) place[2] = String(finalLoserRid);
+        if (thirdWinner) place[3] = String(thirdWinner);
+        if (thirdLoser) place[4] = String(thirdLoser);
+      } else {
+        // fallback: use seeds/ordering
+        if (finalWinnerRid) place[1] = String(finalWinnerRid);
+        if (finalLoserRid) place[2] = String(finalLoserRid);
+      }
+    }
+  }
+
+  // ========= Consolation bracket for winners-first-round losers =========
+  // The losers of winners first-round play among themselves: highest seed vs lowest seed.
+  // Winners of those play for 5th place; losers play for 7th.
+  const losersOfW1 = winnersFirstLosers.filter(Boolean);
+  if (losersOfW1.length >= 2) {
+    // convert rosterIds -> seeds, sort by seed ascending
+    const losersWithSeed = losersOfW1.map(rid => ({ rid, seed: placementMap[String(rid)] || 999 }));
+    losersWithSeed.sort((a,b) => a.seed - b.seed);
+    let lPair1 = [losersWithSeed[0].seed, losersWithSeed[losersWithSeed.length - 1].seed];
+    let lPair2 = [losersWithSeed[1].seed, losersWithSeed[losersWithSeed.length - 2]?.seed];
+    const rL1 = decideWinnerBySeeds(lPair1[0], lPair1[1]);
+    const rL2 = losersWithSeed.length >= 4 ? decideWinnerBySeeds(lPair2[0], lPair2[1]) : null;
+
+    if (rL1 && rL1.winner) debug.push(`Consolation R1 ${lPair1[0]}v${lPair1[1]} -> ${placementMap[String(rL1.winner)]} (matchup)`);
+    if (rL2 && rL2.winner) debug.push(`Consolation R1 ${lPair2[0]}v${lPair2[1]} -> ${placementMap[String(rL2.winner)]} (matchup)`);
+
+    // winners of above play for 5th
+    if (rL1 && rL1.winner && rL2 && rL2.winner) {
+      const r5 = decideWinner(rL1.winner, rL2.winner, matchupsRows, regularPfMap, placementMap);
+      debug.push(`5th ${placementMap[String(rL1.winner)]}v${placementMap[String(rL2.winner)]} -> ${r5.winner ? placementMap[String(r5.winner)] : 'fallback'} (${r5.method})`);
+      // losers play for 7th
+      const loserR1 = rL1.loser, loserR2 = rL2.loser;
+      const r7 = decideWinner(loserR1, loserR2, matchupsRows, regularPfMap, placementMap);
+      debug.push(`7th ${placementMap[String(loserR1)]}v${placementMap[String(loserR2)]} -> ${r7.winner ? placementMap[String(r7.winner)] : 'fallback'} (${r7.method})`);
+      // assign places accordingly
+      place[5] = r5.winner;
+      place[6] = (r5.winner === rL1.winner) ? rL2.winner : rL1.winner; // loser of 5th match
+      place[7] = r7.winner;
+      place[8] = (r7.winner === loserR1) ? loserR2 : loserR1;
+    } else if (rL1 && rL1.winner && !rL2) {
+      // If only one consolation match exists, winner takes 5th, loser 6th
+      place[5] = rL1.winner;
+      place[6] = rL1.loser;
+    }
+  }
+
+  // ========= Losers bracket (LRace) =========
+  // LRace initial pairs (non-2022): 9v12, 10v11, 13 & 14 may have bye.
+  // For 2022 the losers bracket set may be different, but earlier you specified standard losers flows.
+  const lrDebugPrefix = 'LRace';
+  const lRacePairs = [];
+  if (!is2022) {
+    if (seedToRoster[9] || seedToRoster[12]) lRacePairs.push([9,12]);
+    if (seedToRoster[10] || seedToRoster[11]) lRacePairs.push([10,11]);
+    // 13/14 maybe paired/bye: if both exist pair them, else if one exists pair against bye.
+    if ((seedToRoster[13] && seedToRoster[14])) lRacePairs.push([13,14]);
+  } else {
+    // 2022 more complicated losers mapping used in your example; we'll use the explicit pairs you gave:
+    // LRace pairs: 9v12, 10v11, 7v14, 8v13 (since in 2022 winners bracket used top6)
+    if (seedToRoster[9] || seedToRoster[12]) lRacePairs.push([9,12]);
+    if (seedToRoster[10] || seedToRoster[11]) lRacePairs.push([10,11]);
+    if (seedToRoster[7] || seedToRoster[14]) lRacePairs.push([7,14]);
+    if (seedToRoster[8] || seedToRoster[13]) lRacePairs.push([8,13]);
+  }
+
+  const lRaceWinners = [];
+  const lRaceLosers = [];
+
+  for (const p of lRacePairs) {
+    const r = decideWinnerBySeeds(p[0], p[1]);
+    if (r.winner) {
+      lRaceWinners.push(String(r.winner));
+      lRaceLosers.push(String(r.loser));
+      debug.push(`${lrDebugPrefix} ${p[0]}v${p[1]} -> ${placementMap[String(r.winner)]} (matchup)`);
+    } else {
+      // fallback messaging
+      debug.push(`${lrDebugPrefix} ${p[0]}v${p[1]} -> fallback`);
+    }
+  }
+
+  // LRace semi: winners play, losers go to consolation; winners -> 9th match; losers for 11th etc
+  // We'll pair winners by seed ascending -> highest vs lowest
+  if (lRaceWinners.length >= 2) {
+    const lwWithSeed = lRaceWinners.map(rid => ({ rid, seed: placementMap[String(rid)] || 999 })).sort((a,b) => a.seed - b.seed);
+    if (lwWithSeed.length >= 2) {
+      const pairA = [lwWithSeed[0].seed, lwWithSeed[ lwWithSeed.length - 1 ].seed];
+      const pairB = lwWithSeed.length >= 4 ? [lwWithSeed[1].seed, lwWithSeed[lwWithSeed.length - 2].seed] : null;
+      const rA = decideWinnerBySeeds(pairA[0], pairA[1]);
+      if (rA.winner) {
+        debug.push(`LRaceSemi ${pairA[0]}v${pairA[1]} -> ${placementMap[String(rA.winner)]} (${rA.method})`);
+        // winners play for 9th
+        // We'll store for later assignment
+        lRaceWinners.push(rA.winner);
+      }
+      if (pairB && pairB[0] && pairB[1]) {
+        const rB = decideWinnerBySeeds(pairB[0], pairB[1]);
+        if (rB.winner) debug.push(`LRaceSemi ${pairB[0]}v${pairB[1]} -> ${placementMap[String(rB.winner)]} (${rB.method})`);
+      }
+    }
+  }
+
+  // For simplicity, for remaining spots not assigned by the above explicit matches, we will:
+  // - fill 1..14 by picking known winners (place assignments) and then fill any unassigned ranks by the remaining teams
+  //   ordered by: did they win a consolation match? then regular-season PF, then seed.
+
+  // First ensure champions and top4 are assigned (if place[1..4] empty fill from final results if we have them)
+  // If not already assigned, attempt to extract champion from finalPair/finalWinnerRid above
+  if (finalWinnerRid && !place[1]) place[1] = String(finalWinnerRid);
+  if (finalLoserRid && !place[2]) place[2] = String(finalLoserRid);
+
+  // If 3/4 not assigned yet, try to discover them from matchups: look for a 3rd place row in matchupsRows (by week or known matchup)
+  // We attempt to find any matchup where both participants are among semifinalLosers and pick the winner as 3rd.
+  if ((!place[3] || !place[4]) && Array.isArray(matchupsRows) && matchupsRows.length) {
+    // collect rosterIds present in semifinalLosers etc
+    const candidatePairs = [];
+    for (const m of matchupsRows) {
+      if (m.participantsCount === 2 && m.teamA && m.teamB) {
+        const a = String(m.teamA.rosterId), b = String(m.teamB.rosterId);
+        // If neither already assigned to 1/2 and both present, consider this candidate for 3/4
+        if (place[1] !== a && place[1] !== b && place[2] !== a && place[2] !== b) {
+          candidatePairs.push(m);
         }
       }
     }
-    return null;
-  }
-
-  // build PF map from regularStandings for tiebreaks
-  const pfMap = {};
-  if (Array.isArray(regularStandings)) {
-    for (const r of regularStandings) {
-      pfMap[String(r.rosterId)] = Number(r.pf ?? 0);
+    // pick the latest candidate (usually 3rd place is one of playoffWeeks)
+    if (candidatePairs.length) {
+      const m = candidatePairs[0];
+      const r = decideWinner(m.teamA.rosterId, m.teamB.rosterId, matchupsRows, regularPfMap, placementMap);
+      if (!place[3] && r.winner) place[3] = String(r.winner);
+      if (!place[4]) {
+        const other = (String(place[3]) === String(m.teamA.rosterId)) ? m.teamB.rosterId : m.teamA.rosterId;
+        place[4] = String(other);
+      }
     }
   }
 
-  // fallback decision: highest PF wins, then better seed (lower numeric)
-  function decideWinnerFallback(aRid, bRid) {
-    aRid = String(aRid); bRid = String(bRid);
-    const aPf = pfMap[aRid] ?? 0;
-    const bPf = pfMap[bRid] ?? 0;
-    if (Math.abs(aPf - bPf) > 1e-9) return aPf > bPf ? aRid : bRid;
-    const aSeed = Number(placementMap && placementMap[aRid] ? placementMap[aRid] : 999);
-    const bSeed = Number(placementMap && placementMap[bRid] ? placementMap[bRid] : 999);
-    if (aSeed !== bSeed) return aSeed < bSeed ? aRid : bRid;
-    // deterministic final fallback
-    return aRid < bRid ? aRid : bRid;
-  }
+  // Build a list of all rosterIds known
+  const allRosterIds = Object.keys(placementMap).map(k => String(k));
+  // ensure unique placeholder array
+  // Create a set of already assigned rosterIds
+  const assigned = new Set(Object.values(place).filter(Boolean).map(String));
 
-  // resolve a match given two seeds; returns { winner, loser, method }
-  function resolveMatch(aSeed, bSeed, label) {
-    const aRid = seedToRoster[aSeed];
-    const bRid = seedToRoster[bSeed];
-    if (!aRid || !bRid) {
-      debugLog.push(`${label} ${aSeed}v${bSeed} -> fallback-missing`);
-      return { winner: aRid || bRid || null, loser: aRid && bRid ? (aRid === (aRid||bRid) ? bRid : aRid) : null, method: 'missing' };
-    }
-    const m = findMatchupResult(aRid, bRid);
-    if (m) {
-      // Use seed numbering in debug (matchup winner corresponds to aSeed or bSeed)
-      const winSeed = (m.winnerRosterId === aRid) ? aSeed : bSeed;
-      debugLog.push(`${label} ${aSeed}v${bSeed} -> ${winSeed} (matchup)`);
-      return { winner: m.winnerRosterId, loser: m.loserRosterId, method: 'matchup' };
-    }
-    // fallback
-    const winRid = decideWinnerFallback(aRid, bRid);
-    const method = (pfMap[aRid] || pfMap[bRid]) ? 'tiebreak-pf' : 'tiebreak-seed';
-    const winSeed = (winRid === aRid) ? aSeed : bSeed;
-    debugLog.push(`${label} ${aSeed}v${bSeed} -> ${winSeed} (${method})`);
-    return { winner: winRid, loser: (winRid === aRid ? bRid : aRid), method };
-  }
+  // remaining rosters to fill
+  const remaining = allRosterIds.filter(rid => !assigned.has(String(rid)));
 
-  // final place map
-  const placeMap = {};
-  const assigned = new Set();
-
-  function assignPlace(rosterId, place, note = '') {
-    rosterId = String(rosterId);
-    if (!rosterId) return;
-    let p = Number(place);
-    // make unique if necessary
-    const used = new Set(Object.values(placeMap).map(x => Number(x)));
-    while (used.has(p)) p++;
-    placeMap[rosterId] = p;
-    assigned.add(rosterId);
-    debugLog.push(`Assign place ${p} -> ${metaFor(rosterId).team_name}${note ? ' ('+note+')' : ''}`);
-  }
-
-  // Helper to find seed number given rosterId deterministically
-  function seedForRoster(rid) {
-    rid = String(rid);
-    for (const s of Object.keys(seedToRoster)) {
-      if (String(seedToRoster[s]) === rid) return Number(s);
-    }
-    // fallback: look in placementMap
-    if (placementMap && placementMap[rid]) return Number(placementMap[rid]);
-    return null;
-  }
-
-  // Main simulation paths: 2022 special-case or default (top 8 winners)
-  if (String(seasonKey) === '2022') {
-    // Special 2022 bracket mapping (top 6 winners bracket with seeds 1 & 2 byes)
-    // According to the provided debug trace, we must follow specific pairings.
-
-    // Round 1: W1 4v5, W1 3v6
-    const r_w1_4v5 = resolveMatch(4, 5, 'W1 4v5');
-    const r_w1_3v6 = resolveMatch(3, 6, 'W1 3v6');
-
-    // Semis: 1 vs winner(4v5), 2 vs winner(3v6)
-    const semi1OpponentSeed = (r_w1_4v5.winner === seedToRoster[4]) ? 4 : 5;
-    const semi2OpponentSeed = (r_w1_3v6.winner === seedToRoster[3]) ? 3 : 6;
-
-    const r_semi1 = resolveMatch(1, semi1OpponentSeed, 'Semi 1v4');
-    const r_semi2 = resolveMatch(2, semi2OpponentSeed, 'Semi 2v6');
-
-    // Final: winners of semis
-    // Determine seeds for final participants
-    const finalSeedA = seedForRoster(r_semi1.winner) || 1;
-    const finalSeedB = seedForRoster(r_semi2.winner) || 2;
-    const r_final = resolveMatch(finalSeedA, finalSeedB, 'Final 1v2');
-
-    // 3rd place: losers of semis
-    const semiLoserSeedA = seedForRoster(r_semi1.loser);
-    const semiLoserSeedB = seedForRoster(r_semi2.loser);
-    if (semiLoserSeedA && semiLoserSeedB) {
-      const r_3rd = resolveMatch(semiLoserSeedA, semiLoserSeedB, '3rd ' + semiLoserSeedA + 'v' + semiLoserSeedB);
-      assignPlace(r_3rd.winner, 3, '3rd (matchup)');
-      assignPlace(r_3rd.loser, 4, '4th (matchup)');
-    } else {
-      // fallback: assign semis losers by fallback decision
-      const loserA = r_semi1.loser, loserB = r_semi2.loser;
-      const w = decideWinnerFallback(loserA, loserB);
-      assignPlace(w, 3, '3rd (fallback)');
-      assignPlace(w === loserA ? loserB : loserA, 4, '4th (fallback)');
-    }
-
-    // champion/runner-up
-    assignPlace(r_final.winner, 1, 'champion (final)');
-    assignPlace(r_final.loser, 2, 'runner-up (final)');
-
-    // 5th/6th — per your 2022 debug: "5th 5v3 -> 3 (matchup)"
-    // Try to resolve a match between seeds 5 and 3
-    const r_5th = resolveMatch(5, 3, '5th 5v3');
-    assignPlace(r_5th.winner, 5, '5th (consolation)');
-    assignPlace(r_5th.loser, 6, '6th (consolation)');
-
-    // Loser-race flow (per your 2022 debug)
-    // LRace 9v12, 10v11, 7v14, 8v13
-    const lr1 = resolveMatch(9, 12, 'LRace 9v12');
-    const lr2 = resolveMatch(10, 11, 'LRace 10v11');
-    const lr3 = resolveMatch(7, 14, 'LRace 7v14');
-    const lr4 = resolveMatch(8, 13, 'LRace 8v13');
-
-    // Consolation LRace1: 7v10 and 8v9 (per debug)
-    const cl1 = resolveMatch(7, 10, 'Consolation LRace1 7v10');
-    const cl2 = resolveMatch(8, 9, 'Consolation LRace1 8v9');
-
-    // LRaceSemi placeholders (11v14 and 12v13) — resolve if matchups exist
-    const lrsemi1 = resolveMatch(11, 14, 'LRaceSemi 11v14');
-    const lrsemi2 = resolveMatch(12, 13, 'LRaceSemi 12v13');
-
-    // 7th / 8th — as indicated in your debug: 7th 10v9 -> 9 (matchup) then 9th 7v8 etc.
-    const r7 = resolveMatch(10, 9, '7th 10v9');
-    assignPlace(r7.winner, 7, '7th (matchup)');
-    assignPlace(r7.loser, 8, '8th (matchup)');
-
-    const r9 = resolveMatch(7, 8, '9th 7v8');
-    assignPlace(r9.winner, 9, '9th (matchup)');
-    assignPlace(r9.loser, 10, '10th (matchup)');
-
-    const r11 = resolveMatch(11, 13, '11th 11v13');
-    assignPlace(r11.winner, 11, '11th (matchup/fallback)');
-    assignPlace(r11.loser, 12, '12th (matchup/fallback)');
-
-    const r13 = resolveMatch(14, 12, '13th 14v12');
-    assignPlace(r13.winner, 13, '13th (matchup)');
-    assignPlace(r13.loser, 14, '14th (matchup)');
-  } else {
-    // DEFAULT flow for most seasons (top 8 winners bracket)
-    // Round 1 winners
-    const w1 = resolveMatch(1, 8, 'W1 1v8');
-    const w2 = resolveMatch(2, 7, 'W1 2v7');
-    const w3 = resolveMatch(3, 6, 'W1 3v6');
-    const w4 = resolveMatch(4, 5, 'W1 4v5');
-
-    // gather winners and losers seeds (by seed numbers)
-    const mapWinnerSeed = (r) => seedForRoster(r.winner) || null;
-    const mapLoserSeed = (r) => seedForRoster(r.loser) || null;
-
-    const winnersSeeds = [mapWinnerSeed(w1), mapWinnerSeed(w2), mapWinnerSeed(w3), mapWinnerSeed(w4)].filter(Boolean);
-    const losersSeeds = [mapLoserSeed(w1), mapLoserSeed(w2), mapLoserSeed(w3), mapLoserSeed(w4)].filter(Boolean);
-
-    // semis: highest seed vs lowest seed (i.e. best plays worst among winners)
-    winnersSeeds.sort((a,b) => a - b);
-    const semiA_seedA = winnersSeeds[0];
-    const semiA_seedB = winnersSeeds[winnersSeeds.length - 1];
-    const semiB_seedA = winnersSeeds[1];
-    const semiB_seedB = winnersSeeds[2];
-
-    const semiA = resolveMatch(semiA_seedA, semiA_seedB, `Semi ${semiA_seedA}v${semiA_seedB}`);
-    const semiB = resolveMatch(semiB_seedA, semiB_seedB, `Semi ${semiB_seedA}v${semiB_seedB}`);
-
-    // Final and 3rd
-    const finalSeedA = seedForRoster(semiA.winner) || semiA_seedA;
-    const finalSeedB = seedForRoster(semiB.winner) || semiB_seedA;
-    const finalMatch = resolveMatch(finalSeedA, finalSeedB, `Final ${finalSeedA}v${finalSeedB}`);
-
-    const thirdSeedA = seedForRoster(semiA.loser) || semiA_seedB;
-    const thirdSeedB = seedForRoster(semiB.loser) || semiB_seedB;
-    const thirdMatch = resolveMatch(thirdSeedA, thirdSeedB, `3rd ${thirdSeedA}v${thirdSeedB}`);
-
-    // Assign top 4
-    assignPlace(finalMatch.winner, 1, 'champion (final)');
-    assignPlace(finalMatch.loser, 2, 'runner-up (final)');
-    assignPlace(thirdMatch.winner, 3, '3rd (matchup)');
-    assignPlace(thirdMatch.loser, 4, '4th (matchup)');
-
-    // Consolation (5th/6th & 7th/8th)
-    losersSeeds.sort((a,b) => a - b); // best seed first among losers
-    const c1 = resolveMatch(losersSeeds[0], losersSeeds[losersSeeds.length - 1], `Consolation R1 ${losersSeeds[0]}v${losersSeeds[losersSeeds.length - 1]}`);
-    const c2 = resolveMatch(losersSeeds[1], losersSeeds[2], `Consolation R1 ${losersSeeds[1]}v${losersSeeds[2]}`);
-
-    const c5 = resolveMatch(seedForRoster(c1.winner) || losersSeeds[0], seedForRoster(c2.winner) || losersSeeds[1], `5th ${seedForRoster(c1.winner)||''}v${seedForRoster(c2.winner)||''}`);
-    assignPlace(c5.winner, 5, '5th (consolation)');
-    assignPlace(c5.loser, 6, '6th (consolation)');
-
-    const c7 = resolveMatch(seedForRoster(c1.loser) || losersSeeds[2], seedForRoster(c2.loser) || losersSeeds[3], `7th ${seedForRoster(c1.loser)||''}v${seedForRoster(c2.loser)||''}`);
-    assignPlace(c7.winner, 7, '7th (consolation)');
-    assignPlace(c7.loser, 8, '8th (consolation)');
-
-    // Losers race for 9..14
-    const lr1 = resolveMatch(9, 12, 'LRace 9v12');
-    const lr2 = resolveMatch(10, 11, 'LRace 10v11');
-
-    // LRace semi: winners of lr1/lr2 face bye seeds 13/14 as described previously
-    const lrsemiA = resolveMatch(seedForRoster(lr1.winner) || 9, 14, `LRaceSemi ${seedForRoster(lr1.winner)||9}v14`);
-    const lrsemiB = resolveMatch(seedForRoster(lr2.winner) || 10, 13, `LRaceSemi ${seedForRoster(lr2.winner)||10}v13`);
-
-    // 9th place match: winners of lrsemiA and lrsemiB
-    const match9 = resolveMatch(seedForRoster(lrsemiA.winner) || seedForRoster(lr1.winner), seedForRoster(lrsemiB.winner) || seedForRoster(lr2.winner), '9th final');
-    assignPlace(match9.winner, 9, '9th (l-race)');
-    assignPlace(match9.loser, 10, '10th (l-race)');
-
-    // 11th place match: losers of lrsemiA and lrsemiB
-    const match11 = resolveMatch(seedForRoster(lrsemiA.loser) || seedForRoster(lr1.loser), seedForRoster(lrsemiB.loser) || seedForRoster(lr2.loser), '11th final');
-    assignPlace(match11.winner, 11, '11th (l-race)');
-    assignPlace(match11.loser, 12, '12th (l-race)');
-
-    // final 13th/14th: remaining unassigned rosters (deterministic by seed)
-    const remaining = allRosterIds.filter(id => !assigned.has(String(id)));
-    remaining.sort((a,b) => (placementMap[a]||999) - (placementMap[b]||999));
-    if (remaining.length >= 2) {
-      const r13 = resolveMatch(placementMap[remaining[0]] || 13, placementMap[remaining[1]] || 14, '13th final');
-      assignPlace(r13.winner, 13, '13th (final)');
-      assignPlace(r13.loser, 14, '14th (final)');
-    } else {
-      // fill any leftover deterministically
-      for (let i = 0; i < remaining.length; i++) assignPlace(remaining[i], 13 + i, 'final fill');
+  // rank fill order heuristics:
+  // - teams that won consolation/placer matches (we tried to set place[5..8] above)
+  // - otherwise order by: did they win any playoff match (check matchupsRows points) -> higher number of playoff wins first
+  // - then by regularPf descending
+  const playoffWinsCount = {};
+  for (const rid of allRosterIds) playoffWinsCount[String(rid)] = 0;
+  for (const m of matchupsRows) {
+    if (m.participantsCount === 2 && m.teamA && m.teamB) {
+      if (typeof m.teamA.points === 'number' && typeof m.teamB.points === 'number') {
+        if (m.teamA.points > m.teamB.points) playoffWinsCount[String(m.teamA.rosterId)]++;
+        else if (m.teamB.points > m.teamA.points) playoffWinsCount[String(m.teamB.rosterId)]++;
+      }
     }
   }
 
-  // Ensure all rosters get a unique place
-  const usedPlaces = new Set(Object.values(placeMap).map(p => Number(p)));
-  const freePlaces = [];
-  for (let p = 1; p <= N; p++) if (!usedPlaces.has(p)) freePlaces.push(p);
-  const stillUnassigned = Object.keys(rosterMap || {}).map(String).filter(rid => !Object.prototype.hasOwnProperty.call(placeMap, rid));
-  stillUnassigned.sort((a,b) => (placementMap[a]||999) - (placementMap[b]||999));
-  for (let i = 0; i < stillUnassigned.length; i++) {
-    const rid = stillUnassigned[i];
-    const p = freePlaces[i] || (N - i);
-    placeMap[rid] = p;
-    debugLog.push(`Fallback assign ${p} -> ${metaFor(rid).team_name}`);
-  }
-
-  // Now build finalStandings[] sorted ascending by place
-  const finalEntries = Object.keys(placeMap).map(rid => ({ rosterId: String(rid), place: Number(placeMap[rid]) }));
-  finalEntries.sort((a,b) => a.place - b.place);
-  const finalStandings = finalEntries.map(e => {
-    const m = metaFor(e.rosterId);
-    return {
-      rank: e.place,
-      rosterId: e.rosterId,
-      team_name: m.team_name,
-      owner_name: m.owner_name || null,
-      avatar: m.avatar,
-      seed: placementMap && placementMap[e.rosterId] ? Number(placementMap[e.rosterId]) : null
-    };
+  // Sort remaining by: playoffWins desc, regularPf desc, seed asc
+  remaining.sort((a,b) => {
+    const wA = playoffWinsCount[String(a)] || 0, wB = playoffWinsCount[String(b)] || 0;
+    if (wB !== wA) return wB - wA;
+    const pfA = Number(regularPfMap[String(a)] || 0), pfB = Number(regularPfMap[String(b)] || 0);
+    if (pfB !== pfA) return pfB - pfA;
+    const sA = Number(placementMap[String(a)] || 999), sB = Number(placementMap[String(b)] || 999);
+    return sA - sB;
   });
 
-  return { finalStandings, placeMap, debugLog };
-}
+  // fill any unassigned rank positions 1..totalTeams
+  for (let r = 1; r <= totalTeams; r++) {
+    if (!place[r]) {
+      const next = remaining.shift();
+      if (next) {
+        place[r] = String(next);
+      }
+    }
+  }
+
+  // build finalStandings array ordered 1..totalTeams with guaranteed owner_name present
+  const finalStandings = [];
+  for (let r = 1; r <= totalTeams; r++) {
+    const rid = place[r] ? String(place[r]) : null;
+    if (!rid) continue;
+    const entryMeta = makeEntry(rid);
+    finalStandings.push({
+      rank: r,
+      rosterId: entryMeta.rosterId,
+      team_name: entryMeta.team_name,
+      owner_name: entryMeta.owner_name, // guaranteed fallback
+      avatar: entryMeta.avatar,
+      seed: entryMeta.seed,
+      pf: entryMeta.pf
+    });
+  }
+
+  // add helpful debug assignment lines (friendly)
+  // We will add a couple of summarizing lines to the debug trace to show final mapping.
+  for (let r = 1; r <= totalTeams; r++) {
+    if (place[r]) {
+      const meta = makeEntry(place[r]);
+      debug.push(`Assign place ${r} → ${meta.team_name} (${r === 1 ? 'champion' : r === 2 ? 'runner-up' : (r === 3 ? '3rd' : 'final')})`);
+    }
+  }
+
+  return { finalStandings, debugLog: debug };
+} // end simulateBracket
 
 export async function load(event) {
   // edge cache header
@@ -457,7 +613,7 @@ export async function load(event) {
     }
   }
 
-  // determine leagueIdsToProcess (we only need the selected league for honor-hall)
+  // determine selectedLeagueId (we only need the selected league for honor-hall)
   let selectedLeagueId = null;
   // try to match season or league_id in seasons array
   for (let i = 0; i < seasons.length; i++) {
@@ -481,10 +637,8 @@ export async function load(event) {
   // determine playoff start/end using same fields as standings loader (fallback to 15)
   let playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-    // fallback: try some known fields then set default
     playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
     if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-      // fallback default (match standings' fallback behavior)
       playoffStart = 15;
       messages.push('Playoff start not found in metadata — defaulting to week ' + playoffStart);
     }
@@ -637,10 +791,16 @@ export async function load(event) {
 
   const regularStandings = buildStandingsFromTrackers(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular);
 
-  // Build placement map rosterId -> placement (1-based) from regularStandings (used as seed fallback)
+  // Build placement map rosterId -> placement (1-based)
   const placementMap = {};
   for (let i = 0; i < regularStandings.length; i++) {
     placementMap[String(regularStandings[i].rosterId)] = i + 1;
+  }
+
+  // Also build a regular pf map for fallbacks in simulation
+  const regularPfMap = {};
+  for (const rs of regularStandings) {
+    regularPfMap[String(rs.rosterId)] = Number(rs.pf || 0);
   }
 
   // --- fetch playoff matchups (playoffStart .. playoffEnd) and build matchupsRows ---
@@ -671,9 +831,9 @@ export async function load(event) {
   }
 
   const matchupsRows = [];
-  const keysM = Object.keys(byMatch);
-  for (let ki = 0; ki < keysM.length; ki++) {
-    const entries = byMatch[keysM[ki]];
+  const keysMatch = Object.keys(byMatch);
+  for (let ki = 0; ki < keysMatch.length; ki++) {
+    const entries = byMatch[keysMatch[ki]];
     if (!entries || entries.length === 0) continue;
 
     // single participant -> bye
@@ -683,11 +843,11 @@ export async function load(event) {
       const aMeta = rosterMap[aId] || {};
       const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
       const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
+      const aPts = (typeof a.points === 'number') ? safeNum(a.points) : null;
       const aPlacement = placementMap[aId] ?? null;
 
       matchupsRows.push({
-        matchup_id: keysM[ki],
+        matchup_id: keysMatch[ki],
         season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
         week: a.week ?? a.w ?? null,
         teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
@@ -709,13 +869,13 @@ export async function load(event) {
       const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
       const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
       const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
+      const aPts = (typeof a.points === 'number') ? safeNum(a.points) : null;
+      const bPts = (typeof b.points === 'number') ? safeNum(b.points) : null;
       const aPlacement = placementMap[aId] ?? null;
       const bPlacement = placementMap[bId] ?? null;
 
       matchupsRows.push({
-        matchup_id: keysM[ki],
+        matchup_id: keysMatch[ki],
         season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
         week: a.week ?? a.w ?? null,
         teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
@@ -739,7 +899,7 @@ export async function load(event) {
     });
     const combinedLabel = participants.map(p => p.name).join(' / ');
     matchupsRows.push({
-      matchup_id: keysM[ki],
+      matchup_id: keysMatch[ki],
       season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
       week: entries[0].week ?? entries[0].w ?? null,
       combinedParticipants: participants,
@@ -752,28 +912,14 @@ export async function load(event) {
   matchupsRows.sort((x,y) => {
     const wx = Number(x.week ?? 0), wy = Number(y.week ?? 0);
     if (wy !== wx) return wy - wx;
-    // prefer matches involving higher-placed teams earlier
     const ax = x.teamA?.placement ?? (x.combinedParticipants ? (x.combinedParticipants[0]?.placement ?? 999) : 999);
     const by = y.teamA?.placement ?? (y.combinedParticipants ? (y.combinedParticipants[0]?.placement ?? 999) : 999);
     return (ax - by);
   });
 
-  // Now call simulateBracket to produce finalStandings/placeMap/debugLog
-  const simulationResult = simulateBracket({
-    matchupsRows,
-    placementMap,
-    rosterMap,
-    regularStandings,
-    seasonKey: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : selectedSeasonParam,
-    playoffStart,
-    playoffEnd
-  });
+  // Now run bracket simulation to compute final standings & debug trace
+  const { finalStandings, debugLog } = simulateBracket(matchupsRows, placementMap, rosterMap, regularPfMap, leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null);
 
-  const finalStandings = simulationResult.finalStandings || [];
-  const placeMap = simulationResult.placeMap || {};
-  const debugLog = simulationResult.debugLog || [];
-
-  // Expose results in return payload
   return {
     seasons,
     selectedSeason: selectedSeasonParam,
@@ -783,7 +929,6 @@ export async function load(event) {
     matchupsRows,
     regularStandings,
     finalStandings,
-    placeMap,
     debugLog,
     messages,
     prevChain
