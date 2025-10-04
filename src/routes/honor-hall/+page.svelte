@@ -1,15 +1,21 @@
+<!-- src/routes/honor-hall/+page.svelte -->
 <script>
-  // src/routes/honor-hall/+page.svelte
+  // Honor Hall final standings page (with season dropdown)
   export let data;
 
-  // seasons still available in data (unused in UI since dropdown removed)
-  const seasons = data?.seasons ?? [];
-  const selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[seasons.length - 1].league_id : null);
+  const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
+  // selectedSeason comes from server (string: season year or league_id)
+  let selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[seasons.length - 1].league_id : null);
 
   const messages = Array.isArray(data?.messages) ? data.messages : [];
   const finalStandings = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
 
-  // helpers
+  function submitFilters(e) {
+    const form = e.currentTarget.form || document.getElementById('filters');
+    if (form?.requestSubmit) form.requestSubmit();
+    else form?.submit();
+  }
+
   function avatarOrPlaceholder(url, name, size = 48) {
     if (url) return url;
     const letter = name ? name[0] : 'T';
@@ -25,38 +31,101 @@
 </script>
 
 <style>
-  :global(body) { background: var(--bg, #0b0c0f); color: #e6eef8; }
+  :global(body) { background: var(--bg, #0b0c0f); color: #e6eef8; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
   .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 
-  h1 { font-size: 2rem; margin-bottom: .6rem; }
-  .subtitle { color: #9aa3ad; margin-bottom: 1rem; }
+  header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom:1rem;
+  }
+  h1 { font-size:1.6rem; margin:0; letter-spacing: -0.2px; }
+  .subtitle { color:#9aa3ad; font-size:.95rem; margin-top:.2rem; }
+
+  /* filters / dropdown */
+  .filters { display:flex; gap:.75rem; align-items:center; }
+  .season-label { font-weight:700; color:#cfe3ff; font-size:.95rem; margin-right:.35rem; }
+  .season-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: .5rem .9rem;
+    border-radius: 10px;
+    font-weight:700;
+    min-width:160px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    cursor: pointer;
+    font-size: .95rem;
+  }
+  .season-select:focus { outline: 2px solid rgba(99,102,241,0.22); outline-offset: 2px; }
 
   .messages {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.04);
-    padding: 14px;
-    border-radius: 8px;
+    padding: 12px;
+    border-radius: 10px;
     margin-bottom: 1rem;
     color: #cbd5e1;
-    font-size: .95rem;
+    font-size:.95rem;
   }
 
   /* final standings table */
-  .finalTable { margin-top:1rem; width:100%; border-collapse:collapse; }
-  .finalTable th, .finalTable td { padding:12px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; }
-  .finalRank { font-weight:800; width:84px; font-size:1.05rem; }
+  .panel {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    padding: 14px;
+    border-radius: 12px;
+  }
 
-  .teamCell { display:flex; align-items:center; gap:.75rem; }
-  .teamAvatar { width:40px; height:40px; border-radius:8px; object-fit:cover; }
+  .finalTable { width:100%; border-collapse: collapse; margin-top:.5rem; }
+  .finalTable thead th { text-align:left; font-weight:700; color:#9aa3ad; padding:10px 12px; font-size:.9rem; }
+  .finalTable tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .finalTable td { padding:12px; vertical-align:middle; }
 
-  .seed { color:#9aa3ad; font-weight:700; }
-  .empty { color:#9aa3ad; padding:1rem 0; }
+  .rankCol { width:86px; font-weight:800; font-size:1.05rem; color:#fff; }
+  .teamCell { display:flex; align-items:center; gap:.75rem; min-width:0; }
+  .teamAvatar { width:44px; height:44px; border-radius:8px; object-fit:cover; flex-shrink:0; }
+  .teamName { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
+  .teamMeta { color:#9aa3ad; font-size:.88rem; }
+
+  .seed { color:#9aa3ad; font-weight:700; text-align:right; min-width:76px; }
+
+  /* small screen */
+  @media (max-width:680px) {
+    .teamName { max-width:200px; }
+    header { flex-direction: column; align-items:flex-start; gap:.6rem; }
+    .filters { align-self:stretch; justify-content:flex-start; }
+    .seed { text-align:left; }
+  }
 </style>
 
 <div class="container">
-  <h1>Honor Hall — Final Standings</h1>
-  <div class="subtitle">Season: {selectedSeason} — final placements computed from playoff results</div>
+  <header>
+    <div>
+      <h1>Honor Hall — Final Standings</h1>
+      <div class="subtitle">Final placements computed from playoff results (server-scrubbed matchups)</div>
+    </div>
+
+    <form id="filters" method="get" class="filters" aria-label="Season selector">
+      <label class="season-label" for="season">Season</label>
+      <select id="season" name="season" class="season-select" on:change={submitFilters}>
+        {#if seasons && seasons.length}
+          {#each seasons as s}
+            <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
+              {s.season ?? s.name ?? s.league_id}
+            </option>
+          {/each}
+        {:else}
+          <option value={selectedSeason}>{selectedSeason}</option>
+        {/if}
+      </select>
+    </form>
+  </header>
 
   {#if messages && messages.length}
     <div class="messages" role="status" aria-live="polite">
@@ -66,33 +135,38 @@
     </div>
   {/if}
 
-  {#if finalStandings && finalStandings.length}
-    <table class="finalTable" role="table" aria-label="Final Standings">
-      <thead>
-        <tr>
-          <th>Rank</th>
-          <th>Team</th>
-          <th>Seed</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each finalStandings as t (t.rosterId)}
+  <div class="panel" role="region" aria-labelledby="final-standings-heading">
+    <h2 id="final-standings-heading" style="font-size:1rem;margin:0 0 8px 0;color:#cfe3ff;">Final Standings</h2>
+
+    {#if finalStandings && finalStandings.length}
+      <table class="finalTable" role="table" aria-label="Final Standings table">
+        <thead>
           <tr>
-            <td class="finalRank">{t.finalRank}{medalEmoji(t.finalRank)}</td>
-            <td>
-              <div class="teamCell">
-                <img class="teamAvatar" src={avatarOrPlaceholder(t.avatar, t.team_name, 40)} alt="">
-                <div>
-                  <div style="font-weight:700;">{t.team_name}</div>
-                </div>
-              </div>
-            </td>
-            <td class="seed">#{t.seed ?? '—'}</td>
+            <th>Rank</th>
+            <th>Team</th>
+            <th style="text-align:right">Seed</th>
           </tr>
-        {/each}
-      </tbody>
-    </table>
-  {:else}
-    <div class="empty">Final standings not available for the selected season.</div>
-  {/if}
+        </thead>
+        <tbody>
+          {#each finalStandings as t (t.rosterId)}
+            <tr>
+              <td class="rankCol">{t.finalRank}{medalEmoji(t.finalRank)}</td>
+              <td>
+                <div class="teamCell" title={t.team_name}>
+                  <img class="teamAvatar" src={avatarOrPlaceholder(t.avatar, t.team_name, 44)} alt="">
+                  <div>
+                    <div class="teamName">{t.team_name}</div>
+                    <div class="teamMeta">Roster {t.rosterId}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="seed">#{t.seed ?? '—'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {:else}
+      <div style="color:#9aa3ad;padding:12px 0;">Final standings not available for the selected season.</div>
+    {/if}
+  </div>
 </div>
