@@ -36,15 +36,12 @@
   // reactive: selected season payload (prefer the explicit map, fallback to top-level finalStandings)
   $: selectedPayload = (() => {
     if (!selectedSeason) return null;
-    // try exact season string key first
     let key = String(selectedSeason);
     if (finalStandingsBySeason && finalStandingsBySeason[key]) return finalStandingsBySeason[key];
-    // try matching by sessions where the key might be league id
     const keys = Object.keys(finalStandingsBySeason || {});
     for (const k of keys) {
       if (k === key) return finalStandingsBySeason[k];
     }
-    // fallback to top-level finalStandings if present (older loader)
     if (data?.finalStandings) {
       return { finalStandings: data.finalStandings, debug: data.debug ?? [], rosterMap: data.rosterMap ?? {} };
     }
@@ -58,15 +55,9 @@
   $: champion = finalStandings.length ? finalStandings[0] : null;
   $: biggestLoser = finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
 
-  // ensure owner_name display is used when available, otherwise fallback to team_name
-  function displayOwner(row) {
-    return row?.owner_name ?? row?.team_name ?? row?.rosterId ?? 'Roster';
-  }
-
   // show a friendly subtitle for the selected season
   $: seasonLabel = (() => {
     if (!selectedSeason) return '';
-    // find season object for nicer labeling
     const found = seasons.find(s => String(s.season) === String(selectedSeason) || String(s.league_id) === String(selectedSeason));
     if (found) return found.season ?? found.name ?? found.league_id;
     return selectedSeason;
@@ -82,17 +73,24 @@
 
   /* filters */
   .filters { display:flex; align-items:center; gap:.75rem; }
-  .season-label { color:#b9c3cc; font-weight:700; margin-right:.4rem; }
+  .season-label { color:#b9c3cc; font-weight:700; margin-right:.6rem; }
   select.season-select {
-    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-    border: 1px solid rgba(99,102,241,0.18);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border: 1px solid rgba(99,102,241,0.32);
     color: #fff;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-weight: 700;
-    min-width:140px;
-    box-shadow: 0 6px 26px rgba(2,6,23,0.6);
-    font-size: .95rem;
+    padding: 10px 16px;
+    border-radius: 14px;
+    font-weight: 800;
+    min-width:160px;
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.03) inset;
+    font-size: 1rem;
+    transition: transform .08s ease, box-shadow .12s ease;
+  }
+  select.season-select:focus {
+    outline: none;
+    transform: translateY(-1px);
+    box-shadow: 0 12px 34px rgba(2,6,23,0.7), 0 0 0 6px rgba(99,102,241,0.08);
+    border-color: rgba(99,102,241,0.6);
   }
 
   /* debug box */
@@ -110,7 +108,7 @@
   .player { display:flex; align-items:center; gap:12px; min-width:0; }
   .avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; flex-shrink:0; }
   .teamName { font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px; }
-  .teamMeta { color:#9aa3ad; font-size:.9rem; margin-top:3px; }
+  .teamMeta { color:#9aa3ad; font-size:.95rem; margin-top:4px; }
 
   .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; display:flex; align-items:center; gap:.5rem; }
 
@@ -129,13 +127,13 @@
 <div class="container">
   <div class="header">
     <div>
-      <h1>Honor Hall — Final Standings</h1>
+      <h1>Honors Hall</h1>
       <div class="subtitle">Final placements computed from playoff results — season {seasonLabel}</div>
     </div>
 
     <form id="filters" method="get" class="filters" aria-hidden="false">
       <label class="season-label" for="season">Season</label>
-      <select id="season" name="season" class="season-select" on:change={submitFilters}>
+      <select id="season" name="season" class="season-select" on:change={submitFilters} aria-label="Select season">
         {#if seasons && seasons.length}
           {#each seasons as s}
             <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
@@ -181,7 +179,8 @@
               <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
               <div style="min-width:0;">
                 <div class="teamName">{row.team_name}</div>
-                <div class="teamMeta">{displayOwner(row)} {row.owner_name ? `• ${row.owner_name}` : ''}</div>
+                <!-- show only one owner/label (owner_name preferred) -->
+                <div class="teamMeta">{row.owner_name ? row.owner_name : `Roster ${row.rosterId}`}</div>
               </div>
             </div>
 
