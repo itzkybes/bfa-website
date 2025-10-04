@@ -711,7 +711,9 @@ export async function load(event) {
       avatar: meta.team_avatar || meta.owner_avatar || null,
       seed: placementMap[rid] ?? null,
       pf: regularStandings.find(s => String(s.rosterId) === rid)?.pf ?? 0,
-      wins: regularStandings.find(s => String(s.rosterId) === rid)?.wins ?? 0
+      wins: regularStandings.find(s => String(s.rosterId) === rid)?.wins ?? 0,
+      owner_name: meta.owner_name ?? meta.owner?.display_name ?? meta.owner?.username ?? null,
+      roster_meta: meta
     });
   }
 
