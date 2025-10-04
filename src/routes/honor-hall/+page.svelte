@@ -208,7 +208,6 @@
                   {:else}
                     {`Roster ${row.rosterId}`}
                   {/if}
-                  
                 </div>
               </div>
             </div>
