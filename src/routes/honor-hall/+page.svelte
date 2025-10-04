@@ -29,6 +29,10 @@
     if (rank === 3) return '🥉';
     return '';
   }
+
+  // Filter debug lines to show only match/round outcome traces and loaded-rosters.
+  const dbgFilterRegex = /^(W1|Semi|Final|3rd|Consolation|LRace|Consolation LRace1|LRaceSemi|9th|11th|5th|7th)/i;
+  $: filteredDebug = (debugLog || []).filter(l => (l && l.startsWith('Loaded rosters')) || dbgFilterRegex.test(l));
 </script>
 
 <style>
@@ -108,12 +112,12 @@
   <div class="main">
     <div class="debug" aria-live="polite">
       <ul>
-        {#if messages && messages.length}
-          {#each messages as m}
-            <li>{m}</li>
+        {#if filteredDebug && filteredDebug.length}
+          {#each filteredDebug as line}
+            <li>{line}</li>
           {/each}
         {:else}
-          <li>No debug trace available.</li>
+          <li class="no-debug">No debug trace available.</li>
         {/if}
       </ul>
     </div>
@@ -132,7 +136,7 @@
               <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
               <div style="min-width:0;">
                 <div class="teamName">{row.team_name}</div>
-                <div class="teamMeta">{row.rosterId ? `Roster ${row.rosterId}` : '' } • {row.seed ? `Seed #${row.seed}` : 'Seed —'}</div>
+                <div class="teamMeta">{row.owner_name ?? ''} • {row.seed ? `Seed #${row.seed}` : 'Seed —'}</div>
               </div>
             </div>
 
@@ -153,7 +157,7 @@
         <img class="avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt="champion avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Champion <span style="margin-left:6px">🏆</span></div>
-          <div class="small">{champion.team_name} • Seed #{champion.seed} • Rank {champion.rank ?? 1}</div>
+          <div class="small">{champion.team_name} • {champion.owner_name} • Seed #{champion.seed} • Rank {champion.rank ?? 1}</div>
         </div>
       </div>
     {/if}
@@ -163,7 +167,7 @@
         <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Biggest loser <span style="margin-left:6px">😵‍💫</span></div>
-          <div class="small">{biggestLoser.team_name} • Seed #{biggestLoser.seed} • Rank {biggestLoser.rank ?? finalStandings.length}</div>
+          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name} • Seed #{biggestLoser.seed} • Rank {biggestLoser.rank ?? finalStandings.length}</div>
         </div>
       </div>
     {/if}
