@@ -7,6 +7,7 @@
 
   const matchupsRows = Array.isArray(data?.matchupsRows) ? data.matchupsRows : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
+  const finalStandings = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
 
   // helpers
   function avatarOrPlaceholder(url, name, size = 48) {
@@ -30,7 +31,6 @@
   // only show rows that match selectedSeason (if season provided in row)
   $: filteredRows = Array.isArray(matchupsRows) && selectedSeason
     ? matchupsRows.filter(r => {
-        // some rows might store season as number or league id; compare stringified
         const rs = r?.season ?? null;
         if (!rs) return true; // keep rows missing season metadata
         return String(rs) === String(selectedSeason);
@@ -47,7 +47,6 @@
     }
     // convert to array sorted by week desc (numeric if possible)
     const arr = Array.from(map.entries()).map(([week, rows]) => {
-      // attempt numeric sort key
       const nweek = Number(week);
       const sortKey = !isNaN(nweek) ? nweek : Number.MIN_SAFE_INTEGER;
       return { week, sortKey, rows };
@@ -55,6 +54,13 @@
     arr.sort((a,b) => b.sortKey - a.sortKey);
     return arr;
   })();
+
+  function medalEmoji(rank) {
+    if (rank === 1) return ' 🥇';
+    if (rank === 2) return ' 🥈';
+    if (rank === 3) return ' 🥉';
+    return '';
+  }
 </script>
 
 <style>
@@ -124,6 +130,11 @@
   /* combined participants */
   .combinedList { display:flex; gap:.5rem; flex-wrap:wrap; }
   .chip { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; color:#d1d5db; font-weight:700; font-size:.9rem; }
+
+  /* final standings table */
+  .finalTable { margin-top:2rem; width:100%; border-collapse:collapse; }
+  .finalTable th, .finalTable td { padding:10px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:left; }
+  .finalRank { font-weight:800; width:64px; }
 
   /* empty state */
   .empty { color:#9aa3ad; padding:1rem 0; }
@@ -244,5 +255,35 @@
         {/each}
       </div>
     {/each}
+  {/if}
+
+  <!-- Final Standings -->
+  {#if finalStandings && finalStandings.length}
+    <div style="margin-top:2rem;">
+      <h2>Final Standings</h2>
+      <table class="finalTable" role="table" aria-label="Final Standings">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Team</th>
+            <th>Seed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each finalStandings as t (t.rosterId)}
+            <tr>
+              <td class="finalRank">{t.finalRank}{medalEmoji(t.finalRank)}</td>
+              <td style="display:flex; align-items:center; gap:.6rem;">
+                <img src={avatarOrPlaceholder(t.avatar, t.team_name, 32)} alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">
+                <div>
+                  <div style="font-weight:700;">{t.team_name}</div>
+                </div>
+              </td>
+              <td>#{t.seed ?? '—'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 </div>
