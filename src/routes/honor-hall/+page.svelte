@@ -74,23 +74,61 @@
   /* filters */
   .filters { display:flex; align-items:center; gap:.75rem; }
   .season-label { color:#b9c3cc; font-weight:700; margin-right:.6rem; }
+
+  /* custom select wrapper to host arrow */
+  .select-wrap {
+    position: relative;
+    display: inline-block;
+  }
+
+  /* Main select styling */
   select.season-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
     border: 1px solid rgba(99,102,241,0.32);
     color: #fff;
-    padding: 10px 16px;
+    padding: 10px 40px 10px 16px;
     border-radius: 14px;
     font-weight: 800;
     min-width:160px;
     box-shadow: 0 10px 30px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.03) inset;
     font-size: 1rem;
     transition: transform .08s ease, box-shadow .12s ease;
+    cursor: pointer;
   }
   select.season-select:focus {
     outline: none;
     transform: translateY(-1px);
     box-shadow: 0 12px 34px rgba(2,6,23,0.7), 0 0 0 6px rgba(99,102,241,0.08);
     border-color: rgba(99,102,241,0.6);
+  }
+
+  /* custom arrow (right side) */
+  .select-wrap::after {
+    content: '';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+    background-image: linear-gradient(45deg, transparent 50%, #cbd5e1 50%), linear-gradient(135deg, #cbd5e1 50%, transparent 50%);
+    background-size: 8px 8px;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.95;
+  }
+
+  /* remove native ms expand in IE/Edge */
+  select.season-select::-ms-expand { display: none; }
+
+  /* theme options — many browsers allow styling this; Chrome will respect option colors in newer versions */
+  option {
+    background: #0b0c0f;
+    color: #e6eef8;
   }
 
   /* debug box */
@@ -133,17 +171,21 @@
 
     <form id="filters" method="get" class="filters" aria-hidden="false">
       <label class="season-label" for="season">Season</label>
-      <select id="season" name="season" class="season-select" on:change={submitFilters} aria-label="Select season">
-        {#if seasons && seasons.length}
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-              {s.season ?? s.name ?? s.league_id}
-            </option>
-          {/each}
-        {:else}
-          <option value={selectedSeason}>{selectedSeason}</option>
-        {/if}
-      </select>
+
+      <!-- wrapper hosts custom arrow and prevents white popup glare where possible -->
+      <div class="select-wrap" role="presentation">
+        <select id="season" name="season" class="season-select" on:change={submitFilters} aria-label="Select season">
+          {#if seasons && seasons.length}
+            {#each seasons as s}
+              <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
+                {s.season ?? s.name ?? s.league_id}
+              </option>
+            {/each}
+          {:else}
+            <option value={selectedSeason}>{selectedSeason}</option>
+          {/if}
+        </select>
+      </div>
     </form>
   </div>
 
