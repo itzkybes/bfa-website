@@ -208,12 +208,12 @@
                   {:else}
                     {`Roster ${row.rosterId}`}
                   {/if}
-                  {#if row.seed} • Seed #{row.seed}{/if}
+                  
                 </div>
               </div>
             </div>
 
-            <div class="seedCol">#{row.seed ?? '—'}</div>
+            <div class="seedCol">Seed #{row.seed ?? '—'}</div>
           </li>
         {/each}
       {:else}
