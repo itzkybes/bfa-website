@@ -19,9 +19,11 @@
     else form?.submit();
   }
 
-  function avatarOrPlaceholder(url, name, size = 48) {
+  // Build an avatar or fallback placeholder similar to Records tab style
+  function avatarOrPlaceholder(url, name, size = 56) {
     if (url) return url;
-    const letter = name ? name[0] : 'T';
+    const letter = name ? (name.trim()[0] || 'T') : 'T';
+    // ui-avatars is used elsewhere in this project; keep consistent placeholder look
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
 
@@ -30,6 +32,11 @@
     if (rank === 2) return '🥈';
     if (rank === 3) return '🥉';
     return '';
+  }
+
+  function fmtPoints(v) {
+    if (v == null) return '—';
+    return (Math.round(Number(v) * 100) / 100).toLocaleString();
   }
 </script>
 
@@ -43,8 +50,10 @@
   /* filters */
   .filters { display:flex; align-items:center; gap:.75rem; }
   .season-label { color:#b9c3cc; font-weight:700; margin-right:.4rem; }
+
+  /* make the select darker (no white background) */
   select.season-select {
-    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
     border: 1px solid rgba(99,102,241,0.18);
     color: #fff;
     padding: 8px 12px;
@@ -52,24 +61,7 @@
     font-weight: 700;
     min-width:110px;
     box-shadow: 0 4px 18px rgba(2,6,23,0.6);
-    -webkit-appearance: none;
     appearance: none;
-    position: relative;
-  }
-  /* custom arrow to avoid white native dropdown background feeling */
-  .select-wrap {
-    position: relative;
-    display: inline-block;
-  }
-  .select-wrap::after {
-    content: '▾';
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #cbd5e1;
-    pointer-events: none;
-    font-size: 12px;
   }
 
   /* debug box */
@@ -88,11 +80,19 @@
   .avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; flex-shrink:0; }
   .teamName { font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px; }
   .teamMeta { color:#9aa3ad; font-size:.9rem; margin-top:3px; }
+
   .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; }
 
+  /* outcome / MVP rows */
   .outcome-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
   .outcome-name { font-weight:700; }
   .small { color:#9aa3ad; font-size:.9rem; }
+
+  .mvp-box { display:flex; gap:12px; align-items:center; padding:10px; border-radius:8px; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02); }
+  .mvp-avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; }
+  .mvp-meta { display:flex; flex-direction:column; }
+  .mvp-name { font-weight:700; }
+  .mvp-points { color:#9aa3ad; font-size:.9rem; margin-top:4px; }
 
   .no-debug { color:#9aa3ad; }
 
@@ -111,19 +111,17 @@
 
     <form id="filters" method="get" class="filters" aria-hidden="false">
       <label class="season-label" for="season">Season</label>
-      <div class="select-wrap">
-        <select id="season" name="season" class="season-select" on:change={submitFilters}>
-          {#if seasons && seasons.length}
-            {#each seasons as s}
-              <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-                {s.season ?? s.name ?? s.league_id}
-              </option>
-            {/each}
-          {:else}
-            <option value={selectedSeason}>{selectedSeason}</option>
-          {/if}
-        </select>
-      </div>
+      <select id="season" name="season" class="season-select" on:change={submitFilters}>
+        {#if seasons && seasons.length}
+          {#each seasons as s}
+            <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
+              {s.season ?? s.name ?? s.league_id}
+            </option>
+          {/each}
+        {:else}
+          <option value={selectedSeason}>{selectedSeason}</option>
+        {/if}
+      </select>
     </form>
   </div>
 
@@ -158,7 +156,8 @@
               <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
               <div style="min-width:0;">
                 <div class="teamName">{row.team_name}</div>
-                <div class="teamMeta">{row.owner_name ? row.owner_name : (`Roster ${row.rosterId}`)} • {row.seed ? `Seed #${row.seed}` : 'Seed —'}</div>
+                <!-- show a single owner name if available -->
+                <div class="teamMeta">{row.owner_name ? row.owner_name : `Roster ${row.rosterId}`} • {row.seed ? `Seed #${row.seed}` : 'Seed —'}</div>
               </div>
             </div>
 
@@ -179,7 +178,7 @@
         <img class="avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt="champion avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Champion <span style="margin-left:6px">🏆</span></div>
-          <div class="small">{champion.team_name} • {champion.owner_name ?? `Roster ${champion.rosterId}`} • Seed #{champion.seed}</div>
+          <div class="small">{champion.team_name} {champion.owner_name ? `• ${champion.owner_name}` : ''} • Seed #{champion.seed}</div>
         </div>
       </div>
     {/if}
@@ -189,30 +188,35 @@
         <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Biggest loser <span style="margin-left:6px">😵‍💫</span></div>
-          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Seed #{biggestLoser.seed}</div>
+          <div class="small">{biggestLoser.team_name} {biggestLoser.owner_name ? `• ${biggestLoser.owner_name}` : ''} • Seed #{biggestLoser.seed}</div>
         </div>
       </div>
     {/if}
 
+    <!-- Finals MVP -->
     {#if finalsMvp}
-      <div style="margin-top:14px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar ?? finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName || finalsMvp.playerId)} alt="finals mvp avatar" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Finals MVP <span style="margin-left:6px">🔥</span></div>
-          <div class="small">{finalsMvp.playerName} • {finalsMvp.points} pts {finalsMvp.rosterId ? `• ${finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}` : ''}</div>
+      <div style="margin-top:14px">
+        <div class="small" style="margin-bottom:6px; font-weight:700">Finals MVP <span style="margin-left:6px">🔥</span></div>
+        <div class="mvp-box">
+          <img class="mvp-avatar" src={avatarOrPlaceholder(finalsMvp.playerAvatar, finalsMvp.playerName || finalsMvp.playerId)} alt="finals mvp avatar">
+          <div class="mvp-meta">
+            <div class="mvp-name">{finalsMvp.playerName ?? finalsMvp.playerId}</div>
+            <div class="mvp-points">{fmtPoints(finalsMvp.points)} pts • {finalsMvp.rosterId ? `Roster ${finalsMvp.rosterId}` : ''}</div>
+          </div>
         </div>
       </div>
     {/if}
 
+    <!-- Overall MVP -->
     {#if overallMvp}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar ?? overallMvp.roster_meta?.owner_avatar, overallMvp.playerName || overallMvp.playerId)} alt="overall mvp avatar" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Overall MVP <span style="margin-left:6px">🐐</span></div>
-          <div class="small">{overallMvp.playerName} • {overallMvp.points} pts (starters)</div>
-          {#if overallMvp.rosterId}
-            <div class="small" style="margin-top:6px">{overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId}`}</div>
-          {/if}
+      <div style="margin-top:12px">
+        <div class="small" style="margin-bottom:6px; font-weight:700">Overall MVP <span style="margin-left:6px">🐐</span></div>
+        <div class="mvp-box">
+          <img class="mvp-avatar" src={avatarOrPlaceholder(overallMvp.playerAvatar, overallMvp.playerName || overallMvp.playerId)} alt="overall mvp avatar">
+          <div class="mvp-meta">
+            <div class="mvp-name">{overallMvp.playerName ?? overallMvp.playerId}</div>
+            <div class="mvp-points">{fmtPoints(overallMvp.points)} pts (starters) • {overallMvp.rosterId ? `Roster ${overallMvp.rosterId}` : ''}</div>
+          </div>
         </div>
       </div>
     {/if}
