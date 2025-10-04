@@ -77,9 +77,11 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
   // helper metadata for rosterId
   function metaFor(rid) {
     const m = (rosterMap && rosterMap[String(rid)]) ? rosterMap[String(rid)] : {};
+    const owner_name = m.owner_name ?? m.owner_username ?? m.team_name ?? ('Owner ' + String(rid));
     return {
       rosterId: String(rid),
-      team_name: m.team_name || m.owner_name || ('Roster ' + String(rid)),
+      team_name: m.team_name || owner_name || ('Roster ' + String(rid)),
+      owner_name,
       avatar: m.team_avatar || m.owner_avatar || null,
       seed: (placementMap && placementMap[String(rid)]) ? Number(placementMap[String(rid)]) : null
     };
@@ -134,6 +136,7 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     const aRid = seedToRoster[aSeed];
     const bRid = seedToRoster[bSeed];
     if (!aRid || !bRid) {
+      // keep a minimal trace for missing participants
       debugLog.push(`${label} ${aSeed}v${bSeed} -> fallback-missing`);
       return { winner: aRid || bRid || null, loser: aRid && bRid ? (aRid === (aRid||bRid) ? bRid : aRid) : null, method: 'missing' };
     }
@@ -160,12 +163,13 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     rosterId = String(rosterId);
     if (!rosterId) return;
     let p = Number(place);
+    if (isNaN(p) || p < 1) p = 999;
     // make unique if necessary
     const used = new Set(Object.values(placeMap).map(x => Number(x)));
     while (used.has(p)) p++;
     placeMap[rosterId] = p;
     assigned.add(rosterId);
-    debugLog.push(`Assign place ${p} -> ${metaFor(rosterId).team_name}${note ? ' ('+note+')' : ''}`);
+    // **do not push "Assign place ..." lines** — we want to avoid seed reassignment traces in the UI
   }
 
   // Helper to find seed number given rosterId deterministically
@@ -182,8 +186,6 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
   // Main simulation paths: 2022 special-case or default (top 8 winners)
   if (String(seasonKey) === '2022') {
     // Special 2022 bracket mapping (top 6 winners bracket with seeds 1 & 2 byes)
-    // According to the provided debug trace, we must follow specific pairings.
-
     // Round 1: W1 4v5, W1 3v6
     const r_w1_4v5 = resolveMatch(4, 5, 'W1 4v5');
     const r_w1_3v6 = resolveMatch(3, 6, 'W1 3v6');
@@ -195,8 +197,7 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     const r_semi1 = resolveMatch(1, semi1OpponentSeed, 'Semi 1v4');
     const r_semi2 = resolveMatch(2, semi2OpponentSeed, 'Semi 2v6');
 
-    // Final: winners of semis
-    // Determine seeds for final participants
+    // Final
     const finalSeedA = seedForRoster(r_semi1.winner) || 1;
     const finalSeedB = seedForRoster(r_semi2.winner) || 2;
     const r_final = resolveMatch(finalSeedA, finalSeedB, 'Final 1v2');
@@ -209,7 +210,6 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
       assignPlace(r_3rd.winner, 3, '3rd (matchup)');
       assignPlace(r_3rd.loser, 4, '4th (matchup)');
     } else {
-      // fallback: assign semis losers by fallback decision
       const loserA = r_semi1.loser, loserB = r_semi2.loser;
       const w = decideWinnerFallback(loserA, loserB);
       assignPlace(w, 3, '3rd (fallback)');
@@ -221,27 +221,22 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     assignPlace(r_final.loser, 2, 'runner-up (final)');
 
     // 5th/6th — per your 2022 debug: "5th 5v3 -> 3 (matchup)"
-    // Try to resolve a match between seeds 5 and 3
     const r_5th = resolveMatch(5, 3, '5th 5v3');
     assignPlace(r_5th.winner, 5, '5th (consolation)');
     assignPlace(r_5th.loser, 6, '6th (consolation)');
 
     // Loser-race flow (per your 2022 debug)
-    // LRace 9v12, 10v11, 7v14, 8v13
     const lr1 = resolveMatch(9, 12, 'LRace 9v12');
     const lr2 = resolveMatch(10, 11, 'LRace 10v11');
     const lr3 = resolveMatch(7, 14, 'LRace 7v14');
     const lr4 = resolveMatch(8, 13, 'LRace 8v13');
 
-    // Consolation LRace1: 7v10 and 8v9 (per debug)
     const cl1 = resolveMatch(7, 10, 'Consolation LRace1 7v10');
     const cl2 = resolveMatch(8, 9, 'Consolation LRace1 8v9');
 
-    // LRaceSemi placeholders (11v14 and 12v13) — resolve if matchups exist
     const lrsemi1 = resolveMatch(11, 14, 'LRaceSemi 11v14');
     const lrsemi2 = resolveMatch(12, 13, 'LRaceSemi 12v13');
 
-    // 7th / 8th — as indicated in your debug: 7th 10v9 -> 9 (matchup) then 9th 7v8 etc.
     const r7 = resolveMatch(10, 9, '7th 10v9');
     assignPlace(r7.winner, 7, '7th (matchup)');
     assignPlace(r7.loser, 8, '8th (matchup)');
@@ -259,20 +254,17 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     assignPlace(r13.loser, 14, '14th (matchup)');
   } else {
     // DEFAULT flow for most seasons (top 8 winners bracket)
-    // Round 1 winners
     const w1 = resolveMatch(1, 8, 'W1 1v8');
     const w2 = resolveMatch(2, 7, 'W1 2v7');
     const w3 = resolveMatch(3, 6, 'W1 3v6');
     const w4 = resolveMatch(4, 5, 'W1 4v5');
 
-    // gather winners and losers seeds (by seed numbers)
     const mapWinnerSeed = (r) => seedForRoster(r.winner) || null;
     const mapLoserSeed = (r) => seedForRoster(r.loser) || null;
 
     const winnersSeeds = [mapWinnerSeed(w1), mapWinnerSeed(w2), mapWinnerSeed(w3), mapWinnerSeed(w4)].filter(Boolean);
     const losersSeeds = [mapLoserSeed(w1), mapLoserSeed(w2), mapLoserSeed(w3), mapLoserSeed(w4)].filter(Boolean);
 
-    // semis: highest seed vs lowest seed (i.e. best plays worst among winners)
     winnersSeeds.sort((a,b) => a - b);
     const semiA_seedA = winnersSeeds[0];
     const semiA_seedB = winnersSeeds[winnersSeeds.length - 1];
@@ -282,7 +274,6 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     const semiA = resolveMatch(semiA_seedA, semiA_seedB, `Semi ${semiA_seedA}v${semiA_seedB}`);
     const semiB = resolveMatch(semiB_seedA, semiB_seedB, `Semi ${semiB_seedA}v${semiB_seedB}`);
 
-    // Final and 3rd
     const finalSeedA = seedForRoster(semiA.winner) || semiA_seedA;
     const finalSeedB = seedForRoster(semiB.winner) || semiB_seedA;
     const finalMatch = resolveMatch(finalSeedA, finalSeedB, `Final ${finalSeedA}v${finalSeedB}`);
@@ -298,7 +289,7 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     assignPlace(thirdMatch.loser, 4, '4th (matchup)');
 
     // Consolation (5th/6th & 7th/8th)
-    losersSeeds.sort((a,b) => a - b); // best seed first among losers
+    losersSeeds.sort((a,b) => a - b);
     const c1 = resolveMatch(losersSeeds[0], losersSeeds[losersSeeds.length - 1], `Consolation R1 ${losersSeeds[0]}v${losersSeeds[losersSeeds.length - 1]}`);
     const c2 = resolveMatch(losersSeeds[1], losersSeeds[2], `Consolation R1 ${losersSeeds[1]}v${losersSeeds[2]}`);
 
@@ -314,21 +305,17 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     const lr1 = resolveMatch(9, 12, 'LRace 9v12');
     const lr2 = resolveMatch(10, 11, 'LRace 10v11');
 
-    // LRace semi: winners of lr1/lr2 face bye seeds 13/14 as described previously
     const lrsemiA = resolveMatch(seedForRoster(lr1.winner) || 9, 14, `LRaceSemi ${seedForRoster(lr1.winner)||9}v14`);
     const lrsemiB = resolveMatch(seedForRoster(lr2.winner) || 10, 13, `LRaceSemi ${seedForRoster(lr2.winner)||10}v13`);
 
-    // 9th place match: winners of lrsemiA and lrsemiB
     const match9 = resolveMatch(seedForRoster(lrsemiA.winner) || seedForRoster(lr1.winner), seedForRoster(lrsemiB.winner) || seedForRoster(lr2.winner), '9th final');
     assignPlace(match9.winner, 9, '9th (l-race)');
     assignPlace(match9.loser, 10, '10th (l-race)');
 
-    // 11th place match: losers of lrsemiA and lrsemiB
     const match11 = resolveMatch(seedForRoster(lrsemiA.loser) || seedForRoster(lr1.loser), seedForRoster(lrsemiB.loser) || seedForRoster(lr2.loser), '11th final');
     assignPlace(match11.winner, 11, '11th (l-race)');
     assignPlace(match11.loser, 12, '12th (l-race)');
 
-    // final 13th/14th: remaining unassigned rosters (deterministic by seed)
     const remaining = allRosterIds.filter(id => !assigned.has(String(id)));
     remaining.sort((a,b) => (placementMap[a]||999) - (placementMap[b]||999));
     if (remaining.length >= 2) {
@@ -336,7 +323,6 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
       assignPlace(r13.winner, 13, '13th (final)');
       assignPlace(r13.loser, 14, '14th (final)');
     } else {
-      // fill any leftover deterministically
       for (let i = 0; i < remaining.length; i++) assignPlace(remaining[i], 13 + i, 'final fill');
     }
   }
@@ -351,7 +337,7 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
     const rid = stillUnassigned[i];
     const p = freePlaces[i] || (N - i);
     placeMap[rid] = p;
-    debugLog.push(`Fallback assign ${p} -> ${metaFor(rid).team_name}`);
+    // do not push fallback assign lines to debug to avoid seed reassignment traces in the UI
   }
 
   // Now build finalStandings[] sorted ascending by place
@@ -363,9 +349,9 @@ function simulateBracket({ matchupsRows, placementMap, rosterMap, regularStandin
       rank: e.place,
       rosterId: e.rosterId,
       team_name: m.team_name,
-      owner_name: m.owner_name || null,
+      owner_name: m.owner_name,
       avatar: m.avatar,
-      seed: placementMap && placementMap[e.rosterId] ? Number(placementMap[e.rosterId]) : null
+      seed: m.seed
     };
   });
 
@@ -609,7 +595,7 @@ export async function load(event) {
       const paVal = Math.round((paByRoster[rid] || s.pa || 0) * 100) / 100;
       const meta = rosterMap && rosterMap[rid] ? rosterMap[rid] : {};
       const team_name = meta.team_name ? meta.team_name : ((s.roster && s.roster.metadata && s.roster.metadata.team_name) ? s.roster.metadata.team_name : ('Roster ' + rid));
-      const owner_name = meta.owner_name || null;
+      const owner_name = meta.owner_name || meta.owner_username || null;
       const avatar = meta.team_avatar || meta.owner_avatar || null;
       const resArr = resultsByRoster && resultsByRoster[rid] ? resultsByRoster[rid] : [];
       const streaks = computeStreaks(resArr);
@@ -773,6 +759,10 @@ export async function load(event) {
   const placeMap = simulationResult.placeMap || {};
   const debugLog = simulationResult.debugLog || [];
 
+  // champion & biggestLoser computed from finalStandings
+  const champion = finalStandings.length ? finalStandings[0] : null;
+  const biggestLoser = finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
+
   // Expose results in return payload
   return {
     seasons,
@@ -785,6 +775,8 @@ export async function load(event) {
     finalStandings,
     placeMap,
     debugLog,
+    champion,
+    biggestLoser,
     messages,
     prevChain
   };
