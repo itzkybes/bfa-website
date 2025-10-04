@@ -434,6 +434,332 @@ export async function load(event) {
     return (ax - by);
   });
 
+  // -------------------------
+  // Bracket simulator -> finalStandings (1..14)
+  // -------------------------
+  function findMatchupBetween(aRosterId, bRosterId) {
+    // find a matchup row where both rosterIds match (order-insensitive)
+    for (const r of matchupsRows) {
+      if (r.participantsCount !== 2) continue;
+      const A = r.teamA?.rosterId;
+      const B = r.teamB?.rosterId;
+      if (!A || !B) continue;
+      if ((String(A) === String(aRosterId) && String(B) === String(bRosterId)) ||
+          (String(A) === String(bRosterId) && String(B) === String(aRosterId))) {
+        return r;
+      }
+      // also try matching by placement if roster ids are not present
+      if (r.teamA?.placement && r.teamB?.placement) {
+        const ap = r.teamA.placement, bp = r.teamB.placement;
+        const aSeed = placementMap[String(aRosterId)], bSeed = placementMap[String(bRosterId)];
+        if (aSeed && bSeed && ((ap === aSeed && bp === bSeed) || (ap === bSeed && bp === aSeed))) return r;
+      }
+    }
+    return null;
+  }
+
+  // decide winner / loser from a match row (prefer points)
+  function decideFromRow(r) {
+    if (!r || r.participantsCount !== 2) return null;
+    const a = r.teamA, b = r.teamB;
+    if (a.points != null && b.points != null) {
+      if (Number(a.points) >= Number(b.points)) return { winner: a.rosterId, loser: b.rosterId, winnerPts: a.points, loserPts: b.points };
+      else return { winner: b.rosterId, loser: a.rosterId, winnerPts: b.points, loserPts: a.points };
+    }
+    // fallback: if points missing, prefer higher seed (lower placement number)
+    const ap = a.placement || 999, bp = b.placement || 999;
+    if (ap < bp) return { winner: a.rosterId, loser: b.rosterId, winnerPts: null, loserPts: null };
+    if (bp < ap) return { winner: b.rosterId, loser: a.rosterId, winnerPts: null, loserPts: null };
+    // ultimate fallback: pick by rosterId lexicographic (deterministic)
+    if (String(a.rosterId) <= String(b.rosterId)) return { winner: a.rosterId, loser: b.rosterId, winnerPts: null, loserPts: null };
+    return { winner: b.rosterId, loser: a.rosterId, winnerPts: null, loserPts: null };
+  }
+
+  // create teams map seeded by regularStandings
+  const teams = {};
+  for (let i = 0; i < regularStandings.length; i++) {
+    const t = regularStandings[i];
+    teams[String(t.rosterId)] = {
+      rosterId: String(t.rosterId),
+      team_name: t.team_name,
+      avatar: t.avatar,
+      seed: i + 1,
+      finalRank: null
+    };
+  }
+
+  // helper: ensure any roster present in playoffs but not in regularStandings is added
+  for (const r of matchupsRows) {
+    if (r.participantsCount === 2) {
+      const aId = String(r.teamA?.rosterId), bId = String(r.teamB?.rosterId);
+      if (aId && !teams[aId]) teams[aId] = { rosterId: aId, team_name: r.teamA.name || ('Roster ' + aId), avatar: r.teamA.avatar || null, seed: placementMap[aId] || 99, finalRank: null };
+      if (bId && !teams[bId]) teams[bId] = { rosterId: bId, team_name: r.teamB.name || ('Roster ' + bId), avatar: r.teamB.avatar || null, seed: placementMap[bId] || 99, finalRank: null };
+    } else if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
+      for (const p of r.combinedParticipants) {
+        const pid = String(p.rosterId);
+        if (pid && !teams[pid]) teams[pid] = { rosterId: pid, team_name: p.name || ('Roster ' + pid), avatar: p.avatar || null, seed: placementMap[pid] || 99, finalRank: null };
+      }
+    }
+  }
+
+  // Helper to mark final rank if not already assigned (no overwrites)
+  function assignRank(rosterId, rank) {
+    if (!rosterId) return;
+    rosterId = String(rosterId);
+    if (!teams[rosterId]) teams[rosterId] = { rosterId, team_name: ('Roster ' + rosterId), avatar: null, seed: placementMap[rosterId] || 99, finalRank: null };
+    if (teams[rosterId].finalRank == null) teams[rosterId].finalRank = rank;
+  }
+
+  // --- Simulate winners bracket (seeds 1..8) ---
+  const seedsWinners = [];
+  for (let s = 1; s <= 8; s++) {
+    // find roster with seed s
+    const found = Object.values(teams).find(t => Number(t.seed) === s);
+    if (found) seedsWinners.push(found.rosterId);
+    else seedsWinners.push(null);
+  }
+
+  // Round 1 winners pairings: 1v8, 2v7, 3v6, 4v5
+  const winnersR1Pairs = [
+    [seedsWinners[0], seedsWinners[7]],
+    [seedsWinners[1], seedsWinners[6]],
+    [seedsWinners[2], seedsWinners[5]],
+    [seedsWinners[3], seedsWinners[4]]
+  ];
+
+  const winnersR1Results = []; // {winner, loser, pair}
+  for (const pair of winnersR1Pairs) {
+    const [aId,bId] = pair;
+    if (!aId && !bId) continue;
+    if (!bId) { // bye
+      assignRank(aId, null); // leave to later rounds
+      winnersR1Results.push({ winner: aId, loser: bId, pair });
+      continue;
+    }
+    if (!aId) { winnersR1Results.push({ winner: bId, loser: aId, pair }); continue; }
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) winnersR1Results.push({ winner: dec.winner, loser: dec.loser, pair, row: m });
+    else winnersR1Results.push({ winner: aId, loser: bId, pair, row: m });
+  }
+
+  // Semifinals for winners: winners of R1 -> reseed highest vs lowest
+  const winnersFromR1 = winnersR1Results.map(r => r.winner).filter(Boolean);
+  // sort by seed ascending (1 highest)
+  winnersFromR1.sort((A,B) => (Number(teams[A].seed || 99) - Number(teams[B].seed || 99)));
+  // pair highest vs lowest, second highest vs second lowest
+  const winnersSemiPairs = [];
+  if (winnersFromR1.length >= 2) {
+    winnersSemiPairs.push([winnersFromR1[0], winnersFromR1[winnersFromR1.length-1]]);
+  }
+  if (winnersFromR1.length >= 4) {
+    winnersSemiPairs.push([winnersFromR1[1], winnersFromR1[winnersFromR1.length-2]]);
+  } else if (winnersFromR1.length === 3) {
+    winnersSemiPairs.push([winnersFromR1[1], winnersFromR1[2]]);
+  }
+
+  const winnersSemiResults = [];
+  for (const pair of winnersSemiPairs) {
+    const [aId,bId] = pair;
+    if (!aId || !bId) {
+      winnersSemiResults.push({ winner: aId || bId, loser: aId ? null : bId, pair });
+      continue;
+    }
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) winnersSemiResults.push({ winner: dec.winner, loser: dec.loser, pair, row: m });
+    else winnersSemiResults.push({ winner: aId, loser: bId, pair, row: m });
+  }
+
+  // Championship: winners of semis (usually 2 winners)
+  const winnersForFinal = winnersSemiResults.map(r => r.winner).filter(Boolean);
+  let champion = null, runnerUp = null;
+  if (winnersForFinal.length === 1) {
+    champion = winnersForFinal[0];
+  } else if (winnersForFinal.length >= 2) {
+    const [aId,bId] = [winnersForFinal[0], winnersForFinal[1]];
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) {
+      champion = dec.winner;
+      runnerUp = dec.loser;
+    } else {
+      // fallback to seed
+      champion = (teams[aId].seed < teams[bId].seed) ? aId : bId;
+      runnerUp = champion === aId ? bId : aId;
+    }
+  }
+
+  // assign champion and runner-up
+  if (champion) assignRank(champion, 1);
+  if (runnerUp) assignRank(runnerUp, 2);
+
+  // Decide 3rd/4th: losers of semis (if two semis exist)
+  const semisLosers = winnersSemiResults.map(r => r.loser).filter(Boolean);
+  if (semisLosers.length === 1) {
+    // single loser gets 3rd
+    assignRank(semisLosers[0], 3);
+  } else if (semisLosers.length >= 2) {
+    const [aId, bId] = [semisLosers[0], semisLosers[1]];
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) {
+      assignRank(dec.winner, 3);
+      assignRank(dec.loser, 4);
+    } else {
+      // fallback by seed
+      if (teams[aId].seed < teams[bId].seed) {
+        assignRank(aId, 3); assignRank(bId, 4);
+      } else {
+        assignRank(bId, 3); assignRank(aId, 4);
+      }
+    }
+  }
+
+  // --- Consolation within winners bracket for 5-8 places ---
+  // Losers of R1 play each other: collect losers from winnersR1Results
+  const losersFromR1 = winnersR1Results.map(r => r.loser).filter(Boolean);
+  losersFromR1.sort((A,B) => (Number(teams[A].seed || 99) - Number(teams[B].seed || 99))); // highest seed first
+  // pair highest vs lowest, next highest vs next lowest
+  const consPairs = [];
+  if (losersFromR1.length >= 2) consPairs.push([losersFromR1[0], losersFromR1[losersFromR1.length-1]]);
+  if (losersFromR1.length >= 4) consPairs.push([losersFromR1[1], losersFromR1[losersFromR1.length-2]]);
+  const consResults = [];
+  for (const pair of consPairs) {
+    const [aId,bId] = pair;
+    if (!aId || !bId) { if (aId) consResults.push({ winner: aId, loser: bId, pair }); else if (bId) consResults.push({ winner: bId, loser: aId, pair }); continue; }
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) consResults.push({ winner: dec.winner, loser: dec.loser, pair, row: m });
+    else consResults.push({ winner: aId, loser: bId, pair, row: m });
+  }
+  // winners of consResults -> play for 5th/6th; losers play for 7th/8th
+  const consWinners = consResults.map(r => r.winner).filter(Boolean);
+  const consLosers = consResults.map(r => r.loser).filter(Boolean);
+
+  if (consWinners.length === 1) {
+    assignRank(consWinners[0], 5);
+  } else if (consWinners.length >= 2) {
+    const [aId,bId] = [consWinners[0], consWinners[1]];
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) { assignRank(dec.winner, 5); assignRank(dec.loser, 6); }
+    else { if (teams[aId].seed < teams[bId].seed) { assignRank(aId,5); assignRank(bId,6); } else { assignRank(bId,5); assignRank(aId,6); } }
+  }
+
+  if (consLosers.length === 1) {
+    assignRank(consLosers[0], 7);
+  } else if (consLosers.length >= 2) {
+    const [aId,bId] = [consLosers[0], consLosers[1]];
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) { assignRank(dec.winner, 7); assignRank(dec.loser, 8); }
+    else { if (teams[aId].seed < teams[bId].seed) { assignRank(aId,7); assignRank(bId,8); } else { assignRank(bId,7); assignRank(aId,8); } }
+  }
+
+  // --- Second playoff race (seeds 9..14) ---
+  // Race pairing rules: 9v12, 10v11, 13 & 14 have bye initially
+  const seedsLower = [];
+  for (let s = 9; s <= 14; s++) {
+    const found = Object.values(teams).find(t => Number(t.seed) === s);
+    seedsLower.push(found ? found.rosterId : null);
+  }
+  const lowerPairsR1 = [
+    [seedsLower[0], seedsLower[3]], // 9v12
+    [seedsLower[1], seedsLower[2]]  // 10v11
+    // 13 (seedsLower[4]) and 14 (seedsLower[5]) bye
+  ];
+  const lowerR1Results = [];
+  for (const pair of lowerPairsR1) {
+    const [aId,bId] = pair;
+    if (!aId && !bId) continue;
+    if (!bId) { lowerR1Results.push({ winner: aId, loser: bId, pair }); continue; }
+    if (!aId) { lowerR1Results.push({ winner: bId, loser: aId, pair }); continue; }
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) lowerR1Results.push({ winner: dec.winner, loser: dec.loser, pair, row: m });
+    else lowerR1Results.push({ winner: aId, loser: bId, pair, row: m });
+  }
+
+  // winners of the two lower matches play for 9th/10th; losers play for 11th/12th.
+  const lowerWinners = lowerR1Results.map(r => r.winner).filter(Boolean);
+  const lowerLosers = lowerR1Results.map(r => r.loser).filter(Boolean);
+  // include byes (13/14) into later rounds as needed
+  const possibleBye = [seedsLower[4], seedsLower[5]]; // 13,14
+
+  if (lowerWinners.length === 1) {
+    // that winner likely gets 9th (if no further match)
+    assignRank(lowerWinners[0], 9);
+  } else if (lowerWinners.length >= 2) {
+    const [aId,bId] = [lowerWinners[0], lowerWinners[1]];
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) { assignRank(dec.winner, 9); assignRank(dec.loser, 10); }
+    else { if (teams[aId].seed < teams[bId].seed) { assignRank(aId,9); assignRank(bId,10);} else { assignRank(bId,9); assignRank(aId,10);} }
+  }
+
+  if (lowerLosers.length === 1) {
+    assignRank(lowerLosers[0], 11);
+  } else if (lowerLosers.length >= 2) {
+    const [aId,bId] = [lowerLosers[0], lowerLosers[1]];
+    const m = findMatchupBetween(aId,bId);
+    const dec = decideFromRow(m);
+    if (dec) { assignRank(dec.winner, 11); assignRank(dec.loser, 12); }
+    else { if (teams[aId].seed < teams[bId].seed) { assignRank(aId,11); assignRank(bId,12);} else { assignRank(bId,11); assignRank(aId,12);} }
+  }
+
+  // 13/14 maybe byes or have matches - if they played a match, it should be in matchupsRows; otherwise assign by seed order (13th then 14th)
+  // If either 13/14 have not got finalRank, try to find their matches vs others
+  for (const byeId of possibleBye) {
+    if (!byeId) continue;
+    if (teams[byeId].finalRank == null) {
+      // try find a match where they appear in matchupsRows
+      const match = matchupsRows.find(r => r.participantsCount === 2 && (String(r.teamA.rosterId) === String(byeId) || String(r.teamB.rosterId) === String(byeId)));
+      if (match) {
+        const dec = decideFromRow(match);
+        if (dec) {
+          assignRank(dec.winner, dec.winner === byeId ? 13 : 14);
+          assignRank(dec.loser, dec.loser === byeId ? 13 : 14);
+        }
+      }
+    }
+  }
+
+  // Fill remaining ranks (1..14) deterministically if any teams still unranked
+  const assigned = new Set();
+  for (const k in teams) {
+    if (teams[k].finalRank != null) assigned.add(Number(teams[k].finalRank));
+  }
+  // start filling from 1 .. 14
+  let nextRankToFill = 1;
+  function nextAvailableRank() {
+    while (assigned.has(nextRankToFill)) nextRankToFill++;
+    return nextRankToFill;
+  }
+
+  // produce an array of all rosters we know (prefer seeds 1..14 ordering)
+  const allRosterIds = Object.values(teams).sort((a,b) => (Number(a.seed || 999) - Number(b.seed || 999))).map(t => t.rosterId);
+
+  for (const rid of allRosterIds) {
+    if (teams[rid].finalRank == null) {
+      const r = nextAvailableRank();
+      teams[rid].finalRank = r;
+      assigned.add(r);
+    }
+  }
+
+  // build finalStandings array sorted by rank (1..14)
+  const finalStandings = Object.values(teams)
+    .sort((a,b) => (Number(a.finalRank || 999) - Number(b.finalRank || 999)))
+    .map(t => ({
+      rosterId: t.rosterId,
+      team_name: t.team_name,
+      avatar: t.avatar,
+      seed: t.seed,
+      finalRank: t.finalRank
+    }));
+
+  // return all data
   return {
     seasons,
     selectedSeason: selectedSeasonParam,
@@ -442,6 +768,7 @@ export async function load(event) {
     playoffEnd,
     matchupsRows,
     regularStandings,
+    finalStandings,
     messages,
     prevChain
   };
