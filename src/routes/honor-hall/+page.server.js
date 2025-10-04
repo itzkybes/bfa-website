@@ -1,5 +1,6 @@
 // src/routes/honor-hall/+page.server.js
-// Honor Hall loader + bracket simulation (updated losers-bracket logic)
+// Honor Hall loader: fetch playoff matchups and compute final standings by simulating playoff bracket progressions.
+// Includes special-case behavior for 2022 (top 6 in winners bracket).
 
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
@@ -25,6 +26,7 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
+// compute streaks (copied from standings loader style)
 function computeStreaks(resultsArray) {
   let maxW = 0, maxL = 0, curW = 0, curL = 0;
   if (!resultsArray || !Array.isArray(resultsArray)) return { maxW: 0, maxL: 0 };
@@ -47,15 +49,17 @@ function computeStreaks(resultsArray) {
 }
 
 export async function load(event) {
+  // edge cache header
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
   const url = event.url;
   const incomingSeasonParam = url.searchParams.get('season') || null;
 
   const messages = [];
+  const debugLog = []; // debug lines describing bracket decisions
   const prevChain = [];
 
-  // --- build seasons chain ---
+  // Build seasons chain via previous_league_id starting from BASE_LEAGUE_ID
   let seasons = [];
   try {
     let mainLeague = null;
@@ -100,7 +104,7 @@ export async function load(event) {
     messages.push('Error while building seasons chain: ' + (err && err.message ? err.message : String(err)));
   }
 
-  // dedupe
+  // dedupe by league id
   const byId = {};
   for (let i = 0; i < seasons.length; i++) {
     const s = seasons[i];
@@ -109,6 +113,7 @@ export async function load(event) {
   seasons = [];
   for (const k in byId) if (Object.prototype.hasOwnProperty.call(byId, k)) seasons.push(byId[k]);
 
+  // sort by season (old -> new)
   seasons.sort((a, b) => {
     if (a.season == null && b.season == null) return 0;
     if (a.season == null) return 1;
@@ -118,6 +123,7 @@ export async function load(event) {
     return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
   });
 
+  // selected season param (default to latest)
   let selectedSeasonParam = incomingSeasonParam;
   if (!selectedSeasonParam) {
     if (seasons && seasons.length) {
@@ -128,6 +134,7 @@ export async function load(event) {
     }
   }
 
+  // determine selectedLeagueId
   let selectedLeagueId = null;
   for (let i = 0; i < seasons.length; i++) {
     const s = seasons[i];
@@ -138,10 +145,16 @@ export async function load(event) {
   }
   if (!selectedLeagueId) selectedLeagueId = String(selectedSeasonParam || BASE_LEAGUE_ID);
 
+  // Fetch league metadata to determine playoff weeks
   let leagueMeta = null;
-  try { leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }); }
-  catch (e) { leagueMeta = null; messages.push('Failed fetching league meta for ' + selectedLeagueId + ' — ' + (e?.message ?? e)); }
+  try {
+    leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 });
+  } catch (e) {
+    leagueMeta = null;
+    messages.push('Failed fetching league meta for ' + selectedLeagueId + ' — ' + (e?.message ?? e));
+  }
 
+  // determine playoff start/end using same fields as standings loader (fallback to 15)
   let playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
     playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
@@ -152,23 +165,26 @@ export async function load(event) {
   }
   const playoffEnd = playoffStart + 2;
 
-  // roster map
+  // fetch roster map
   let rosterMap = {};
   try {
     rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
     messages.push('Loaded rosters (' + Object.keys(rosterMap).length + ')');
+    debugLog.push('Loaded rosters (' + Object.keys(rosterMap).length + ')');
   } catch (e) {
     rosterMap = {};
     messages.push('Failed fetching rosters for ' + selectedLeagueId + ' — ' + (e?.message ?? e));
   }
 
-  // --- compute regular-season standings (for tiebreaks) ---
+  // --- compute regular-season standings by scrubbing matchups 1..(playoffStart-1) ---
   const statsByRosterRegular = {};
   const resultsByRosterRegular = {};
   const paByRosterRegular = {};
+
+  // seed from rosterMap
   for (const rk in rosterMap) {
     if (!Object.prototype.hasOwnProperty.call(rosterMap, rk)) continue;
-    statsByRosterRegular[String(rk)] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: rosterMap[rk].roster_raw ?? null };
+    statsByRosterRegular[String(rk)] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: rosterMap[rk].roster_raw ?? null };
     resultsByRosterRegular[String(rk)] = [];
     paByRosterRegular[String(rk)] = 0;
   }
@@ -186,6 +202,7 @@ export async function load(event) {
     }
     if (!matchups || !matchups.length) continue;
 
+    // group by matchup id | week
     const byMatch = {};
     for (let mi = 0; mi < matchups.length; mi++) {
       const e = matchups[mi];
@@ -228,7 +245,9 @@ export async function load(event) {
         const part = participants[i];
         const opponents = participants.filter((_, idx) => idx !== i);
         let oppAvg = 0;
-        if (opponents.length) oppAvg = opponents.reduce((acc,o) => acc + o.points, 0) / opponents.length;
+        if (opponents.length) {
+          oppAvg = opponents.reduce((acc, o) => acc + o.points, 0) / opponents.length;
+        }
         paByRosterRegular[part.rosterId] = (paByRosterRegular[part.rosterId] || 0) + oppAvg;
         if (part.points > oppAvg + 1e-9) {
           resultsByRosterRegular[part.rosterId].push('W');
@@ -242,8 +261,9 @@ export async function load(event) {
         }
       }
     }
-  } // end regular loop
+  } // end regular weeks loop
 
+  // Build sorted regular standings
   function buildStandingsFromTrackers(statsByRoster, resultsByRoster, paByRoster) {
     const keys = Object.keys(resultsByRoster).length ? Object.keys(resultsByRoster) : (rosterMap ? Object.keys(rosterMap) : []);
     const out = [];
@@ -278,6 +298,7 @@ export async function load(event) {
         maxLoseStreak: streaks.maxL
       });
     }
+    // sort by wins desc, then pf desc
     out.sort((a,b) => {
       if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
       return (b.pf || 0) - (a.pf || 0);
@@ -287,12 +308,13 @@ export async function load(event) {
 
   const regularStandings = buildStandingsFromTrackers(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular);
 
+  // placementMap (1-based seed)
   const placementMap = {};
-  for (let i = 0; i < regularStandings.length; i++) placementMap[String(regularStandings[i].rosterId)] = i + 1;
-  const placementToRoster = {};
-  for (const k in placementMap) placementToRoster[ placementMap[k] ] = k;
+  for (let i = 0; i < regularStandings.length; i++) {
+    placementMap[String(regularStandings[i].rosterId)] = i + 1;
+  }
 
-  // --- fetch playoff matchups and normalize rows ---
+  // --- fetch playoff matchups (playoffStart .. playoffEnd) and build matchupsRows ---
   const rawMatchups = [];
   for (let wk = playoffStart; wk <= playoffEnd; wk++) {
     try {
@@ -308,6 +330,7 @@ export async function load(event) {
     }
   }
 
+  // group by matchup id + week
   const byMatch = {};
   for (let i = 0; i < rawMatchups.length; i++) {
     const e = rawMatchups[i];
@@ -319,9 +342,9 @@ export async function load(event) {
   }
 
   const matchupsRows = [];
-  const mkeys = Object.keys(byMatch);
-  for (let ki = 0; ki < mkeys.length; ki++) {
-    const entries = byMatch[mkeys[ki]];
+  const keysB = Object.keys(byMatch);
+  for (let ki = 0; ki < keysB.length; ki++) {
+    const entries = byMatch[keysB[ki]];
     if (!entries || entries.length === 0) continue;
 
     if (entries.length === 1) {
@@ -332,8 +355,9 @@ export async function load(event) {
       const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
       const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
       const aPlacement = placementMap[aId] ?? null;
+
       matchupsRows.push({
-        matchup_id: mkeys[ki],
+        matchup_id: keysB[ki],
         season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
         week: a.week ?? a.w ?? null,
         teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
@@ -350,21 +374,27 @@ export async function load(event) {
       const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
       const aMeta = rosterMap[aId] || {};
       const bMeta = rosterMap[bId] || {};
+      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
+      const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
+      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
+      const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
       const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
       const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
       const aPlacement = placementMap[aId] ?? null;
       const bPlacement = placementMap[bId] ?? null;
+
       matchupsRows.push({
-        matchup_id: mkeys[ki],
+        matchup_id: keysB[ki],
         season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
         week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aMeta.team_name || aMeta.owner_name || ('Roster ' + aId), avatar: aMeta.team_avatar || aMeta.owner_avatar || null, points: aPts, placement: aPlacement },
-        teamB: { rosterId: bId, name: bMeta.team_name || bMeta.owner_name || ('Roster ' + bId), avatar: bMeta.team_avatar || bMeta.owner_avatar || null, points: bPts, placement: bPlacement },
+        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
+        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts, placement: bPlacement },
         participantsCount: 2
       });
       continue;
     }
 
+    // multi-participant: aggregate
     const participants = entries.map(ent => {
       const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
       const meta = rosterMap[pid] || {};
@@ -378,7 +408,7 @@ export async function load(event) {
     });
     const combinedLabel = participants.map(p => p.name).join(' / ');
     matchupsRows.push({
-      matchup_id: mkeys[ki],
+      matchup_id: keysB[ki],
       season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
       week: entries[0].week ?? entries[0].w ?? null,
       combinedParticipants: participants,
@@ -387,345 +417,420 @@ export async function load(event) {
     });
   }
 
-  // helper to find a playoff matchup between two rosterIds across playoff weeks
-  function findMatchForPair(rA, rB, preferredWeeks = [playoffStart, playoffStart+1, playoffStart+2]) {
-    if (!rA || !rB) return null;
-    const a = String(rA), b = String(rB);
-    for (const wk of preferredWeeks) {
-      for (const r of matchupsRows) {
-        if (!r.week) continue;
-        if (Number(r.week) !== Number(wk)) continue;
-        if (r.participantsCount === 2) {
-          const p1 = String(r.teamA.rosterId), p2 = String(r.teamB.rosterId);
-          if ((p1 === a && p2 === b) || (p1 === b && p2 === a)) return r;
-        } else if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
-          const ids = r.combinedParticipants.map(p => String(p.rosterId));
-          if (ids.includes(a) && ids.includes(b)) return r;
-        }
-      }
-    }
+  // helper: find a recorded playoff matchup result between two rosterIds (order-agnostic)
+  function findRecordedMatch(aId, bId) {
+    if (!aId || !bId) return null;
+    aId = String(aId); bId = String(bId);
     for (const r of matchupsRows) {
-      if (r.participantsCount === 2) {
-        const p1 = String(r.teamA.rosterId), p2 = String(r.teamB.rosterId);
-        if ((p1 === a && p2 === b) || (p1 === b && p2 === a)) return r;
-      } else if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
-        const ids = r.combinedParticipants.map(p => String(p.rosterId));
-        if (ids.includes(a) && ids.includes(b)) return r;
+      if (r.participantsCount !== 2) continue;
+      const ra = String(r.teamA?.rosterId);
+      const rb = String(r.teamB?.rosterId);
+      if ((ra === aId && rb === bId) || (ra === bId && rb === aId)) {
+        return r;
       }
     }
     return null;
   }
 
-  function decideWinnerFromMatch(matchRow, aId, bId) {
-    const a = String(aId), b = String(bId);
-    if (!matchRow) return null;
-    let aPts = null, bPts = null;
-    if (matchRow.participantsCount === 2) {
-      const pA = String(matchRow.teamA.rosterId), pB = String(matchRow.teamB.rosterId);
-      if (pA === a) { aPts = matchRow.teamA.points; bPts = matchRow.teamB.points; }
-      else { aPts = matchRow.teamB.points; bPts = matchRow.teamA.points; }
-    } else if (matchRow.combinedParticipants) {
-      const pAobj = matchRow.combinedParticipants.find(p => String(p.rosterId) === a);
-      const pBobj = matchRow.combinedParticipants.find(p => String(p.rosterId) === b);
-      aPts = pAobj?.points ?? 0;
-      bPts = pBobj?.points ?? 0;
+  // fallback winner (no recorded matchup) - use playoff PF if we have it else regular season PF then seed
+  function fallbackWinnerByPfOrSeed(aId, bId) {
+    const aMeta = regularStandings.find(s => String(s.rosterId) === String(aId));
+    const bMeta = regularStandings.find(s => String(s.rosterId) === String(bId));
+    const aPf = aMeta ? (aMeta.pf || 0) : 0;
+    const bPf = bMeta ? (bMeta.pf || 0) : 0;
+    if (aPf !== bPf) return (aPf > bPf) ? aId : bId;
+    const aSeed = placementMap[String(aId)] || 999;
+    const bSeed = placementMap[String(bId)] || 999;
+    return (aSeed < bSeed) ? aId : bId;
+  }
+
+  // returns { winnerId, loserId, method } where method is 'matchup' or 'fallback' or 'tiebreak'
+  function resolvePair(aId, bId) {
+    const recorded = findRecordedMatch(aId, bId);
+    if (recorded) {
+      const ra = String(recorded.teamA.rosterId);
+      const rb = String(recorded.teamB.rosterId);
+      const aPts = safeNum(recorded.teamA.points ?? recorded.teamA.points_for ?? recorded.teamA.pts ?? 0);
+      const bPts = safeNum(recorded.teamB.points ?? recorded.teamB.points_for ?? recorded.teamB.pts ?? 0);
+      if (Math.abs(aPts - bPts) > 1e-9) {
+        if (aPts > bPts) return { winnerId: ra, loserId: rb, method: 'matchup' , recorded};
+        return { winnerId: rb, loserId: ra, method: 'matchup', recorded};
+      }
+      // exact tie: use PF then seed
+      const fallback = fallbackWinnerByPfOrSeed(ra, rb);
+      return { winnerId: fallback, loserId: fallback === ra ? rb : ra, method: 'tiebreak-pf', recorded};
     }
-
-    if (aPts == null || bPts == null) return null;
-    if (aPts > bPts + 1e-9) return { winner: a, loser: b, reason: 'matchup' };
-    if (bPts > aPts + 1e-9) return { winner: b, loser: a, reason: 'matchup' };
-
-    const aPF = (regularStandings.find(s => String(s.rosterId) === a)?.pf) ?? 0;
-    const bPF = (regularStandings.find(s => String(s.rosterId) === b)?.pf) ?? 0;
-    if (aPF > bPF) return { winner: a, loser: b, reason: 'tiebreak-pf' };
-    if (bPF > aPF) return { winner: b, loser: a, reason: 'tiebreak-pf' };
-
-    const aW = (regularStandings.find(s => String(s.rosterId) === a)?.wins) ?? 0;
-    const bW = (regularStandings.find(s => String(s.rosterId) === b)?.wins) ?? 0;
-    if (aW > bW) return { winner: a, loser: b, reason: 'tiebreak-wins' };
-    if (bW > aW) return { winner: b, loser: a, reason: 'tiebreak-wins' };
-
-    const aPl = placementMap[a] ?? 999;
-    const bPl = placementMap[b] ?? 999;
-    if (aPl < bPl) return { winner: a, loser: b, reason: 'tiebreak-placement' };
-    if (bPl < aPl) return { winner: b, loser: a, reason: 'tiebreak-placement' };
-
-    return { winner: a, loser: b, reason: 'fallback' };
+    // no recorded matchup
+    const fallback = fallbackWinnerByPfOrSeed(aId, bId);
+    return { winnerId: fallback, loserId: fallback === String(aId) ? String(bId) : String(aId), method: 'fallback-no-match' };
   }
 
-  const trace = [];
-  trace.push(`Loaded rosters (${Object.keys(rosterMap).length})`);
+  // bracket simulation
+  // special-case: winnersSize is 6 for season 2022, otherwise 8
+  const seasonKey = leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null;
+  const winnersSize = (seasonKey === '2022') ? 6 : 8;
 
-  function seedToRoster(seed) {
-    const rid = placementToRoster[seed] ?? null;
-    const meta = rid ? rosterMap[rid] : null;
-    return { rosterId: rid, name: meta?.team_name ?? meta?.owner_name ?? ('Roster ' + rid) };
+  // Build seed arrays from placementMap sorted ascending (1..N)
+  const seedPairs = Object.keys(placementMap).map(k => ({ rosterId: k, seed: placementMap[k] }));
+  seedPairs.sort((a,b) => a.seed - b.seed); // seed ascending
+
+  // map seed -> rosterId and rosterId->seed
+  const seedToRoster = {};
+  const rosterToSeed = {};
+  for (const s of seedPairs) {
+    seedToRoster[s.seed] = s.rosterId;
+    rosterToSeed[s.rosterId] = s.seed;
   }
 
+  // winners bracket teams
   const winnersSeeds = [];
+  for (let s = 1; s <= winnersSize; s++) {
+    if (seedToRoster[s]) winnersSeeds.push(seedToRoster[s]);
+  }
+  // losers bracket teams = remaining seeds (seed winnersSize+1 ..)
   const losersSeeds = [];
-  for (let s = 1; s <= 14; s++) {
-    const rid = placementToRoster[s] ?? null;
-    if (!rid) continue;
-    if (s <= 8) winnersSeeds.push({ seed: s, rosterId: rid });
-    else losersSeeds.push({ seed: s, rosterId: rid });
+  for (let s = winnersSize + 1; s <= Math.max(14, Object.keys(seedToRoster).length); s++) {
+    if (seedToRoster[s]) losersSeeds.push(seedToRoster[s]);
   }
 
-  function runMatch(seedA, seedB, label, preferredWeeks = [playoffStart, playoffStart+1, playoffStart+2]) {
-    const a = seedA.rosterId, b = seedB.rosterId;
-    const matchRow = findMatchForPair(a, b, preferredWeeks);
-    const decision = decideWinnerFromMatch(matchRow, a, b);
-    if (!decision) {
-      const winner = Number(seedA.seed) <= Number(seedB.seed) ? seedA.rosterId : seedB.rosterId;
-      const loser = winner === seedA.rosterId ? seedB.rosterId : seedA.rosterId;
-      trace.push(`${label} ${seedA.seed}v${seedB.seed} -> ${ placementMap[winner] ?? winner } (fallback-no-match)`);
-      return { winner, loser, row: matchRow, reason: 'fallback-no-match' };
+  // Utility to format "1v8" style strings
+  function labelPairBySeed(aId, bId) {
+    const sa = rosterToSeed[aId] || '?';
+    const sb = rosterToSeed[bId] || '?';
+    return `${sa}v${sb}`;
+  }
+
+  // Now simulate winners bracket depending on winnersSize
+  // We'll record all placements temporarily into a map: rosterId -> finalPlace (1..14)
+  const placeMap = {}; // rosterId -> place (number)
+  const usedForPlace = new Set();
+
+  // Track a set of generated simulation lines for debug
+  // The simulation below tries to mirror the flow you described.
+  // For winnersSize === 8: Quarterfinals (1v8,2v7,3v6,4v5) -> Semis -> Final -> 3rd/Consolation
+  // For winnersSize === 6 (2022): Quarter round only for seeds 3-6 (3v6,4v5), seeds 1&2 bye to semis.
+
+  // helper: mark place for a roster if not already set
+  function assignPlace(rosterId, place, reason) {
+    rosterId = String(rosterId);
+    if (!placeMap[rosterId]) {
+      placeMap[rosterId] = place;
+      usedForPlace.add(rosterId);
+    } else {
+      // if place already assigned, prefer the lower number (better rank) if conflict
+      if (place < placeMap[rosterId]) placeMap[rosterId] = place;
     }
-    const winner = decision.winner;
-    const loser = decision.loser;
-    const wSeed = placementMap[winner] ?? winner;
-    trace.push(`${label} ${seedA.seed}v${seedB.seed} -> ${ wSeed } (${decision.reason})`);
-    return { winner, loser, row: matchRow, reason: decision.reason };
+    // push debug note if reason provided
+    if (reason) debugLog.push(reason);
   }
 
-  // -------------------------
-  // Winners bracket
-  // -------------------------
-  const wR1Pairs = [
-    [1,8],[2,7],[3,6],[4,5]
-  ].map(([s1,s2]) => ({ a: {seed: s1, rosterId: placementToRoster[s1]}, b: {seed: s2, rosterId: placementToRoster[s2]} }));
+  // convenience: get name/avatar/seed for finalStandings later
+  function metaForRoster(rid) {
+    const meta = rosterMap[rid] || {};
+    return {
+      rosterId: String(rid),
+      name: meta.team_name || meta.owner_name || ('Roster ' + String(rid)),
+      avatar: meta.team_avatar || meta.owner_avatar || null,
+      seed: rosterToSeed[rid] || null
+    };
+  }
 
-  const wR1Results = [];
-  for (const p of wR1Pairs) {
-    if (!p.a.rosterId || !p.b.rosterId) {
-      trace.push(`W1 ${p.a.seed}v${p.b.seed} -> missing-roster`);
-      wR1Results.push({ winner: p.a.rosterId || p.b.rosterId, loser: p.a.rosterId ? p.b.rosterId : p.a.rosterId, reason: 'missing-roster' });
-      continue;
+  // simulate winners bracket:
+  let winnersRound1 = []; // pairs result {a,b,winner,loser,method}
+  let winnersSemis = [];
+  let winnersFinal = null;
+  let winnersThird = null;
+
+  if (winnersSize === 8) {
+    // quarterfinal pairs
+    const pairs = [
+      [seedToRoster[1], seedToRoster[8]],
+      [seedToRoster[2], seedToRoster[7]],
+      [seedToRoster[3], seedToRoster[6]],
+      [seedToRoster[4], seedToRoster[5]]
+    ];
+    // round1
+    for (const [a,b] of pairs) {
+      if (!a || !b) continue;
+      const res = resolvePair(a,b);
+      winnersRound1.push({ a, b, ...res });
+      debugLog.push(`W1 ${labelPairBySeed(a,b)} -> ${rosterToSeed[res.winnerId] || res.winnerId} (${res.method === 'matchup' ? 'matchup' : res.method})`);
     }
-    const res = runMatch(p.a, p.b, `W1`);
-    wR1Results.push(res);
-  }
-
-  const wR1Winners = wR1Results.map((r, idx) => ({ seed: placementMap[r.winner] ?? null, rosterId: r.winner, loserSeed: placementMap[r.loser] ?? null, loserId: r.loser }));
-  const wR1Losers = wR1Results.map((r, idx) => ({ seed: placementMap[r.loser] ?? null, rosterId: r.loser, winnerSeed: placementMap[r.winner] ?? null, winnerId: r.winner }));
-
-  wR1Winners.sort((a,b) => (a.seed || 999) - (b.seed || 999));
-  const wSemiPairs = [
-    [ wR1Winners[0], wR1Winners[wR1Winners.length-1] ],
-    [ wR1Winners[1], wR1Winners[wR1Winners.length-2] ]
-  ];
-
-  const wSemiResults = [];
-  for (const pair of wSemiPairs) {
-    if (!pair[0] || !pair[1] || !pair[0].rosterId || !pair[1].rosterId) {
-      trace.push(`Semi missing participant -> skipping`);
-      wSemiResults.push({ winner: pair[0]?.rosterId || pair[1]?.rosterId, loser: pair[1]?.rosterId || pair[0]?.rosterId, reason:'missing' });
-      continue;
-    }
-    const res = runMatch({seed: pair[0].seed, rosterId: pair[0].rosterId}, {seed: pair[1].seed, rosterId: pair[1].rosterId}, `Semi`);
-    wSemiResults.push(res);
-  }
-
-  const finalRes = (wSemiResults.length >= 2) ? runMatch({seed: placementMap[wSemiResults[0].winner], rosterId: wSemiResults[0].winner}, {seed: placementMap[wSemiResults[1].winner], rosterId: wSemiResults[1].winner}, `Final`) : null;
-  const thirdRes = (wSemiResults.length >= 2) ? runMatch({seed: placementMap[wSemiResults[0].loser], rosterId: wSemiResults[0].loser}, {seed: placementMap[wSemiResults[1].loser], rosterId: wSemiResults[1].loser}, `3rd`) : null;
-
-  // Consolation from R1 losers
-  wR1Losers.sort((a,b) => (a.seed || 999) - (b.seed || 999));
-  const cR1Pairs = [
-    [wR1Losers[0], wR1Losers[wR1Losers.length-1]],
-    [wR1Losers[1], wR1Losers[wR1Losers.length-2]]
-  ];
-  const cR1Results = [];
-  for (const pair of cR1Pairs) {
-    if (!pair[0] || !pair[1] || !pair[0].rosterId || !pair[1].rosterId) {
-      trace.push(`Consolation R1 missing -> skipping`);
-      cR1Results.push({ winner: pair[0]?.rosterId || pair[1]?.rosterId, loser: pair[1]?.rosterId || pair[0]?.rosterId, reason:'missing' });
-      continue;
-    }
-    const res = runMatch({seed: pair[0].seed, rosterId: pair[0].rosterId}, {seed: pair[1].seed, rosterId: pair[1].rosterId}, `Consolation R1`);
-    cR1Results.push(res);
-  }
-
-  const fifthRes = (cR1Results.length >= 2) ? runMatch({seed: placementMap[cR1Results[0].winner], rosterId: cR1Results[0].winner}, {seed: placementMap[cR1Results[1].winner], rosterId: cR1Results[1].winner}, `5th`) : null;
-  const seventhRes = (cR1Results.length >= 2) ? runMatch({seed: placementMap[cR1Results[0].loser], rosterId: cR1Results[0].loser}, {seed: placementMap[cR1Results[1].loser], rosterId: cR1Results[1].loser}, `7th`) : null;
-
-  // -------------------------
-  // Losers bracket (corrected)
-  // -------------------------
-  // initial LRace pairs: 9v12, 10v11 (13 & 14 byes)
-  const lPairsSeedNums = [[9,12],[10,11]];
-  const lR1Results = [];
-  // map seed -> roster object for losers race
-  const lBySeed = {};
-  for (const s of losersSeeds) lBySeed[s.seed] = s;
-
-  for (const [s1,s2] of lPairsSeedNums) {
-    const objA = lBySeed[s1] || {seed:s1, rosterId: placementToRoster[s1]};
-    const objB = lBySeed[s2] || {seed:s2, rosterId: placementToRoster[s2]};
-    if (!objA.rosterId || !objB.rosterId) {
-      trace.push(`LRace ${s1}v${s2} -> missing-roster`);
-      lR1Results.push({ winner: objA.rosterId || objB.rosterId, loser: objA.rosterId ? objB.rosterId : objA.rosterId, reason:'missing' });
-      continue;
-    }
-    const res = runMatch({seed: objA.seed, rosterId: objA.rosterId}, {seed: objB.seed, rosterId: objB.rosterId}, `LRace`);
-    lR1Results.push(res);
-  }
-
-  // winners of initial LRace will play for 9th
-  const lWinners = lR1Results.map(r => ({ rosterId: r.winner, seed: placementMap[r.winner] ?? null }));
-  // losers of initial LRace go to LRaceSemi and play the byes 13/14
-  const lLosers = lR1Results.map(r => ({ rosterId: r.loser, seed: placementMap[r.loser] ?? null }));
-
-  // byes
-  const bye13 = { seed: 13, rosterId: placementToRoster[13] ?? null };
-  const bye14 = { seed: 14, rosterId: placementToRoster[14] ?? null };
-
-  // pair losers with byes: map lower-seed loser to higher bye (14), higher-seed loser to lower bye (13)
-  lLosers.sort((a,b) => (a.seed || 999) - (b.seed || 999)); // ascending
-  const lrSemiPairs = [];
-  if (lLosers.length >= 1) {
-    const loserA = lLosers[0];
-    lrSemiPairs.push([ loserA, bye14 ]);
-  }
-  if (lLosers.length >= 2) {
-    const loserB = lLosers[1];
-    lrSemiPairs.push([ loserB, bye13 ]);
-  }
-
-  const lSemiResults = [];
-  for (const pair of lrSemiPairs) {
-    const left = pair[0];
-    const right = pair[1];
-    if (!left || !right || !left.rosterId || !right.rosterId) {
-      trace.push(`LRaceSemi ${left?.seed ?? '?'}v${right?.seed ?? '?'} -> missing`);
-      lSemiResults.push({ winner: left?.rosterId || right?.rosterId, loser: right?.rosterId || left?.rosterId, reason: 'missing' });
-      continue;
-    }
-    const res = runMatch({seed: left.seed, rosterId: left.rosterId}, {seed: right.seed, rosterId: right.rosterId}, `LRaceSemi`);
-    lSemiResults.push(res);
-  }
-
-  // 9th place: winners of initial LRace (lWinners)
-  let lFinalRes = null;
-  if (lWinners.length >= 2) {
-    lFinalRes = runMatch({seed: lWinners[0].seed, rosterId: lWinners[0].rosterId}, {seed: lWinners[1].seed, rosterId: lWinners[1].rosterId}, `9th`);
-  } else if (lWinners.length === 1) {
-    // only one winner (rare) -> they take 9th
-    lFinalRes = { winner: lWinners[0].rosterId, loser: null, reason: 'auto' };
-    trace.push(`9th auto -> ${placementMap[lWinners[0].rosterId] ?? lWinners[0].rosterId} (single-winner)`);
-  }
-
-  // 11th: winners of LRaceSemi play
-  let l11Res = null, l13Res = null;
-  if (lSemiResults.length >= 2) {
-    // winners of semis -> play for 11th
-    const semiWinners = lSemiResults.map(r => ({ rosterId: r.winner, seed: placementMap[r.winner] ?? null }));
-    const semiLosers = lSemiResults.map(r => ({ rosterId: r.loser, seed: placementMap[r.loser] ?? null }));
-
-    if (semiWinners.length >= 2) {
-      l11Res = runMatch({seed: semiWinners[0].seed, rosterId: semiWinners[0].rosterId}, {seed: semiWinners[1].seed, rosterId: semiWinners[1].rosterId}, `11th`);
-    } else if (semiWinners.length === 1) {
-      l11Res = { winner: semiWinners[0].rosterId, loser: null, reason: 'auto' };
-      trace.push(`11th auto -> ${placementMap[semiWinners[0].rosterId] ?? semiWinners[0].rosterId} (single-semi-winner)`);
+    // semis: highest seed winner plays lowest seed winner (determine by seed value)
+    const winners1 = winnersRound1.map(r => ({ id: r.winnerId, seed: rosterToSeed[r.winnerId] || 999 }));
+    winners1.sort((x,y) => x.seed - y.seed);
+    if (winners1.length >= 2) {
+      // pair best vs worst and middle two -> but to match the "highest seed plays the lowest seed" phrasing:
+      const semiPairs = [
+        [winners1[0].id, winners1[winners1.length - 1].id],
+        [winners1[1].id, winners1[2].id]
+      ];
+      for (const [a,b] of semiPairs) {
+        const res = resolvePair(a,b);
+        winnersSemis.push({ a, b, ...res });
+        debugLog.push(`Semi ${labelPairBySeed(a,b)} -> ${rosterToSeed[res.winnerId] || res.winnerId} (${res.method === 'matchup' ? 'matchup' : res.method})`);
+      }
     }
 
-    // losers of semis -> play for 13th
-    if (semiLosers.length >= 2) {
-      l13Res = runMatch({seed: semiLosers[0].seed, rosterId: semiLosers[0].rosterId}, {seed: semiLosers[1].seed, rosterId: semiLosers[1].rosterId}, `13th`);
-    } else if (semiLosers.length === 1) {
-      l13Res = { winner: semiLosers[0].rosterId, loser: null, reason: 'auto' };
-      trace.push(`13th auto -> ${placementMap[semiLosers[0].rosterId] ?? semiLosers[0].rosterId} (single-semi-loser)`);
+    // final
+    if (winnersSemis.length >= 2) {
+      const f = resolvePair(winnersSemis[0].winnerId, winnersSemis[1].winnerId);
+      winnersFinal = { a: winnersSemis[0].winnerId, b: winnersSemis[1].winnerId, ...f };
+      debugLog.push(`Final ${labelPairBySeed(winnersFinal.a,winnersFinal.b)} -> ${rosterToSeed[winnersFinal.winnerId] || winnersFinal.winnerId} (${winnersFinal.method === 'matchup' ? 'matchup' : winnersFinal.method})`);
+      // 3rd place: losers of semis play
+      const thirdRes = resolvePair(winnersSemis[0].loserId, winnersSemis[1].loserId);
+      winnersThird = { a: winnersSemis[0].loserId, b: winnersSemis[1].loserId, ...thirdRes };
+      debugLog.push(`3rd ${labelPairBySeed(winnersThird.a,winnersThird.b)} -> ${rosterToSeed[winnersThird.winnerId] || winnersThird.winnerId} (${winnersThird.method === 'matchup' ? 'matchup' : winnersThird.method})`);
     }
-  } else if (lSemiResults.length === 1) {
-    // only one semi result -> the winner gets 11th and loser gets 13th maybe (fallback)
-    l11Res = { winner: lSemiResults[0].winner, loser: null, reason: 'only-semi' };
-    l13Res = { winner: lSemiResults[0].loser, loser: null, reason: 'only-semi' };
-    trace.push(`LRaceSemi single -> 11th ${placementMap[lSemiResults[0].winner] ?? lSemiResults[0].winner} , 13th ${placementMap[lSemiResults[0].loser] ?? lSemiResults[0].loser}`);
-  }
+    // consolation among losers of quarterfinals:
+    // losers from quarterfinals: produce consolation semis & 5th/7th placements
+    const qLosers = winnersRound1.map(r => ({ id: r.loserId, seed: rosterToSeed[r.loserId] || 999 }));
+    qLosers.sort((x,y) => x.seed - y.seed); // ascending seed
+    if (qLosers.length >= 4) {
+      // highest vs lowest and middle two
+      const consPairs = [
+        [qLosers[0].id, qLosers[qLosers.length - 1].id],
+        [qLosers[1].id, qLosers[2].id]
+      ];
+      // winners of consPairs play for 5th, losers for 7th
+      const consWinners = [];
+      const consLosers = [];
+      for (const [a,b] of consPairs) {
+        const r = resolvePair(a,b);
+        debugLog.push(`Consolation R1 ${labelPairBySeed(a,b)} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+        consWinners.push(r.winnerId);
+        consLosers.push(r.loserId);
+      }
+      if (consWinners.length === 2) {
+        const r5 = resolvePair(consWinners[0], consWinners[1]);
+        debugLog.push(`5th ${labelPairBySeed(consWinners[0],consWinners[1])} -> ${rosterToSeed[r5.winnerId] || r5.winnerId} (${r5.method === 'matchup' ? 'matchup' : r5.method})`);
+        assignPlace(r5.winnerId, 5, null);
+        assignPlace(r5.loserId, 6, null);
+      }
+      if (consLosers.length === 2) {
+        const r7 = resolvePair(consLosers[0], consLosers[1]);
+        debugLog.push(`7th ${labelPairBySeed(consLosers[0],consLosers[1])} -> ${rosterToSeed[r7.winnerId] || r7.winnerId} (${r7.method === 'matchup' ? 'matchup' : r7.method})`);
+        assignPlace(r7.winnerId, 7, null);
+        assignPlace(r7.loserId, 8, null);
+      }
+    }
 
-  // -------------------------
-  // Build final ordered placement list
-  // -------------------------
-  const assigned = new Set();
-  const placementFinal = [];
+    // assign top 4 places from winners bracket results
+    if (winnersFinal) {
+      assignPlace(winnersFinal.winnerId, 1, null);
+      assignPlace(winnersFinal.loserId, 2, null);
+    }
+    if (winnersThird) {
+      assignPlace(winnersThird.winnerId, 3, null);
+      assignPlace(winnersThird.loserId, 4, null);
+    }
 
-  function pushIfNotAssigned(rosterId) {
-    if (!rosterId) return;
-    const r = String(rosterId);
-    if (!assigned.has(r)) {
-      placementFinal.push(r);
-      assigned.add(r);
+  } else if (winnersSize === 6) {
+    // 2022 style: seeds 1 & 2 get semis bye; 3v6,4v5 play quarterfinals.
+    // Quarterfinals
+    const qPairs = [];
+    if (seedToRoster[3] && seedToRoster[6]) qPairs.push([seedToRoster[3], seedToRoster[6]]);
+    if (seedToRoster[4] && seedToRoster[5]) qPairs.push([seedToRoster[4], seedToRoster[5]]);
+    const qResults = [];
+    for (const [a,b] of qPairs) {
+      const r = resolvePair(a,b);
+      qResults.push(r);
+      debugLog.push(`W1 ${labelPairBySeed(a,b)} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+    }
+    // Semis: 1 plays winner of 4v5, 2 plays winner of 3v6 (this matches user's 2022 desired sequence)
+    const semiPairs = [];
+    if (seedToRoster[1]) {
+      const winner45 = (qResults.find(rr => rosterToSeed[rr.winnerId] === 4 || rosterToSeed[rr.winnerId] === 5) || {}).winnerId;
+      if (winner45) semiPairs.push([seedToRoster[1], winner45]);
+    }
+    if (seedToRoster[2]) {
+      const winner36 = (qResults.find(rr => rosterToSeed[rr.winnerId] === 3 || rosterToSeed[rr.winnerId] === 6) || {}).winnerId;
+      if (winner36) semiPairs.push([seedToRoster[2], winner36]);
+    }
+    const semiRes = [];
+    for (const [a,b] of semiPairs) {
+      if (!a || !b) continue;
+      const r = resolvePair(a,b);
+      semiRes.push(r);
+      debugLog.push(`Semi ${labelPairBySeed(a,b)} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+    }
+    // Final: winners of semis
+    if (semiRes.length === 2) {
+      const f = resolvePair(semiRes[0].winnerId, semiRes[1].winnerId);
+      winnersFinal = { a: semiRes[0].winnerId, b: semiRes[1].winnerId, ...f };
+      debugLog.push(`Final ${labelPairBySeed(winnersFinal.a,winnersFinal.b)} -> ${rosterToSeed[winnersFinal.winnerId] || winnersFinal.winnerId} (${winnersFinal.method === 'matchup' ? 'matchup' : winnersFinal.method})`);
+      // 3rd place: losers of semis
+      const thirdRes = resolvePair(semiRes[0].loserId, semiRes[1].loserId);
+      winnersThird = { a: semiRes[0].loserId, b: semiRes[1].loserId, ...thirdRes };
+      debugLog.push(`3rd ${labelPairBySeed(winnersThird.a,winnersThird.b)} -> ${rosterToSeed[winnersThird.winnerId] || winnersThird.winnerId} (${winnersThird.method === 'matchup' ? 'matchup' : winnersThird.method})`);
+    }
+
+    // Consolation for quarterfinal losers:
+    // Quarter losers are seeds among {3,4,5,6} who lost qPairs
+    const qLosers = qResults.map(r => r.loserId);
+    if (qLosers.length === 2) {
+      const rCon1 = resolvePair(qLosers[0], qLosers[1]);
+      debugLog.push(`Consolation R1 ${labelPairBySeed(qLosers[0], qLosers[1])} -> ${rosterToSeed[rCon1.winnerId] || rCon1.winnerId} (${rCon1.method === 'matchup' ? 'matchup' : rCon1.method})`);
+      // Winner plays for 5th (vs someone from losers bracket? but per your described flow, winner gets 5th, loser gets 6th)
+      assignPlace(rCon1.winnerId, 5, null);
+      assignPlace(rCon1.loserId, 6, null);
+    }
+
+    // assign top 4 places
+    if (winnersFinal) {
+      assignPlace(winnersFinal.winnerId, 1, null);
+      assignPlace(winnersFinal.loserId, 2, null);
+    }
+    if (winnersThird) {
+      assignPlace(winnersThird.winnerId, 3, null);
+      assignPlace(winnersThird.loserId, 4, null);
     }
   }
 
-  function pushResultPair(resObj) {
-    if (!resObj) return;
-    pushIfNotAssigned(resObj.winner);
-    if (resObj.loser) pushIfNotAssigned(resObj.loser);
-  }
-
-  // primary final outcomes: champion.. etc (winners bracket)
-  pushResultPair(finalRes);
-  pushResultPair(thirdRes);
-  pushResultPair(fifthRes);
-  pushResultPair(seventhRes);
-
-  // losers bracket outcomes
-  pushResultPair(lFinalRes);   // 9th/10th
-  pushResultPair(l11Res);      // 11th/12th
-  pushResultPair(l13Res);      // 13th/14th
-
-  // if any playoff match rows exist that include unassigned rosters, include them
-  for (const r of matchupsRows) {
-    if (r.participantsCount === 2) {
-      pushIfNotAssigned(r.teamA.rosterId);
-      pushIfNotAssigned(r.teamB.rosterId);
-    } else if (Array.isArray(r.combinedParticipants)) {
-      for (const p of r.combinedParticipants) pushIfNotAssigned(p.rosterId);
-    } else if (r.teamA && r.teamA.rosterId) pushIfNotAssigned(r.teamA.rosterId);
-  }
-
-  // finally include any rosterMap entries not yet assigned
-  for (const rk in rosterMap) pushIfNotAssigned(rk);
-
-  // ensure we have exactly as many as total teams and assign ranks 1..N
-  const totalTeams = Object.keys(rosterMap).length || placementFinal.length;
-  if (placementFinal.length < totalTeams) {
-    for (const rk in rosterMap) {
-      if (!assigned.has(String(rk))) {
-        placementFinal.push(String(rk));
-        assigned.add(String(rk));
+  // --- Losers bracket / lower race simulation ---
+  // General approach: pair remaining seeds per your described rules:
+  // For non-2022 (winnersSize=8): losers are seeds 9..14 (and 13/14 may have BYE), initial LRace pairs are 9v12 and 10v11, with 13 & 14 maybe bye.
+  // For 2022 we use the explicit mapping you provided.
+  function simulateLosersRace() {
+    const lr = []; // record steps
+    let lWinners = []; // winners of LRace round
+    let lLosers = [];  // losers -> will become part of LRaceSemi
+    if (seasonKey === '2022') {
+      // per your requested 2022 mapping:
+      // initial LRace pairs: 9v12, 10v11, 7v14, 8v13
+      const pairs = [];
+      if (seedToRoster[9] && seedToRoster[12]) pairs.push([seedToRoster[9], seedToRoster[12]]);
+      if (seedToRoster[10] && seedToRoster[11]) pairs.push([seedToRoster[10], seedToRoster[11]]);
+      if (seedToRoster[7] && seedToRoster[14]) pairs.push([seedToRoster[7], seedToRoster[14]]);
+      if (seedToRoster[8] && seedToRoster[13]) pairs.push([seedToRoster[8], seedToRoster[13]]);
+      for (const [a,b] of pairs) {
+        const r = resolvePair(a,b);
+        lWinners.push(r.winnerId);
+        lLosers.push(r.loserId);
+        debugLog.push(`LRace ${labelPairBySeed(a,b)} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+      }
+      // Consolation LRace1: pairs among (7..14) losers winners? you provided explicit mapping:
+      // Consolation LRace1 7v10 -> 10 (matchup)
+      // Consolation LRace1 8v9 -> 9 (matchup)
+      // The rest become LRaceSemi / 7th/9th/11th/13th matches...
+      // We'll attempt to replicate the sequence:
+      // The losers/winners above will step through LRaceSemi (winners of LRace advance to play other winners)
+      // If any LRaceSemi missing we fallback.
+      // We'll do two LRaceSemi matches pairing winners appropriately:
+      if (lWinners.length >= 4) {
+        const semiPairs = [
+          [lWinners[0], lWinners[1]],
+          [lWinners[2], lWinners[3]]
+        ];
+        const semiRes = [];
+        for (const [a,b] of semiPairs) {
+          const r = resolvePair(a,b);
+          semiRes.push(r);
+          debugLog.push(`LRaceSemi ${labelPairBySeed(a,b)} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+        }
+        // winners of semiRes play for 9th, losers play for 11th/13th depending
+        if (semiRes.length >= 2) {
+          const r9 = resolvePair(semiRes[0].winnerId, semiRes[1].winnerId);
+          debugLog.push(`9th ${labelPairBySeed(semiRes[0].winnerId,semiRes[1].winnerId)} -> ${rosterToSeed[r9.winnerId] || r9.winnerId} (${r9.method === 'matchup' ? 'matchup' : r9.method})`);
+          assignPlace(r9.winnerId, 9, null);
+          assignPlace(r9.loserId, 10, null);
+          // losers of semis:
+          const r11 = resolvePair(semiRes[0].loserId, semiRes[1].loserId);
+          debugLog.push(`11th ${labelPairBySeed(semiRes[0].loserId,semiRes[1].loserId)} -> ${rosterToSeed[r11.winnerId] || r11.winnerId} (${r11.method === 'matchup' ? 'matchup' : r11.method})`);
+          assignPlace(r11.winnerId, 11, null);
+          assignPlace(r11.loserId, 12, null);
+        }
+      } else {
+        // fallback: assign based on LRace winners and seeds
+        lWinners.forEach((id, idx) => {
+          const place = 9 + idx;
+          assignPlace(id, place, `LRace-fallback assigned ${place}`);
+        });
+      }
+    } else {
+      // general non-2022 flow:
+      // initial LRace pairs: 9v12, 10v11; 13/14 may have byes
+      const pairA = seedToRoster[9] && seedToRoster[12] ? [seedToRoster[9], seedToRoster[12]] : null;
+      const pairB = seedToRoster[10] && seedToRoster[11] ? [seedToRoster[10], seedToRoster[11]] : null;
+      if (pairA) {
+        const r = resolvePair(pairA[0], pairA[1]);
+        lWinners.push(r.winnerId);
+        lLosers.push(r.loserId);
+        debugLog.push(`LRace ${labelPairBySeed(pairA[0],pairA[1])} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+      }
+      if (pairB) {
+        const r = resolvePair(pairB[0], pairB[1]);
+        lWinners.push(r.winnerId);
+        lLosers.push(r.loserId);
+        debugLog.push(`LRace ${labelPairBySeed(pairB[0],pairB[1])} -> ${rosterToSeed[r.winnerId] || r.winnerId} (${r.method === 'matchup' ? 'matchup' : r.method})`);
+      }
+      // If 13/14 exist they may play or be BYE; we will then do a LRace semi (winners play one another) and final placement.
+      if (lWinners.length >= 2) {
+        const r9 = resolvePair(lWinners[0], lWinners[1]);
+        debugLog.push(`9th ${labelPairBySeed(lWinners[0],lWinners[1])} -> ${rosterToSeed[r9.winnerId] || r9.winnerId} (${r9.method === 'matchup' ? 'matchup' : r9.method})`);
+        assignPlace(r9.winnerId, 9, null);
+        assignPlace(r9.loserId, 10, null);
+      } else {
+        // fallback assign
+        lWinners.forEach((id, idx) => assignPlace(id, 9 + idx, null));
+      }
+      // place remaining 11/12 from lLosers or by seed
+      if (lLosers.length >= 2) {
+        const r11 = resolvePair(lLosers[0], lLosers[1]);
+        debugLog.push(`11th ${labelPairBySeed(lLosers[0],lLosers[1])} -> ${rosterToSeed[r11.winnerId] || r11.winnerId} (${r11.method === 'matchup' ? 'matchup' : r11.method})`);
+        assignPlace(r11.winnerId, 11, null);
+        assignPlace(r11.loserId, 12, null);
       }
     }
   }
-  while (placementFinal.length > totalTeams) placementFinal.pop();
 
+  simulateLosersRace();
+
+  // ensure all places 1..14 are assigned uniquely
+  // build list of all rosterIds we know about (from rosterMap)
+  const allRosterIds = Object.keys(rosterMap).map(k => String(k));
+  // fill with remaining (unassigned) rosterIds and assign places descending from 14 downwards
+  const assigned = Object.keys(placeMap).map(k => String(k));
+  const unassigned = allRosterIds.filter(rid => !assigned.includes(String(rid)));
+  // find missing place numbers (1..N)
+  const N = Math.max(14, allRosterIds.length || 14);
+  const usedPlaces = new Set(Object.values(placeMap).map(p => Number(p)));
+  let nextPlace = 1;
+  // produce a sorted list of free places
+  const freePlaces = [];
+  for (let p = 1; p <= N; p++) if (!usedPlaces.has(p)) freePlaces.push(p);
+  // assign unassigned rosters to freePlaces from best to worst by regularStanding seed fallback
+  // sort unassigned by their seed (best seed first)
+  unassigned.sort((a,b) => {
+    const sa = placementMap[a] || 999;
+    const sb = placementMap[b] || 999;
+    return sa - sb;
+  });
+  for (let i = 0; i < unassigned.length; i++) {
+    const rid = unassigned[i];
+    const place = freePlaces[i] || (N - i);
+    placeMap[rid] = place;
+  }
+
+  // Build finalStandings array sorted by place asc (1..N)
   const finalStandings = [];
-  for (let i = 0; i < placementFinal.length; i++) {
-    const rid = String(placementFinal[i]);
-    const meta = rosterMap[rid] || {};
+  const entries = Object.keys(placeMap).map(r => ({ rosterId: r, place: placeMap[r] }));
+  entries.sort((a,b) => a.place - b.place);
+  for (const e of entries) {
+    const m = metaForRoster(e.rosterId);
     finalStandings.push({
-      rank: i + 1,
-      rosterId: rid,
-      team_name: meta.team_name || meta.owner_name || ('Roster ' + rid),
-      avatar: meta.team_avatar || meta.owner_avatar || null,
-      seed: placementMap[rid] ?? null,
-      pf: regularStandings.find(s => String(s.rosterId) === rid)?.pf ?? 0,
-      wins: regularStandings.find(s => String(s.rosterId) === rid)?.wins ?? 0
+      rank: e.place,
+      rosterId: e.rosterId,
+      name: m.name,
+      avatar: m.avatar,
+      seed: m.seed
     });
   }
 
-  // stable re-order fallback (guarantee uniq ranks)
-  finalStandings.sort((a,b) => {
-    if ((a.rank || 0) !== (b.rank || 0)) return (a.rank || 0) - (b.rank || 0);
-    if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
-    if ((b.pf || 0) !== (a.pf || 0)) return (b.pf || 0) - (a.pf || 0);
-    return (a.seed || 999) - (b.seed || 999);
-  });
-  for (let i = 0; i < finalStandings.length; i++) finalStandings[i].rank = i + 1;
-
-  const champion = finalStandings[0] ?? null;
-  const biggestLoser = finalStandings[finalStandings.length - 1] ?? null;
+  // push debugLog summary to messages so page shows it
+  if (debugLog && debugLog.length) {
+    for (const d of debugLog) messages.push(d);
+  }
 
   return {
     seasons,
@@ -736,7 +841,7 @@ export async function load(event) {
     matchupsRows,
     regularStandings,
     finalStandings,
-    debug: trace,
+    debugLog,
     messages,
     prevChain
   };
