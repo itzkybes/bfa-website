@@ -1,10 +1,8 @@
 <!-- src/routes/honor-hall/+page.svelte -->
 <script>
-  // Honor Hall final standings page (with season dropdown)
   export let data;
 
   const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
-  // selectedSeason comes from server (string: season year or league_id)
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? seasons[seasons.length - 1].league_id : null);
 
   const messages = Array.isArray(data?.messages) ? data.messages : [];
@@ -28,6 +26,31 @@
     if (rank === 3) return ' 🥉';
     return '';
   }
+
+  // Sanitize finalStandings client-side: sort by finalRank (fallback to seed), then
+  // ensure unique ranks 1..N by reassigning sequentially. This prevents duplicate rank
+  // numbers in the UI if server data is inconsistent.
+  $: sanitizedFinalStandings = (() => {
+    if (!Array.isArray(finalStandings)) return [];
+    const copy = finalStandings.map(f => ({
+      ...f,
+      finalRank: f.finalRank != null ? Number(f.finalRank) : null,
+      seed: f.seed != null ? Number(f.seed) : null
+    }));
+
+    // sort: prefer provided finalRank; if missing or equal, fall back to seed (ascending)
+    copy.sort((a, b) => {
+      const ra = a.finalRank != null ? a.finalRank : Infinity;
+      const rb = b.finalRank != null ? b.finalRank : Infinity;
+      if (ra !== rb) return ra - rb;
+      const sa = a.seed != null ? a.seed : Infinity;
+      const sb = b.seed != null ? b.seed : Infinity;
+      return sa - sb;
+    });
+
+    // reassign ranks 1..N (preserve order determined above)
+    return copy.map((t, i) => ({ ...t, finalRank: i + 1 }));
+  })();
 </script>
 
 <style>
@@ -42,27 +65,27 @@
     gap:1rem;
     margin-bottom:1rem;
   }
-  h1 { font-size:1.6rem; margin:0; letter-spacing: -0.2px; }
+  h1 { font-size:1.6rem; margin:0; letter-spacing:-0.2px; }
   .subtitle { color:#9aa3ad; font-size:.95rem; margin-top:.2rem; }
 
-  /* filters / dropdown */
-  .filters { display:flex; gap:.75rem; align-items:center; }
+  /* filters / dropdown - made more visible */
+  .filters { display:flex; gap:.6rem; align-items:center; }
   .season-label { font-weight:700; color:#cfe3ff; font-size:.95rem; margin-right:.35rem; }
   .season-select {
     appearance: none;
     -webkit-appearance: none;
-    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-    color: #fff;
-    border: 1px solid rgba(255,255,255,0.08);
-    padding: .5rem .9rem;
-    border-radius: 10px;
+    background: #0f1720;
+    color: #e6eef8;
+    border: 1px solid rgba(99,102,241,0.55);
+    padding: .6rem 1rem;
+    border-radius: 12px;
     font-weight:700;
-    min-width:160px;
-    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-    cursor: pointer;
-    font-size: .95rem;
+    min-width:180px;
+    box-shadow: 0 6px 22px rgba(2,6,23,0.65);
+    cursor:pointer;
+    font-size:.98rem;
   }
-  .season-select:focus { outline: 2px solid rgba(99,102,241,0.22); outline-offset: 2px; }
+  .season-select:focus { outline: 3px solid rgba(99,102,241,0.16); outline-offset: 2px; }
 
   .messages {
     background: rgba(255,255,255,0.02);
@@ -138,7 +161,7 @@
   <div class="panel" role="region" aria-labelledby="final-standings-heading">
     <h2 id="final-standings-heading" style="font-size:1rem;margin:0 0 8px 0;color:#cfe3ff;">Final Standings</h2>
 
-    {#if finalStandings && finalStandings.length}
+    {#if sanitizedFinalStandings && sanitizedFinalStandings.length}
       <table class="finalTable" role="table" aria-label="Final Standings table">
         <thead>
           <tr>
@@ -148,7 +171,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each finalStandings as t (t.rosterId)}
+          {#each sanitizedFinalStandings as t (t.rosterId)}
             <tr>
               <td class="rankCol">{t.finalRank}{medalEmoji(t.finalRank)}</td>
               <td>
