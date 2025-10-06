@@ -155,7 +155,6 @@ export function createSleeperClient(opts = {}) {
       for (const r of rosters) {
         const rosterId = r.roster_id != null ? String(r.roster_id) : (r.rosterId != null ? String(r.rosterId) : null);
         const ownerId = r.owner_id != null ? String(r.owner_id) : (r.ownerId != null ? String(r.ownerId) : null);
-        const userObj = ownerId ? usersById[String(ownerId)] : null;
         // Resolve team name (improved fallbacks)
         let teamName = null;
         if (r && r.metadata) teamName = r.metadata.team_name ?? r.metadata.teamName ?? r.metadata.name ?? teamName;
