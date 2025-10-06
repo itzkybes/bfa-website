@@ -44,12 +44,18 @@ async function retryFetch(url, opts = {}, retries = 3, baseDelay = 200) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, opts);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let bodyText = '';
+        try { bodyText = await res.text(); } catch (e) {}
+        const err = new Error(`HTTP ${res.status} ${res.statusText} - ${url}: ${bodyText}`);
+        err.status = res.status;
+        throw err;
+      }
       const ct = res.headers.get('content-type') || '';
       if (ct.indexOf('application/json') !== -1) return await res.json();
       return await res.text();
-    } catch (e) {
-      lastErr = e;
+    } catch (err) {
+      lastErr = err;
       await sleep(baseDelay * Math.pow(2, i));
     }
   }
@@ -278,12 +284,15 @@ export function createSleeperClient(opts = {}) {
         if (!Array.isArray(rows) || rows.length === 0) continue;
         const groups = {};
         for (const r of rows) {
-          const key = r.matchup_id ?? r.matchup ?? (r.matchupId ?? null) || (function(){
-            const rid = r.roster_id ?? r.rosterId ?? r.roster ?? null;
-            const opp = r.opponent_id ?? r.opponentId ?? r.opponent ?? r.opponent_roster_id ?? null;
-            if (rid != null && opp != null) return [String(rid), String(opp)].sort().join('-');
-            return 'idx-'+String(r.id ?? (r.roster_id ?? Math.random())).slice(0,8);
-          })();
+          let key = r.matchup_id ?? r.matchup ?? r.matchupId ?? null;
+          if (key == null) {
+            key = (function(){
+              const rid = r.roster_id ?? r.rosterId ?? r.roster ?? null;
+              const opp = r.opponent_id ?? r.opponentId ?? r.opponent ?? r.opponent_roster_id ?? null;
+              if (rid != null && opp != null) return [String(rid), String(opp)].sort().join('-');
+              return 'idx-'+String(r.id ?? (r.roster_id ?? Math.random())).slice(0,8);
+            })();
+          }
           groups[key] = groups[key] || [];
           groups[key].push(r);
         }
