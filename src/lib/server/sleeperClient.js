@@ -12,13 +12,13 @@
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-// helper to create concurrency limiter using p-limit like approach
-function createLimiter(concurrency) {
+// createLimiter: simple p-limit-like concurrency limiter
+function createLimiter(maxConcurrency = 8) {
   let active = 0;
   const queue = [];
   const next = () => {
     if (!queue.length) return;
-    if (active >= concurrency) return;
+    if (active >= maxConcurrency) return;
     active++;
     const fn = queue.shift();
     fn().then(() => { active--; next(); }).catch(() => { active--; next(); });
