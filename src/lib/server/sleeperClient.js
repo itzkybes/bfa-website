@@ -156,9 +156,20 @@ export function createSleeperClient(opts = {}) {
         const rosterId = r.roster_id != null ? String(r.roster_id) : (r.rosterId != null ? String(r.rosterId) : null);
         const ownerId = r.owner_id != null ? String(r.owner_id) : (r.ownerId != null ? String(r.ownerId) : null);
         const userObj = ownerId ? usersById[String(ownerId)] : null;
-        let teamName = r.metadata && r.metadata.team_name ? r.metadata.team_name : (r.team_name || r.name || null);
-        if (!teamName && r.settings && r.settings.name) teamName = r.settings.name;
-        if (!teamName) teamName = 'Roster ' + String(rosterId);
+        // Resolve team name (improved fallbacks)
+        let teamName = null;
+        if (r && r.metadata) teamName = r.metadata.team_name ?? r.metadata.teamName ?? r.metadata.name ?? teamName;
+        // prefer explicit roster fields
+        teamName = teamName ?? (r.team_name || r.name || (r.settings && (r.settings.team_name || r.settings.name)) || null);
+        const userObj = ownerId != null ? usersById[String(ownerId)] : null;
+        if (!teamName && userObj) {
+        if (userObj.metadata) teamName = userObj.metadata.team_name ?? userObj.metadata.teamName ?? userObj.metadata.name ?? teamName;
+        if (!teamName) {
+          if (userObj.display_name) teamName = userObj.display_name + "'s Team";
+          else if (userObj.username) teamName = userObj.username + "'s Team";
+        }
+      }
+      if (!teamName) teamName = 'Roster ' + String(rosterId);
 
         // Avatar resolution
         let teamAvatar = null;
@@ -276,32 +287,70 @@ export function createSleeperClient(opts = {}) {
     const playersMapPromise = rawFetch(playersEndpoint).catch(() => ({}));
     const rosterMapPromise = getRosterMapWithOwners(leagueId).catch(() => ({}));
 
-    const findFinalWeek = async () => {
-      if (championshipWeek != null) return { week: championshipWeek, matchup: await getMatchupsForWeek(leagueId, championshipWeek) };
-      for (let wk = maxWeek; wk >= 1; wk--) {
-        let rows;
-        try { rows = await getMatchupsForWeek(leagueId, wk); } catch (e) { continue; }
-        if (!Array.isArray(rows) || rows.length === 0) continue;
-        const groups = {};
-        for (const r of rows) {
-          let key = r.matchup_id ?? r.matchup ?? r.matchupId ?? null;
-          if (key == null) {
-            key = (function(){
-              const rid = r.roster_id ?? r.rosterId ?? r.roster ?? null;
-              const opp = r.opponent_id ?? r.opponentId ?? r.opponent ?? r.opponent_roster_id ?? null;
-              if (rid != null && opp != null) return [String(rid), String(opp)].sort().join('-');
-              return 'idx-'+String(r.id ?? (r.roster_id ?? Math.random())).slice(0,8);
-            })();
-          }
-          groups[key] = groups[key] || [];
-          groups[key].push(r);
-        }
-        for (const [k, g] of Object.entries(groups)) {
-          if (g.length === 2) return { week: wk, matchup: g };
-        }
+   const findFinalWeek = async () => {
+  // Try to determine playoff start from league settings (Honor Hall logic)
+  let playoffStart = null;
+  try {
+    const leagueMeta = await getLeague(leagueId).catch(() => null);
+    if (leagueMeta && leagueMeta.settings) {
+      playoffStart = leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek ?? null;
+      if (!playoffStart) playoffStart = leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start ?? null;
+    }
+  } catch (e) {
+    playoffStart = null;
+  }
+  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
+    // default to Honor Hall fallback
+    playoffStart = 15;
+  }
+  const championshipWeek = Number(playoffStart) + 2;
+
+  // Attempt to load the championship matchup directly for the computed week
+  try {
+    const rows = await getMatchupsForWeek(leagueId, championshipWeek);
+    if (Array.isArray(rows) && rows.length) {
+      // group by matchup identifier
+      const groups = {};
+      for (const r of rows) {
+        const key = r.matchup_id ?? r.matchup ?? r.matchupId ?? String(r.id ?? (r.roster_id ?? Math.random()));
+        groups[key] = groups[key] || [];
+        groups[key].push(r);
       }
-      return null;
-    };
+      // find a head-to-head group with 2 participants
+      for (const [k, g] of Object.entries(groups)) {
+        if (g.length === 2) return { week: championshipWeek, matchup: g };
+      }
+    }
+  } catch (e) {
+    // ignore and fall back
+  }
+
+  // Fallback: scan weeks from maxWeek downwards and pick first head-to-head with 2 participants
+  for (let wk = maxWeek; wk >= 1; wk--) {
+    let rows;
+    try { rows = await getMatchupsForWeek(leagueId, wk); } catch (e) { continue; }
+    if (!Array.isArray(rows) || rows.length === 0) continue;
+    const groups = {};
+    for (const r of rows) {
+      let key = r.matchup_id ?? r.matchup ?? r.matchupId ?? null;
+      if (key == null) {
+        key = (function(){
+          const rid = r.roster_id ?? r.rosterId ?? r.roster ?? null;
+          const opp = r.opponent_id ?? r.opponentId ?? r.opponent ?? r.opponent_roster_id ?? null;
+          if (rid != null && opp != null) return [String(rid), String(opp)].sort().join('-');
+          return 'idx-'+String(r.id ?? (r.roster_id ?? Math.random())).slice(0,8);
+        })();
+      }
+      groups[key] = groups[key] || [];
+      groups[key].push(r);
+    }
+    for (const [k, g] of Object.entries(groups)) {
+      if (g.length === 2) return { week: wk, matchup: g };
+    }
+  }
+  return null;
+};
+
 
     const finalMatch = await findFinalWeek();
     if (!finalMatch || !finalMatch.matchup) return null;
