@@ -1,524 +1,467 @@
 // src/lib/server/sleeperClient.js
-// Central Sleeper API client for server-side usage.
-// Exports createSleeperClient and a default client using an in-memory cache.
-//
-// Features:
-// - concurrency limiting
-// - retry + exponential backoff
-// - cached GET helper that uses provided cache adapter
-// - helper getRostersWithOwners / getRosterMapWithOwners to centralize roster+owner enrichment
+/**
+ * Sleeper API client used by server loaders.
+ * - Provides cachedGet, concurrency control, retry, and a set of convenience helpers.
+ * - New helpers implemented here:
+ *     - getFinalStandingsForLeague(leagueId, opts)
+ *     - getChampionForLeague(leagueId, opts)
+ *
+ * Usage:
+ *   import { createSleeperClient } from '$lib/server/sleeperClient';
+ *   const sleeper = createSleeperClient({ concurrency: 6, ttl: 3600 });
+ *   const standings = await sleeper.getFinalStandingsForLeague('12345');
+ */
 
-// NOTE: This file expects a cache adapter with async get/set/del (see $lib/server/cache.js)
+import * as cacheModule from '$lib/server/cache'; // optional — many repos export adapter here
 
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+// Try to pick a cache adapter exported by the repo, otherwise undefined
+const cacheAdapter =
+  (cacheModule && (cacheModule.default || cacheModule.cache || cacheModule.adapter || cacheModule)) || null;
 
-// createLimiter: simple p-limit-like concurrency limiter
-function createLimiter(maxConcurrency = 8) {
-  let active = 0;
-  const queue = [];
-  const next = () => {
-    if (!queue.length) return;
-    if (active >= maxConcurrency) return;
-    active++;
-    const fn = queue.shift();
-    fn().then(() => { active--; next(); }).catch(() => { active--; next(); });
-  };
-  return (fn) => {
-    return new Promise((resolve, reject) => {
-      queue.push(async () => {
-        try {
-          const res = await fn();
-          resolve(res);
-        } catch (e) {
-          reject(e);
-        }
-      });
-      next();
-    });
-  };
-}
-
-// Retry wrapper (simple exponential backoff)
-async function retryFetch(url, opts = {}, retries = 3, baseDelay = 200) {
-  let lastErr = null;
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url, opts);
-      if (!res.ok) {
-        let bodyText = '';
-        try { bodyText = await res.text(); } catch (e) {}
-        const err = new Error(`HTTP ${res.status} ${res.statusText} - ${url}: ${bodyText}`);
-        err.status = res.status;
-        throw err;
-      }
-      const ct = res.headers.get('content-type') || '';
-      if (ct.indexOf('application/json') !== -1) return await res.json();
-      return await res.text();
-    } catch (err) {
-      lastErr = err;
-      await sleep(baseDelay * Math.pow(2, i));
-    }
-  }
-  throw lastErr;
-}
-
+/**
+ * Creates a Sleeper client instance.
+ * opts:
+ *   - concurrency: number of parallel outstanding fetches
+ *   - baseUrl: base API url (defaults to Sleeper public API)
+ *   - ttl: default cache TTL in seconds
+ */
 export function createSleeperClient(opts = {}) {
-  const {
-    baseUrl = 'https://api.sleeper.app/v1',
-    cache = null,
-    concurrency = 6,
-    ttl = 60 * 60 // 1 hour default
-  } = opts || {};
+  const concurrency = Number(opts.concurrency || process.env.SLEEPER_CONCURRENCY || 6);
+  const baseUrl = opts.baseUrl || 'https://api.sleeper.app/v1';
+  const ttl = Number(opts.ttl || process.env.SLEEPER_TTL || 3600);
+  const cache = opts.cacheAdapter || cacheAdapter || null;
 
-  const limit = createLimiter(concurrency);
-
-  // cached GET helper
-  async function cachedGet(pathOrUrl, opts = {}) {
-    const fullUrl = String(pathOrUrl).startsWith('http') ? String(pathOrUrl) : `${baseUrl}${pathOrUrl}`;
-    const key = `sleeper:${fullUrl}`;
-    const useCache = opts.cache !== false && !!cache;
-    const localTtl = opts.ttl != null ? opts.ttl : ttl;
-
-    if (useCache && cache && cache.get) {
-      try {
-        const raw = await cache.get(key);
-        if (raw) {
-          try { return JSON.parse(raw); } catch (e) { return raw; }
+  // Simple concurrency semaphore
+  let running = 0;
+  const queue = [];
+  function withConcurrency(fn) {
+    return new Promise((resolve, reject) => {
+      const run = async () => {
+        running++;
+        try {
+          const r = await fn();
+          resolve(r);
+        } catch (err) {
+          reject(err);
+        } finally {
+          running--;
+          if (queue.length > 0) {
+            const next = queue.shift();
+            next();
+          }
         }
-      } catch (e) {
-        // ignore cache errors
-      }
-    }
+      };
 
-    const data = await limit(() => retryFetch(fullUrl, { method: 'GET' }));
-    if (cache) {
+      if (running < concurrency) {
+        run();
+      } else {
+        queue.push(run);
+      }
+    });
+  }
+
+  // Basic robust fetch with retry/backoff
+  async function rawFetch(path, opts = {}) {
+    const url = path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    const maxAttempts = Number(opts.attempts ?? 3);
+    let attempt = 0;
+    let lastErr = null;
+    while (attempt < maxAttempts) {
+      attempt++;
       try {
-        await cache.set(key, JSON.stringify(data), localTtl);
+        // run the underlying fetch under concurrency control
+        return await withConcurrency(async () => {
+          const res = await fetch(url, opts.fetchOptions || {});
+          if (!res.ok) {
+            const body = await res.text().catch(() => null);
+            const err = new Error(`Fetch ${res.status} ${res.statusText} ${url}: ${body ?? ''}`);
+            err.status = res.status;
+            throw err;
+          }
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('json')) {
+            return await res.json();
+          }
+          return await res.text();
+        });
       } catch (e) {
-        console.warn('sleeperClient: cache.set error', e && e.message ? e.message : e);
+        lastErr = e;
+        // simple backoff
+        const backoff = 100 * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, backoff));
       }
     }
-    return data;
-  }
-
-  // convenience raw fetch (no cache)
-  const rawFetch = (pathOrUrl, opts = {}) => {
-    const fullUrl = pathOrUrl.startsWith('http') ? pathOrUrl : `${baseUrl}${pathOrUrl}`;
-    return limit(() => retryFetch(fullUrl, opts));
-  };
-
-  function _makeAvatarUrl(candidate) {
-    try {
-      if (String(candidate).indexOf('http') === 0) return String(candidate);
-    } catch (e) {}
-    return 'https://sleepercdn.com/avatars/' + String(candidate);
-  }
-
-  // Public API: common endpoint wrappers (cached)
-  async function getLeague(leagueId, opts = {}) {
-    return cachedGet(`/league/${encodeURIComponent(leagueId)}`, opts);
-  }
-  async function getRosters(leagueId, opts = {}) {
-    return cachedGet(`/league/${encodeURIComponent(leagueId)}/rosters`, opts);
-  }
-  async function getUsers(leagueId, opts = {}) {
-    return cachedGet(`/league/${encodeURIComponent(leagueId)}/users`, opts);
-  }
-  async function getMatchupsForWeek(leagueId, week, opts = {}) {
-    return cachedGet(`/league/${encodeURIComponent(leagueId)}/matchups/${week}`, opts);
+    throw lastErr || new Error('Unknown fetch error for ' + url);
   }
 
   /**
-   * Build normalized roster+owner enriched objects for a league.
+   * cachedGet: GET with cache (if cache adapter present)
+   * key: cache key
+   * urlPath: API path (string) or full URL
+   * opts: { ttl, attempts, fetchOptions }
    */
-  async function getRostersWithOwners(leagueId, opts = {}) {
-    const ttl = opts.ttl ?? 3600;
-    const [rosters, users] = await Promise.all([
-      (async () => {
-        try { return await cachedGet(`/league/${encodeURIComponent(leagueId)}/rosters`, { ttl }); } catch (e) { return []; }
-      })(),
-      (async () => {
-        try { return await cachedGet(`/league/${encodeURIComponent(leagueId)}/users`, { ttl }); } catch (e) { return []; }
-      })()
-    ]);
+  async function cachedGet(key, urlPath, opts = {}) {
+    const useCache = !!cache && typeof cache.get === 'function' && typeof cache.set === 'function';
+    const cacheTtl = Number(opts.ttl ?? ttl);
 
-    const usersById = {};
-    if (Array.isArray(users)) {
-      for (const u of users) {
-        const id = u.user_id ?? u.userId ?? u.id;
-        if (id != null) usersById[String(id)] = u;
+    if (useCache) {
+      try {
+        const raw = await cache.get(key);
+        if (raw) {
+          try {
+            return typeof raw === 'string' ? JSON.parse(raw) : raw;
+          } catch (e) {
+            // fall through to fetch
+          }
+        }
+      } catch (e) {
+        // ignore cache read errors, continue to fetch
       }
     }
 
-    const out = [];
-    if (Array.isArray(rosters)) {
-      for (const r of rosters) {
-        const rosterId = r.roster_id != null ? String(r.roster_id) : (r.rosterId != null ? String(r.rosterId) : null);
-        const ownerId = r.owner_id != null ? String(r.owner_id) : (r.ownerId != null ? String(r.ownerId) : null);
-        // Resolve team name (improved fallbacks)
-        let teamName = null;
-        if (r && r.metadata) teamName = r.metadata.team_name ?? r.metadata.teamName ?? r.metadata.name ?? teamName;
-        // prefer explicit roster fields
-        teamName = teamName ?? (r.team_name || r.name || (r.settings && (r.settings.team_name || r.settings.name)) || null);
-        const userObj = ownerId != null ? usersById[String(ownerId)] : null;
-        if (!teamName && userObj) {
-        if (userObj.metadata) teamName = userObj.metadata.team_name ?? userObj.metadata.teamName ?? userObj.metadata.name ?? teamName;
-        if (!teamName) {
-          if (userObj.display_name) teamName = userObj.display_name + "'s Team";
-          else if (userObj.username) teamName = userObj.username + "'s Team";
+    const payload = await rawFetch(urlPath, { attempts: opts.attempts ?? 3, fetchOptions: opts.fetchOptions });
+
+    if (useCache) {
+      try {
+        await cache.set(key, JSON.stringify(payload), { ttl: cacheTtl });
+      } catch (e) {
+        // ignore cache write errors
+      }
+    }
+
+    return payload;
+  }
+
+  /**************************************************************************
+   * Low-level Sleeper helpers (thin wrappers around the public API)
+   **************************************************************************/
+
+  // Get league metadata
+  async function getLeague(leagueId, opts = {}) {
+    const key = `sleeper:league:${leagueId}`;
+    const path = `/league/${leagueId}`;
+    try {
+      return await cachedGet(key, path, { ttl: opts.ttl ?? 60 * 5 });
+    } catch (e) {
+      // fallback to raw fetch without caching
+      return await rawFetch(path, opts);
+    }
+  }
+
+  // Get matchups for a given week
+  async function getMatchupsForWeek(leagueId, week, opts = {}) {
+    const key = `sleeper:matchups:${leagueId}:w${week}`;
+    const path = `/league/${leagueId}/matchups/${week}`;
+    try {
+      return await cachedGet(key, path, { ttl: opts.ttl ?? 60 * 30 });
+    } catch (e) {
+      return await rawFetch(path, opts);
+    }
+  }
+
+  // Get rosters plus owners; shape: { rosterId: { rosterId, team_name, owner_name, team_avatar, ... } }
+  async function getRosterMapWithOwners(leagueId, opts = {}) {
+    const key = `sleeper:rosters:${leagueId}`;
+    // Common endpoints: /league/{league_id}/rosters and /league/{league_id}/users or /league/{league_id}/rosters + separate owners
+    try {
+      // Attempt to fetch rosters
+      const rosters = await cachedGet(`${key}:list`, `/league/${leagueId}/rosters`, { ttl: opts.ttl ?? 60 * 60 });
+      // users (owners)
+      let users = [];
+      try {
+        users = await cachedGet(`${key}:users`, `/league/${leagueId}/users`, { ttl: opts.ttl ?? 60 * 60 });
+      } catch (e) {
+        // some leagues may not have users endpoint; ignore
+        users = [];
+      }
+
+      const map = {};
+      if (Array.isArray(rosters)) {
+        for (const r of rosters) {
+          const rid = String(r.roster_id ?? r.rosterId ?? r.roster_id ?? r.rosterId ?? r.owner_id ?? r.ownerId ?? r.owner ?? r.roster ?? r.roster_id ?? r.owner_id ?? r.rosterId ?? r.id ?? r.roster_id ?? 'unknown');
+          map[rid] = {
+            rosterId: rid,
+            team_name: r.team_name ?? r.team ?? r.nickname ?? r?.settings?.team_name ?? null,
+            team_avatar: r.team_avatar ?? r.avatar ?? null,
+            // owner info is sometimes on the roster as owner_id or owner
+            owner_id: r.owner_id ?? r.ownerId ?? r.owner ?? null,
+            ...r
+          };
         }
       }
-      if (!teamName) teamName = 'Roster ' + String(rosterId);
 
-        // Avatar resolution
-        let teamAvatar = null;
-        if (r && r.metadata && r.metadata.team_avatar) teamAvatar = _makeAvatarUrl(r.metadata.team_avatar);
-        else if (r && r.metadata && r.metadata.logo) teamAvatar = _makeAvatarUrl(r.metadata.logo);
-
-        let ownerAvatar = null;
-        if (userObj) {
-          if (userObj.metadata && userObj.metadata.team_avatar) ownerAvatar = _makeAvatarUrl(userObj.metadata.team_avatar);
-          else if (userObj.metadata && userObj.metadata.avatar) ownerAvatar = _makeAvatarUrl(userObj.metadata.avatar);
-          else if (userObj.avatar) ownerAvatar = _makeAvatarUrl(userObj.avatar);
+      // enrich with users if possible
+      if (Array.isArray(users) && users.length > 0) {
+        // users often have user_id, display_name, avatar
+        for (const u of users) {
+          // connect by user_id or user_id -> roster.owner_id
+          const uid = String(u.user_id ?? u.userId ?? u.id ?? u.user_id ?? u.owner_id ?? u.ownerId ?? u?.metadata?.user_id ?? null);
+          if (!uid) continue;
+          // find roster that matches owner_id === uid
+          for (const rid of Object.keys(map)) {
+            const r = map[rid];
+            if (String(r.owner_id ?? r.user_id ?? r.owner ?? '') === uid || String(r.user_id ?? '') === uid) {
+              r.owner_name = u.display_name ?? u.displayName ?? u.username ?? u.username ?? u.name ?? u?.metadata?.display_name ?? u.user_id ?? null;
+              r.owner_avatar = r.owner_avatar ?? u.avatar ?? u.user_avatar ?? null;
+            }
+          }
         }
-
-        const ownerName = userObj ? (userObj.display_name || userObj.username || null) : null;
-
-        out.push({
-          roster_id: rosterId != null ? String(rosterId) : null,
-          owner_id: ownerId != null ? String(ownerId) : null,
-          team_name: teamName,
-          owner_name: ownerName,
-          team_avatar: teamAvatar,
-          owner_avatar: ownerAvatar,
-          roster_raw: r,
-          user_raw: userObj || null
-        });
       }
+
+      return map;
+    } catch (e) {
+      // fallback: try simpler endpoints or return empty map
+      try {
+        const rosters = await rawFetch(`/league/${leagueId}/rosters`);
+        const map = {};
+        if (Array.isArray(rosters)) {
+          for (const r of rosters) {
+            const rid = String(r.roster_id ?? r.rosterId ?? r.id ?? 'unknown');
+            map[rid] = { rosterId: rid, team_name: r.team_name ?? null, team_avatar: r.team_avatar ?? null, ...r };
+          }
+        }
+        return map;
+      } catch (err) {
+        return {};
+      }
+    }
+  }
+
+  // get users for a league (if needed)
+  async function getUsersForLeague(leagueId, opts = {}) {
+    const key = `sleeper:users:${leagueId}`;
+    try {
+      return await cachedGet(key, `/league/${leagueId}/users`, { ttl: opts.ttl ?? 60 * 60 });
+    } catch (e) {
+      return await rawFetch(`/league/${leagueId}/users`, opts);
+    }
+  }
+
+  /**************************************************************************
+   * New high-level helpers (moved heavy lifting into the client)
+   * These are the functions you asked for: getFinalStandingsForLeague, getChampionForLeague
+   **************************************************************************/
+
+  /**
+   * Compute final standings for a given leagueId.
+   * - Uses getRosterMapWithOwners and getMatchupsForWeek internally.
+   * - Caches result using the configured cache adapter if present.
+   *
+   * Returned shape:
+   *  { leagueId, standings: [ { rosterId, team_name, owner_name, team_avatar, wins, losses, ties, points_for, points_against } ], meta: { leagueMeta, rosterMap } }
+   */
+  async function getFinalStandingsForLeague(leagueId, opts = {}) {
+    const cacheKey = `sleeper:computed:standings:${leagueId}`;
+    const cacheTtl = opts.ttl ?? ttl ?? 3600;
+
+    // try cache
+    try {
+      if (cache && cache.get) {
+        const cached = await cache.get(cacheKey);
+        if (cached) {
+          try { return typeof cached === 'string' ? JSON.parse(cached) : cached; } catch (e) {}
+        }
+      }
+    } catch (e) {
+      // ignore cache read errors
+    }
+
+    // fetch league meta + roster map
+    let leagueMeta = null;
+    try { leagueMeta = await getLeague(leagueId); } catch (e) { leagueMeta = null; }
+
+    let rosterMap = {};
+    try { rosterMap = await getRosterMapWithOwners(leagueId); } catch (e) { rosterMap = {}; }
+
+    // Determine how many weeks to consider for the regular season
+    let maxWeeks = 17;
+    try {
+      const s = leagueMeta?.settings ?? {};
+      maxWeeks = Number(s.matchup_count ?? s.max_week ?? s.maxWeek ?? leagueMeta?.max_week ?? leagueMeta?.settings?.regular_season_length ?? maxWeeks) || maxWeeks;
+      if (maxWeeks < 1 || maxWeeks > 40) maxWeeks = 17;
+    } catch (e) {
+      maxWeeks = 17;
+    }
+
+    const table = {}; // rosterId -> stats
+
+    for (let wk = 1; wk <= maxWeeks; wk++) {
+      let matchups = [];
+      try { matchups = await getMatchupsForWeek(leagueId, wk); } catch (e) { matchups = []; }
+      if (!Array.isArray(matchups) || matchups.length === 0) continue;
+
+      for (const m of matchups) {
+        const participants = m.participants ?? m.entries ?? m.rosters ?? m.users ?? null;
+        if (Array.isArray(participants) && participants.length >= 1) {
+          for (const p of participants) {
+            const rid = String(p.roster_id ?? p.rosterId ?? p.owner_id ?? p.ownerId ?? p.roster ?? 'unknown');
+            const pts = Number(p.points ?? p.points_for ?? p.pts ?? p.score ?? 0) || 0;
+            if (!table[rid]) table[rid] = { rosterId: rid, wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0 };
+            table[rid].points_for += pts;
+          }
+          if (participants.length === 2) {
+            const a = participants[0];
+            const b = participants[1];
+            const ra = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? a.roster ?? 'a');
+            const rb = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? b.roster ?? 'b');
+            const pa = Number(a.points ?? a.points_for ?? a.pts ?? a.score ?? 0) || 0;
+            const pb = Number(b.points ?? b.points_for ?? b.pts ?? b.score ?? 0) || 0;
+            if (!table[ra]) table[ra] = { rosterId: ra, wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0 };
+            if (!table[rb]) table[rb] = { rosterId: rb, wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0 };
+            table[ra].points_against += pb;
+            table[rb].points_against += pa;
+            if (pa > pb) {
+              table[ra].wins += 1; table[rb].losses += 1;
+            } else if (pb > pa) {
+              table[rb].wins += 1; table[ra].losses += 1;
+            } else {
+              table[ra].ties += 1; table[rb].ties += 1;
+            }
+          } else {
+            // multi-way: points_for aggregated; wins/losses omitted
+          }
+        } else {
+          const rid = String(m.roster_id ?? m.rosterId ?? m.owner_id ?? m.ownerId ?? 'unknown');
+          const pts = Number(m.points ?? m.points_for ?? m.pts ?? 0) || 0;
+          if (!table[rid]) table[rid] = { rosterId: rid, wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0 };
+          table[rid].points_for += pts;
+        }
+      }
+    }
+
+    const standings = Object.values(table).map((r) => {
+      const meta = rosterMap && rosterMap[r.rosterId] ? rosterMap[r.rosterId] : {};
+      return {
+        rosterId: r.rosterId,
+        team_name: meta.team_name ?? meta.team ?? meta.nickname ?? null,
+        owner_name: meta.owner_name ?? meta.owner ?? null,
+        team_avatar: meta.team_avatar ?? meta.avatar ?? null,
+        wins: r.wins,
+        losses: r.losses,
+        ties: r.ties,
+        points_for: Math.round((r.points_for || 0) * 100) / 100,
+        points_against: Math.round((r.points_against || 0) * 100) / 100
+      };
+    });
+
+    standings.sort((a, b) => {
+      const aw = Number(a.wins || 0), bw = Number(b.wins || 0);
+      if (aw !== bw) return bw - aw;
+      const ap = Number(a.points_for || 0), bp = Number(b.points_for || 0);
+      return bp - ap;
+    });
+
+    const out = { leagueId: String(leagueId), standings, meta: { leagueMeta, rosterMap } };
+
+    try {
+      if (cache && cache.set) await cache.set(cacheKey, JSON.stringify(out), { ttl: cacheTtl });
+    } catch (e) {
+      // ignore cache write errors
     }
 
     return out;
   }
 
   /**
-   * Map variant: returns { rosterId: enrichedObj } for quick lookup.
+   * Compute champion for a given leagueId.
+   * - Heuristic: sum of roster points across playoff weeks (playoffStart, playoffStart+1, playoffStart+2)
+   * - Returns: { leagueId, champion, playoffTotals, playoffStart }
    */
-  async function getRosterMapWithOwners(leagueId, opts = {}) {
-    const arr = await getRostersWithOwners(leagueId, opts);
-    const map = {};
-    if (Array.isArray(arr)) {
-      for (const r of arr) {
-        if (r && r.roster_id != null) map[String(r.roster_id)] = r;
+  async function getChampionForLeague(leagueId, opts = {}) {
+    const cacheKey = `sleeper:computed:champion:${leagueId}`;
+    const cacheTtl = opts.ttl ?? (ttl ? ttl * 24 : 60 * 60 * 24);
+
+    try {
+      if (cache && cache.get) {
+        const raw = await cache.get(cacheKey);
+        if (raw) {
+          try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) {}
+        }
       }
+    } catch (e) {
+      // ignore cache reads
     }
-    return map;
-  }
 
-  /**
-   * Helper: extract a mapping of playerId -> points and list of starters from a participant/matchup object.
-   * Best-effort to handle different shapes returned by Sleeper endpoints.
-   */
-  function _extractPlayerPointsMap(participant) {
-    const safeNum = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-    const pp = participant.player_points ?? participant.playerPoints ?? participant.player_points_for ?? participant.player_points_for ?? null;
-    const playersList = participant.players ?? participant.player_ids ?? participant.playerIds ?? participant.player_ids_list ?? null;
-    // starters_points may be an array aligned with starters
-    const startersPoints = participant.starters_points ?? participant.startersPoints ?? participant.starters_points_for ?? participant.starters_points_for ?? null;
-    const starters = participant.starters ?? participant.starting_lineup ?? participant.starters_list ?? participant.startersList ?? null;
+    // Try to get league meta and roster map
+    let leagueMeta = null;
+    try { leagueMeta = await getLeague(leagueId); } catch (e) { leagueMeta = null; }
 
-    const map = {};
-    // If player_points is an object mapping pid -> { points } or number
-    if (pp && typeof pp === 'object' && !Array.isArray(pp)) {
-      for (const [k, v] of Object.entries(pp)) {
-        if (v == null) continue;
-        if (typeof v === 'object') {
-          map[String(k)] = safeNum(v.points ?? v.pts ?? v.p ?? 0);
+    let rosterMap = {};
+    try { rosterMap = await getRosterMapWithOwners(leagueId); } catch (e) { rosterMap = {}; }
+
+    // detect playoff start
+    let playoffStart = null;
+    try {
+      const s = leagueMeta?.settings ?? {};
+      playoffStart = Number(s.playoff_week_start ?? s.playoffStart ?? s.playoff_start ?? s.playoffStartWeek ?? leagueMeta?.playoff_start ?? leagueMeta?.playoffStart ?? null);
+    } catch (e) {
+      playoffStart = null;
+    }
+    if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+    const playoffWeeks = [playoffStart, playoffStart + 1, playoffStart + 2];
+
+    const totals = {};
+    for (const wk of playoffWeeks) {
+      let matchups = [];
+      try { matchups = await getMatchupsForWeek(leagueId, wk); } catch (e) { matchups = []; }
+      if (!Array.isArray(matchups)) continue;
+
+      for (const m of matchups) {
+        const parts = m.participants ?? m.entries ?? m.rosters ?? m.users ?? null;
+        if (Array.isArray(parts)) {
+          for (const p of parts) {
+            const rid = String(p.roster_id ?? p.rosterId ?? p.owner_id ?? p.ownerId ?? p.roster ?? 'unknown');
+            const pts = Number(p.points ?? p.points_for ?? p.pts ?? p.score ?? 0) || 0;
+            totals[rid] = (totals[rid] || 0) + pts;
+          }
         } else {
-          map[String(k)] = safeNum(v);
+          const rid = String(m.roster_id ?? m.rosterId ?? m.owner_id ?? m.ownerId ?? 'unknown');
+          const pts = Number(m.points ?? m.points_for ?? m.pts ?? 0) || 0;
+          totals[rid] = (totals[rid] || 0) + pts;
         }
       }
     }
 
-    // If startersPoints + starters arrays are available, align them
-    if (Array.isArray(starters) && Array.isArray(startersPoints) && starters.length === startersPoints.length) {
-      for (let i = 0; i < starters.length; i++) {
-        const pid = starters[i];
-        if (pid == null) continue;
-        map[String(pid)] = safeNum(startersPoints[i]);
+    let topId = null;
+    let topPts = -Infinity;
+    for (const k of Object.keys(totals)) {
+      if (totals[k] > topPts) {
+        topPts = totals[k];
+        topId = k;
       }
     }
 
-    // If playersList exists and pp is an array aligned, align them
-    if (Array.isArray(playersList) && Array.isArray(pp) && playersList.length === pp.length) {
-      for (let i = 0; i < playersList.length; i++) {
-        const pid = playersList[i];
-        const v = pp[i];
-        if (pid == null) continue;
-        if (v == null) continue;
-        if (typeof v === 'object') map[String(pid)] = safeNum(v.points ?? v.pts ?? 0);
-        else map[String(pid)] = safeNum(v);
-      }
-    }
+    const championMeta =
+      (topId && rosterMap && rosterMap[topId]) || {
+        rosterId: topId,
+        team_name: rosterMap?.[topId]?.team_name ?? 'Roster ' + topId,
+        owner_name: rosterMap?.[topId]?.owner_name ?? null,
+        team_avatar: rosterMap?.[topId]?.team_avatar ?? null
+      };
 
-    return { map, starters: Array.isArray(starters) ? starters.map(s => String(s)) : [] };
+    const out = { leagueId: String(leagueId), champion: championMeta, playoffTotals: totals, playoffStart };
+
+    try { if (cache && cache.set) await cache.set(cacheKey, JSON.stringify(out), { ttl: cacheTtl }); } catch (e) {}
+
+    return out;
   }
 
-  /**
-   * Compute the Finals MVP with richer output: player name, team, roster/owner who started them, and sanity checks.
-   * The player must be a starter in the championship matchup.
-   *
-   * Parameters:
-   * - leagueId (string)
-   * - opts: { season, maxWeek (default 30), championshipWeek (optional), playersEndpoint (optional, default '/players/nba') }
-   *
-   * Returns: {
-   *   playerId, playerName, playerTeam, points, week, matchupId,
-   *   rosterId, rosterName, ownerId, ownerName,
-   *   sanity: { playerFound, starterFound, playersEndpointChecked },
-   *   playerObj
-   * }
-   */
-  async function getFinalsMVP(leagueId, opts = {}) {
-    const { season = null, maxWeek = 30, championshipWeek = null, playersEndpoint = '/players/nba' } = opts || {};
-    const playersMapPromise = rawFetch(playersEndpoint).catch(() => ({}));
-    const rosterMapPromise = getRosterMapWithOwners(leagueId).catch(() => ({}));
-
-   const findFinalWeek = async () => {
-  // Try to determine playoff start from league settings (Honor Hall logic)
-  let playoffStart = null;
-  try {
-    const leagueMeta = await getLeague(leagueId).catch(() => null);
-    if (leagueMeta && leagueMeta.settings) {
-      playoffStart = leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek ?? null;
-      if (!playoffStart) playoffStart = leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start ?? null;
-    }
-  } catch (e) {
-    playoffStart = null;
-  }
-  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-    // default to Honor Hall fallback
-    playoffStart = 15;
-  }
-  const championshipWeek = Number(playoffStart) + 2;
-
-  // Attempt to load the championship matchup directly for the computed week
-  try {
-    const rows = await getMatchupsForWeek(leagueId, championshipWeek);
-    if (Array.isArray(rows) && rows.length) {
-      // group by matchup identifier
-      const groups = {};
-      for (const r of rows) {
-        const key = r.matchup_id ?? r.matchup ?? r.matchupId ?? String(r.id ?? (r.roster_id ?? Math.random()));
-        groups[key] = groups[key] || [];
-        groups[key].push(r);
-      }
-      // find a head-to-head group with 2 participants
-      for (const [k, g] of Object.entries(groups)) {
-        if (g.length === 2) return { week: championshipWeek, matchup: g };
-      }
-    }
-  } catch (e) {
-    // ignore and fall back
-  }
-
-  // Fallback: scan weeks from maxWeek downwards and pick first head-to-head with 2 participants
-  for (let wk = maxWeek; wk >= 1; wk--) {
-    let rows;
-    try { rows = await getMatchupsForWeek(leagueId, wk); } catch (e) { continue; }
-    if (!Array.isArray(rows) || rows.length === 0) continue;
-    const groups = {};
-    for (const r of rows) {
-      let key = r.matchup_id ?? r.matchup ?? r.matchupId ?? null;
-      if (key == null) {
-        key = (function(){
-          const rid = r.roster_id ?? r.rosterId ?? r.roster ?? null;
-          const opp = r.opponent_id ?? r.opponentId ?? r.opponent ?? r.opponent_roster_id ?? null;
-          if (rid != null && opp != null) return [String(rid), String(opp)].sort().join('-');
-          return 'idx-'+String(r.id ?? (r.roster_id ?? Math.random())).slice(0,8);
-        })();
-      }
-      groups[key] = groups[key] || [];
-      groups[key].push(r);
-    }
-    for (const [k, g] of Object.entries(groups)) {
-      if (g.length === 2) return { week: wk, matchup: g };
-    }
-  }
-  return null;
-};
-
-
-    const finalMatch = await findFinalWeek();
-    if (!finalMatch || !finalMatch.matchup) return null;
-    const week = finalMatch.week;
-    const participants = finalMatch.matchup;
-
-    const playersMap = await playersMapPromise;
-    const rosterMap = await rosterMapPromise;
-
-    let best = null;
-    for (const part of participants) {
-      const rosterId = String(part.roster_id ?? part.rosterId ?? part.roster ?? (part.roster_id == null ? (part.rosterId ?? null) : null) ?? '');
-      const rosterEntry = (rosterMap && rosterMap[rosterId]) || null;
-      const ownerId = rosterEntry ? rosterEntry.owner_id : (part.owner_id ?? part.ownerId ?? null);
-      const ownerName = rosterEntry ? rosterEntry.owner_name : null;
-      const rosterName = rosterEntry ? rosterEntry.team_name : null;
-
-      const { map: pmap, starters } = _extractPlayerPointsMap(part);
-      for (const s of starters) {
-        const pid = String(s);
-        const pts = Number(pmap[pid] ?? 0);
-        const playerObj = playersMap[pid] || playersMap[pid.toUpperCase()] || null;
-        const playerName = playerObj ? (playerObj.full_name || (playerObj.first_name && playerObj.last_name ? (playerObj.first_name + ' ' + playerObj.last_name) : (playerObj.name || null))) : null;
-        const playerTeam = playerObj ? (playerObj.team ?? playerObj.team_id ?? playerObj.teamCode ?? null) : null;
-
-        const sanity = {
-          playerFound: !!playerObj,
-          starterFound: true,
-          playersEndpointChecked: !!playersMap
-        };
-
-        if (!best || pts > best.points) {
-          best = {
-            playerId: pid,
-            playerName,
-            playerTeam,
-            points: pts,
-            week,
-            matchupId: part.matchup_id ?? part.matchup ?? null,
-            rosterId,
-            rosterName,
-            ownerId,
-            ownerName,
-            sanity,
-            playerObj
-          };
-        }
-      }
-    }
-
-    return best;
-  }
-
-  /**
-   * Compute the Overall MVP for a season with richer output:
-   * - player who scored the most AS A STARTER across the season
-   * - identifies the roster/owner that contributed the most starter points for that player
-   *
-   * Parameters:
-   * - leagueId
-   * - opts: { season, maxWeek = 30, playersEndpoint = '/players/nba' }
-   *
-   * Returns:
-   * {
-   *   playerId, playerName, playerTeam, points,
-   *   topRosterId, topRosterName, topOwnerId, topOwnerName,
-   *   weeksCounted, sanity: { playersEndpointChecked, weeksWithData },
-   *   playerObj
-   * }
-   */
-  async function getOverallMVP(leagueId, opts = {}) {
-    const { season = null, maxWeek = 30, playersEndpoint = '/players/nba' } = opts || {};
-    const totals = {}; // pid -> total starter points
-    const perRoster = {}; // pid -> { rosterId -> points }
-    const playersMapPromise = rawFetch(playersEndpoint).catch(() => ({}));
-    const rosterMapPromise = getRosterMapWithOwners(leagueId).catch(() => ({}));
-
-    let weeksWithData = 0;
-    for (let wk = 1; wk <= maxWeek; wk++) {
-      let rows;
-      try { rows = await getMatchupsForWeek(leagueId, wk); } catch (e) { continue; }
-      if (!Array.isArray(rows) || rows.length === 0) continue;
-      weeksWithData++;
-      for (const part of rows) {
-        const rosterId = String(part.roster_id ?? part.rosterId ?? part.roster ?? '');
-        const { map: pmap, starters } = _extractPlayerPointsMap(part);
-        for (const s of starters) {
-          const pid = String(s);
-          const pts = Number(pmap[pid] ?? 0);
-          totals[pid] = (totals[pid] || 0) + Number(pts || 0);
-          perRoster[pid] = perRoster[pid] || {};
-          perRoster[pid][rosterId] = (perRoster[pid][rosterId] || 0) + Number(pts || 0);
-        }
-      }
-    }
-
-    let best = null;
-    for (const [pid, pts] of Object.entries(totals)) {
-      if (!best || pts > best.points) best = { playerId: pid, points: pts };
-    }
-    if (!best) {
-      return { message: 'No starter scoring data found', weeksCounted: weeksWithData, sanity: { playersEndpointChecked: false, weeksWithData } };
-    }
-
-    const playersMap = await playersMapPromise;
-    const rosterMap = await rosterMapPromise;
-    const playerObj = playersMap[best.playerId] || playersMap[best.playerId.toUpperCase()] || null;
-    const playerName = playerObj ? (playerObj.full_name || (playerObj.first_name && playerObj.last_name ? (playerObj.first_name + ' ' + playerObj.last_name) : (playerObj.name || null))) : null;
-    const playerTeam = playerObj ? (playerObj.team ?? playerObj.team_id ?? playerObj.teamCode ?? null) : null;
-
-    // pick the roster that contributed the most starter points to this player
-    const rosterPoints = perRoster[best.playerId] || {};
-    let topRosterId = null, topRosterPts = 0;
-    for (const [rid, rpts] of Object.entries(rosterPoints)) {
-      if (topRosterId === null || rpts > topRosterPts) {
-        topRosterId = rid;
-        topRosterPts = rpts;
-      }
-    }
-    const topRosterEntry = (rosterMap && rosterMap[topRosterId]) || null;
-    const topRosterName = topRosterEntry ? topRosterEntry.team_name : null;
-    const topOwnerId = topRosterEntry ? topRosterEntry.owner_id : null;
-    const topOwnerName = topRosterEntry ? topRosterEntry.owner_name : null;
-
-    return {
-      playerId: best.playerId,
-      playerName,
-      playerTeam,
-      points: best.points,
-      topRosterId,
-      topRosterName,
-      topOwnerId,
-      topOwnerName,
-      weeksCounted: weeksWithData,
-      sanity: { playersEndpointChecked: !!playersMap, weeksWithData },
-      playerObj
-    };
-  }
-
-  /**
-   * Clear cache for a given path (useful for invalidation).
-   */
-  async function clearCacheForPath(pathOrUrl) {
-    if (!cache) return;
-    const fullUrl = pathOrUrl.startsWith('http') ? pathOrUrl : `${baseUrl}${pathOrUrl}`;
-    const key = `sleeper:${fullUrl}`;
-    if (cache.del) await cache.del(key);
-  }
-
+  /**************************************************************************
+   * Return public API
+   **************************************************************************/
   return {
+    // low-level
     rawFetch,
+    cachedGet,
+
+    // basic helpers
     getLeague,
-    getRosters,
-    getUsers,
     getMatchupsForWeek,
-    // new enrichment helpers
-    getRostersWithOwners,
     getRosterMapWithOwners,
-    getFinalsMVP,
-    getOverallMVP,
-    batchGet: async (paths = [], opts = {}) => {
-      const promises = paths.map(p => cachedGet(p, opts));
-      return Promise.all(promises);
-    },
-    clearCacheForPath
+    getUsersForLeague,
+
+    // high-level computed helpers
+    getFinalStandingsForLeague,
+    getChampionForLeague
   };
 }
-
-// default export convenience: create a default client with in-memory cache (safe for dev)
-import { createMemoryCache } from '$lib/server/cache';
-export const defaultSleeperClient = createSleeperClient({ cache: createMemoryCache(), concurrency: 6 });
-export default defaultSleeperClient;
