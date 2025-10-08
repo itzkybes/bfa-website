@@ -729,6 +729,37 @@ export async function load(event) {
   const champion = finalStandings[0] ?? null;
   const biggestLoser = finalStandings[finalStandings.length - 1] ?? null;
 
+
+  // compute MVPs using sleeper client helpers
+  let finalsMvp = null;
+  let overallMvp = null;
+  try {
+    finalsMvp = await sleeper.getFinalsMVP(selectedLeagueId, { season: selectedSeasonParam || (leagueMeta && leagueMeta.season) || null, championshipWeek: playoffEnd, maxWeek: playoffEnd, playersEndpoint: '/players/nba' });
+  } catch (e) {
+    messages.push('Failed computing Finals MVP: ' + (e?.message ?? e));
+    finalsMvp = null;
+  }
+  try {
+    overallMvp = await sleeper.getOverallMVP(selectedLeagueId, { season: selectedSeasonParam || (leagueMeta && leagueMeta.season) || null, maxWeek: playoffEnd, playersEndpoint: '/players/nba' });
+  } catch (e) {
+    messages.push('Failed computing Overall MVP: ' + (e?.message ?? e));
+    overallMvp = null;
+  }
+
+  // enrich MVP objects with roster metadata (if available)
+  try {
+    if (finalsMvp && typeof finalsMvp.rosterId !== 'undefined' && rosterMap && rosterMap[String(finalsMvp.rosterId)]) {
+      finalsMvp.roster_meta = rosterMap[String(finalsMvp.rosterId)];
+    }
+    if (overallMvp && typeof overallMvp.topRosterId !== 'undefined' && rosterMap && rosterMap[String(overallMvp.topRosterId)]) {
+      overallMvp.roster_meta = rosterMap[String(overallMvp.topRosterId)];
+    }
+  } catch (e) {
+    // non-fatal, attach nothing
+  }
+
+
+
   return {
     seasons,
     selectedSeason: selectedSeasonParam,
@@ -740,6 +771,8 @@ export async function load(event) {
     finalStandings,
     debug: trace,
     messages,
-    prevChain
+    prevChain,
+    finalsMvp,
+    overallMvp,
   };
 }
