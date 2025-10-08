@@ -244,22 +244,33 @@
       </div>
     {/if}
 
+
     {#if finalsMvp}
       <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar || finalsMvp.roster_meta?.owner_avatar, finalsMvp.roster_meta?.team_name)} alt="finals mvp avatar" style="width:56px;height:56px">
+        <img class="avatar" src={finalsMvp.playerObj?.avatar || avatarOrPlaceholder(finalsMvp.playerObj?.avatar, finalsMvp.playerName)} alt="finals mvp avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Finals MVP</div>
-          <div class="small">Player {finalsMvp.playerId} • {finalsMvp.points} pts • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}</div>
+          <div class="small">
+            {finalsMvp.playerName ?? `Player ${finalsMvp.playerId}`}<br>
+            {finalsMvp.playerTeam ? `Team: ${finalsMvp.playerTeam}` : ''}
+            <br>{finalsMvp.points} pts
+            <br>Started by: {finalsMvp.ownerName ?? finalsMvp.rosterName ?? `Roster ${finalsMvp.rosterId}`}
+          </div>
         </div>
       </div>
     {/if}
 
     {#if overallMvp}
       <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar || overallMvp.roster_meta?.owner_avatar, overallMvp.roster_meta?.team_name)} alt="overall mvp avatar" style="width:56px;height:56px">
+        <img class="avatar" src={overallMvp.playerObj?.avatar || avatarOrPlaceholder(overallMvp.playerObj?.avatar, overallMvp.playerName)} alt="overall mvp avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Overall MVP</div>
-          <div class="small">Player {overallMvp.playerId} • {overallMvp.points} pts • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId}`}</div>
+          <div class="small">
+            {overallMvp.playerName ?? `Player ${overallMvp.playerId}`}<br>
+            {overallMvp.playerTeam ? `Team: ${overallMvp.playerTeam}` : ''}
+            <br>{overallMvp.points} pts
+            <br>Most points for: {overallMvp.topOwnerName ?? overallMvp.topRosterName ?? `Roster ${overallMvp.topRosterId}`}
+          </div>
         </div>
       </div>
     {/if}
