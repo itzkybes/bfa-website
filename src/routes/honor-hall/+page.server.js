@@ -67,10 +67,19 @@ export async function load(event) {
       overallMvp = await sleeper.getOverallMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
     } catch (e) { overallMvp = null; }
 
+    // Build finalStandingsBySeason keyed by selectedSeason
+    const finalStandingsBySeason = {};
+    if (honorData.selectedSeason) {
+      finalStandingsBySeason[String(honorData.selectedSeason)] = {
+        finalStandings: Array.isArray(honorData.finalStandings) ? honorData.finalStandings : [],
+        debug: Array.isArray(honorData.debug) ? honorData.debug : []
+      };
+    }
     return {
       ...honorData,
       finalsMvp,
-      overallMvp
+      overallMvp,
+      finalStandingsBySeason
     };
   }
 
