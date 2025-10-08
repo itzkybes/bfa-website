@@ -35,35 +35,70 @@ export async function getHonorHallData({
   messages = [],
   prevChain = []
 }) {
-  // --- build seasons chain ---
   let seasons = [];
+  let mainLeague = null;
   try {
-    let mainLeague = null;
-    try {
-      mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
-    } catch (e) {
-      messages.push('Failed fetching base league ' + BASE_LEAGUE_ID + ' — ' + (e && e.message ? e.message : String(e)));
-    }
-    if (mainLeague) {
+    mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
+  } catch (e) {
+    messages.push('Failed fetching base league ' + BASE_LEAGUE_ID + ' — ' + (e && e.message ? e.message : String(e)));
+  }
+  if (mainLeague) {
+    seasons.push({
+      league_id: String(mainLeague.league_id || BASE_LEAGUE_ID),
+      season: mainLeague.season ?? null,
+      name: mainLeague.name ?? null
+    });
+    let currPrev = mainLeague.previous_league_id || mainLeague.previousLeagueId || null;
+    let steps = 0;
+    while (currPrev && steps < 50) {
+      let prev = null;
+      try {
+        prev = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
+      } catch (e) {
+        messages.push('Failed fetching previous league ' + currPrev + ' — ' + (e && e.message ? e.message : String(e)));
+        break;
+      }
+      if (!prev) break;
       seasons.push({
-        league_id: String(mainLeague.league_id || BASE_LEAGUE_ID),
-        season: mainLeague.season ?? null,
-        name: mainLeague.name ?? null
+        league_id: String(prev.league_id || currPrev),
+        season: prev.season ?? null,
+        name: prev.name ?? null
       });
-      prevChain.push(String(mainLeague.league_id || BASE_LEAGUE_ID));
-      let currPrev = mainLeague.previous_league_id ? String(mainLeague.previous_league_id) : null;
-      let steps = 0;
-      while (currPrev && steps < 50) {
-        steps++;
-        try {
-          const prevLeague = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
-          if (!prevLeague) {
-            messages.push('Could not fetch league for previous_league_id ' + currPrev);
-            break;
-          }
-          seasons.push({
-            league_id: String(prevLeague.league_id || currPrev),
-            season: prevLeague.season ?? null,
+      currPrev = prev.previous_league_id || prev.previousLeagueId || null;
+      steps++;
+    }
+  }
+  // fallback: always include base league if fetch fails or error
+  if (!seasons.length) {
+    seasons.push({
+      league_id: String(BASE_LEAGUE_ID),
+      season: null,
+      name: null
+    });
+  }
+  // dedupe
+  const byId = {};
+  for (let i = 0; i < seasons.length; i++) {
+    const s = seasons[i];
+    byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
+  }
+  seasons = Object.values(byId);
+  seasons.sort((a, b) => {
+    if (a.season == null && b.season == null) return 0;
+    if (a.season == null) return 1;
+    if (b.season == null) return -1;
+    const na = Number(a.season), nb = Number(b.season);
+    if (!isNaN(na) && !isNaN(nb)) return nb - na;
+    return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
+  });
+  let selSeason = selectedSeasonParam;
+  if (!selSeason) {
+    if (seasons && seasons.length) {
+      selSeason = seasons[0].season ?? seasons[0].league_id;
+    } else {
+      selSeason = BASE_LEAGUE_ID;
+    }
+  }
             name: prevLeague.name ?? null
           });
           prevChain.push(String(prevLeague.league_id || currPrev));
