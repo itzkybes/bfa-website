@@ -77,6 +77,7 @@ export async function load(event) {
     }
     return {
       ...honorData,
+      selectedSeason: honorData.selectedSeason, // always use computed, not raw param
       finalsMvp,
       overallMvp,
       finalStandingsBySeason
