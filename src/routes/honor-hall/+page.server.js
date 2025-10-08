@@ -1,7 +1,8 @@
 // src/routes/honor-hall/+page.server.js
 // Honor Hall loader + bracket simulation (updated losers-bracket logic)
 
-import { createSleeperClient } from '$lib/server/sleeperClient';
+
+import { createSleeperClient, getHonorHallData, getFinalsMVP, getOverallMVP, safeNum, computeStreaks } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
 let cache;
@@ -20,31 +21,6 @@ const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process
   : '1219816671624048640';
 const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 25;
 
-function safeNum(v) {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
-function computeStreaks(resultsArray) {
-  let maxW = 0, maxL = 0, curW = 0, curL = 0;
-  if (!resultsArray || !Array.isArray(resultsArray)) return { maxW: 0, maxL: 0 };
-  for (let i = 0; i < resultsArray.length; i++) {
-    const r = resultsArray[i];
-    if (r === 'W') {
-      curW += 1;
-      curL = 0;
-      if (curW > maxW) maxW = curW;
-    } else if (r === 'L') {
-      curL += 1;
-      curW = 0;
-      if (curL > maxL) maxL = curL;
-    } else {
-      curW = 0;
-      curL = 0;
-    }
-  }
-  return { maxW, maxL };
-}
 
 export async function load(event) {
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
@@ -73,274 +49,37 @@ export async function load(event) {
       });
       prevChain.push(String(mainLeague.league_id || BASE_LEAGUE_ID));
 
-      let currPrev = mainLeague.previous_league_id ? String(mainLeague.previous_league_id) : null;
-      let steps = 0;
-      while (currPrev && steps < 50) {
-        steps++;
-        try {
-          const prevLeague = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
-          if (!prevLeague) {
-            messages.push('Could not fetch league for previous_league_id ' + currPrev);
-            break;
-          }
-          seasons.push({
-            league_id: String(prevLeague.league_id || currPrev),
-            season: prevLeague.season ?? null,
-            name: prevLeague.name ?? null
-          });
-          prevChain.push(String(prevLeague.league_id || currPrev));
-          currPrev = prevLeague.previous_league_id ? String(prevLeague.previous_league_id) : null;
-        } catch (err) {
-          messages.push('Error fetching previous_league_id: ' + currPrev + ' — ' + (err && err.message ? err.message : String(err)));
-          break;
-        }
-      }
-    }
-  } catch (err) {
-    messages.push('Error while building seasons chain: ' + (err && err.message ? err.message : String(err)));
-  }
+      event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
-  // dedupe
-  const byId = {};
-  for (let i = 0; i < seasons.length; i++) {
-    const s = seasons[i];
-    byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
-  }
-  seasons = [];
-  for (const k in byId) if (Object.prototype.hasOwnProperty.call(byId, k)) seasons.push(byId[k]);
+      const url = event.url;
+      const incomingSeasonParam = url.searchParams.get('season') || null;
+      const messages = [];
+      const prevChain = [];
 
-  seasons.sort((a, b) => {
-    if (a.season == null && b.season == null) return 0;
-    if (a.season == null) return 1;
-    if (b.season == null) return -1;
-    const na = Number(a.season), nb = Number(b.season);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
-  });
-
-  let selectedSeasonParam = incomingSeasonParam;
-  if (!selectedSeasonParam) {
-    if (seasons && seasons.length) {
-      const latest = seasons[seasons.length - 1];
-      selectedSeasonParam = latest.season != null ? String(latest.season) : String(latest.league_id);
-    } else {
-      selectedSeasonParam = String(BASE_LEAGUE_ID);
-    }
-  }
-
-  let selectedLeagueId = null;
-  for (let i = 0; i < seasons.length; i++) {
-    const s = seasons[i];
-    if (String(s.league_id) === String(selectedSeasonParam) || (s.season != null && String(s.season) === String(selectedSeasonParam))) {
-      selectedLeagueId = String(s.league_id);
-      break;
-    }
-  }
-  if (!selectedLeagueId) selectedLeagueId = String(selectedSeasonParam || BASE_LEAGUE_ID);
-
-  let leagueMeta = null;
-  try { leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }); }
-  catch (e) { leagueMeta = null; messages.push('Failed fetching league meta for ' + selectedLeagueId + ' — ' + (e?.message ?? e)); }
-
-  let playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
-  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-    playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
-    if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-      playoffStart = 15;
-      messages.push('Playoff start not found in metadata — defaulting to week ' + playoffStart);
-    }
-  }
-  const playoffEnd = playoffStart + 2;
-
-  // roster map
-  let rosterMap = {};
-  try {
-    rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
-    messages.push('Loaded rosters (' + Object.keys(rosterMap).length + ')');
-  } catch (e) {
-    rosterMap = {};
-    messages.push('Failed fetching rosters for ' + selectedLeagueId + ' — ' + (e?.message ?? e));
-  }
-
-  // --- compute regular-season standings (for tiebreaks) ---
-  const statsByRosterRegular = {};
-  const resultsByRosterRegular = {};
-  const paByRosterRegular = {};
-  for (const rk in rosterMap) {
-    if (!Object.prototype.hasOwnProperty.call(rosterMap, rk)) continue;
-    statsByRosterRegular[String(rk)] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: rosterMap[rk].roster_raw ?? null };
-    resultsByRosterRegular[String(rk)] = [];
-    paByRosterRegular[String(rk)] = 0;
-  }
-
-  const regStart = 1;
-  const regEnd = Math.max(1, playoffStart - 1);
-
-  for (let week = regStart; week <= regEnd; week++) {
-    let matchups = null;
-    try {
-      matchups = await sleeper.getMatchupsForWeek(selectedLeagueId, week, { ttl: 60 * 5 });
-    } catch (errWeek) {
-      messages.push('Error fetching matchups for league ' + selectedLeagueId + ' week ' + week + ' — ' + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
-      continue;
-    }
-    if (!matchups || !matchups.length) continue;
-
-    const byMatch = {};
-    for (let mi = 0; mi < matchups.length; mi++) {
-      const e = matchups[mi];
-      const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-      const wk = e.week ?? e.w ?? week;
-      const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
-      if (!byMatch[key]) byMatch[key] = [];
-      byMatch[key].push(e);
-    }
-
-    const keys = Object.keys(byMatch);
-    for (let k = 0; k < keys.length; k++) {
-      const entries = byMatch[keys[k]];
-      if (!entries || entries.length === 0) continue;
-
-      if (entries.length === 1) {
-        const only = entries[0];
-        const ridOnly = String(only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId ?? 'unknown');
-        const ptsOnly = safeNum(only.points ?? only.points_for ?? only.pts ?? 0);
-        if (!statsByRosterRegular[ridOnly]) statsByRosterRegular[ridOnly] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        if (!resultsByRosterRegular[ridOnly]) resultsByRosterRegular[ridOnly] = [];
-        if (!paByRosterRegular[ridOnly]) paByRosterRegular[ridOnly] = 0;
-        statsByRosterRegular[ridOnly].pf += ptsOnly;
-        continue;
-      }
-
-      const participants = [];
-      for (let i = 0; i < entries.length; i++) {
-        const ent = entries[i];
-        const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? ('r' + i));
-        const ppts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0);
-        participants.push({ rosterId: pid, points: ppts });
-        if (!statsByRosterRegular[pid]) statsByRosterRegular[pid] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        if (!resultsByRosterRegular[pid]) resultsByRosterRegular[pid] = [];
-        if (!paByRosterRegular[pid]) paByRosterRegular[pid] = 0;
-        statsByRosterRegular[pid].pf += ppts;
-      }
-
-      for (let i = 0; i < participants.length; i++) {
-        const part = participants[i];
-        const opponents = participants.filter((_, idx) => idx !== i);
-        let oppAvg = 0;
-        if (opponents.length) oppAvg = opponents.reduce((acc,o) => acc + o.points, 0) / opponents.length;
-        paByRosterRegular[part.rosterId] = (paByRosterRegular[part.rosterId] || 0) + oppAvg;
-        if (part.points > oppAvg + 1e-9) {
-          resultsByRosterRegular[part.rosterId].push('W');
-          statsByRosterRegular[part.rosterId].wins += 1;
-        } else if (part.points < oppAvg - 1e-9) {
-          resultsByRosterRegular[part.rosterId].push('L');
-          statsByRosterRegular[part.rosterId].losses += 1;
-        } else {
-          resultsByRosterRegular[part.rosterId].push('T');
-          statsByRosterRegular[part.rosterId].ties += 1;
-        }
-      }
-    }
-  } // end regular loop
-
-  function buildStandingsFromTrackers(statsByRoster, resultsByRoster, paByRoster) {
-    const keys = Object.keys(resultsByRoster).length ? Object.keys(resultsByRoster) : (rosterMap ? Object.keys(rosterMap) : []);
-    const out = [];
-    for (let i = 0; i < keys.length; i++) {
-      const rid = keys[i];
-      if (!Object.prototype.hasOwnProperty.call(statsByRoster, rid)) {
-        statsByRoster[rid] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: (rosterMap && rosterMap[rid] ? rosterMap[rid].roster_raw : null) };
-      }
-      const s = statsByRoster[rid];
-      const wins = s.wins || 0;
-      const losses = s.losses || 0;
-      const ties = s.ties || 0;
-      const pfVal = Math.round((s.pf || 0) * 100) / 100;
-      const paVal = Math.round((paByRoster[rid] || s.pa || 0) * 100) / 100;
-      const meta = rosterMap && rosterMap[rid] ? rosterMap[rid] : {};
-      const team_name = meta.team_name ? meta.team_name : ((s.roster && s.roster.metadata && s.roster.metadata.team_name) ? s.roster.metadata.team_name : ('Roster ' + rid));
-      const owner_name = meta.owner_name || null;
-      const avatar = meta.team_avatar || meta.owner_avatar || null;
-      const resArr = resultsByRoster && resultsByRoster[rid] ? resultsByRoster[rid] : [];
-      const streaks = computeStreaks(resArr);
-      out.push({
-        rosterId: rid,
-        team_name,
-        owner_name,
-        avatar,
-        wins,
-        losses,
-        ties,
-        pf: pfVal,
-        pa: paVal,
-        maxWinStreak: streaks.maxW,
-        maxLoseStreak: streaks.maxL
+      // Use the new helper to get all honor hall data
+      const honorData = await getHonorHallData({
+        sleeper,
+        BASE_LEAGUE_ID,
+        selectedSeasonParam: incomingSeasonParam,
+        MAX_WEEKS,
+        messages,
+        prevChain
       });
-    }
-    out.sort((a,b) => {
-      if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
-      return (b.pf || 0) - (a.pf || 0);
-    });
-    return out;
-  }
 
-  const regularStandings = buildStandingsFromTrackers(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular);
+      // Also fetch MVPs for the selected league/season
+      let finalsMvp = null, overallMvp = null;
+      try {
+        finalsMvp = await sleeper.getFinalsMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
+      } catch (e) { finalsMvp = null; }
+      try {
+        overallMvp = await sleeper.getOverallMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
+      } catch (e) { overallMvp = null; }
 
-  const placementMap = {};
-  for (let i = 0; i < regularStandings.length; i++) placementMap[String(regularStandings[i].rosterId)] = i + 1;
-  const placementToRoster = {};
-  for (const k in placementMap) placementToRoster[ placementMap[k] ] = k;
-
-  // --- fetch playoff matchups and normalize rows ---
-  const rawMatchups = [];
-  for (let wk = playoffStart; wk <= playoffEnd; wk++) {
-    try {
-      const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
-      if (Array.isArray(wkMatchups) && wkMatchups.length) {
-        for (const m of wkMatchups) {
-          if (m && (m.week == null && m.w == null)) m.week = wk;
-          rawMatchups.push(m);
-        }
-      }
-    } catch (we) {
-      messages.push('Failed to fetch matchups for week ' + wk + ': ' + (we?.message ?? String(we)));
-    }
-  }
-
-  const byMatch = {};
-  for (let i = 0; i < rawMatchups.length; i++) {
-    const e = rawMatchups[i];
-    const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-    const wk = e.week ?? e.w ?? null;
-    const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + i));
-    if (!byMatch[key]) byMatch[key] = [];
-    byMatch[key].push(e);
-  }
-
-  const matchupsRows = [];
-  const mkeys = Object.keys(byMatch);
-  for (let ki = 0; ki < mkeys.length; ki++) {
-    const entries = byMatch[mkeys[ki]];
-    if (!entries || entries.length === 0) continue;
-
-    if (entries.length === 1) {
-      const a = entries[0];
-      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
-      const aMeta = rosterMap[aId] || {};
-      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-      const aPlacement = placementMap[aId] ?? null;
-      matchupsRows.push({
-        matchup_id: mkeys[ki],
-        season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-        week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
-        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, placement: null },
-        participantsCount: 1
-      });
-      continue;
+      return {
+        ...honorData,
+        finalsMvp,
+        overallMvp
+      };
     }
 
     if (entries.length === 2) {
