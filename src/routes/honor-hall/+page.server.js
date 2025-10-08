@@ -101,7 +101,7 @@ export async function load(event) {
         teamB: { rosterId: bId, name: bMeta.team_name || bMeta.owner_name || ('Roster ' + bId), avatar: bMeta.team_avatar || bMeta.owner_avatar || null, points: bPts, placement: bPlacement },
         participantsCount: 2
       });
-      continue;
+  return;
     }
 
     const participants = entries.map(ent => {
@@ -239,7 +239,7 @@ export async function load(event) {
     if (!p.a.rosterId || !p.b.rosterId) {
       trace.push(`W1 ${p.a.seed}v${p.b.seed} -> missing-roster`);
       wR1Results.push({ winner: p.a.rosterId || p.b.rosterId, loser: p.a.rosterId ? p.b.rosterId : p.a.rosterId, reason: 'missing-roster' });
-      continue;
+  return;
     }
     const res = runMatch(p.a, p.b, `W1`);
     wR1Results.push(res);
