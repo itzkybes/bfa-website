@@ -17,6 +17,16 @@
   $: finalStandings = Array.isArray(selectedSeasonResult.finalStandings) ? selectedSeasonResult.finalStandings : [];
   $: debugLines = Array.isArray(selectedSeasonResult.debug) ? selectedSeasonResult.debug : [];
 
+
+
+  // helper to build player headshot URL (NFL fallback, then NBA)
+  function playerHeadshot(playerId, size = 56) {
+    if (!playerId) return '';
+    // use NBA player headshots (Sleeper CDN)
+    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+  }.jpg`;
+  }
+
   // also expose MVPs from top-level (computed for the selected league/season by server)
   const finalsMvp = data?.finalsMvp ?? null;
   const overallMvp = data?.overallMvp ?? null;
