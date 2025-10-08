@@ -33,98 +33,48 @@ export async function load(event) {
 
   // --- build seasons chain ---
   let seasons = [];
+  let mainLeague = null;
   try {
-    let mainLeague = null;
-    try {
-      mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
-    } catch (e) {
-      messages.push('Failed fetching base league ' + BASE_LEAGUE_ID + ' — ' + (e && e.message ? e.message : String(e)));
-    }
-
-    if (mainLeague) {
-      seasons.push({
-        league_id: String(mainLeague.league_id || BASE_LEAGUE_ID),
-        season: mainLeague.season ?? null,
-        name: mainLeague.name ?? null
-      });
-      prevChain.push(String(mainLeague.league_id || BASE_LEAGUE_ID));
-
-      event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
-
-      const url = event.url;
-      const incomingSeasonParam = url.searchParams.get('season') || null;
-      const messages = [];
-      const prevChain = [];
-
-      // Use the new helper to get all honor hall data
-      const honorData = await getHonorHallData({
-        sleeper,
-        BASE_LEAGUE_ID,
-        selectedSeasonParam: incomingSeasonParam,
-        MAX_WEEKS,
-        messages,
-        prevChain
-      });
-
-      // Also fetch MVPs for the selected league/season
-      let finalsMvp = null, overallMvp = null;
-      try {
-        finalsMvp = await sleeper.getFinalsMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
-      } catch (e) { finalsMvp = null; }
-      try {
-        overallMvp = await sleeper.getOverallMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
-      } catch (e) { overallMvp = null; }
-
-      return {
-        ...honorData,
-        finalsMvp,
-        overallMvp
-      };
-    }
-
-    if (entries.length === 2) {
-      const a = entries[0];
-      const b = entries[1];
-      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
-      const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
-      const aMeta = rosterMap[aId] || {};
-      const bMeta = rosterMap[bId] || {};
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
-      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
-      const aPlacement = placementMap[aId] ?? null;
-      const bPlacement = placementMap[bId] ?? null;
-      matchupsRows.push({
-        matchup_id: mkeys[ki],
-        season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-        week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aMeta.team_name || aMeta.owner_name || ('Roster ' + aId), avatar: aMeta.team_avatar || aMeta.owner_avatar || null, points: aPts, placement: aPlacement },
-        teamB: { rosterId: bId, name: bMeta.team_name || bMeta.owner_name || ('Roster ' + bId), avatar: bMeta.team_avatar || bMeta.owner_avatar || null, points: bPts, placement: bPlacement },
-        participantsCount: 2
-      });
-  return;
-    }
-
-    const participants = entries.map(ent => {
-      const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
-      const meta = rosterMap[pid] || {};
-      return {
-        rosterId: pid,
-        name: meta.team_name || meta.owner_name || ('Roster ' + pid),
-        avatar: meta.team_avatar || meta.owner_avatar || null,
-        points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0),
-        placement: placementMap[pid] ?? null
-      };
-    });
-    const combinedLabel = participants.map(p => p.name).join(' / ');
-    matchupsRows.push({
-      matchup_id: mkeys[ki],
-      season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-      week: entries[0].week ?? entries[0].w ?? null,
-      combinedParticipants: participants,
-      combinedLabel,
-      participantsCount: participants.length
-    });
+    mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
+  } catch (e) {
+    messages.push('Failed fetching base league ' + BASE_LEAGUE_ID + ' — ' + (e && e.message ? e.message : String(e)));
   }
+
+  if (mainLeague) {
+    seasons.push({
+      league_id: String(mainLeague.league_id || BASE_LEAGUE_ID),
+      season: mainLeague.season ?? null,
+      name: mainLeague.name ?? null
+    });
+    prevChain.push(String(mainLeague.league_id || BASE_LEAGUE_ID));
+
+    // Use the new helper to get all honor hall data
+    const honorData = await getHonorHallData({
+      sleeper,
+      BASE_LEAGUE_ID,
+      selectedSeasonParam: incomingSeasonParam,
+      MAX_WEEKS,
+      messages,
+      prevChain
+    });
+
+    // Also fetch MVPs for the selected league/season
+    let finalsMvp = null, overallMvp = null;
+    try {
+      finalsMvp = await sleeper.getFinalsMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
+    } catch (e) { finalsMvp = null; }
+    try {
+      overallMvp = await sleeper.getOverallMVP(honorData.selectedLeagueId, { maxWeek: MAX_WEEKS });
+    } catch (e) { overallMvp = null; }
+
+    return {
+      ...honorData,
+      finalsMvp,
+      overallMvp
+    };
+  }
+
+    // ...removed unreachable/duplicate code after mainLeague block...
 
   // helper to find a playoff matchup between two rosterIds across playoff weeks
   function findMatchForPair(rA, rB, preferredWeeks = [playoffStart, playoffStart+1, playoffStart+2]) {
