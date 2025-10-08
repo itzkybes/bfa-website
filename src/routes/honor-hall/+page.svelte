@@ -1,271 +1,139 @@
-<!-- src/routes/honor-hall/+page.svelte -->
-<script>
-  export let data;
-
-  // seasons list and selection
-  const seasons = data?.seasons ?? [];
-  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-
-  // finalStandingsBySeason mapping returned by server
-  const finalStandingsBySeason = data?.finalStandingsBySeason ?? {};
-  // top-level fallbacks
-  const finalStandingsFallback = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
-
-  // pick the season result
-  $: selectedSeasonKey = String(selectedSeason);
-  $: selectedSeasonResult = finalStandingsBySeason[selectedSeasonKey] ?? { finalStandings: finalStandingsFallback, debug: data?.debug ?? [] };
-  $: finalStandings = Array.isArray(selectedSeasonResult.finalStandings) ? selectedSeasonResult.finalStandings : [];
-  $: debugLines = Array.isArray(selectedSeasonResult.debug) ? selectedSeasonResult.debug : [];
-
-  // also expose MVPs from top-level (computed for the selected league/season by server)
-  const finalsMvp = data?.finalsMvp ?? null;
-  const overallMvp = data?.overallMvp ?? null;
-
-  // computed champion/biggest loser from finalStandings
-  $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
-  $: biggestLoser = finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
-
-  // messages & other
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
-
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else form?.submit();
-  }
-
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
-  }
-
-  function placeEmoji(rank) {
-    if (rank === 1) return '🏆';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return '';
-  }
-
-  // Filter debug lines: remove seed reassignment traces
-  function filteredDebug(lines) {
-    if (!Array.isArray(lines)) return [];
-    return lines.filter(l => {
-      if (!l) return false;
-      const s = String(l);
-      if (s.startsWith('Assign place')) return false;
-      if (s.startsWith('Fallback assign')) return false;
-      if (s.includes('Assign place ')) return false;
-      if (s.includes('Fallback assign')) return false;
-      // keep everything else
-      return true;
-    });
-  }
-
-  $: visibleDebug = filteredDebug(debugLines);
+<script context="module">
+  // keep server rendering (not prerendered) so the server load can compute/cache champions
+  export const prerender = false;
 </script>
 
-<style>
-  /* Keep host page background but use light text so header/nav remains visible on dark backgrounds */
-  :global(body) { color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+<script>
+  // data injected by page.server.js
+  export let data;
 
-  /* Container centers content */
-  .container {
-    max-width: 1180px;
-    margin: 24px auto;
-    padding: 20px;
-    display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: 20px;
-    align-items: start;
-  }
+  // finalStandings: array of season descriptors { seasonKey, leagueId, label, finalStandings }
+  // finalStandingsBySeason: { "<leagueId>": { standings, champion, playoffTotals, playoffStart, meta } }
+  const { finalStandings = [], finalStandingsBySeason = {} } = data ?? {};
 
-  .header { grid-column: 1 / span 2; display:flex; justify-content:space-between; align-items:center; gap:12px; }
-  h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
-  .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
+  // UI state
+  let selectedSeasonIndex = 0;
 
-  /* translucent dark cards (no bright white) */
-  .main, .side {
-    background: rgba(6,8,12,0.65);
-    border-radius: 12px;
-    padding: 16px;
-    border: 1px solid rgba(255,255,255,0.04);
-    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
-    backdrop-filter: blur(6px);
-    color: inherit;
-  }
+  $: selectedSeason = finalStandings[selectedSeasonIndex] ?? null;
+  $: selectedLeagueId = selectedSeason ? selectedSeason.leagueId : null;
+  $: selectedSeasonKey = selectedSeason ? selectedSeason.seasonKey : null;
 
-  /* filters */
-  .filters { display:flex; align-items:center; gap:.75rem; }
-  .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
-  select.season-select {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    color: #e6eef8;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-weight: 700;
-    min-width:140px;
-    box-shadow: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-  }
-  .select-wrap { position: relative; display:inline-block; }
-  .select-wrap::after {
-    content: "▾";
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: #9aa3ad;
-    font-size: 0.9rem;
-  }
-  select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
+  // prefer the cached precomputed champion for the selected league, fallback to season.finalStandings[0]
+  $: champion =
+    (selectedLeagueId && finalStandingsBySeason[selectedLeagueId] && finalStandingsBySeason[selectedLeagueId].champion) ||
+    (selectedSeason && selectedSeason.finalStandings && selectedSeason.finalStandings.length ? selectedSeason.finalStandings[0] : null);
 
-  /* debug box */
-  .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
-  .debug ul { margin:0; padding-left:18px; }
+  // derive displayed standings: either the precomputed standings or the server-provided finalStandings entry
+  $: displayedStandings =
+    (selectedLeagueId && finalStandingsBySeason[selectedLeagueId] && finalStandingsBySeason[selectedLeagueId].standings) ||
+    (selectedSeason && selectedSeason.finalStandings) ||
+    [];
+</script>
 
-  /* final standings list */
-  .standings-list { list-style:none; margin:0; padding:0; }
-  .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); }
-  .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#e6eef8; justify-content:flex-start; }
-  .player { display:flex; align-items:center; gap:12px; min-width:0; }
-  .avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(255,255,255,0.04); }
-  .teamName { font-weight:800; color:#e6eef8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
-  .teamMeta { color: #9aa3ad; font-size:.9rem; margin-top:4px; }
-  .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; min-width:56px; text-align:right; }
+<svelte:head>
+  <title>Honor Hall</title>
+</svelte:head>
 
-  .outcome-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-  .outcome-name { font-weight:700; color:#e6eef8; }
-  .small { color:#9aa3ad; font-size:.9rem; }
+<section class="container mx-auto p-4">
+  <h1 class="text-3xl font-bold mb-4">Honor Hall</h1>
 
-  .no-debug { color:#9aa3ad; }
-
-  @media (max-width: 980px) {
-    .container { grid-template-columns: 1fr; padding:12px; }
-    .side { order: 2; }
-  }
-</style>
-
-<div class="container">
-  <div class="header">
-    <div>
-      <h1>Honors Hall</h1>
-      <div class="subtitle">Final placements computed from playoff results — season {selectedSeason}</div>
+  {#if finalStandings.length === 0}
+    <div class="prose">
+      <p>
+        No season data found. If your project maintains a seasons mapping, place it in <code>$lib/data/seasons.json</code>,
+        or set <code>BASE_LEAGUE_ID</code> (or <code>VITE_LEAGUE_ID</code>) in your environment so the server can discover which league(s) to compute.
+      </p>
     </div>
+  {/if}
 
-    <form id="filters" method="get" class="filters" aria-hidden="false">
-      <label class="season-label" for="season">Season</label>
-      <div class="select-wrap">
-        <select id="season" name="season" class="season-select" on:change={submitFilters}>
-          {#if seasons && seasons.length}
-            {#each seasons as s}
-              <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-                {s.season ?? s.name ?? s.league_id}
-              </option>
-            {/each}
-          {:else}
-            <option value={selectedSeason}>{selectedSeason}</option>
-          {/if}
-        </select>
-      </div>
-    </form>
-  </div>
-
-  <div class="main">
-    <div class="debug" aria-live="polite">
-      <ul>
-        {#if visibleDebug && visibleDebug.length}
-          {#each visibleDebug as d}
-            <li>{@html d.replace(/</g,'&lt;')}</li>
-          {/each}
-        {:else}
-          <li>No debug trace available.</li>
-        {/if}
-      </ul>
+  {#if finalStandings.length > 1}
+    <div class="mb-4 flex items-center">
+      <label class="mr-2 font-medium">Season</label>
+      <select bind:value={selectedSeasonIndex} class="px-2 py-1 border rounded">
+        {#each finalStandings as s, idx}
+          <option value={idx}>{s.label ?? s.seasonKey}</option>
+        {/each}
+      </select>
     </div>
+  {/if}
 
-    <h3 style="margin:0 0 12px 0">Final Standings</h3>
-    <ul class="standings-list" role="list" aria-label="Final standings">
-      {#if finalStandings && finalStandings.length}
-        {#each finalStandings as row (row.rosterId)}
-          <li class="stand-row" role="listitem">
-            <div class="rank" aria-hidden="true">
-              <span>{row.rank}</span>
-              <span>{placeEmoji(row.rank)}</span>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="col-span-1 md:col-span-1 p-4 border rounded">
+      <h2 class="text-xl font-semibold">Champion</h2>
+      {#if champion}
+        <div class="mt-3">
+          <div class="flex items-center space-x-3">
+            {#if champion.team_avatar}
+              <img src={champion.team_avatar} alt="avatar" class="w-16 h-16 rounded-full object-cover" />
+            {/if}
+            <div>
+              <div class="text-lg font-bold">{champion.team_name ?? champion.team ?? 'Unnamed Team'}</div>
+              {#if champion.owner_name}
+                <div class="text-sm text-gray-600">Owner: {champion.owner_name}</div>
+              {/if}
+              {#if champion.rosterId}
+                <div class="text-xs text-gray-500">Roster ID: {champion.rosterId}</div>
+              {/if}
             </div>
+          </div>
 
-            <div class="player" style="min-width:0;">
-              <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
-              <div style="min-width:0;">
-                <div class="teamName">{row.team_name}</div>
-                <div class="teamMeta">
-                  {#if row.owner_name}
-                    {row.owner_name}
-                  {:else}
-                    {`Roster ${row.rosterId}`}
-                  {/if}
-                </div>
+          {#if selectedLeagueId && finalStandingsBySeason[selectedLeagueId]}
+            <div class="mt-3 text-sm text-gray-700">
+              <div>Playoff start: {finalStandingsBySeason[selectedLeagueId].playoffStart ?? '—'}</div>
+              <div>Total playoff points (top roster): {finalStandingsBySeason[selectedLeagueId].playoffTotals?.[champion.rosterId] ?? '—'}</div>
+            </div>
+          {/if}
+        </div>
+      {:else}
+        <div class="mt-3 text-sm text-gray-700">
+          Champion not available for this season yet (server could not compute or no league mapping found).
+        </div>
+      {/if}
+    </div>
+
+    <div class="col-span-1 md:col-span-2 p-4 border rounded">
+      <h2 class="text-xl font-semibold">Past Champions & Final Standings</h2>
+
+      {#if finalStandings.length === 0}
+        <p class="text-sm text-gray-600">No final standings data was returned from the server.</p>
+      {/if}
+
+      <div class="mt-3 space-y-4">
+        {#each finalStandings as season}
+          <div class="p-3 bg-gray-50 rounded border">
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="font-semibold">{season.label ?? season.seasonKey}</div>
+                <div class="text-xs text-gray-500">League ID: {season.leagueId}</div>
+              </div>
+
+              <div class="text-right">
+                {#if finalStandingsBySeason && finalStandingsBySeason[season.leagueId] && finalStandingsBySeason[season.leagueId].champion}
+                  <div class="text-sm">Cached champion: {finalStandingsBySeason[season.leagueId].champion.team_name}</div>
+                {:else}
+                  <div class="text-sm text-gray-500">Champion not cached</div>
+                {/if}
               </div>
             </div>
 
-            <div class="seedCol">Seed #{row.seed ?? '—'}</div>
-          </li>
+            {#if (finalStandingsBySeason && finalStandingsBySeason[season.leagueId] && finalStandingsBySeason[season.leagueId].standings && finalStandingsBySeason[season.leagueId].standings.length) || (season.finalStandings && season.finalStandings.length)}
+              <ol class="mt-2 ml-4 list-decimal">
+                {#each (finalStandingsBySeason[season.leagueId]?.standings ?? season.finalStandings ?? []) as row}
+                  <li class="text-sm">
+                    {row.team_name ?? row.owner_name ?? row.rosterId} — {row.wins ?? ''}W {row.losses ?? ''}L {row.points_for ? `• ${row.points_for} pts` : ''}
+                  </li>
+                {/each}
+              </ol>
+            {:else}
+              <div class="mt-2 text-sm text-gray-600">No standings available for this season.</div>
+            {/if}
+          </div>
         {/each}
-      {:else}
-        <li class="no-debug">No final standings available.</li>
-      {/if}
-    </ul>
-  </div>
-
-  <aside class="side" aria-labelledby="outcomes-title">
-    <h3 id="outcomes-title" style="margin-top:0">Season outcomes</h3>
-
-    {#if champion}
-      <div class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt="champion avatar" style="width:64px;height:64px">
-        <div>
-          <div class="outcome-name">Champion <span style="margin-left:6px">🏆</span></div>
-          <div class="small">{champion.team_name} • {champion.owner_name ?? `Roster ${champion.rosterId}`} • Seed #{champion.seed}</div>
-        </div>
       </div>
-    {/if}
-
-    {#if biggestLoser}
-      <div style="margin-top:8px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:64px;height:64px">
-        <div>
-          <div class="outcome-name">Biggest loser <span style="margin-left:6px">😵‍💫</span></div>
-          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Seed #{biggestLoser.seed}</div>
-        </div>
-      </div>
-    {/if}
-
-    {#if finalsMvp}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar || finalsMvp.roster_meta?.owner_avatar, finalsMvp.roster_meta?.team_name)} alt="finals mvp avatar" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Finals MVP</div>
-          <div class="small">Player {finalsMvp.playerId} • {finalsMvp.points} pts • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}</div>
-        </div>
-      </div>
-    {/if}
-
-    {#if overallMvp}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar || overallMvp.roster_meta?.owner_avatar, overallMvp.roster_meta?.team_name)} alt="overall mvp avatar" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Overall MVP</div>
-          <div class="small">Player {overallMvp.playerId} • {overallMvp.points} pts • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId}`}</div>
-        </div>
-      </div>
-    {/if}
-
-    <div style="margin-top:12px; color:#9aa3ad; font-size:.9rem">
-      Final standings are derived from server-scrubbed matchups and the bracket simulation logic. The debug trace above shows the decisions used to construct the bracket (matchups & tiebreaks).
     </div>
-  </aside>
-</div>
+  </div>
+</section>
+
+<style>
+  .container { max-width: 1000px; }
+</style>
