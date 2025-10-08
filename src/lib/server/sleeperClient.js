@@ -99,44 +99,7 @@ export async function getHonorHallData({
       selSeason = BASE_LEAGUE_ID;
     }
   }
-            name: prevLeague.name ?? null
-          });
-          prevChain.push(String(prevLeague.league_id || currPrev));
-          currPrev = prevLeague.previous_league_id ? String(prevLeague.previous_league_id) : null;
-        } catch (err) {
-          messages.push('Error fetching previous_league_id: ' + currPrev + ' — ' + (err && err.message ? err.message : String(err)));
-          break;
-        }
-      }
-    }
-  } catch (err) {
-    messages.push('Error while building seasons chain: ' + (err && err.message ? err.message : String(err)));
-  }
-  // dedupe
-  const byId = {};
-  for (let i = 0; i < seasons.length; i++) {
-    const s = seasons[i];
-    byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
-  }
-  seasons = [];
-  for (const k in byId) if (Object.prototype.hasOwnProperty.call(byId, k)) seasons.push(byId[k]);
-  seasons.sort((a, b) => {
-    if (a.season == null && b.season == null) return 0;
-    if (a.season == null) return 1;
-    if (b.season == null) return -1;
-    const na = Number(a.season), nb = Number(b.season);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
-  });
-  let selSeason = selectedSeasonParam;
-  if (!selSeason) {
-    if (seasons && seasons.length) {
-      const latest = seasons[seasons.length - 1];
-      selSeason = latest.season != null ? String(latest.season) : String(latest.league_id);
-    } else {
-      selSeason = String(BASE_LEAGUE_ID);
-    }
-  }
+// ...existing code up to the end of the first dedupe/sort/selSeason block...
   let selectedLeagueId = null;
   for (let i = 0; i < seasons.length; i++) {
     const s = seasons[i];
