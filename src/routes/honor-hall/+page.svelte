@@ -25,7 +25,6 @@
     // use NBA player headshots (Sleeper CDN)
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
-  }
 
   // also expose MVPs from top-level (computed for the selected league/season by server)
   const finalsMvp = data?.finalsMvp ?? null;
