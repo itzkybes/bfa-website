@@ -7,9 +7,12 @@ import path from 'path';
  * Minimal loader:
  * - Try to read src/lib/data/seasons.json at runtime (avoid static import so build won't fail)
  * - Fall back to env vars for a single league id
+ * - If none provided, use the hardcoded BASE_LEAGUE_ID fallback you gave
  * - For each leagueId call sleeper.getFinalStandingsForLeague and getChampionForLeague
  * - Return { finalStandings, finalStandingsBySeason }
  */
+
+const HARDCODED_FALLBACK_LEAGUE_ID = '1219816671624048640'; // your provided base league id
 
 async function tryLoadSeasonsJson() {
   try {
@@ -50,12 +53,15 @@ export async function load() {
         label: 'League ' + String(possible),
         finalStandings: []
       });
+    } else {
+      // final fallback to the hardcoded league id you provided
+      finalStandings.push({
+        seasonKey: HARDCODED_FALLBACK_LEAGUE_ID,
+        leagueId: HARDCODED_FALLBACK_LEAGUE_ID,
+        label: 'League ' + HARDCODED_FALLBACK_LEAGUE_ID,
+        finalStandings: []
+      });
     }
-  }
-
-  // If still empty, return gracefully with empty payload (UI shows helpful message)
-  if (finalStandings.length === 0) {
-    return { finalStandings: [], finalStandingsBySeason: {} };
   }
 
   // Build unique list of league ids
