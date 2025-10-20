@@ -358,12 +358,12 @@
   </section>
 
   <section class="features wrap" aria-labelledby="matchups-heading">
-    <div class="matchups-header" style="display:flex;align-items:center;gap:12px;margin-bottom:.5rem;">
-      <h2 id="matchups-heading" class="section-title" style="margin:0;">This week's matchups</h2>
-      <div class="week-pill" aria-hidden="true" style="background:rgba(255,255,255,0.03);padding:.35rem .6rem;border-radius:999px;font-weight:700;color:var(--nav-text);font-size:.95rem;">
+    <div class="matchups-header">
+      <h2 id="matchups-heading" class="section-title">This week's matchups</h2>
+      <div class="week-pill" aria-hidden="true">
         Week {fetchWeek || '?'}
         {#if weekRanges}
-          <span style="font-weight:600;color:var(--muted);margin-left:.5rem;font-size:.85rem;">{weekDateRangeLabel(fetchWeek)}</span>
+          <span class="week-range-label">{weekDateRangeLabel(fetchWeek)}</span>
         {/if}
       </div>
     </div>
@@ -381,7 +381,7 @@
               {#if p.home}
                 {#if findRoster(p.home.roster_id)}
                   {#if avatarForRoster(findRoster(p.home.roster_id))}
-                    <img class="team-avatar" src={avatarForRoster(findRoster(p.home.roster_id))} alt="avatar" loading="lazy">
+                    <img class="team-avatar" src={avatarForRoster(findRoster(p.home.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.home.roster_id))} loading="lazy">
                   {:else}
                     <div class="team-avatar placeholder"></div>
                   {/if}
@@ -391,7 +391,7 @@
                   </div>
                 {:else}
                   <div class="team-avatar placeholder"></div>
-                  <div class="team-meta"><div class="team-name">{displayNameForRoster(p.home.roster_id)}</div><div class="team-sub"></div></div>
+                  <div class="team-meta"><div class="team-name">Roster {p.home.roster_id}</div><div class="team-sub"></div></div>
                 {/if}
               {:else}
                 <div class="team-avatar placeholder"></div>
@@ -417,7 +417,7 @@
               {#if p.away}
                 {#if findRoster(p.away.roster_id)}
                   {#if avatarForRoster(findRoster(p.away.roster_id))}
-                    <img class="team-avatar" src={avatarForRoster(findRoster(p.away.roster_id))} alt="avatar" loading="lazy">
+                    <img class="team-avatar" src={avatarForRoster(findRoster(p.away.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.away.roster_id))} loading="lazy">
                   {:else}
                     <div class="team-avatar placeholder"></div>
                   {/if}
@@ -427,7 +427,7 @@
                   </div>
                 {:else}
                   <div class="team-avatar placeholder"></div>
-                  <div class="team-meta"><div class="team-name">{displayNameForRoster(p.away.roster_id)}</div><div class="team-sub"></div></div>
+                  <div class="team-meta"><div class="team-name">Roster {p.away.roster_id}</div><div class="team-sub"></div></div>
                 {/if}
               {:else}
                 <div class="team-avatar placeholder"></div>
@@ -444,97 +444,66 @@
 </main>
 
 <style>
-.home-page { padding: 2.25rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 2.25rem; }
-.hero { width: 100%; display: block; padding: 3rem 0; }
-.hero-inner { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; align-items: center; padding: 2rem; }
-.hero-content { padding: 1.25rem 1rem; }
-.hero-title { font-size: clamp(1.9rem, 3.8vw, 3.2rem); line-height: 1.02; margin: 0 0 0.6rem 0; color: var(--nav-text); letter-spacing: -0.02em; }
-.hero-sub { margin: 0 0 1.25rem 0; color: var(--muted); font-size: 1.0rem; max-width: 54ch; }
+  .home-page { padding: 2.25rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 2.25rem; }
+  .hero { width: 100%; display: block; padding: 3rem 0; }
+  .hero-inner { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; align-items: center; padding: 2rem; }
+  .hero-content { padding: 1.25rem 1rem; }
+  .hero-title { font-size: clamp(1.9rem, 3.8vw, 3.2rem); line-height: 1.1; margin: 0 0 0.6rem 0; color: var(--nav-text); letter-spacing: -0.02em; }
+  .hero-sub { margin: 0 0 1.25rem 0; color: var(--muted); font-size: 1.0rem; max-width: 54ch; }
 
-.actions { display:flex; gap: 0.75rem; flex-wrap:wrap; }
-.btn { display:inline-flex; align-items:center; justify-content:center; padding: 0.6rem 0.9rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.04); background: transparent; color: var(--nav-text); font-weight: 700; text-decoration: none; transition: transform .12s ease, background .12s ease, color .12s ease; }
-.btn.primary { background: linear-gradient(90deg, var(--accent), rgba(14,165,183,0.9)); color: #071022; border-color: rgba(14,165,183,0.12); box-shadow: 0 8px 24px rgba(14,165,183,0.08); }
-.btn:hover { transform: translateY(-3px); }
+  .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; transition: transform .12s ease, background .12s ease, color .12s ease; }
+  .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: var(--nav-bg); box-shadow: 0 8px 24px rgba(14,165,183,0.08); }
+  .btn:hover { transform: translateY(-3px); }
 
-.preview-card { width: 100%; max-width: 360px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; }
-.preview-header { display:flex; gap: 0.75rem; align-items:center; margin-bottom: 0.8rem; }
-.preview-avatar { width:56px; height:56px; border-radius: 999px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.04); }
-.preview-meta .team-name { font-weight:800; color: var(--nav-text); }
-.preview-meta .owner { font-size:0.85rem; color: var(--muted); }
-.preview-players { display:flex; flex-direction:column; gap:0.5rem; }
-.player { display:flex; align-items:center; gap:0.75rem; padding:0.45rem; border-radius:8px; }
-.pos-pill { width:44px; height:34px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; background: linear-gradient(180deg,#ffd,#ffa); color:#071022; font-size:0.85rem; }
-.bn-pill { background: #0b1117; color: #bfc9d6; box-shadow:none; }
-.player-name { font-weight:700; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.player-pos { color: var(--muted); font-weight:600; font-size:0.9rem; }
+  .preview-card { width: 100%; max-width: 360px; background: linear-gradient(180deg, #f8faff 0%, #f0f4ff 100%); border: 1px solid rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; }
+  .preview-header { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.8rem; }
+  .preview-avatar { width: 56px; height: 56px; border-radius: 999px; background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%); border: 1px solid rgba(255,255,255,0.01); }
+  .preview-meta .team-name { font-weight: 800; color: var(--nav-text); }
+  .preview-meta .owner { font-size: 0.85rem; color: var(--muted); }
+  .preview-players { display: flex; flex-direction: column; gap: 0.5rem; }
+  .player { display: flex; align-items: center; gap: 0.75rem; padding: 0.45rem; border-radius: 8px; }
+  .pos-pill { width: 44px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg,#ffdb3d,#ffaa3d); color: #071022; font-size: 0.85rem; }
+  .bn-pill { background: #0b1117; color: #bfc9d6; box-shadow: none; }
+  .player-name { font-weight: 700; color: var(--nav-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-pos { color: var(--muted); font-weight: 600; font-size: 0.9rem; }
 
-.features { margin-top: 1rem; }
-.section-title { font-size: 1.15rem; color: var(--nav-text); margin-bottom: 0.75rem; }
+  .features { margin-top: 1rem; }
+  .section-title { font-size: 1.15rem; color: var(--nav-text); margin-bottom: 0.75rem; }
 
-.notice { padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.02); border-radius: 8px; margin-bottom: 0.85rem; color: var(--muted); border: 1px solid rgba(255,255,255,0.02); }
-.notice.error { background: rgba(255,80,80,0.06); color: #ffb6b6; border-color: rgba(255,80,80,0.08); }
+  .notice { padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.02); border-radius: 8px; margin-bottom: 1rem; color: var(--muted); font-size: 0.9rem; text-align: center; }
+  .notice.error { background: rgba(255,80,80,0.06); color: #ffb6b6; border-color: rgba(255,80,80,0.08); }
 
-/* Matchups list */
-.matchups { display:flex; flex-direction:column; gap:0.75rem; margin-top: 0.5rem; }
+  /* Matchups list */
+  .matchups-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+  .week-pill { background: rgba(255, 255, 255, 0.03); padding: 0.35rem 0.6rem; border-radius: 999px; font-weight: 700; color: var(--nav-text); font-size: 0.95rem; }
+  .week-range-label { font-weight: 600; color: var(--muted); margin-left: 0.5rem; font-size: 0.85rem; }
+  .matchups { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .matchup-card { display: flex; align-items: center; gap: 1.25rem; text-decoration: none; background: rgba(255,255,255,0.02); border-radius: 10px; padding: 1rem; flex: 1 1 calc(50% - 0.5rem); transition: transform .12s ease, box-shadow .12s ease; }
+  .matchup-card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+  .side { display: flex; align-items: center; gap: 1rem; flex: 1; }
+  .team-left { text-align: left; }
+  .team-right { text-align: right; }
+  .team-avatar { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); }
+  .team-avatar.placeholder { background: var(--muted-bg); }
+  .team-meta { display: flex; flex-direction: column; }
+  .team-name { font-weight: 700; color: var(--nav-text); font-size: 1rem; }
+  .team-sub { font-size: 0.9rem; color: var(--muted); }
+  .score-pair { display: flex; align-items: center; gap: 0.5rem; margin: 0 1rem; }
+  .score-number { font-weight: 700; font-size: 1.25rem; color: var(--nav-text); }
+  .score-label { font-size: 0.75rem; color: var(--muted); }
+  .score-divider { font-size: 1rem; color: var(--muted); }
 
-/* Card */
-.matchup-card {
-  display:flex;
-  align-items:center;
-  gap: 1rem;
-  padding: 0.7rem;
-  border-radius: 10px;
-  text-decoration:none;
-  color: inherit;
-  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
-  border: 1px solid rgba(255,255,255,0.02);
-}
-.matchup-card:hover { transform: translateY(-3px); transition: transform .12s ease; box-shadow: 0 6px 18px rgba(0,0,0,0.3); }
-
-/* Sides */
-.matchup-card .side { display:flex; align-items:center; gap:0.75rem; min-width: 0; flex: 1 1 40%; }
-.team-avatar { width:44px; height:44px; border-radius:50%; object-fit:cover; background:#0f1724; border: 1px solid rgba(255,255,255,0.03); flex-shrink:0; }
-.team-meta { display:flex; flex-direction:column; min-width:0; }
-
-/* TEAM NAME: allow wrapping so names are not cut off */
-.team-name {
-  font-weight:800;
-  color:var(--accent);
-  white-space: normal;       /* allow wrap */
-  overflow: visible;         /* don't hide */
-  text-overflow: initial;
-  font-size: 1.05rem;
-  line-height: 1.05;
-  word-break: break-word;    /* break long words if needed */
-}
-
-/* owner / secondary */
-.team-sub { color:var(--muted); font-size:0.78rem; margin-top: 0.08rem; font-weight:500; }
-
-/* Scores aligned in center block */
-.score-pair {
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-  justify-content:center;
-  width: 160px;
-  gap: 0.5rem;
-  flex: 0 0 160px;
-}
-.score-left, .score-right {
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  min-width: 52px;
-}
-.score-number { font-weight:800; color:var(--nav-text); font-size: 1.05rem; }
-.score-label { font-size:0.75rem; color:var(--muted); margin-top:4px; }
-.score-divider { color: rgba(255,255,255,0.22); font-weight:700; margin: 0 6px; }
-
-@media (max-width: 980px) {
-  .hero-inner { grid-template-columns: 1fr; }
-  .hero-side { order: -1; display:flex; justify-content:center; }
-  .matchup-card .side { flex: 1 1 35%; }
-  .score-pair { width: 120px; flex: 0 0 120px; }
-}
+  /* Responsive adjustments */
+  @media (max-width: 600px) {
+    .hero-inner { grid-template-columns: 1fr; }
+    .hero-content { padding: 1rem; }
+    .preview-card { margin: 2rem auto 0; }
+    .matchups { gap: 0.5rem; }
+    .matchup-card { flex: 1 1 100%; }
+    .team-avatar { width: 40px; height: 40px; }
+    .score-number { font-size: 1rem; }
+    .actions { flex-direction: column; }
+    .btn { width: 100%; justify-content: center; }
+  }
 </style>
