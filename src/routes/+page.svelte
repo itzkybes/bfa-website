@@ -317,7 +317,7 @@
 </script>
 
 <main class="home-page">
-  <!-- Simplified hero: minimal, cleaner, smaller footprint -->
+  <!-- Simplified hero: removed the league snapshot card per request -->
   <section class="hero">
     <div class="wrap hero-row">
       <div class="hero-left">
@@ -328,13 +328,7 @@
           <a class="btn" href="/standings">View Standings</a>
         </div>
       </div>
-      <!-- small decorative / informational area (kept intentionally minimal) -->
-      <div class="hero-right" aria-hidden="true">
-        <div class="mini-card">
-          <div class="mini-title">League Snapshot</div>
-          <div class="mini-line">Week <strong>{fetchWeek || '?'}</strong> · {#if weekRanges}{weekDateRangeLabel(fetchWeek)}{/if}</div>
-        </div>
-      </div>
+      <!-- hero-right removed to keep header area clean -->
     </div>
   </section>
 
@@ -444,11 +438,10 @@
 
   .home-page { padding: 2rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 1.25rem; }
 
-  /* HERO - simplified and tighter */
+  /* HERO - simplified and tighter (hero-right removed) */
   .hero { padding: 1.25rem 0 0; }
   .hero-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; }
   .hero-left { flex: 1 1 auto; }
-  .hero-right { width: 220px; display: flex; justify-content: flex-end; align-items: center; }
   .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height: 1.05; margin: 0 0 0.4rem 0; color: var(--nav-text); font-weight: 800; }
   .hero-sub { margin: 0 0 0.9rem 0; color: var(--muted); font-size: 0.98rem; max-width: 56ch; }
 
@@ -456,10 +449,6 @@
   .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.56rem 1rem; border-radius: 8px; font-weight: 700; text-decoration: none; color: var(--nav-text); background: transparent; border: 1px solid rgba(255,255,255,0.03); }
   .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #fff; border: none; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
   .btn:hover { transform: translateY(-2px); }
-
-  .mini-card { background: rgba(255,255,255,0.02); padding: 0.6rem 0.9rem; border-radius: 8px; text-align: right; color: var(--muted); }
-  .mini-title { font-weight: 700; color: var(--nav-text); margin-bottom: 0.25rem; }
-  .mini-line { font-size: 0.92rem; }
 
   /* Matchups header */
   .matchups-section { margin-top: 0.6rem; }
@@ -471,10 +460,36 @@
   .notice { padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.01); border-radius: 8px; margin-bottom: 1rem; color: var(--muted); font-size: 0.95rem; text-align: center; }
   .notice.error { background: rgba(255,80,80,0.04); color: #ffb6b6; }
 
-  /* Matchups grid/cards */
-  .matchups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.9rem; align-items: start; }
-  .matchup-card { display: flex; align-items: center; gap: 1rem; text-decoration: none; background: rgba(255,255,255,0.02); border-radius: 10px; padding: 0.9rem; transition: transform .12s ease, box-shadow .12s ease; }
+  /* Matchups grid/cards
+     - grid centered so the overall block sits centered on the page
+     - ensure last child (odd item) spans full width and is centered */
+  .matchups {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.9rem;
+    align-items: start;
+    justify-content: center; /* center the grid within the container */
+  }
+  .matchup-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    text-decoration: none;
+    background: rgba(255,255,255,0.02);
+    border-radius: 10px;
+    padding: 0.9rem;
+    transition: transform .12s ease, box-shadow .12s ease;
+    width: 100%;
+    max-width: 560px; /* limit card width so grid centering works */
+  }
   .matchup-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.18); }
+
+  /* If the last card is alone (odd number), make it span full width and center */
+  .matchups > .matchup-card:last-child {
+    grid-column: 1 / -1;
+    justify-self: center;
+    max-width: 640px;
+  }
 
   .side { display: flex; align-items: center; gap: 0.9rem; min-width: 0; flex: 1 1 0; }
   .team-left { justify-content: flex-start; }
@@ -494,7 +509,6 @@
     text-overflow: ellipsis;
     max-width: 12.5rem; /* reasonable cap so it truncates early on smaller screens */
   }
-  /* For right-aligned cards, allow slightly larger max width */
   .team-right .team-meta .team-name { max-width: 11rem; }
 
   .team-sub { font-size: 0.82rem; color: var(--muted); font-weight: 600; margin-top: 0.15rem; }
@@ -511,17 +525,17 @@
     .team-meta .team-name { max-width: 10rem; font-size: 0.98rem; }
     .team-right .team-meta .team-name { max-width: 9rem; }
     .score-pair { width: 110px; }
-    .hero-right { display: none; } /* hide the mini card on smaller screens */
   }
 
   @media (max-width: 520px) {
     .wrap { padding: 0 0.75rem; }
     .hero-row { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
-    .hero-right { display: none; }
     .team-avatar { width: 40px; height: 40px; }
     .team-meta .team-name { max-width: calc(100% - 56px); font-size: 0.95rem; }
     .team-right .team-meta .team-name { max-width: calc(100% - 56px); }
     .score-pair { width: 92px; margin: 0 0.3rem; }
     .btn { padding: 0.5rem 0.85rem; font-size: 0.95rem; }
+    .matchup-card { max-width: 100%; padding-left: 0.75rem; padding-right: 0.75rem; }
+    .matchups > .matchup-card:last-child { grid-column: 1 / -1; justify-self: center; max-width: 100%; }
   }
 </style>
