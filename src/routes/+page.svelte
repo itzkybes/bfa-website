@@ -157,7 +157,7 @@
 
   function ownerNameForRoster(rosterOrId) {
     const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
-    const ownerId = roster && (roster.owner_id || roster.user_id || roster.owner || roster.user);
+    let ownerId = roster && (roster.owner_id || roster.user_id || roster.owner || roster.user);
     if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
     if (!ownerId) return null;
     const u = findUserByOwner(ownerId);
@@ -278,19 +278,31 @@
     return null;
   }
 
-  // Choose a random element helper
+  // helpers
   function chooseRandom(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return null;
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  // Return a Sleeper NBA headshot URL (used on the rosters page as well)
   function getPlayerHeadshot(playerId) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
-  // Make a friendly name from an id like "lebron-james-123" => "Lebron James"
+  // build a readable player name using best available fields
+  function getPlayerName(playerInfo, playerId) {
+    if (!playerInfo) return prettyNameFromId(playerId);
+    if (playerInfo.full_name && String(playerInfo.full_name).trim() !== '') return playerInfo.full_name;
+    // some maps split names
+    if ((playerInfo.first_name || playerInfo.last_name) && ((playerInfo.first_name || '').trim() !== '' || (playerInfo.last_name || '').trim() !== '')) {
+      const first = playerInfo.first_name ? String(playerInfo.first_name).trim() : '';
+      const last = playerInfo.last_name ? String(playerInfo.last_name).trim() : '';
+      return (first + ' ' + last).trim();
+    }
+    // fallback to constructed name
+    return prettyNameFromId(playerId);
+  }
+
   function prettyNameFromId(id) {
     if (!id) return '';
     let s = String(id).replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
@@ -301,7 +313,6 @@
   async function pickPlayerOfTheWeek() {
     potw = null;
     try {
-      // find candidate rosters that have players
       const candidates = (rosters || []).filter(r => Array.isArray(r.players) && r.players.length > 0);
       if (!candidates || candidates.length === 0) return;
 
@@ -309,23 +320,19 @@
       const playerId = chooseRandom(randomRoster.players);
       if (!playerId) return;
 
-      // fetch only the NBA players map
+      // fetch only the NBA player map
       let playersMap = null;
       try {
         const resp = await fetch('/players/nba');
-        if (resp.ok) {
-          playersMap = await resp.json();
-        }
+        if (resp.ok) playersMap = await resp.json();
       } catch (e) {
-        // ignore errors — we'll fallback to showing the derived name
+        // ignore, we'll fallback to derived name
       }
 
       let playerInfo = null;
       if (playersMap) {
-        // direct lookup by key
         playerInfo = playersMap[playerId] || playersMap[playerId.toUpperCase()] || playersMap[String(playerId)];
         if (!playerInfo) {
-          // fallback: search values for matching name/id fields
           const vals = Object.values(playersMap);
           for (let i = 0; i < vals.length; i++) {
             const p = vals[i];
@@ -339,16 +346,9 @@
       }
 
       if (!playerInfo) {
-        // last fallback: create a minimal object with a readable name
-        playerInfo = {
-          player_id: playerId,
-          full_name: prettyNameFromId(playerId) || playerId,
-          position: null,
-          team: ''
-        };
+        playerInfo = { player_id: playerId, full_name: prettyNameFromId(playerId), position: null, team: '' };
       } else {
-        // ensure full_name exists (some maps may have different fields)
-        if (!playerInfo.full_name) playerInfo.full_name = prettyNameFromId(playerId);
+        if (!playerInfo.full_name) playerInfo.full_name = getPlayerName(playerInfo, playerId);
       }
 
       potw = {
@@ -405,7 +405,7 @@
 </script>
 
 <main class="home-page">
-  <!-- HERO: Player of the Week card placed in hero-right next to title -->
+  <!-- HERO: POTW placed to the right of the hero text; cleaner visual style -->
   <section class="hero">
     <div class="wrap hero-row">
       <div class="hero-left">
@@ -420,13 +420,13 @@
       <!-- POTW shown to the right of the hero text on larger screens -->
       <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
         {#if potw}
-          <div class="potw-card-hero" role="region" aria-label="Player of the week">
+          <div class="potw-hero" role="region" aria-label="Player of the week">
             <div class="potw-left">
               {#if potw.playerInfo && potw.playerInfo.player_id}
                 <img
                   class="headshot potw-headshot"
                   src={getPlayerHeadshot(potw.playerInfo.player_id)}
-                  alt={"Headshot of " + (potw.playerInfo.full_name || potw.playerId)}
+                  alt={"Headshot of " + (getPlayerName(potw.playerInfo, potw.playerId))}
                   on:error={(e) => (e.target.style.visibility = 'hidden')}
                   loading="lazy"
                 />
@@ -437,9 +437,12 @@
 
             <div class="potw-body">
               <div class="potw-title">Player of the week</div>
-              <div class="potw-player-name" title={potw.playerInfo.full_name}>
-                {potw.playerInfo.full_name}
+
+              <!-- Show player's name first (best available name), then show small id if it's different -->
+              <div class="potw-player-name" title={getPlayerName(potw.playerInfo, potw.playerId)}>
+                {getPlayerName(potw.playerInfo, potw.playerId)}
               </div>
+
               <div class="potw-meta">
                 {#if potw.playerInfo.position}
                   <span class="pill">{potw.playerInfo.position}</span>
@@ -452,6 +455,10 @@
                   <span class="owner">• {potw.ownerName}</span>
                 {/if}
               </div>
+
+              {#if potw.playerInfo.player_id && potw.playerInfo.player_id !== potw.playerInfo.full_name}
+                <div class="potw-subid">ID: <code>{potw.playerInfo.player_id}</code></div>
+              {/if}
             </div>
 
             <div class="potw-actions">
@@ -554,148 +561,105 @@
 </main>
 
 <style>
-  :root {
+  :root{
     --nav-text: #e6eef6;
     --muted: #9fb0c4;
     --muted-bg: rgba(255,255,255,0.02);
     --accent: #00c6d8;
     --accent-dark: #008fa6;
-    --nav-bg: #071022;
+    --bg-card: rgba(255,255,255,0.02);
   }
 
   .wrap { max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
-
   .home-page { padding: 2rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 1.25rem; }
 
-  /* HERO */
+  /* HERO (cleaner) */
   .hero { padding: 1.25rem 0 0; }
-  .hero-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; }
-  .hero-left { flex: 1 1 auto; }
-  .hero-right { width: 380px; display: flex; justify-content: flex-end; align-items: center; }
+  .hero-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:0.75rem 0; }
+  .hero-left { flex:1 1 auto; max-width: 680px; }
+  .hero-right { width: 360px; display:flex; justify-content:flex-end; align-items:flex-start; }
 
-  .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height: 1.05; margin: 0 0 0.4rem 0; color: var(--nav-text); font-weight: 800; }
-  .hero-sub { margin: 0 0 0.9rem 0; color: var(--muted); font-size: 0.98rem; max-width: 56ch; }
+  .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height:1.02; margin:0 0 0.4rem 0; color:var(--nav-text); font-weight:800; letter-spacing:-0.02em; }
+  .hero-sub { margin:0 0 0.9rem 0; color:var(--muted); font-size:0.98rem; max-width:52ch; }
 
-  .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.56rem 1rem; border-radius: 8px; font-weight: 700; text-decoration: none; color: var(--nav-text); background: transparent; border: 1px solid rgba(255,255,255,0.03); }
-  .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #fff; border: none; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-  .btn:hover { transform: translateY(-2px); }
+  .actions { display:flex; gap:0.6rem; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; padding:0.46rem 0.9rem; border-radius:8px; font-weight:700; text-decoration:none; color:var(--nav-text); background:transparent; border:1px solid rgba(255,255,255,0.03); }
+  .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
+  .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
 
-  /* POTW in hero (larger avatar) */
-  .potw-card-hero {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    background: rgba(255,255,255,0.02);
-    padding: 0.8rem 1rem;
+  /* Player of the Week hero card - simplified & cleaner */
+  .potw-hero {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background: var(--bg-card);
+    padding: 12px;
     border-radius: 12px;
-    width: 100%;
-    max-width: 380px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+    width:100%;
+    max-width:360px;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.03);
   }
+  .potw-left{ width:96px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .headshot.potw-headshot { width:96px; height:96px; border-radius:10px; object-fit:cover; background:#0b1220; }
+  .potw-avatar{ width:96px; height:96px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
 
-  .potw-left { width: 96px; flex-shrink: 0; display:flex; align-items:center; justify-content:center; }
-  .potw-avatar { width: 88px; height: 88px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size:28px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
-  .headshot.potw-headshot { width: 88px; height: 88px; border-radius: 12px; object-fit: cover; background: #0b1220; flex-shrink: 0; }
+  .potw-body { flex:1 1 auto; min-width:0; }
+  .potw-title { font-size:0.8rem; color:var(--muted); font-weight:700; margin-bottom:6px; }
+  .potw-player-name { font-size:1.05rem; font-weight:800; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .potw-subid { margin-top:6px; color:var(--muted); font-size:0.78rem; }
+  .potw-meta { margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--muted); font-weight:700; font-size:0.82rem; }
+  .pill { background: rgba(255,255,255,0.01); padding: 4px 8px; border-radius:999px; font-size:0.78rem; color:var(--muted); }
+  .owner { color:var(--muted); font-weight:700; font-size:0.82rem; }
 
-  .potw-body { flex: 1 1 auto; min-width: 0; }
-  .potw-title { font-size: 0.86rem; color: var(--muted); font-weight: 700; margin-bottom: 0.15rem; }
-  .potw-player-name { font-size: 1.1rem; font-weight: 900; color: var(--nav-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .potw-meta { margin-top: 0.35rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; color:var(--muted); font-weight:700; }
-  .pill { background: rgba(255,255,255,0.02); padding: 0.18rem 0.5rem; border-radius:999px; font-size:0.82rem; }
-  .owner { color: var(--muted); font-weight:700; font-size:0.9rem; }
-
-  .potw-actions { display:flex; gap:0.5rem; align-items:center; }
+  .potw-actions { display:flex; gap:8px; align-items:center; margin-left:4px; }
 
   /* Matchups header */
-  .matchups-section { margin-top: 0.6rem; }
-  .matchups-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.7rem; }
-  .section-title { font-size: 1.05rem; color: var(--nav-text); margin: 0; font-weight: 800; }
-  .week-pill { background: var(--muted-bg); padding: 0.35rem 0.6rem; border-radius: 999px; font-weight: 700; color: var(--nav-text); font-size: 0.92rem; display: inline-flex; align-items: center; gap: 0.5rem; }
-  .week-range-label { color: var(--muted); font-weight: 600; font-size: 0.85rem; margin-left: 0.25rem; }
+  .matchups-section { margin-top:0.6rem; }
+  .matchups-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:0.7rem; }
+  .section-title{ font-size:1.02rem; color:var(--nav-text); margin:0; font-weight:800; }
+  .week-pill{ background:var(--muted-bg); padding:6px 10px; border-radius:999px; font-weight:700; color:var(--nav-text); font-size:0.88rem; display:inline-flex; align-items:center; gap:8px; }
+  .week-range-label{ color:var(--muted); font-weight:600; font-size:0.82rem; margin-left:6px; }
 
-  .notice { padding: 0.5rem 0.75rem; background: rgba(255,255,255,0.01); border-radius: 8px; margin-bottom: 1rem; color: var(--muted); font-size: 0.95rem; text-align: center; }
-  .notice.error { background: rgba(255,80,80,0.04); color: #ffb6b6; }
+  .notice { padding:10px 12px; background: rgba(255,255,255,0.01); border-radius:8px; margin-bottom:1rem; color:var(--muted); font-size:0.95rem; text-align:center; }
+  .notice.error { background: rgba(255,80,80,0.04); color:#ffb6b6; }
 
   /* Matchups grid/cards */
-  .matchups {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.9rem;
-    align-items: start;
-    justify-content: center;
-  }
-  .matchup-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    text-decoration: none;
-    background: rgba(255,255,255,0.02);
-    border-radius: 10px;
-    padding: 0.9rem;
-    transition: transform .12s ease, box-shadow .12s ease;
-    width: 100%;
-    max-width: 560px;
-  }
-  .matchup-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.18); }
+  .matchups { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; align-items:start; justify-content:center; }
+  .matchup-card { display:flex; align-items:center; gap:12px; text-decoration:none; background:var(--bg-card); border-radius:10px; padding:12px; width:100%; max-width:560px; border: 1px solid rgba(255,255,255,0.03); }
+  .matchup-card:hover { transform:translateY(-3px); }
 
-  .matchups > .matchup-card:last-child {
-    grid-column: 1 / -1;
-    justify-self: center;
-    max-width: 640px;
-  }
+  .matchups > .matchup-card:last-child { grid-column:1 / -1; justify-self:center; max-width:640px; }
 
-  .side { display: flex; align-items: center; gap: 0.9rem; min-width: 0; flex: 1 1 0; }
-  .team-left { justify-content: flex-start; }
-  .team-right { justify-content: flex-end; flex-direction: row-reverse; text-align: right; }
+  .side { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 0; }
+  .team-left { justify-content:flex-start; }
+  .team-right { justify-content:flex-end; flex-direction:row-reverse; text-align:right; }
 
-  .team-avatar { width: 52px; height: 52px; border-radius: 999px; object-fit: cover; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); flex-shrink: 0; }
+  .team-avatar { width:52px; height:52px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
   .team-avatar.placeholder { background: var(--muted-bg); }
 
-  .team-meta { display: flex; flex-direction: column; min-width: 0; }
-  .team-meta .team-name {
-    font-weight: 800;
-    color: var(--nav-text);
-    font-size: 1rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 12.5rem;
+  .team-meta { display:flex; flex-direction:column; min-width:0; }
+  .team-name { font-weight:800; color:var(--nav-text); font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:12.5rem; }
+  .team-right .team-name { max-width:11rem; }
+  .team-sub { font-size:0.82rem; color:var(--muted); font-weight:600; margin-top:4px; }
+
+  .score-pair { display:flex; align-items:center; gap:6px; margin:0 6px; width:130px; justify-content:center; text-align:center; flex-shrink:0; }
+  .score-number { font-weight:900; font-size:1.12rem; color:var(--nav-text); }
+  .score-label { font-size:0.72rem; color:var(--muted); font-weight:700; }
+  .score-divider { font-size:1rem; color:var(--muted); margin:0 6px; }
+
+  /* responsive */
+  @media (max-width:980px){
+    .hero-right{ display:none; } /* keep hero clean on small screens */
   }
-  .team-right .team-meta .team-name { max-width: 11rem; }
-
-  .team-sub { font-size: 0.82rem; color: var(--muted); font-weight: 600; margin-top: 0.15rem; }
-
-  .score-pair { display: flex; align-items: center; gap: 0.5rem; margin: 0 0.4rem; width: 130px; justify-content: center; text-align: center; flex-shrink: 0; }
-  .score-number { font-weight: 900; font-size: 1.15rem; color: var(--nav-text); }
-  .score-label { font-size: 0.72rem; color: var(--muted); font-weight: 700; }
-  .score-divider { font-size: 1rem; color: var(--muted); margin: 0 0.3rem; }
-
-  /* Responsive */
-  @media (max-width: 980px) {
-    .hero-right { display: none; } /* hide large POTW hero on tablet/phone to preserve space */
+  @media (max-width:900px){
+    .matchups{ grid-template-columns:1fr; }
+    .team-avatar{ width:48px; height:48px; }
   }
-
-  @media (max-width: 900px) {
-    .matchups { grid-template-columns: 1fr; }
-    .team-avatar { width: 48px; height: 48px; }
-    .team-meta .team-name { max-width: 10rem; font-size: 0.98rem; }
-    .team-right .team-meta .team-name { max-width: 9rem; }
-    .score-pair { width: 110px; }
-  }
-
-  @media (max-width: 520px) {
-    .wrap { padding: 0 0.75rem; }
-    .hero-row { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
-    .team-avatar { width: 40px; height: 40px; }
-    .team-meta .team-name { max-width: calc(100% - 56px); font-size: 0.95rem; }
-    .team-right .team-meta .team-name { max-width: calc(100% - 56px); }
-    .score-pair { width: 92px; margin: 0 0.3rem; }
-    .btn { padding: 0.5rem 0.85rem; font-size: 0.95rem; }
-    .matchup-card { max-width: 100%; padding-left: 0.75rem; padding-right: 0.75rem; }
-    .matchups > .matchup-card:last-child { grid-column: 1 / -1; justify-self: center; max-width: 100%; }
-    /* For small screens show POTW below hero-left as a compact card */
-    .hero-right { display: none; }
-    .potw-card-hero { width: 100%; max-width: 100%; }
+  @media (max-width:520px){
+    .wrap{ padding:0 0.75rem; }
+    .hero-row{ flex-direction:column; align-items:flex-start; gap:0.6rem; }
+    .team-avatar{ width:40px; height:40px; }
+    .score-pair{ width:92px; }
   }
 </style>
