@@ -523,7 +523,7 @@
         </div>
       </div>
 
-      <!-- HERO-RIGHT: Rando Player card (single-line layout) -->
+      <!-- HERO-RIGHT: Rando Player card (single-line layout, widened) -->
       <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
         {#if potw}
           <div class="potw-hero" role="region" aria-label="Rando Player">
@@ -679,7 +679,8 @@
   .hero { padding: 1.25rem 0 0; }
   .hero-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:0.75rem 0; }
   .hero-left { flex:1 1 auto; max-width: 680px; }
-  .hero-right { width: 360px; display:flex; justify-content:flex-end; align-items:flex-start; }
+  /* widened hero-right to give more room for the POTW card */
+  .hero-right { width: 520px; display:flex; justify-content:flex-end; align-items:flex-start; }
 
   .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height:1.02; margin:0 0 0.4rem 0; color:var(--nav-text); font-weight:800; letter-spacing:-0.02em; }
   .hero-sub { margin:0 0 0.9rem 0; color:var(--muted); font-size:0.98rem; max-width:52ch; }
@@ -689,29 +690,30 @@
   .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
   .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
 
-  /* Rando Player hero card - single-line layout */
+  /* Rando Player hero card - single-line layout, widened */
   .potw-hero {
     display:flex;
     align-items:center;
-    gap:12px;
+    gap:16px;
     background: var(--bg-card);
-    padding: 12px;
+    padding: 14px;
     border-radius: 12px;
     width:100%;
-    max-width:360px;
+    max-width:520px;
     box-shadow: none;
     border: 1px solid rgba(255,255,255,0.03);
   }
-  .potw-left{ width:96px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-  .headshot.potw-headshot { width:96px; height:96px; border-radius:10px; object-fit:cover; background:#0b1220; }
-  .potw-avatar{ width:96px; height:96px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
+  .potw-left{ width:120px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .headshot.potw-headshot { width:120px; height:120px; border-radius:10px; object-fit:cover; background:#0b1220; }
+  .potw-avatar{ width:120px; height:120px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:34px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
 
   .potw-body { flex:1 1 auto; min-width:0; }
-  .potw-main { display:flex; align-items:center; gap:10px; width:100%; min-width:0; }
-  .potw-player-name { font-size:1.05rem; font-weight:800; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .potw-inline-meta { color:var(--muted); font-weight:700; font-size:0.86rem; display:inline-flex; gap:8px; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .potw-main { display:flex; align-items:center; gap:14px; width:100%; min-width:0; }
+  .potw-player-name { font-size:1.08rem; font-weight:800; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%; }
+  .potw-inline-meta { color:var(--muted); font-weight:700; font-size:0.92rem; display:inline-flex; gap:10px; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:40%; justify-self:flex-end; }
   .meta-item { opacity:0.95; }
-  .potw-actions { display:flex; gap:8px; align-items:center; margin-left:4px; }
+
+  .potw-actions { display:flex; gap:8px; align-items:center; margin-left:8px; }
 
   /* Matchups header */
   .matchups-section { margin-top:0.6rem; }
