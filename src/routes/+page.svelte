@@ -290,6 +290,14 @@
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
+  // Make a friendly name from an id like "lebron-james-123" => "Lebron James"
+  function prettyNameFromId(id) {
+    if (!id) return '';
+    let s = String(id).replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
+    if (!s) return id;
+    return s.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  }
+
   async function pickPlayerOfTheWeek() {
     potw = null;
     try {
@@ -309,30 +317,38 @@
           playersMap = await resp.json();
         }
       } catch (e) {
-        // ignore errors — we'll fallback to showing the raw id
+        // ignore errors — we'll fallback to showing the derived name
       }
 
       let playerInfo = null;
-      if (playersMap && (playersMap[playerId] || playersMap[playerId.toUpperCase()] || playersMap[String(playerId)])) {
+      if (playersMap) {
+        // direct lookup by key
         playerInfo = playersMap[playerId] || playersMap[playerId.toUpperCase()] || playersMap[String(playerId)];
-      }
-
-      // fallback: try searching values for matching name/id fields
-      if (!playerInfo && playersMap) {
-        const vals = Object.values(playersMap);
-        for (let i = 0; i < vals.length; i++) {
-          const p = vals[i];
-          if (!p) continue;
-          if (p.player_id === playerId || p.full_name === playerId) {
-            playerInfo = p;
-            break;
+        if (!playerInfo) {
+          // fallback: search values for matching name/id fields
+          const vals = Object.values(playersMap);
+          for (let i = 0; i < vals.length; i++) {
+            const p = vals[i];
+            if (!p) continue;
+            if (p.player_id === playerId || p.full_name === playerId) {
+              playerInfo = p;
+              break;
+            }
           }
         }
       }
 
       if (!playerInfo) {
-        // last fallback: at least populate a minimal object
-        playerInfo = { player_id: playerId, full_name: playerId, position: null, team: '' };
+        // last fallback: create a minimal object with a readable name
+        playerInfo = {
+          player_id: playerId,
+          full_name: prettyNameFromId(playerId) || playerId,
+          position: null,
+          team: ''
+        };
+      } else {
+        // ensure full_name exists (some maps may have different fields)
+        if (!playerInfo.full_name) playerInfo.full_name = prettyNameFromId(playerId);
       }
 
       potw = {
@@ -389,7 +405,7 @@
 </script>
 
 <main class="home-page">
-  <!-- HERO -->
+  <!-- HERO: Player of the Week card placed in hero-right next to title -->
   <section class="hero">
     <div class="wrap hero-row">
       <div class="hero-left">
@@ -399,6 +415,51 @@
           <a class="btn primary" href="/rosters">View Rosters</a>
           <a class="btn" href="/standings">View Standings</a>
         </div>
+      </div>
+
+      <!-- POTW shown to the right of the hero text on larger screens -->
+      <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
+        {#if potw}
+          <div class="potw-card-hero" role="region" aria-label="Player of the week">
+            <div class="potw-left">
+              {#if potw.playerInfo && potw.playerInfo.player_id}
+                <img
+                  class="headshot potw-headshot"
+                  src={getPlayerHeadshot(potw.playerInfo.player_id)}
+                  alt={"Headshot of " + (potw.playerInfo.full_name || potw.playerId)}
+                  on:error={(e) => (e.target.style.visibility = 'hidden')}
+                  loading="lazy"
+                />
+              {:else}
+                <div class="potw-avatar">🏆</div>
+              {/if}
+            </div>
+
+            <div class="potw-body">
+              <div class="potw-title">Player of the week</div>
+              <div class="potw-player-name" title={potw.playerInfo.full_name}>
+                {potw.playerInfo.full_name}
+              </div>
+              <div class="potw-meta">
+                {#if potw.playerInfo.position}
+                  <span class="pill">{potw.playerInfo.position}</span>
+                {/if}
+                {#if potw.playerInfo.team}
+                  <span class="pill">{potw.playerInfo.team}</span>
+                {/if}
+                <span class="pill">{potw.rosterName}</span>
+                {#if potw.ownerName}
+                  <span class="owner">• {potw.ownerName}</span>
+                {/if}
+              </div>
+            </div>
+
+            <div class="potw-actions">
+              <a class="btn small" href={"/rosters?owner=" + (potw.roster && potw.roster.roster_id ? potw.roster.roster_id : '')}>View Roster</a>
+              <button class="btn small" on:click={pickPlayerOfTheWeek} aria-label="Pick a different player">Shuffle</button>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   </section>
@@ -413,48 +474,6 @@
         {/if}
       </div>
     </div>
-
-    <!-- Player of the Week card -->
-    {#if potw}
-      <div class="potw-wrap">
-        <div class="potw-card" role="region" aria-label="Player of the week">
-          <div class="potw-left">
-            {#if potw.playerInfo && potw.playerInfo.player_id}
-              <img class="headshot potw-headshot"
-                   src={getPlayerHeadshot(potw.playerInfo.player_id)}
-                   alt={"Headshot of " + (potw.playerInfo.full_name || potw.playerInfo.player_id)}
-                   on:error={(e) => e.target.style.visibility = 'hidden'} />
-            {:else}
-              <div class="potw-avatar" aria-hidden="true">🏆</div>
-            {/if}
-          </div>
-
-          <div class="potw-body">
-            <div class="potw-title">Player of the week</div>
-            <div class="potw-player-name" title={potw.playerInfo.full_name}>
-              {potw.playerInfo.full_name}
-            </div>
-            <div class="potw-meta">
-              {#if potw.playerInfo.position}
-                <span class="pill">{potw.playerInfo.position}</span>
-              {/if}
-              {#if potw.playerInfo.team}
-                <span class="pill">{potw.playerInfo.team}</span>
-              {/if}
-              <span class="pill">{potw.rosterName}</span>
-              {#if potw.ownerName}
-                <span class="owner">• {potw.ownerName}</span>
-              {/if}
-            </div>
-          </div>
-
-          <div class="potw-actions">
-            <a class="btn small" href={"/rosters?owner=" + (potw.roster && potw.roster.roster_id ? potw.roster.roster_id : '')}>View Roster</a>
-            <button class="btn small" on:click={pickPlayerOfTheWeek} aria-label="Pick a different player">Shuffle</button>
-          </div>
-        </div>
-      </div>
-    {/if}
 
     {#if loading}
       <div class="notice">Loading matchups for week {fetchWeek || '...' }...</div>
@@ -535,7 +554,6 @@
 </main>
 
 <style>
-  /* layout variables (matches site's current color tokens if available) */
   :root {
     --nav-text: #e6eef6;
     --muted: #9fb0c4;
@@ -549,10 +567,12 @@
 
   .home-page { padding: 2rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 1.25rem; }
 
-  /* HERO - simplified and tighter (hero-right removed) */
+  /* HERO */
   .hero { padding: 1.25rem 0 0; }
   .hero-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; }
   .hero-left { flex: 1 1 auto; }
+  .hero-right { width: 380px; display: flex; justify-content: flex-end; align-items: center; }
+
   .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height: 1.05; margin: 0 0 0.4rem 0; color: var(--nav-text); font-weight: 800; }
   .hero-sub { margin: 0 0 0.9rem 0; color: var(--muted); font-size: 0.98rem; max-width: 56ch; }
 
@@ -561,26 +581,26 @@
   .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #fff; border: none; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
   .btn:hover { transform: translateY(-2px); }
 
-  /* POTW card */
-  .potw-wrap { display: flex; justify-content: center; margin: 0.6rem 0 1rem; }
-  .potw-card {
+  /* POTW in hero (larger avatar) */
+  .potw-card-hero {
     display: flex;
     align-items: center;
     gap: 1rem;
     background: rgba(255,255,255,0.02);
-    padding: 0.75rem 1rem;
+    padding: 0.8rem 1rem;
     border-radius: 12px;
     width: 100%;
-    max-width: 820px;
+    max-width: 380px;
     box-shadow: 0 6px 18px rgba(0,0,0,0.14);
   }
-  .potw-left { width: 56px; flex-shrink: 0; display:flex; align-items:center; justify-content:center; }
-  .potw-avatar { width: 52px; height: 52px; border-radius: 999px; display:flex; align-items:center; justify-content:center; font-size:22px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
-  /* use the same headshot class used by rosters for visual consistency */
-  .headshot.potw-headshot { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: #0b1220; flex-shrink: 0; }
+
+  .potw-left { width: 96px; flex-shrink: 0; display:flex; align-items:center; justify-content:center; }
+  .potw-avatar { width: 88px; height: 88px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size:28px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
+  .headshot.potw-headshot { width: 88px; height: 88px; border-radius: 12px; object-fit: cover; background: #0b1220; flex-shrink: 0; }
+
   .potw-body { flex: 1 1 auto; min-width: 0; }
   .potw-title { font-size: 0.86rem; color: var(--muted); font-weight: 700; margin-bottom: 0.15rem; }
-  .potw-player-name { font-size: 1.05rem; font-weight: 900; color: var(--nav-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .potw-player-name { font-size: 1.1rem; font-weight: 900; color: var(--nav-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .potw-meta { margin-top: 0.35rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; color:var(--muted); font-weight:700; }
   .pill { background: rgba(255,255,255,0.02); padding: 0.18rem 0.5rem; border-radius:999px; font-size:0.82rem; }
   .owner { color: var(--muted); font-weight:700; font-size:0.9rem; }
@@ -652,15 +672,16 @@
   .score-divider { font-size: 1rem; color: var(--muted); margin: 0 0.3rem; }
 
   /* Responsive */
+  @media (max-width: 980px) {
+    .hero-right { display: none; } /* hide large POTW hero on tablet/phone to preserve space */
+  }
+
   @media (max-width: 900px) {
     .matchups { grid-template-columns: 1fr; }
     .team-avatar { width: 48px; height: 48px; }
     .team-meta .team-name { max-width: 10rem; font-size: 0.98rem; }
     .team-right .team-meta .team-name { max-width: 9rem; }
     .score-pair { width: 110px; }
-    .potw-card { padding: 0.6rem; gap: 0.6rem; }
-    .potw-left { width: 48px; }
-    .potw-player-name { font-size: 1rem; }
   }
 
   @media (max-width: 520px) {
@@ -673,7 +694,8 @@
     .btn { padding: 0.5rem 0.85rem; font-size: 0.95rem; }
     .matchup-card { max-width: 100%; padding-left: 0.75rem; padding-right: 0.75rem; }
     .matchups > .matchup-card:last-child { grid-column: 1 / -1; justify-self: center; max-width: 100%; }
-    .potw-card { flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.6rem; }
-    .potw-actions { width: 100%; display:flex; justify-content:flex-end; gap:0.5rem; }
+    /* For small screens show POTW below hero-left as a compact card */
+    .hero-right { display: none; }
+    .potw-card-hero { width: 100%; max-width: 100%; }
   }
 </style>
