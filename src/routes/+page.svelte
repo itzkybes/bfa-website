@@ -286,7 +286,7 @@
   }
 
   /* -------------------------
-     POTW / Rando Player helpers
+     POTW / Rando Player helpers (robust resolution)
      ------------------------- */
 
   function chooseRandom(arr) {
@@ -306,6 +306,11 @@
     return s.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 
+  function normalizeForCompare(s) {
+    if (!s) return '';
+    return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+  }
+
   function getPlayerName(playerInfo, playerId) {
     if (!playerInfo) return prettyNameFromId(playerId);
     if (playerInfo.full_name && String(playerInfo.full_name).trim() !== '') return playerInfo.full_name;
@@ -316,6 +321,69 @@
       return (first + ' ' + last).trim();
     }
     return prettyNameFromId(playerId);
+  }
+
+  // robust resolver: various key checks and value scans
+  function resolvePlayerInfo(playerId, playersMap) {
+    if (!playersMap || !playerId) return null;
+
+    // direct lookups by key
+    if (playersMap[playerId]) return playersMap[playerId];
+    const lower = String(playerId).toLowerCase();
+    if (playersMap[lower]) return playersMap[lower];
+    const upper = String(playerId).toUpperCase();
+    if (playersMap[upper]) return playersMap[upper];
+    if (playersMap[String(playerId)]) return playersMap[String(playerId)];
+
+    // prefer exact match on player_id field (numeric or string)
+    const vals = Object.values(playersMap);
+    const targetStr = String(playerId).trim();
+
+    // 1) exact player_id string/number match
+    for (let i = 0; i < vals.length; i++) {
+      const p = vals[i];
+      if (!p) continue;
+      if (p.player_id != null && String(p.player_id) === targetStr) return p;
+      if (p.player_id != null && String(p.player_id) === String(parseInt(targetStr, 10))) return p;
+    }
+
+    // 2) exact full_name or search_full_name match (case-insensitive)
+    const normTarget = normalizeForCompare(targetStr);
+    for (let i = 0; i < vals.length; i++) {
+      const p = vals[i];
+      if (!p) continue;
+      if (p.full_name && normalizeForCompare(p.full_name) === normTarget) return p;
+      if (p.search_full_name && normalizeForCompare(p.search_full_name) === normTarget) return p;
+    }
+
+    // 3) try contains / partial match of name parts (e.g. "lebron james" vs "lebron-james-23")
+    const parts = targetStr.split(/[\s-_]+/).filter(Boolean).map(s => s.toLowerCase());
+    if (parts.length > 0) {
+      for (let i = 0; i < vals.length; i++) {
+        const p = vals[i];
+        if (!p) continue;
+        const fullLower = (p.full_name || '').toLowerCase();
+        let allMatch = true;
+        for (let j = 0; j < parts.length; j++) {
+          if (parts[j] === '') continue;
+          if (fullLower.indexOf(parts[j]) === -1) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) return p;
+      }
+    }
+
+    // 4) normalized match: strip non-alphanumerics and compare
+    for (let i = 0; i < vals.length; i++) {
+      const p = vals[i];
+      if (!p) continue;
+      if (normalizeForCompare(p.full_name || '') === normalizeForCompare(targetStr)) return p;
+      if (normalizeForCompare(p.search_full_name || '') === normalizeForCompare(targetStr)) return p;
+    }
+
+    return null;
   }
 
   async function pickPlayerOfTheWeek() {
@@ -339,24 +407,16 @@
 
       let playerInfo = null;
       if (playersMap) {
-        playerInfo = playersMap[playerId] || playersMap[playerId.toUpperCase()] || playersMap[String(playerId)];
-        if (!playerInfo) {
-          const vals = Object.values(playersMap);
-          for (let i = 0; i < vals.length; i++) {
-            const p = vals[i];
-            if (!p) continue;
-            if (p.player_id === playerId || p.full_name === playerId) {
-              playerInfo = p;
-              break;
-            }
-          }
-        }
+        playerInfo = resolvePlayerInfo(playerId, playersMap);
       }
 
       if (!playerInfo) {
         playerInfo = { player_id: playerId, full_name: prettyNameFromId(playerId), position: null, team: '' };
       } else {
-        if (!playerInfo.full_name) playerInfo.full_name = getPlayerName(playerInfo, playerId);
+        // ensure we have a friendly full_name
+        if (!playerInfo.full_name || String(playerInfo.full_name).trim() === '') {
+          playerInfo.full_name = getPlayerName(playerInfo, playerId);
+        }
       }
 
       potw = {
