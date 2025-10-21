@@ -523,7 +523,7 @@
         </div>
       </div>
 
-      <!-- HERO-RIGHT: Rando Player card -->
+      <!-- HERO-RIGHT: Rando Player card (single-line layout) -->
       <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
         {#if potw}
           <div class="potw-hero" role="region" aria-label="Rando Player">
@@ -541,28 +541,26 @@
               {/if}
             </div>
 
+            <!-- SINGLE LINE: name + inline metadata -->
             <div class="potw-body">
-              <div class="potw-title">Rando Player</div>
+              <div class="potw-main">
+                <div class="potw-player-name" title={getPlayerName(potw.playerInfo, potw.playerId)}>
+                  {getPlayerName(potw.playerInfo, potw.playerId)}
+                </div>
 
-              <div class="potw-player-name" title={getPlayerName(potw.playerInfo, potw.playerId)}>
-                {getPlayerName(potw.playerInfo, potw.playerId)}
+                <div class="potw-inline-meta" aria-hidden="true">
+                  {#if potw.playerInfo.position}
+                    <span class="meta-item">{potw.playerInfo.position}</span>
+                  {/if}
+                  {#if potw.playerInfo.team}
+                    <span class="meta-item">• {potw.playerInfo.team}</span>
+                  {/if}
+                  <span class="meta-item">• {potw.rosterName}</span>
+                  {#if potw.ownerName}
+                    <span class="meta-item">• {potw.ownerName}</span>
+                  {/if}
+                </div>
               </div>
-
-              <div class="potw-meta">
-                {#if potw.playerInfo.position}
-                  <span class="pill">{potw.playerInfo.position}</span>
-                {/if}
-                {#if potw.playerInfo.team}
-                  <span class="pill">{potw.playerInfo.team}</span>
-                {/if}
-                <span class="pill">{potw.rosterName}</span>
-                {#if potw.ownerName}
-                  <span class="owner">• {potw.ownerName}</span>
-                {/if}
-              </div>
-
-              <!-- show friendly name (not numeric id) -->
-              <div class="potw-subid">Player: <strong>{getPlayerName(potw.playerInfo, potw.playerId)}</strong></div>
             </div>
 
             <div class="potw-actions">
@@ -691,7 +689,7 @@
   .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
   .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
 
-  /* Rando Player hero card - simplified & cleaner */
+  /* Rando Player hero card - single-line layout */
   .potw-hero {
     display:flex;
     align-items:center;
@@ -709,13 +707,10 @@
   .potw-avatar{ width:96px; height:96px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
 
   .potw-body { flex:1 1 auto; min-width:0; }
-  .potw-title { font-size:0.8rem; color:var(--muted); font-weight:700; margin-bottom:6px; }
+  .potw-main { display:flex; align-items:center; gap:10px; width:100%; min-width:0; }
   .potw-player-name { font-size:1.05rem; font-weight:800; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .potw-subid { margin-top:6px; color:var(--muted); font-size:0.78rem; }
-  .potw-meta { margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--muted); font-weight:700; font-size:0.82rem; }
-  .pill { background: rgba(255,255,255,0.01); padding: 4px 8px; border-radius:999px; font-size:0.78rem; color:var(--muted); }
-  .owner { color:var(--muted); font-weight:700; font-size:0.82rem; }
-
+  .potw-inline-meta { color:var(--muted); font-weight:700; font-size:0.86rem; display:inline-flex; gap:8px; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .meta-item { opacity:0.95; }
   .potw-actions { display:flex; gap:8px; align-items:center; margin-left:4px; }
 
   /* Matchups header */
