@@ -510,4 +510,260 @@
   });
 </script>
 
-<!-- (rest of your markup & styles unchanged) -->
+<main class="home-page">
+  <!-- HERO: Rando Player card placed to the right of the hero text -->
+  <section class="hero">
+    <div class="wrap hero-row">
+      <div class="hero-left">
+        <h1 class="hero-title">Your League — at a glance</h1>
+        <p class="hero-sub">Quickly browse rosters, standings, and player lineups. Showing matchups for week <strong>{fetchWeek || '?'}</strong>.</p>
+        <div class="actions">
+          <a class="btn primary" href="/rosters">View Rosters</a>
+          <a class="btn" href="/standings">View Standings</a>
+        </div>
+      </div>
+
+      <!-- HERO-RIGHT: Rando Player card -->
+      <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
+        {#if potw}
+          <div class="potw-hero" role="region" aria-label="Rando Player">
+            <div class="potw-left">
+              {#if potw.playerInfo && potw.playerInfo.player_id}
+                <img
+                  class="headshot potw-headshot"
+                  src={getPlayerHeadshot(potw.playerInfo.player_id)}
+                  alt={"Headshot of " + getPlayerName(potw.playerInfo, potw.playerId)}
+                  on:error={(e) => (e.target.style.visibility = 'hidden')}
+                  loading="lazy"
+                />
+              {:else}
+                <div class="potw-avatar">🏆</div>
+              {/if}
+            </div>
+
+            <div class="potw-body">
+              <div class="potw-title">Rando Player</div>
+
+              <div class="potw-player-name" title={getPlayerName(potw.playerInfo, potw.playerId)}>
+                {getPlayerName(potw.playerInfo, potw.playerId)}
+              </div>
+
+              <div class="potw-meta">
+                {#if potw.playerInfo.position}
+                  <span class="pill">{potw.playerInfo.position}</span>
+                {/if}
+                {#if potw.playerInfo.team}
+                  <span class="pill">{potw.playerInfo.team}</span>
+                {/if}
+                <span class="pill">{potw.rosterName}</span>
+                {#if potw.ownerName}
+                  <span class="owner">• {potw.ownerName}</span>
+                {/if}
+              </div>
+
+              <!-- show friendly name (not numeric id) -->
+              <div class="potw-subid">Player: <strong>{getPlayerName(potw.playerInfo, potw.playerId)}</strong></div>
+            </div>
+
+            <div class="potw-actions">
+              <a class="btn small" href={"/rosters?owner=" + (potw.roster && potw.roster.roster_id ? potw.roster.roster_id : '')}>View Roster</a>
+              <button class="btn small" on:click={pickPlayerOfTheWeek} aria-label="Pick a different player">Shuffle</button>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap matchups-section" aria-labelledby="matchups-heading">
+    <div class="matchups-header">
+      <h2 id="matchups-heading" class="section-title">This week's matchups</h2>
+      <div class="week-pill">
+        Week {fetchWeek || '?'}
+        {#if weekRanges}
+          <span class="week-range-label">{weekDateRangeLabel(fetchWeek)}</span>
+        {/if}
+      </div>
+    </div>
+
+    {#if loading}
+      <div class="notice">Loading matchups for week {fetchWeek || '...' }...</div>
+    {:else if error}
+      <div class="notice error">Error fetching matchups: {error}</div>
+    {:else if matchupPairs && matchupPairs.length > 0}
+      <div class="matchups">
+        {#each matchupPairs as p}
+          <a class="matchup-card" href={'/rosters?owner=' + (p.home && p.home.roster_id ? p.home.roster_id : '')} >
+            <!-- LEFT TEAM -->
+            <div class="side team-left">
+              {#if p.home}
+                {#if findRoster(p.home.roster_id)}
+                  {#if avatarForRoster(findRoster(p.home.roster_id))}
+                    <img class="team-avatar" src={avatarForRoster(findRoster(p.home.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.home.roster_id))} loading="lazy">
+                  {:else}
+                    <div class="team-avatar placeholder" aria-hidden="true"></div>
+                  {/if}
+                  <div class="team-meta">
+                    <div class="team-name" title={displayNameForRoster(findRoster(p.home.roster_id))}>{displayNameForRoster(findRoster(p.home.roster_id))}</div>
+                    <div class="team-sub">{ownerNameForRoster(findRoster(p.home.roster_id)) || ('Roster ' + p.home.roster_id)}</div>
+                  </div>
+                {:else}
+                  <div class="team-avatar placeholder" aria-hidden="true"></div>
+                  <div class="team-meta">
+                    <div class="team-name">Roster {p.home.roster_id}</div>
+                    <div class="team-sub"></div>
+                  </div>
+                {/if}
+              {:else}
+                <div class="team-avatar placeholder" aria-hidden="true"></div>
+                <div class="team-meta"><div class="team-name">TBD</div><div class="team-sub"></div></div>
+              {/if}
+            </div>
+
+            <!-- SCORES -->
+            <div class="score-pair" aria-hidden="true">
+              <div class="score-left">
+                <div class="score-number">{fmt(p.home && p.home.points)}</div>
+                <div class="score-label">PTS</div>
+              </div>
+              <div class="score-divider">—</div>
+              <div class="score-right">
+                <div class="score-number">{fmt(p.away && p.away.points)}</div>
+                <div class="score-label">PTS</div>
+              </div>
+            </div>
+
+            <!-- RIGHT TEAM -->
+            <div class="side team-right">
+              {#if p.away}
+                {#if findRoster(p.away.roster_id)}
+                  {#if avatarForRoster(findRoster(p.away.roster_id))}
+                    <img class="team-avatar" src={avatarForRoster(findRoster(p.away.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.away.roster_id))} loading="lazy">
+                  {:else}
+                    <div class="team-avatar placeholder" aria-hidden="true"></div>
+                  {/if}
+                  <div class="team-meta">
+                    <div class="team-name" title={displayNameForRoster(findRoster(p.away.roster_id))}>{displayNameForRoster(findRoster(p.away.roster_id))}</div>
+                    <div class="team-sub">{ownerNameForRoster(findRoster(p.away.roster_id)) || ('Roster ' + p.away.roster_id)}</div>
+                  </div>
+                {:else}
+                  <div class="team-avatar placeholder" aria-hidden="true"></div>
+                  <div class="team-meta"><div class="team-name">Roster {p.away.roster_id}</div><div class="team-sub"></div></div>
+                {/if}
+              {:else}
+                <div class="team-avatar placeholder" aria-hidden="true"></div>
+                <div class="team-meta"><div class="team-name">TBD</div><div class="team-sub"></div></div>
+              {/if}
+            </div>
+          </a>
+        {/each}
+      </div>
+    {:else}
+      <div class="notice">No matchups found for week {fetchWeek}. Try a different week via <code>?week=</code>.</div>
+    {/if}
+  </section>
+</main>
+
+<style>
+  :root{
+    --nav-text: #e6eef6;
+    --muted: #9fb0c4;
+    --muted-bg: rgba(255,255,255,0.02);
+    --accent: #00c6d8;
+    --accent-dark: #008fa6;
+    --bg-card: rgba(255,255,255,0.02);
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
+  .home-page { padding: 2rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 1.25rem; }
+
+  /* HERO (cleaner) */
+  .hero { padding: 1.25rem 0 0; }
+  .hero-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:0.75rem 0; }
+  .hero-left { flex:1 1 auto; max-width: 680px; }
+  .hero-right { width: 360px; display:flex; justify-content:flex-end; align-items:flex-start; }
+
+  .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height:1.02; margin:0 0 0.4rem 0; color:var(--nav-text); font-weight:800; letter-spacing:-0.02em; }
+  .hero-sub { margin:0 0 0.9rem 0; color:var(--muted); font-size:0.98rem; max-width:52ch; }
+
+  .actions { display:flex; gap:0.6rem; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; padding:0.46rem 0.9rem; border-radius:8px; font-weight:700; text-decoration:none; color:var(--nav-text); background:transparent; border:1px solid rgba(255,255,255,0.03); }
+  .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
+  .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
+
+  /* Rando Player hero card - simplified & cleaner */
+  .potw-hero {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background: var(--bg-card);
+    padding: 12px;
+    border-radius: 12px;
+    width:100%;
+    max-width:360px;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.03);
+  }
+  .potw-left{ width:96px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .headshot.potw-headshot { width:96px; height:96px; border-radius:10px; object-fit:cover; background:#0b1220; }
+  .potw-avatar{ width:96px; height:96px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:28px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
+
+  .potw-body { flex:1 1 auto; min-width:0; }
+  .potw-title { font-size:0.8rem; color:var(--muted); font-weight:700; margin-bottom:6px; }
+  .potw-player-name { font-size:1.05rem; font-weight:800; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .potw-subid { margin-top:6px; color:var(--muted); font-size:0.78rem; }
+  .potw-meta { margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--muted); font-weight:700; font-size:0.82rem; }
+  .pill { background: rgba(255,255,255,0.01); padding: 4px 8px; border-radius:999px; font-size:0.78rem; color:var(--muted); }
+  .owner { color:var(--muted); font-weight:700; font-size:0.82rem; }
+
+  .potw-actions { display:flex; gap:8px; align-items:center; margin-left:4px; }
+
+  /* Matchups header */
+  .matchups-section { margin-top:0.6rem; }
+  .matchups-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:0.7rem; }
+  .section-title{ font-size:1.02rem; color:var(--nav-text); margin:0; font-weight:800; }
+  .week-pill{ background:var(--muted-bg); padding:6px 10px; border-radius:999px; font-weight:700; color:var(--nav-text); font-size:0.88rem; display:inline-flex; align-items:center; gap:8px; }
+  .week-range-label{ color:var(--muted); font-weight:600; font-size:0.82rem; margin-left:6px; }
+
+  .notice { padding:10px 12px; background: rgba(255,255,255,0.01); border-radius:8px; margin-bottom:1rem; color:var(--muted); font-size:0.95rem; text-align:center; }
+  .notice.error { background: rgba(255,80,80,0.04); color:#ffb6b6; }
+
+  /* Matchups grid/cards */
+  .matchups { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; align-items:start; justify-content:center; }
+  .matchup-card { display:flex; align-items:center; gap:12px; text-decoration:none; background:var(--bg-card); border-radius:10px; padding:12px; width:100%; max-width:560px; border: 1px solid rgba(255,255,255,0.03); }
+  .matchup-card:hover { transform:translateY(-3px); }
+
+  .matchups > .matchup-card:last-child { grid-column:1 / -1; justify-self:center; max-width:640px; }
+
+  .side { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 0; }
+  .team-left { justify-content:flex-start; }
+  .team-right { justify-content:flex-end; flex-direction:row-reverse; text-align:right; }
+
+  .team-avatar { width:52px; height:52px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
+  .team-avatar.placeholder { background: var(--muted-bg); }
+
+  .team-meta { display:flex; flex-direction:column; min-width:0; }
+  .team-name { font-weight:800; color:var(--nav-text); font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:12.5rem; }
+  .team-right .team-name { max-width:11rem; }
+  .team-sub { font-size:0.82rem; color:var(--muted); font-weight:600; margin-top:4px; }
+
+  .score-pair { display:flex; align-items:center; gap:6px; margin:0 6px; width:130px; justify-content:center; text-align:center; flex-shrink:0; }
+  .score-number { font-weight:900; font-size:1.12rem; color:var(--nav-text); }
+  .score-label { font-size:0.72rem; color:var(--muted); font-weight:700; }
+  .score-divider { font-size:1rem; color:var(--muted); margin:0 6px; }
+
+  /* responsive */
+  @media (max-width:980px){
+    .hero-right{ display:none; } /* keep hero clean on small screens */
+  }
+  @media (max-width:900px){
+    .matchups{ grid-template-columns:1fr; }
+    .team-avatar{ width:48px; height:48px; }
+  }
+  @media (max-width:520px){
+    .wrap{ padding:0 0.75rem; }
+    .hero-row{ flex-direction:column; align-items:flex-start; gap:0.6rem; }
+    .team-avatar{ width:40px; height:40px; }
+    .score-pair{ width:92px; }
+  }
+</style>
