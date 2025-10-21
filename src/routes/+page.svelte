@@ -527,9 +527,8 @@
                 {/if}
               </div>
 
-              {#if potw.playerInfo.player_id && potw.playerInfo.player_id !== (potw.playerInfo.full_name || '')}
-                <div class="potw-subid">ID: <code>{potw.playerInfo.player_id}</code></div>
-              {/if}
+              <!-- REPLACED: show player name instead of ID (use same resolver as rosters page) -->
+              <div class="potw-subid">Player: <strong>{getPlayerName(potw.playerInfo, potw.playerId)}</strong></div>
             </div>
 
             <div class="potw-actions">
