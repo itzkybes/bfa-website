@@ -523,7 +523,7 @@
         </div>
       </div>
 
-      <!-- HERO-RIGHT: Rando Player card (single-line responsive) -->
+      <!-- HERO-RIGHT: Rando Player card (two-line layout: name + meta) -->
       <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
         {#if potw}
           <div class="potw-hero" role="region" aria-label="Rando Player">
@@ -541,14 +541,16 @@
               {/if}
             </div>
 
-            <!-- SINGLE LINE: name + inline metadata -->
+            <!-- TWO-LINE: player name on its own line; metadata on the line below -->
             <div class="potw-body">
-              <div class="potw-main">
+              <div class="potw-name-row">
                 <div class="potw-player-name" title={getPlayerName(potw.playerInfo, potw.playerId)}>
                   {getPlayerName(potw.playerInfo, potw.playerId)}
                 </div>
+              </div>
 
-                <div class="potw-inline-meta" aria-hidden="true">
+              <div class="potw-meta-row" aria-hidden="true">
+                <div class="potw-inline-meta">
                   {#if potw.playerInfo.position}
                     <span class="meta-item">{potw.playerInfo.position}</span>
                   {/if}
@@ -691,7 +693,7 @@
   .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
   .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
 
-  /* Rando Player hero card - single-line responsive layout */
+  /* Rando Player hero card - two-line layout */
   .potw-hero {
     display:flex;
     align-items:center;
@@ -700,7 +702,6 @@
     padding: 14px;
     border-radius: 12px;
     width:100%;
-    /* allow the card to use the space available inside .hero-right */
     max-width:100%;
     box-shadow: none;
     border: 1px solid rgba(255,255,255,0.03);
@@ -709,13 +710,11 @@
   .headshot.potw-headshot { width:120px; height:120px; border-radius:10px; object-fit:cover; background:#0b1220; }
   .potw-avatar{ width:120px; height:120px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:34px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
 
-  .potw-body { flex:1 1 auto; min-width:0; }
-  /* keep everything on a single line; allow the name to flex-grow and the meta to size to content */
-  .potw-main { display:flex; align-items:center; gap:14px; width:100%; min-width:0; white-space:nowrap; }
-  /* allow the name to take remaining space but be able to shrink if needed (min-width:0 required) */
-  .potw-player-name { flex:1 1 0; min-width:0; font-size:1.08rem; font-weight:800; color:var(--nav-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  /* inline meta stays to the right and keeps its intrinsic width */
-  .potw-inline-meta { flex:0 0 auto; color:var(--muted); font-weight:700; font-size:0.92rem; display:inline-flex; gap:10px; align-items:center; white-space:nowrap; overflow:visible; }
+  .potw-body { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .potw-name-row { display:block; }
+  .potw-player-name { font-size:1.12rem; font-weight:800; color:var(--nav-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .potw-meta-row { display:block; }
+  .potw-inline-meta { color:var(--muted); font-weight:700; font-size:0.92rem; display:inline-flex; gap:10px; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .meta-item { opacity:0.95; }
 
   .potw-actions { display:flex; gap:8px; align-items:center; margin-left:8px; }
