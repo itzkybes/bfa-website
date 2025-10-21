@@ -693,7 +693,7 @@
   .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
   .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
 
-  /* Rando Player hero card - two-line layout */
+  /* Rando Player hero card (kept as-is from last update) */
   .potw-hero {
     display:flex;
     align-items:center;
@@ -729,42 +729,86 @@
   .notice { padding:10px 12px; background: rgba(255,255,255,0.01); border-radius:8px; margin-bottom:1rem; color:var(--muted); font-size:0.95rem; text-align:center; }
   .notice.error { background: rgba(255,80,80,0.04); color:#ffb6b6; }
 
-  /* Matchups grid/cards */
-  .matchups { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; align-items:start; justify-content:center; }
-  .matchup-card { display:flex; align-items:center; gap:12px; text-decoration:none; background:var(--bg-card); border-radius:10px; padding:12px; width:100%; max-width:560px; border: 1px solid rgba(255,255,255,0.03); }
-  .matchup-card:hover { transform:translateY(-3px); }
+  /* ---------- MATCHUPS: wider, responsive cards ---------- */
+  /* Use auto-fit so cards expand on wide viewports; each column will be at least 480px */
+  .matchups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+    gap: 16px;
+    align-items: start;
+    justify-content: center;
+  }
 
-  .matchups > .matchup-card:last-child { grid-column:1 / -1; justify-self:center; max-width:640px; }
+  /* Let cards use the full column width (no tiny hard max-width) */
+  .matchup-card {
+    display:flex;
+    align-items:center;
+    gap:16px;
+    text-decoration:none;
+    background:var(--bg-card);
+    border-radius:12px;
+    padding:16px;
+    width:100%;
+    /* allow card to fill column width */
+    max-width:100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.03);
+  }
+  .matchup-card:hover { transform: translateY(-4px); transition: transform 160ms ease; }
+
+  /* make the last child follow the same column sizing; no special grid-column */
+  .matchups > .matchup-card:last-child { justify-self:center; }
 
   .side { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 0; }
   .team-left { justify-content:flex-start; }
   .team-right { justify-content:flex-end; flex-direction:row-reverse; text-align:right; }
 
-  .team-avatar { width:52px; height:52px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
+  /* Slightly larger avatar so the spacing feels balanced on wider cards */
+  .team-avatar { width:64px; height:64px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
   .team-avatar.placeholder { background: var(--muted-bg); }
 
+  /* Allow team names to wrap across multiple lines (no ellipsis) so the full name is readable */
   .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:800; color:var(--nav-text); font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:12.5rem; }
-  .team-right .team-name { max-width:11rem; }
-  .team-sub { font-size:0.82rem; color:var(--muted); font-weight:600; margin-top:4px; }
+  .team-name {
+    font-weight:800;
+    color:var(--nav-text);
+    font-size:1.05rem;
+    /* allow wrapping so long names are fully visible */
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.15;
+  }
+  .team-sub { font-size:0.87rem; color:var(--muted); font-weight:600; margin-top:6px; }
 
-  .score-pair { display:flex; align-items:center; gap:6px; margin:0 6px; width:130px; justify-content:center; text-align:center; flex-shrink:0; }
-  .score-number { font-weight:900; font-size:1.12rem; color:var(--nav-text); }
-  .score-label { font-size:0.72rem; color:var(--muted); font-weight:700; }
+  /* keep the score area compact and fixed width so teams get more room */
+  .score-pair { display:flex; align-items:center; gap:8px; margin:0 10px; width:140px; justify-content:center; text-align:center; flex-shrink:0; }
+  .score-number { font-weight:900; font-size:1.18rem; color:var(--nav-text); }
+  .score-label { font-size:0.74rem; color:var(--muted); font-weight:700; }
   .score-divider { font-size:1rem; color:var(--muted); margin:0 6px; }
 
-  /* responsive */
-  @media (max-width:980px){
-    .hero-right{ display:none; } /* keep hero clean on small screens */
+  /* small tweaks for very wide screens to give extra breathing room */
+  @media (min-width:1400px) {
+    .matchups { gap: 20px; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); }
+    .team-avatar { width:72px; height:72px; }
+    .score-pair { width:160px; }
   }
+
+  /* responsive: single column below 900px */
   @media (max-width:900px){
-    .matchups{ grid-template-columns:1fr; }
-    .team-avatar{ width:48px; height:48px; }
+    .matchups{ grid-template-columns: 1fr; }
+    .team-avatar{ width:56px; height:56px; }
+    .score-pair{ width:120px; }
+    .matchup-card { padding:12px; gap:12px; }
+    .team-sub { margin-top:4px; font-size:0.82rem; }
   }
+
   @media (max-width:520px){
     .wrap{ padding:0 0.75rem; }
     .hero-row{ flex-direction:column; align-items:flex-start; gap:0.6rem; }
-    .team-avatar{ width:40px; height:40px; }
+    .team-avatar{ width:44px; height:44px; }
     .score-pair{ width:92px; }
+    /* make sure team name doesn't dominate on tiny screens — allow two lines */
+    .team-name { font-size:1rem; }
   }
 </style>
