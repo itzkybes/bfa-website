@@ -24,7 +24,7 @@
 	<div class="wrap">
 		<div class="left">
 			<p>Badger Fantasy Association</p>
-			<p><a href="https://github.com/svelte-add/svelte-add" target="_blank" rel="noreferrer">Svelte Add</a></p>
+			<p><a href="https://sleeper.com/" target="_blank" rel="noreferrer">Sleeper</a></p>
 		</div>
 </footer>
 
