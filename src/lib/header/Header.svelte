@@ -6,6 +6,11 @@
   let open = false;
   let mounted = false;
 
+  // logo fallback state — points to file in static/
+  let logoVisible = true;
+  let logoSrcs = ['/bfa-logo.png'];
+  let currentLogo = logoSrcs[0];
+
   // close mobile menu on route change
   $: if (mounted) {
     $page; // reactive dependency so this runs when the page changes
@@ -16,33 +21,57 @@
     mounted = true;
   });
 
+  // primary nav links
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
     { href: '/standings', label: 'Standings' },
-    { href: '/matchups', label: 'Matchups' }
+    { href: '/matchups', label: 'Matchups' },
+    { href: '/players', label: 'Players' },
+    { href: '/schedule', label: 'Schedule' },
+    { href: '/about', label: 'About' }
   ];
 
   // helper to test active link
   function isActive(path, href) {
     if (!path) return false;
-    // treat root specially
     if (href === '/' && (path === '/' || path === '')) return true;
-    return path.startsWith(href) && href !== '/';
+    return path === href || (href !== '/' && path.startsWith(href));
+  }
+
+  // try next fallback if image errors
+  function onLogoError() {
+    const next = logoSrcs.indexOf(currentLogo) + 1;
+    if (next < logoSrcs.length) {
+      currentLogo = logoSrcs[next];
+    } else {
+      logoVisible = false;
+    }
   }
 </script>
 
 <header class="site-header" role="banner">
   <div class="wrap header-inner" role="navigation" aria-label="Main navigation">
     <a class="brand" href="/" aria-label="Badger Fantasy Association home">
-      <span class="logo">🦡</span>
+      {#if logoVisible}
+        <img
+          src={currentLogo}
+          alt="Badger Fantasy Association"
+          class="brand-logo"
+          on:error={onLogoError}
+          loading="eager"
+        />
+      {:else}
+        <span class="logo-emoji" aria-hidden="true">🦡</span>
+      {/if}
+
       <span class="brand-text">
         <span class="brand-title">Badger Fantasy</span>
         <span class="brand-sub">Association</span>
       </span>
     </a>
 
-    <nav class="nav-desktop" aria-label="Primary">
+    <nav class="nav-desktop" aria-label="Primary navigation">
       {#each links as l}
         <a
           href={l.href}
@@ -51,15 +80,9 @@
           >{l.label}</a
         >
       {/each}
-
-      <a class="nav-cta" href="https://docs.sleeper.app/" target="_blank" rel="noreferrer">Sleeper API ↗</a>
     </nav>
 
     <div class="mobile-controls">
-      <a class="mobile-cta" href="https://docs.sleeper.app/" target="_blank" rel="noreferrer" aria-label="Open Sleeper API">
-        API ↗
-      </a>
-
       <button
         class="hamburger"
         on:click={() => (open = !open)}
@@ -86,8 +109,6 @@
           >{l.label}</a
         >
       {/each}
-
-      <a class="mobile-link api" href="https://docs.sleeper.app/" target="_blank" rel="noreferrer">Sleeper API ↗</a>
     </div>
   </div>
 </header>
@@ -128,10 +149,27 @@
     color: var(--nav-text);
   }
 
-  .logo {
+  .brand-logo {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.45);
+    flex-shrink: 0;
+  }
+
+  .logo-emoji {
+    display: inline-block;
+    width: 44px;
+    height: 44px;
     font-size: 1.35rem;
     line-height: 1;
-    display: inline-block;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .brand-text {
@@ -181,36 +219,11 @@
     color: #071122;
   }
 
-  .nav-cta {
-    margin-left: 6px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-weight: 800;
-    color: #071122;
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-    text-decoration: none;
-  }
-
-  .nav-cta:hover,
-  .nav-cta:focus {
-    transform: translateY(-1px);
-  }
-
   /* Mobile controls */
   .mobile-controls {
     display: none;
     align-items: center;
     gap: 8px;
-  }
-
-  .mobile-cta {
-    display: inline-block;
-    font-weight: 800;
-    color: var(--nav-text);
-    padding: 6px 8px;
-    border-radius: 8px;
-    text-decoration: none;
-    background: rgba(255,255,255,0.02);
   }
 
   .hamburger {
@@ -306,12 +319,6 @@
     color: var(--nav-text);
     text-decoration: none;
     background: rgba(255,255,255,0.02);
-  }
-
-  .mobile-link.api {
-    margin-top: 6px;
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-    color: #071122;
   }
 
   .mobile-link.active {
