@@ -166,6 +166,7 @@
         <tbody>
           {#each matchupsRows as row}
             {#if row.participantsCount === 2}
+              <!-- two-team matchup (unchanged) -->
               <tr>
                 <td>
                   <div class="team-cell">
@@ -208,7 +209,39 @@
                 </td>
               </tr>
 
+            {:else if row.participantsCount === 1}
+              <!-- BYE: single participant -->
+              <tr>
+                <td>
+                  <div class="team-cell">
+                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                    <div class="team-meta" style="min-width:0;">
+                      <div class="team-name">{row.teamA.name}</div>
+                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                    </div>
+
+                    {#if row.teamA.points != null}
+                      <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
+                    {/if}
+                  </div>
+                </td>
+
+                <td>
+                  <div class="team-cell">
+                    <!-- show a subtle BYE placeholder -->
+                    <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed rgba(255,255,255,0.03); color:var(--muted); font-weight:700;">
+                      BYE
+                    </div>
+                    <div class="team-meta" style="min-width:0;">
+                      <div class="team-name">Bye</div>
+                      <div class="muted">Bye week</div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
             {:else}
+              <!-- multi-team matchup -->
               <tr>
                 <td colspan="2">
                   <div style="display:flex; justify-content:space-between; align-items:center;">
