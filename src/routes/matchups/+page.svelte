@@ -1,262 +1,591 @@
+<!-- src/routes/matchups/+page.svelte -->
 <script>
-  export let data;
+  import { onMount } from 'svelte';
 
-  // page data
-  const seasons = data.seasons || [];
-  const weeks = data.weeks || [];
-  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
-  const matchupsRows = data.matchupsRows || [];
-  const messages = data.messages || [];
-  const originalRecords = data.originalRecords || {};
+  const CONFIG_PATH = '/week-ranges.json';
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const forcedWeek = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
+  const leagueId = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || '1219816671624048640';
 
-  // helpers
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
+  let loading = true;
+  let error = null;
+  let matchupPairs = [];
+  let rosters = [];
+  let users = [];
+  let weekRanges = [];
+  let selectedWeek = null;
+  let fetchWeek = null;
+
+  /* -------------------------
+     Utility & helper methods
+     ------------------------- */
+
+  function parseLocalDateYMD(ymd) {
+    return new Date(ymd + 'T00:00:00');
   }
 
-  function fmt2(n) { return Number(n ?? 0).toFixed(2); }
+  function computeEffectiveWeekFromRanges(ranges) {
+    if (forcedWeek && !isNaN(forcedWeek)) return forcedWeek;
+    if (!Array.isArray(ranges) || ranges.length === 0) return 1;
+    const now = new Date();
 
-  // used by the filter selects to submit the GET form
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form && form.requestSubmit) form.requestSubmit();
-    else if (form) form.submit();
+    for (let i = 0; i < ranges.length; i++) {
+      const r = ranges[i];
+      const start = parseLocalDateYMD(r.start);
+      const end = parseLocalDateYMD(r.end);
+      const endInclusive = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+      if (now >= start && now <= endInclusive) {
+        const rotateAt = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12, 0, 0, 0);
+        rotateAt.setDate(rotateAt.getDate() + 1); // rotate the week at noon the day after
+        if (now >= rotateAt) {
+          const next = (i + 1 < ranges.length) ? ranges[i + 1] : null;
+          return next ? next.week : r.week;
+        } else {
+          return r.week;
+        }
+      }
+    }
+
+    // If before first start, return first week
+    const first = ranges[0];
+    const firstStart = parseLocalDateYMD(first.start);
+    if (now < firstStart) return first.week;
+
+    // If after last rotate, return last week
+    const last = ranges[ranges.length - 1];
+    const lastEnd = parseLocalDateYMD(last.end);
+    const lastRotateAt = new Date(lastEnd.getFullYear(), lastEnd.getMonth(), lastEnd.getDate(), 12, 0, 0, 0);
+    lastRotateAt.setDate(lastRotateAt.getDate() + 1);
+    if (now >= lastRotateAt) return last.week;
+
+    // Otherwise, fallback: find last range that ended and return its week
+    for (let j = ranges.length - 1; j >= 0; j--) {
+      const rr = ranges[j];
+      const rrEnd = parseLocalDateYMD(rr.end);
+      const rrEndInclusive = new Date(rrEnd.getFullYear(), rrEnd.getMonth(), rrEnd.getDate(), 23, 59, 59, 999);
+      if (now > rrEndInclusive) {
+        const rotateAtPast = new Date(rrEnd.getFullYear(), rrEnd.getMonth(), rrEnd.getDate(), 12, 0, 0, 0);
+        rotateAtPast.setDate(rotateAtPast.getDate() + 1);
+        if (now >= rotateAtPast) {
+          const nx = (j + 1 < ranges.length) ? ranges[j + 1] : null;
+          return nx ? nx.week : rr.week;
+        } else {
+          return rr.week;
+        }
+      }
+    }
+
+    return first.week;
+  }
+
+  // detect if a week-range entry represents playoffs
+  function isPlayoffRange(r) {
+    if (!r) return false;
+    if (r.playoff === true || r.is_playoff === true) return true;
+    if (r.type && typeof r.type === 'string' && r.type.toLowerCase().includes('play')) return true;
+    if (r.label && typeof r.label === 'string' && r.label.toLowerCase().includes('play')) return true;
+    if (r.name && typeof r.name === 'string' && r.name.toLowerCase().includes('play')) return true;
+    // fallback: if week is > typical regular season length (e.g., > 20), treat as playoff candidate
+    if (typeof r.week === 'number' && r.week > 20) return true;
+    return false;
+  }
+
+  function weekDateRangeLabel(weekNum) {
+    if (!Array.isArray(weekRanges)) return null;
+    for (let i = 0; i < weekRanges.length; i++) {
+      if (weekRanges[i] && Number(weekRanges[i].week) === Number(weekNum)) {
+        const s = weekRanges[i].start;
+        const e = weekRanges[i].end;
+        try {
+          const sd = new Date(s + 'T00:00:00');
+          const ed = new Date(e + 'T00:00:00');
+          const opts = { month: 'short', day: 'numeric' };
+          const sdStr = sd.toLocaleDateString(undefined, opts);
+          const edStr = ed.toLocaleDateString(undefined, opts);
+          return sdStr + ' — ' + edStr;
+        } catch (err) {
+          return s + ' — ' + e;
+        }
+      }
+    }
+    return null;
+  }
+
+  function findRoster(id) {
+    if (!rosters) return null;
+    for (let i = 0; i < rosters.length; i++) {
+      const r = rosters[i];
+      if (String(r.roster_id) === String(id) || r.roster_id === id) return r;
+    }
+    return null;
+  }
+
+  function findUserByOwner(ownerId) {
+    if (!users) return null;
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      if (String(u.user_id) === String(ownerId) || u.user_id === ownerId) return u;
+    }
+    return null;
+  }
+
+  function avatarForRoster(rosterOrId) {
+    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+    if (!roster) return null;
+    const md = roster.metadata || {};
+    const settings = roster.settings || {};
+    let candidate = null;
+    if (md && md.team_avatar) candidate = md.team_avatar;
+    if (!candidate && md && md.avatar) candidate = md.avatar;
+    if (!candidate && settings && settings.team_avatar) candidate = settings.team_avatar;
+    if (!candidate && settings && settings.avatar) candidate = settings.avatar;
+    if (!candidate) {
+      const u = findUserByOwner(roster.owner_id);
+      if (u) {
+        if (u.metadata && u.metadata.avatar) candidate = u.metadata.avatar;
+        else if (u.avatar) candidate = u.avatar;
+      }
+    }
+    if (!candidate) return null;
+    if (typeof candidate === 'string' && (candidate.indexOf('http://') === 0 || candidate.indexOf('https://') === 0)) {
+      return candidate;
+    }
+    return 'https://sleepercdn.com/avatars/' + encodeURIComponent(String(candidate));
+  }
+
+  function displayNameForRoster(rosterOrId) {
+    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+    if (roster) {
+      const md = roster.metadata || {};
+      const settings = roster.settings || {};
+      const nameCandidates = [
+        md.team_name, md.teamName, md.team, md.name,
+        settings.team_name, settings.teamName, settings.team, settings.name
+      ];
+      for (let i = 0; i < nameCandidates.length; i++) {
+        const cand = nameCandidates[i];
+        if (cand && typeof cand === 'string' && cand.trim() !== '') {
+          return cand.trim();
+        }
+      }
+      if (roster.name && typeof roster.name === 'string' && roster.name.trim() !== '') {
+        return roster.name.trim();
+      }
+    }
+
+    let ownerId = null;
+    if (roster && roster.owner_id) ownerId = roster.owner_id;
+    if (!ownerId && roster) ownerId = roster.user_id || roster.owner || roster.user;
+
+    if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
+
+    if (ownerId) {
+      const u = findUserByOwner(ownerId);
+      if (u) {
+        if (u.metadata && u.metadata.team_name && u.metadata.team_name.trim() !== '') return u.metadata.team_name.trim();
+        if (u.display_name && u.display_name.trim() !== '') return u.display_name.trim();
+        if (u.username && u.username.trim() !== '') return u.username.trim();
+      }
+    }
+
+    if (roster && roster.roster_id != null) return 'Roster ' + roster.roster_id;
+    if (typeof rosterOrId === 'string' || typeof rosterOrId === 'number') return 'Roster ' + rosterOrId;
+    return 'Roster';
+  }
+
+  function ownerNameForRoster(rosterOrId) {
+    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+    let ownerId = roster && (roster.owner_id || roster.user_id || roster.owner || roster.user);
+    if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
+    if (!ownerId) return null;
+    const u = findUserByOwner(ownerId);
+    if (!u) return null;
+    return u.display_name || u.username || (u.metadata && u.metadata.team_name) || null;
+  }
+
+  function fmt(n) {
+    if (n == null) return '-';
+    if (typeof n === 'number') return (Math.round(n * 10) / 10).toFixed(1);
+    return String(n);
+  }
+
+  /* -------------------------
+     Matchup normalization (same logic used on homepage)
+     ------------------------- */
+  function normalizeMatchups(raw) {
+    const pairs = [];
+    if (!raw) return pairs;
+
+    if (Array.isArray(raw)) {
+      const map = {};
+      for (let i = 0; i < raw.length; i++) {
+        const e = raw[i];
+        const mid = e.matchup_id != null ? String(e.matchup_id) : null;
+        if (mid) {
+          if (!map[mid]) map[mid] = [];
+          map[mid].push(e);
+        } else if (e.opponent_roster_id != null) {
+          let attached = false;
+          const keys = Object.keys(map);
+          for (let k = 0; k < keys.length && !attached; k++) {
+            const arr = map[keys[k]];
+            for (let j = 0; j < arr.length; j++) {
+              if (String(arr[j].roster_id) === String(e.opponent_roster_id) || String(arr[j].roster_id) === String(e.roster_id)) {
+                arr.push(e);
+                attached = true;
+                break;
+              }
+            }
+          }
+          if (!attached) map['p_' + i] = [e];
+        } else {
+          map['p_' + i] = [e];
+        }
+      }
+
+      const mids = Object.keys(map);
+      for (let m = 0; m < mids.length; m++) {
+        const bucket = map[mids[m]];
+        if (bucket.length === 2) {
+          pairs.push({ matchup_id: mids[m], home: normalizeEntry(bucket[0]), away: normalizeEntry(bucket[1]) });
+        } else if (bucket.length === 1) {
+          pairs.push({ matchup_id: mids[m], home: normalizeEntry(bucket[0]), away: null });
+        } else if (bucket.length > 2) {
+          for (let s = 0; s < bucket.length; s += 2) {
+            pairs.push({ matchup_id: mids[m] + '_' + s, home: normalizeEntry(bucket[s]), away: normalizeEntry(bucket[s + 1] || null) });
+          }
+        }
+      }
+    } else if (typeof raw === 'object') {
+      const arrFromObj = [];
+      Object.keys(raw).forEach(k => {
+        const v = raw[k];
+        if (v && typeof v === 'object') arrFromObj.push(v);
+      });
+      if (arrFromObj.length > 0) {
+        const grouping = {};
+        for (let ii = 0; ii < arrFromObj.length; ii++) {
+          const ee = arrFromObj[ii];
+          const gm = ee.matchup_id != null ? String(ee.matchup_id) : 'p_' + ii;
+          if (!grouping[gm]) grouping[gm] = [];
+          grouping[gm].push(ee);
+        }
+        const gkeys = Object.keys(grouping);
+        for (let g = 0; g < gkeys.length; g++) {
+          const b = grouping[gkeys[g]];
+          if (b.length >= 2) {
+            for (let z = 0; z < b.length; z += 2) {
+              pairs.push({ matchup_id: gkeys[g] + '_' + z, home: normalizeEntry(b[z]), away: normalizeEntry(b[z + 1] || null) });
+            }
+          } else {
+            pairs.push({ matchup_id: gkeys[g], home: normalizeEntry(b[0]), away: null });
+          }
+        }
+      }
+    }
+    return pairs;
+
+    function normalizeEntry(rawEntry) {
+      if (!rawEntry) return null;
+      const entry = {
+        roster_id: rawEntry.roster_id != null ? rawEntry.roster_id : (rawEntry.roster || rawEntry.owner_id || null),
+        points: rawEntry.points != null ? rawEntry.points : (rawEntry.points_for != null ? rawEntry.points_for : (rawEntry.starters_points != null ? rawEntry.starters_points : null)),
+        matchup_id: rawEntry.matchup_id != null ? rawEntry.matchup_id : null,
+        raw: rawEntry
+      };
+      if (rawEntry.opponent_roster_id != null) entry.opponent_roster_id = rawEntry.opponent_roster_id;
+      return entry;
+    }
+  }
+
+  /* -------------------------
+     Fetching helpers
+     ------------------------- */
+
+  async function fetchAllForWeek(week) {
+    loading = true;
+    error = null;
+    matchupPairs = [];
+    try {
+      const mRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/matchups/' + week);
+      if (!mRes.ok) throw new Error('matchups fetch failed: ' + mRes.status);
+      const matchupsRaw = await mRes.json();
+
+      const rRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/rosters');
+      if (rRes.ok) rosters = await rRes.json();
+
+      const uRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/users');
+      if (uRes.ok) users = await uRes.json();
+
+      matchupPairs = normalizeMatchups(matchupsRaw);
+    } catch (err) {
+      error = String(err && err.message ? err.message : err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  function buildWeekOptions(ranges) {
+    if (!Array.isArray(ranges)) return { regular: [], playoffs: [] };
+    const regular = [];
+    const playoffs = [];
+    for (let i = 0; i < ranges.length; i++) {
+      const r = ranges[i];
+      const wk = Number(r.week);
+      const label = (r.label || r.name || ('Week ' + wk));
+      if (isPlayoffRange(r)) {
+        playoffs.push({ week: wk, label });
+      } else {
+        regular.push({ week: wk, label });
+      }
+    }
+    // sort by week ascending
+    regular.sort((a,b) => a.week - b.week);
+    playoffs.sort((a,b) => a.week - b.week);
+    return { regular, playoffs };
+  }
+
+  /* -------------------------
+     Lifecycle & interactions
+     ------------------------- */
+
+  onMount(async () => {
+    loading = true;
+    error = null;
+    matchupPairs = [];
+    rosters = [];
+    users = [];
+    try {
+      const cfgRes = await fetch(CONFIG_PATH);
+      if (cfgRes.ok) {
+        weekRanges = await cfgRes.json();
+      } else {
+        weekRanges = [];
+      }
+    } catch (err) {
+      weekRanges = [];
+    }
+
+    fetchWeek = computeEffectiveWeekFromRanges(weekRanges || []);
+    // default to forcedWeek if present
+    selectedWeek = forcedWeek && !isNaN(forcedWeek) ? forcedWeek : fetchWeek;
+
+    // initial fetch
+    await fetchAllForWeek(selectedWeek);
+  });
+
+  // allow user change week — refetch
+  async function onWeekChange(e) {
+    const wk = Number(e.target.value);
+    if (!wk || isNaN(wk)) return;
+    selectedWeek = wk;
+    await fetchAllForWeek(selectedWeek);
+    // update URL param so linking/bookmarking works
+    if (typeof window !== 'undefined') {
+      const u = new URL(window.location.href);
+      u.searchParams.set('week', String(selectedWeek));
+      history.replaceState({}, '', u.toString());
+    }
   }
 </script>
 
-<style>
-  :global(body) {
-    /* keep dark page but do not force global background changes here */
-  }
-
-  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
-  .card { background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border:1px solid rgba(255,255,255,0.03); padding:14px; border-radius:10px; margin-bottom:1rem; }
-  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; }
-  /* improved select styling for visibility */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: #e6eef8;
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
-  table { width:100%; border-collapse:collapse; }
-  thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:#9ca3af; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.03); }
-  td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; color:#e6eef8; }
-  .team-cell { display:flex; gap:.6rem; align-items:center; width:100%; min-width:0; }
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
-  .muted { color: #9ca3af; font-size:.9rem; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  /* winning score — made more prominent */
-  .score.winner {
-    background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
-    color: #f8fbff;
-    font-weight:900;
-    font-size:1.05rem;
-    box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
-    border: 1px solid rgba(99,102,241,0.36);
-  }
-  /* subtle tie style */
-  .score.tie {
-    background: rgba(255,255,255,0.02);
-    color: #e6eef8;
-    font-weight:700;
-  }
-  @media (max-width:900px) { .avatar { width:44px; height:44px; } .score { padding:5px 8px; } }
-
-  /* multi-matchup inner table */
-  .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
-  .inner-table th { text-align:left; color:#9ca3af; font-size:.82rem; padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.03); }
-  .inner-table td { padding:8px 8px; }
-
-  /* ownership note */
-  details.note { padding: 12px; margin-top: 0.6rem; border-radius:8px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border:1px solid rgba(255,255,255,0.03); color: #cfe2ff; }
-  details.note summary { list-style: none; cursor: pointer; font-weight:700; font-size:1rem; outline: none; display:flex; gap:.6rem; align-items:center; }
-  details.note summary::-webkit-details-marker { display: none; }
-  details.note summary::before { content: '▸'; color: #9ca3af; width:1rem; display:inline-block; }
-  details.note[open] summary::before { content: '▾'; color: #9ca3af; }
-  .owner-record { margin-top: .5rem; display:flex; gap: .75rem; align-items:center; }
-  .owner-small { color: #dbeafe; font-size:.95rem; }
-</style>
-
-<div class="page">
-  <div class="muted" style="margin-bottom:.5rem;">
-    {#if messages.length}
-      <div><strong>Debug</strong></div>
-      {#each messages as m, i}
-        <div>{i+1}. {m}</div>
-      {/each}
-    {/if}
-  </div>
-
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .6rem;">
-      <div>
-        <h2 style="margin:0 0 2px 0;">Matchups (Regular Season)</h2>
-        <div class="muted" style="font-size:.95rem;">Choose a season and week to view matchups (regular season only)</div>
-      </div>
-
-      <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center;">
-        <label class="muted" for="season">Season</label>
-        <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
-          {/each}
-        </select>
-
-        <label class="muted" for="week">Week</label>
-        <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-          {#each weeks as w}
-            <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-          {/each}
-        </select>
-
-        <noscript>
-          <button type="submit" class="select" style="cursor:pointer;">Go</button>
-        </noscript>
-      </form>
-    </div>
-
-    {#if matchupsRows.length}
-      <table aria-label="Matchups table">
-        <thead>
-          <tr>
-            <th style="width:50%;">Team A</th>
-            <th style="width:50%;">Team B</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {#each matchupsRows as row}
-            {#if row.participantsCount === 2}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      {#if row.teamA.points > row.teamB.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamA.points)}</div>
-                      {:else if row.teamA.points === row.teamB.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamA.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamB.name}</div>
-                      {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamB.points != null}
-                      {#if row.teamB.points > row.teamA.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamB.points)}</div>
-                      {:else if row.teamB.points === row.teamA.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamB.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamB.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-
-            {:else}
-              <tr>
-                <td colspan="2">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-weight:700;">Multi-team matchup ({row.participantsCount})</div>
-                    <div class="muted">Week {row.week ?? '-'} • Season {row.season ?? '-'}</div>
-                  </div>
-
-                  <table class="inner-table" aria-label="Multi-match participants">
-                    <thead>
-                      <tr><th>Team</th><th style="text-align:right">Points</th></tr>
-                    </thead>
-                    <tbody>
-                      {#each row.combinedParticipants as p}
-                        <tr>
-                          <td>
-                            <div style="display:flex; gap:.6rem; align-items:center;">
-                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div style="font-weight:700;">{p.name}</div>
-                            </div>
-                          </td>
-                          <td style="text-align:right;">
-                            {#if p.points === row.combinedWinnerPoints}
-                              <span class="score winner" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {:else}
-                              <span class="score" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {/if}
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {/if}
-          {/each}
-        </tbody>
-      </table>
-    {:else}
-      <div class="muted">No matchups found for the selected season/week or this week is outside the regular-season window.</div>
-    {/if}
-  </div>
-
-  <!-- Ownership note -->
-  <div class="card" aria-labelledby="ownership-note">
-    <div id="ownership-note" style="font-weight:700; font-size:1.05rem; margin-bottom:.3rem;">Ownership note</div>
-    <div class="muted" style="margin-bottom:.6rem;">Lineage and preserved records (original owners before merging into canonical owners)</div>
-
-    <details class="note" aria-label="Canonical ownership (click to expand)">
-      <summary>Canonical owner mapping & preserved records</summary>
-
-      <div style="margin-top:.6rem; color:#dbeafe;">
-        <div>We canonicalize <strong>Bellooshio</strong> &amp; <strong>cholybevv</strong> into <strong>jakepratt</strong> for combined stats shown in the all-time tables.</div>
-
-        {#if Object.keys(originalRecords).length}
-          {#each Object.keys(originalRecords) as key}
-            <div class="owner-record" style="margin-top:.6rem;">
-              <img class="avatar" src={avatarOrPlaceholder(originalRecords[key].avatar, originalRecords[key].team)} alt={originalRecords[key].owner_username || key} on:error={(e)=>e.target.style.visibility='hidden'} />
-              <div>
-                <div style="font-weight:700">{originalRecords[key].owner_username || key}</div>
-                <div class="owner-small">
-                  {#if originalRecords[key].team}<div>Team: {originalRecords[key].team}</div>{/if}
-                  <div>Regular: <strong>{originalRecords[key].regWins}</strong>-<strong>{originalRecords[key].regLosses}</strong> (PF {fmt2(originalRecords[key].regPF)}, PA {fmt2(originalRecords[key].regPA)})</div>
-                  <div>Playoffs: <strong>{originalRecords[key].playoffWins}</strong>-<strong>{originalRecords[key].playoffLosses}</strong> (PF {fmt2(originalRecords[key].playoffPF)}, PA {fmt2(originalRecords[key].playoffPA)})</div>
-                  <div>Championships: <strong>{originalRecords[key].championships}</strong></div>
-                </div>
-              </div>
-            </div>
-          {/each}
-        {:else}
-          <div class="muted" style="margin-top:.6rem;">No preserved original-owner records were returned by the server for this league view. If you expect to see preserved-owner stats here, add `originalRecords` to the page.server.js `load` return payload (same shape used by the Records page).</div>
+<main class="matchups-page wrap">
+  <header class="matchups-header">
+    <div>
+      <h1>This week's matchups</h1>
+      <div class="muted">Showing matchups for week <strong>{selectedWeek || '?'}</strong>
+        {#if weekRanges && weekRanges.length}
+          <span class="week-range"> — {weekDateRangeLabel(selectedWeek)}</span>
         {/if}
       </div>
-    </details>
-  </div>
-</div>
+    </div>
+
+    <!-- Week selector with Regular / Playoffs groupings -->
+    <div class="week-selector">
+      {#if weekRanges && weekRanges.length > 0}
+        {#key weekRanges}
+          {#await Promise.resolve(buildWeekOptions(weekRanges)) then opts}
+            <select aria-label="Select week" on:change={onWeekChange} bind:value={selectedWeek}>
+              {#if opts.regular && opts.regular.length}
+                <optgroup label="Regular Season">
+                  {#each opts.regular as w}
+                    <option value={w.week}>{w.label}</option>
+                  {/each}
+                </optgroup>
+              {/if}
+              {#if opts.playoffs && opts.playoffs.length}
+                <optgroup label="Playoffs">
+                  {#each opts.playoffs as w}
+                    <option value={w.week}>{w.label}</option>
+                  {/each}
+                </optgroup>
+              {/if}
+            </select>
+          {/await}
+        {/key}
+      {:else}
+        <!-- fallback: simple numeric input if weekRanges unavailable -->
+        <input type="number" min="1" bind:value={selectedWeek} on:change={onWeekChange} />
+      {/if}
+    </div>
+  </header>
+
+  {#if loading}
+    <div class="notice">Loading matchups for week {selectedWeek || '...'}...</div>
+  {:else if error}
+    <div class="notice error">Error fetching matchups: {error}</div>
+  {:else if matchupPairs && matchupPairs.length > 0}
+    <div class="matchups-grid">
+      {#each matchupPairs as p}
+        <a class="matchup-card" href={'/rosters?owner=' + (p.home && p.home.roster_id ? p.home.roster_id : '')} >
+          <!-- LEFT TEAM -->
+          <div class="side team-left">
+            {#if p.home}
+              {#if findRoster(p.home.roster_id)}
+                {#if avatarForRoster(findRoster(p.home.roster_id))}
+                  <img class="team-avatar" src={avatarForRoster(findRoster(p.home.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.home.roster_id))} loading="lazy">
+                {:else}
+                  <div class="team-avatar placeholder" aria-hidden="true"></div>
+                {/if}
+                <div class="team-meta">
+                  <div class="team-name" title={displayNameForRoster(findRoster(p.home.roster_id))}>{displayNameForRoster(findRoster(p.home.roster_id))}</div>
+                  <div class="team-sub">{ownerNameForRoster(findRoster(p.home.roster_id)) || ('Roster ' + p.home.roster_id)}</div>
+                </div>
+              {:else}
+                <div class="team-avatar placeholder" aria-hidden="true"></div>
+                <div class="team-meta">
+                  <div class="team-name">Roster {p.home.roster_id}</div>
+                  <div class="team-sub"></div>
+                </div>
+              {/if}
+            {:else}
+              <div class="team-avatar placeholder" aria-hidden="true"></div>
+              <div class="team-meta"><div class="team-name">TBD</div><div class="team-sub"></div></div>
+            {/if}
+          </div>
+
+          <!-- SCORES -->
+          <div class="score-pair" aria-hidden="true">
+            <div class="score-left">
+              <div class="score-number">{fmt(p.home && p.home.points)}</div>
+              <div class="score-label">PTS</div>
+            </div>
+            <div class="score-divider">—</div>
+            <div class="score-right">
+              <div class="score-number">{fmt(p.away && p.away.points)}</div>
+              <div class="score-label">PTS</div>
+            </div>
+          </div>
+
+          <!-- RIGHT TEAM -->
+          <div class="side team-right">
+            {#if p.away}
+              {#if findRoster(p.away.roster_id)}
+                {#if avatarForRoster(findRoster(p.away.roster_id))}
+                  <img class="team-avatar" src={avatarForRoster(findRoster(p.away.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.away.roster_id))} loading="lazy">
+                {:else}
+                  <div class="team-avatar placeholder" aria-hidden="true"></div>
+                {/if}
+                <div class="team-meta">
+                  <div class="team-name" title={displayNameForRoster(findRoster(p.away.roster_id))}>{displayNameForRoster(findRoster(p.away.roster_id))}</div>
+                  <div class="team-sub">{ownerNameForRoster(findRoster(p.away.roster_id)) || ('Roster ' + p.away.roster_id)}</div>
+                </div>
+              {:else}
+                <div class="team-avatar placeholder" aria-hidden="true"></div>
+                <div class="team-meta"><div class="team-name">Roster {p.away.roster_id}</div><div class="team-sub"></div></div>
+              {/if}
+            {:else}
+              <div class="team-avatar placeholder" aria-hidden="true"></div>
+              <div class="team-meta"><div class="team-name">TBD</div><div class="team-sub"></div></div>
+            {/if}
+          </div>
+        </a>
+      {/each}
+    </div>
+  {:else}
+    <div class="notice">No matchups found for week {selectedWeek}. Try a different week via the selector.</div>
+  {/if}
+</main>
+
+<style>
+  :root {
+    --nav-text: #e6eef6;
+    --muted: #9fb0c4;
+    --muted-bg: rgba(255,255,255,0.02);
+    --accent: #00c6d8;
+    --accent-dark: #008fa6;
+    --bg-card: rgba(255,255,255,0.02);
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+  main.matchups-page { padding: 1.25rem 0 3rem; min-height: 60vh; }
+
+  .matchups-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+  .matchups-header h1 { margin:0; color:var(--nav-text); font-size:1.25rem; font-weight:800; }
+  .muted { color:var(--muted); font-weight:700; margin-top:6px; }
+  .week-range { color:var(--muted); font-weight:600; margin-left:6px; font-size:0.95rem; }
+
+  .week-selector select, .week-selector input[type="number"] {
+    background: var(--bg-card);
+    color: var(--nav-text);
+    border: 1px solid rgba(255,255,255,0.03);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-weight:700;
+    min-width: 220px;
+  }
+
+  .notice { padding:10px 12px; background: rgba(255,255,255,0.01); border-radius:8px; margin-bottom:1rem; color:var(--muted); font-size:0.95rem; text-align:center; }
+  .notice.error { background: rgba(255,80,80,0.04); color:#ffb6b6; }
+
+  /* grid for matchups */
+  .matchups-grid {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 14px;
+  }
+
+  .matchup-card {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    text-decoration:none;
+    background:var(--bg-card);
+    border-radius:10px;
+    padding:12px;
+    width:100%;
+    border: 1px solid rgba(255,255,255,0.03);
+    box-sizing:border-box;
+  }
+  .matchup-card:hover { transform: translateY(-3px); transition: transform 140ms ease; }
+
+  .side { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 0; }
+  .team-left { justify-content:flex-start; }
+  .team-right { justify-content:flex-end; flex-direction:row-reverse; text-align:right; }
+
+  .team-avatar { width:56px; height:56px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
+  .team-avatar.placeholder { background: var(--muted-bg); }
+
+  .team-meta { display:flex; flex-direction:column; min-width:0; }
+  .team-name { font-weight:800; color:var(--nav-text); font-size:1rem; white-space:normal; line-height:1.1; }
+  .team-sub { font-size:0.82rem; color:var(--muted); font-weight:600; margin-top:4px; }
+
+  .score-pair { display:flex; align-items:center; gap:6px; margin:0 8px; width:120px; justify-content:center; text-align:center; flex-shrink:0; }
+  .score-number { font-weight:900; font-size:1.05rem; color:var(--nav-text); }
+  .score-label { font-size:0.74rem; color:var(--muted); font-weight:700; }
+  .score-divider { font-size:1rem; color:var(--muted); margin:0 6px; }
+
+  /* responsive tweaks */
+  @media (max-width:900px) {
+    .matchups-header { flex-direction:column; align-items:flex-start; gap:0.6rem; }
+    .team-avatar { width:48px; height:48px; }
+    .score-pair { width:100px; }
+  }
+
+  @media (max-width:520px) {
+    .wrap { padding: 0.6rem; }
+    .team-avatar { width:40px; height:40px; }
+    .score-pair { width:86px; }
+    .team-name { font-size:0.98rem; }
+  }
+</style>
