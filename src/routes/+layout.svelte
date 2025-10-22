@@ -2,17 +2,8 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { tick } from 'svelte';
 
   let mobileOpen = false;
-  // close mobile menu on route change
-  $: $page, (async () => {
-    // when the page store changes, close the menu
-    if (mobileOpen) {
-      mobileOpen = false;
-      await tick();
-    }
-  })();
 
   // simple nav items — update as needed
   const navItems = [
@@ -33,7 +24,14 @@
     }
   }
 
-  // keyboard handling for hamburger
+  // close mobile menu on route change (reactive to $page store)
+  $: if ($page) {
+    // when the page store changes, close the mobile menu
+    // setting mobileOpen=false on every navigation ensures menu closes after clicking nav links
+    mobileOpen = false;
+  }
+
+  // keyboard handling for hamburger (close on Escape)
   function onKeyMenu(e) {
     if (e.key === 'Escape') mobileOpen = false;
   }
@@ -266,20 +264,26 @@
     <!-- desktop nav -->
     <nav class="main-nav" role="navigation" aria-label="Main navigation">
       {#each navItems as item}
-        <a href={item.href} class:selected={isActive(item.href)} class:active={isActive(item.href)}>{item.label}</a>
+        <a href={item.href} class:active={isActive(item.href)}>{item.label}</a>
       {/each}
     </nav>
 
     <div class="nav-actions">
       <!-- Add other action buttons here if needed -->
-      <button class="menu-btn" aria-expanded={mobileOpen} aria-controls="mobile-menu" on:click={()=> mobileOpen = !mobileOpen} aria-label="Toggle menu">
-        {#if mobileOpen} Close {#else} Menu {/if}
+      <button
+        class="menu-btn"
+        aria-expanded={mobileOpen}
+        aria-controls="mobile-menu"
+        on:click={() => (mobileOpen = !mobileOpen)}
+        aria-label="Toggle menu"
+      >
+        {#if mobileOpen} Close {:else} Menu {/if}
       </button>
     </div>
   </header>
 
   <!-- Mobile panel -->
-  <div id="mobile-menu" class:open={mobileOpen} class="mobile-panel" role="dialog" aria-modal="true" aria-hidden={!mobileOpen}>
+  <div id="mobile-menu" class="mobile-panel {mobileOpen ? 'open' : ''}" class:open={mobileOpen} role="dialog" aria-modal="true" aria-hidden={!mobileOpen}>
     <div class="panel-inner" role="document">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .6rem;">
         <div style="display:flex; gap:.6rem; align-items:center;">
@@ -289,7 +293,7 @@
             <div class="muted" style="font-size:.86rem;">Quick league view</div>
           </div>
         </div>
-        <button class="menu-btn" on:click={()=> mobileOpen = false} aria-label="Close menu">✕</button>
+        <button class="menu-btn" on:click={() => (mobileOpen = false)} aria-label="Close menu">✕</button>
       </div>
 
       <nav role="navigation" aria-label="Mobile navigation">
@@ -316,7 +320,7 @@
   <footer class="site-footer" role="contentinfo">
     <div class="footer-inner">
       <div class="footer-left">
-        © {new Date().getFullYear()} Basketball Fantasy Archive • Built with sleepr&apos;s data
+        © {new Date().getFullYear()} Basketball Fantasy Archive • Built with Sleeper data
       </div>
 
       <div class="footer-right">
