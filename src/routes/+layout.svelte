@@ -1,7 +1,7 @@
 <script>
 	import Header from '$lib/header/Header.svelte';
 	import { webVitals } from '$lib/vitals';
-	import { browser } from '$app/env';           // <- use $app/env for your kit version
+	import { browser } from '$app/env';           // matches your kit version
 	import { page } from '$app/stores';
 	import '../app.css';
 
@@ -16,32 +16,33 @@
 	}
 </script>
 
-<!-- accessibility: quick skip link for screen readers / keyboard users -->
 <a class="skip-link" href="#content">Skip to content</a>
 
 <Header />
 
-<!-- main content area for skip link -->
 <main id="content">
 	<slot />
 </main>
 
 <footer>
 	<div class="wrap footer-inner">
-		<div class="left">
+		<div class="footer-left">
 			<p class="org">Badger Fantasy Association</p>
-			<p class="credits"><a href="https://sleeper.com/" target="_blank" rel="noreferrer">Sleeper</a></p>
+			<p class="small muted">© {new Date().getFullYear()}</p>
 		</div>
 
-		<!-- small helper area — keep future-proof if you want to add links -->
-		<div class="right" aria-hidden="true">
-			<!-- intentionally empty for now (could hold social links, copyright, etc.) -->
-		</div>
+		<nav class="footer-nav" aria-label="Footer links">
+			<a href="/rosters">Rosters</a>
+			<a href="/standings">Standings</a>
+			<a href="https://sleeper.com/" target="_blank" rel="noreferrer">Sleeper</a>
+			<!-- direct link to the Sleeper API / docs (useful for devs) -->
+			<a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer">Sleeper API</a>
+		</nav>
 	</div>
 </footer>
 
 <style>
-	/* Basic layout wrapper (keeps consistent width) */
+	/* Base wrapper */
 	.wrap {
 		max-width: 1100px;
 		margin: 0 auto;
@@ -49,7 +50,7 @@
 		box-sizing: border-box;
 	}
 
-	/* Skip link — visually hidden but available on focus */
+	/* Skip link — hidden until focused */
 	.skip-link {
 		position: absolute;
 		left: -9999px;
@@ -75,11 +76,15 @@
 		text-decoration: none;
 	}
 
-	/* Footer */
+	main#content {
+		min-height: calc(100vh - 220px); /* keeps footer from overlapping on short pages */
+	}
+
+	/* Footer layout */
 	footer {
-		background: transparent;
 		margin-top: 2.5rem;
-		padding: 32px 0;
+		padding: 28px 0;
+		background: transparent;
 	}
 
 	.footer-inner {
@@ -90,43 +95,56 @@
 		flex-wrap: wrap;
 	}
 
-	footer .left {
+	.footer-left {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
 	}
 
-	footer p {
+	footer .org {
+		margin: 0;
+		font-weight: 800;
+		color: var(--nav-text, #e6eef6);
+		font-size: 1rem;
+	}
+
+	footer .small {
 		margin: 0;
 		color: var(--muted, #9fb0c4);
-		font-size: 0.95rem;
+		font-size: 0.9rem;
 	}
 
-	footer a {
-		font-weight: 700;
-		color: var(--accent, #00c6d8);
-		text-decoration: none;
+	/* Footer nav links */
+	.footer-nav {
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.footer-nav a {
+		display: inline-block;
 		padding: 8px 10px;
 		border-radius: 8px;
-		display: inline-block;
+		text-decoration: none;
+		font-weight: 700;
+		color: var(--accent, #00c6d8);
+		background: transparent;
+		transition: background-color 120ms ease, transform 120ms ease;
 	}
-	footer a:hover,
-	footer a:focus {
-		text-decoration: underline;
+
+	.footer-nav a:hover,
+	.footer-nav a:focus {
+		background: rgba(0,198,216,0.06);
+		transform: translateY(-1px);
 		outline: none;
+		text-decoration: none;
 	}
 
-	/* Right column placeholder (keeps spacing consistent) */
-	footer .right {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	/* Mobile-first adjustments */
+	/* Mobile first adjustments */
 	@media (max-width: 700px) {
 		footer {
-			padding: 20px 0;
+			padding: 18px 0;
 		}
 
 		.footer-inner {
@@ -135,29 +153,17 @@
 			text-align: center;
 		}
 
-		footer .left {
-			align-items: center;
+		.footer-nav {
+			justify-content: center;
+			gap: 10px;
 		}
 
-		footer .right {
-			/* hide placeholder on small screens to keep footer compact */
-			display: none;
-		}
-
-		footer a {
-			/* slightly larger tap area on mobile */
-			padding: 10px 14px;
+		.footer-nav a {
+			padding: 10px 12px;
 		}
 	}
 
-	/* Slightly smaller text on very small screens */
-	@media (max-width: 420px) {
-		footer p {
-			font-size: 0.9rem;
-		}
-	}
-
-	/* Global roster styles (kept from your original file) */
+	/* Global roster styles (preserved) */
 	:global(.teams) {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -209,7 +215,6 @@
 		border: 1px solid rgba(255,255,255,0.03);
 	}
 
-	/* Minor responsive refinement for roster grid padding on small screens */
 	@media (max-width: 520px) {
 		:global(.teams) {
 			padding: 0.5rem 1rem;
