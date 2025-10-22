@@ -23,15 +23,9 @@
 <footer>
 	<div class="wrap">
 		<div class="left">
-			<p>Made with ❤️</p>
+			<p>Badger Fantasy Association</p>
 			<p><a href="https://github.com/svelte-add/svelte-add" target="_blank" rel="noreferrer">Svelte Add</a></p>
 		</div>
-
-		<div class="right">
-			<p>Want to contribute?</p>
-			<p><a href="https://github.com/your/repo" target="_blank" rel="noreferrer">Open Source</a></p>
-		</div>
-	</div>
 </footer>
 
 <!-- Combined styles: original footer/layout + global roster styles -->
