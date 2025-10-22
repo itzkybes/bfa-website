@@ -32,11 +32,12 @@
 		</div>
 
 		<nav class="footer-nav" aria-label="Footer links">
-			<a href="/rosters">Rosters</a>
-			<a href="/standings">Standings</a>
-			<a href="https://sleeper.com/" target="_blank" rel="noreferrer">Sleeper</a>
-			<!-- direct link to the Sleeper API / docs (useful for devs) -->
-			<a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer">Sleeper API</a>
+			<a href="/" aria-label="Home">Home</a>
+			<a href="/rosters" aria-label="Rosters">Rosters</a>
+			<a href="/standings" aria-label="Standings">Standings</a>
+			<a href="/matchups" aria-label="Matchups">Matchups</a>
+			<a href="https://sleeper.com/" target="_blank" rel="noreferrer" aria-label="Open Sleeper">Sleeper</a>
+			<a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer" aria-label="Open Sleeper API docs">Sleeper API</a>
 		</nav>
 	</div>
 </footer>
@@ -120,25 +121,37 @@
 		gap: 12px;
 		align-items: center;
 		flex-wrap: wrap;
+		justify-content: flex-end;
 	}
 
+	/* Make links clearly visible and touch-friendly */
 	.footer-nav a {
 		display: inline-block;
-		padding: 8px 10px;
-		border-radius: 8px;
+		padding: 10px 14px;
+		border-radius: 10px;
 		text-decoration: none;
-		font-weight: 700;
-		color: var(--accent, #00c6d8);
-		background: transparent;
-		transition: background-color 120ms ease, transform 120ms ease;
+		font-weight: 800;
+		color: var(--nav-text, #e6eef6);           /* high contrast */
+		background: rgba(255,255,255,0.03);       /* subtle pill */
+		transition: background-color 140ms ease, transform 140ms ease, color 140ms ease;
+		box-shadow: 0 2px 8px rgba(2,6,10,0.15);
 	}
 
 	.footer-nav a:hover,
 	.footer-nav a:focus {
-		background: rgba(0,198,216,0.06);
-		transform: translateY(-1px);
+		background: linear-gradient(90deg, var(--accent, #00c6d8), var(--accent-dark, #008fa6));
+		color: #071122;
+		transform: translateY(-2px);
 		outline: none;
 		text-decoration: none;
+	}
+
+	/* Make sure the external links have a subtle icon affordance (visual only) */
+	.footer-nav a[target="_blank"]::after {
+		content: " ↗";
+		font-size: 0.85em;
+		opacity: 0.9;
+		margin-left: 6px;
 	}
 
 	/* Mobile first adjustments */
@@ -159,7 +172,8 @@
 		}
 
 		.footer-nav a {
-			padding: 10px 12px;
+			padding: 12px 14px;
+			font-size: 0.95rem;
 		}
 	}
 
