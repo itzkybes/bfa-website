@@ -16,52 +16,148 @@
 	}
 </script>
 
+<!-- accessibility: quick skip link for screen readers / keyboard users -->
+<a class="skip-link" href="#content">Skip to content</a>
+
 <Header />
 
-<slot />
+<!-- main content area for skip link -->
+<main id="content">
+	<slot />
+</main>
 
 <footer>
-	<div class="wrap">
+	<div class="wrap footer-inner">
 		<div class="left">
-			<p>Badger Fantasy Association</p>
-			<p>
-				<a href="https://sleeper.com/" target="_blank" rel="noreferrer">Sleeper</a>
-			</p>
+			<p class="org">Badger Fantasy Association</p>
+			<p class="credits"><a href="https://sleeper.com/" target="_blank" rel="noreferrer">Sleeper</a></p>
+		</div>
+
+		<!-- small helper area — keep future-proof if you want to add links -->
+		<div class="right" aria-hidden="true">
+			<!-- intentionally empty for now (could hold social links, copyright, etc.) -->
 		</div>
 	</div>
 </footer>
 
-<!-- Combined styles: original footer/layout + global roster styles -->
 <style>
+	/* Basic layout wrapper (keeps consistent width) */
 	.wrap {
 		max-width: 1100px;
 		margin: 0 auto;
+		padding: 0 1rem;
+		box-sizing: border-box;
 	}
 
-	footer {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 40px;
+	/* Skip link — visually hidden but available on focus */
+	.skip-link {
+		position: absolute;
+		left: -9999px;
+		top: auto;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
-
-	footer a {
-		font-weight: bold;
-		color: #00c6d8;
+	.skip-link:focus,
+	.skip-link:active {
+		position: fixed;
+		left: 1rem;
+		top: 1rem;
+		width: auto;
+		height: auto;
+		padding: 8px 12px;
+		background: rgba(0,0,0,0.9);
+		color: #fff;
+		z-index: 9999;
+		border-radius: 6px;
 		text-decoration: none;
 	}
 
-	footer a:hover {
-		text-decoration: underline;
+	/* Footer */
+	footer {
+		background: transparent;
+		margin-top: 2.5rem;
+		padding: 32px 0;
 	}
 
-	@media (min-width: 480px) {
+	.footer-inner {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+
+	footer .left {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	footer p {
+		margin: 0;
+		color: var(--muted, #9fb0c4);
+		font-size: 0.95rem;
+	}
+
+	footer a {
+		font-weight: 700;
+		color: var(--accent, #00c6d8);
+		text-decoration: none;
+		padding: 8px 10px;
+		border-radius: 8px;
+		display: inline-block;
+	}
+	footer a:hover,
+	footer a:focus {
+		text-decoration: underline;
+		outline: none;
+	}
+
+	/* Right column placeholder (keeps spacing consistent) */
+	footer .right {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	/* Mobile-first adjustments */
+	@media (max-width: 700px) {
 		footer {
-			padding: 40px 0;
+			padding: 20px 0;
+		}
+
+		.footer-inner {
+			flex-direction: column;
+			align-items: center;
+			text-align: center;
+		}
+
+		footer .left {
+			align-items: center;
+		}
+
+		footer .right {
+			/* hide placeholder on small screens to keep footer compact */
+			display: none;
+		}
+
+		footer a {
+			/* slightly larger tap area on mobile */
+			padding: 10px 14px;
 		}
 	}
 
-	/* Global roster styles injected to ensure roster component styling is present on all pages */
+	/* Slightly smaller text on very small screens */
+	@media (max-width: 420px) {
+		footer p {
+			font-size: 0.9rem;
+		}
+	}
+
+	/* Global roster styles (kept from your original file) */
 	:global(.teams) {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -100,7 +196,7 @@
 		justify-content: center;
 		font-weight: 700;
 		color: #071122;
-		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+		box-shadow: 0 2px 6px rgba(0,0,0,0.5);
 		font-size: 0.85rem;
 	}
 
@@ -109,7 +205,15 @@
 		height: 44px;
 		border-radius: 8px;
 		object-fit: cover;
-		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-		border: 1px solid rgba(255, 255, 255, 0.03);
+		box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+		border: 1px solid rgba(255,255,255,0.03);
+	}
+
+	/* Minor responsive refinement for roster grid padding on small screens */
+	@media (max-width: 520px) {
+		:global(.teams) {
+			padding: 0.5rem 1rem;
+			gap: 1.5rem;
+		}
 	}
 </style>
