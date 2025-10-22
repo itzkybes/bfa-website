@@ -102,9 +102,10 @@ export async function load(event) {
   const lastRegularWeek = Math.max(1, playoffStart - 1);
   for (let w = 1; w <= lastRegularWeek; w++) weeks.push(w);
 
-  // Build playoff weeks up to MAX_WEEKS (so selector can include playoff weeks)
+  // Build playoff weeks: playoffStart .. (playoffStart + 2) clamped by MAX_WEEKS
   const playoffWeeks = [];
-  for (let w = playoffStart; w <= MAX_WEEKS; w++) playoffWeeks.push(w);
+  const playoffEnd = Math.min(MAX_WEEKS, playoffStart + 2);
+  for (let w = playoffStart; w <= playoffEnd; w++) playoffWeeks.push(w);
 
   // selected week param (or default to latest regular week if not provided)
   const weekParamRaw = url.searchParams.get('week');
@@ -148,7 +149,7 @@ export async function load(event) {
     byMatch[key].push(e);
   }
 
-  // Build rows for UI: when pair (2 participants) => Team A vs Team B; otherwise join participants (multi-team)
+  // Build rows for UI: when pair (2 participants) => Team A vs Team B; when single => Bye; otherwise multi-team combined
   const matchupsRows = [];
   for (const k of Object.keys(byMatch)) {
     const entries = byMatch[k];
@@ -176,6 +177,25 @@ export async function load(event) {
         teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
         participantsCount: 2
       });
+
+    // single participant => Bye week (opponent is bye)
+    } else if (entries.length === 1) {
+      const a = entries[0];
+      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+      const aMeta = rosterMap[aId] || {};
+      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
+      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
+      const aPts = (a.points != null || a.points_for != null || a.pts != null) ? safeNum(a.points ?? a.points_for ?? a.pts ?? 0) : null;
+      matchupsRows.push({
+        matchup_id: k,
+        season: selectedSeason ?? null,
+        week: selectedWeek,
+        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
+        teamB: null, // indicates a bye
+        participantsCount: 1,
+        isBye: true
+      });
+
     } else {
       // multi-participant matchups: show friendly joined representation
       const participants = entries.map(ent => {
@@ -203,8 +223,8 @@ export async function load(event) {
 
   // sort rows by teamA.points desc when possible
   matchupsRows.sort((x,y) => {
-    const ax = (x.teamA && x.teamA.points) ? x.teamA.points : (x.combinedParticipants ? (x.combinedParticipants[0]?.points || 0) : 0);
-    const by = (y.teamA && y.teamA.points) ? y.teamA.points : (y.combinedParticipants ? (y.combinedParticipants[0]?.points || 0) : 0);
+    const ax = (x.teamA && x.teamA.points != null) ? x.teamA.points : (x.combinedParticipants ? (x.combinedParticipants[0]?.points || 0) : 0);
+    const by = (y.teamA && y.teamA.points != null) ? y.teamA.points : (y.combinedParticipants ? (y.combinedParticipants[0]?.points || 0) : 0);
     return (by - ax);
   });
 
