@@ -515,8 +515,8 @@
   <section class="hero">
     <div class="wrap hero-row">
       <div class="hero-left">
-        <h1 class="hero-title">Your League — at a glance</h1>
-        <p class="hero-sub">Quickly browse rosters, standings, and player lineups. Showing matchups for week <strong>{fetchWeek || '?'}</strong>.</p>
+        <h1 class="hero-title">Welcome to the Badger Bowl</h1>
+        <p class="hero-sub">Quickly browse tabs such as rosters, standings, and player lineups. Below is the current matchup for the week. Scores may or may not be accurate.</p>
         <div class="actions">
           <a class="btn primary" href="/rosters">View Rosters</a>
           <a class="btn" href="/standings">View Standings</a>
