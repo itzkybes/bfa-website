@@ -1,7 +1,7 @@
 <script>
 	import Header from '$lib/header/Header.svelte';
 	import { webVitals } from '$lib/vitals';
-	import { browser } from '$app/environment';
+	import { browser } from '$app/env';           // <- use $app/env for your kit version
 	import { page } from '$app/stores';
 	import '../app.css';
 
