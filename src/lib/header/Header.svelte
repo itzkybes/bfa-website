@@ -21,18 +21,21 @@
     mounted = true;
   });
 
-  // Only include routes that exist in your repo
+  // Nav links in the order you requested
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
+    { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
-    { href: '/records', label: 'Records' }
+    { href: '/records', label: 'Records' },
+    { href: '/honor-hall', label: 'Honor Hall' }
   ];
 
   // helper to test active link
   function isActive(path, href) {
     if (!path) return false;
     if (href === '/' && (path === '/' || path === '')) return true;
+    // exact or startsWith for section prefixes
     return path === href || (href !== '/' && path.startsWith(href));
   }
 
