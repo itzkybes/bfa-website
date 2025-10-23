@@ -148,25 +148,25 @@
     min-width: 0; /* allow shrinking */
   }
 
-  /* Larger logo: 64px on desktop, scales on smaller screens */
+  /* Larger logo with NO background, no border-radius, no shadow */
   .brand-logo {
-    width: 64px;
-    height: 64px;
+    width: 96px;   /* desktop */
+    height: 96px;
     object-fit: contain;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.02);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+    background: transparent; /* explicitly no background */
+    border-radius: 0;        /* remove rounding */
+    box-shadow: none;        /* remove shadow */
     flex-shrink: 0;
   }
 
   .logo-emoji {
     display: inline-flex;
-    width: 64px;
-    height: 64px;
-    font-size: 1.6rem;
+    width: 96px;
+    height: 96px;
+    font-size: 2.2rem;
     line-height: 1;
-    background: rgba(255,255,255,0.02);
-    border-radius: 10px;
+    background: transparent;
+    border-radius: 0;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
@@ -178,7 +178,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: 800;
-    font-size: clamp(0.9rem, 2.2vw, 1.05rem); /* responsive sizing */
+    font-size: clamp(0.95rem, 2.2vw, 1.2rem); /* responsive sizing */
     color: var(--nav-text);
     min-width: 0;
   }
@@ -287,7 +287,7 @@
   /* Mobile menu */
   .mobile-menu {
     display: none;
-    background: linear-gradient(180deg, rgba(6,10,15,0.9), rgba(6,10,15,0.95));
+    background: linear-gradient(180deg, rgba(6,10,15,0.95), rgba(6,10,15,0.98));
     border-top: 1px solid rgba(255,255,255,0.03);
     box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   }
@@ -324,26 +324,26 @@
   @media (max-width: 980px) {
     .nav-desktop { display: none; }
     .mobile-controls { display: inline-flex; }
+
+    /* scale logo down on smaller screens */
     .brand-logo, .logo-emoji {
-      width: 52px;
-      height: 52px;
+      width: 72px;
+      height: 72px;
     }
-    .brand-text {
-      font-size: clamp(0.85rem, 3.2vw, 0.95rem);
-    }
+    .brand-text { font-size: clamp(0.9rem, 3.0vw, 1.0rem); }
     .header-inner { padding: 0.45rem 0.75rem; gap: 0.6rem; }
   }
 
   @media (max-width: 520px) {
     .brand-logo, .logo-emoji {
-      width: 48px;
-      height: 48px;
+      width: 56px;
+      height: 56px;
     }
     .brand-text {
-      font-size: 0.9rem;
+      font-size: 0.95rem;
     }
-    /* make sure brand doesn't push hamburger off screen */
-    .header-inner { padding: 0.4rem 0.6rem; }
+    /* ensure the brand doesn't push the hamburger off-screen */
+    .header-inner { padding: 0.35rem 0.6rem; gap: 0.5rem; }
   }
 
   @media (min-width: 981px) {
