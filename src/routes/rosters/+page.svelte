@@ -264,11 +264,14 @@
     flex-shrink:0;
   }
 
+  /* Make meta flexible so player names can wrap and never be overlapped */
   .starter-pill .meta {
     display:flex;
     flex-direction:column;
     min-width:0;
     overflow:visible;
+    flex: 1 1 auto;
+    margin-right: 8px; /* ensure separation from pos-badges */
   }
 
   .starter-pill .meta .name {
@@ -276,12 +279,15 @@
     white-space:normal; /* allow wrap so full name is visible */
     overflow:visible;
     text-overflow:clip;
+    word-break: break-word;
+    overflow-wrap: anywhere;
     font-size:0.98rem;
   }
 
   .starter-pill .meta .team { color:#9ca3af; font-size:.82rem; margin-top:2px; }
 
-  .starter-pill .pos-badges { display:flex; gap:.25rem; margin-left:auto; flex-shrink:0; align-items:center; }
+  /* pos-badges never shrink and sit to the right */
+  .starter-pill .pos-badges { display:flex; gap:.25rem; flex-shrink:0; align-items:center; margin-left:auto; }
 
   /* bench/taxi pills */
   .pill-grid { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-start; }
@@ -299,13 +305,13 @@
     overflow: visible;
     flex: 0 1 auto;
   }
-  .pill .left-badge { height:28px; display:flex; align-items:center; justify-content:center; padding:.12rem .6rem; border-radius:8px; font-weight:700; font-size:.72rem; }
+  .pill .left-badge { height:28px; display:flex; align-items:center; justify-content:center; padding:.12rem .6rem; border-radius:8px; font-weight:700; font-size:.72rem; flex-shrink:0; }
   .pill .thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; background:#0b1220; flex-shrink:0; }
-  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:visible; }
-  .pill .meta .name { font-weight:700; white-space:normal; overflow:visible; text-overflow:clip; }
+  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:visible; flex: 1 1 auto; margin-right: 8px; }
+  .pill .meta .name { font-weight:700; white-space:normal; overflow:visible; text-overflow:clip; word-break: break-word; overflow-wrap: anywhere; }
   .pill .meta .team { color:#9ca3af; font-size:.78rem; margin-top:2px; }
 
-  .pos-badges { display:flex; gap:.25rem; margin-left:.35rem; flex-wrap:wrap; }
+  .pos-badges { display:flex; gap:.25rem; margin-left:.35rem; flex-wrap:wrap; flex-shrink:0; }
 
   .headshot { width:52px; height:52px; border-radius:8px; object-fit:cover; background:#0b1220; border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
   .player-meta { display:flex; flex-direction:column; min-width:0; overflow:visible; }
@@ -342,6 +348,13 @@
     .starter-pill .thumb { width:40px; height:40px; }
     .starter-pill .left-badge { min-width:40px; }
     .pill-grid { gap:.6rem; }
+
+    /* extra safety on tiny screens: let pos-badges wrap to next line if needed */
+    .starter-pill .pos-badges,
+    .pill .pos-badges {
+      margin-left: 8px;
+      flex-wrap: wrap;
+    }
   }
 
   @media (min-width: 1200px) {
