@@ -135,18 +135,26 @@
 
 <style>
   :global(body) { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #e6eef8; background: transparent; }
-  /* Allow more horizontal room while staying centered */
+  /* Slightly wider max width to breathe on desktop */
   .page { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 
   h1 { margin: 0 0 .5rem 0; font-size: 1.6rem; }
   h2 { margin: .5rem 0 0.75rem 0; font-size: 1.05rem; color:#e6eef8; }
 
-  /* responsive teams grid using auto-fit so item widths expand comfortably */
+  /* teams grid: one column by default (mobile), two large columns on desktop */
   .teams-grid {
     display: grid;
     gap: 1rem;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: 1fr; /* mobile: single column */
     align-items: start;
+  }
+
+  /* two-column layout on wider viewports */
+  @media (min-width: 900px) {
+    .teams-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)); /* two large columns */
+      gap: 1.25rem;
+    }
   }
 
   /* team card */
@@ -276,7 +284,8 @@
   @media (min-width: 1200px) {
     .team-avatar { width:88px; height:88px; }
     .headshot { width:56px; height:56px; }
-    .teams-grid { gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+    /* keep two columns but a bit wider */
+    .teams-grid { gap: 1.25rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   /* focus styles */
