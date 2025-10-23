@@ -1,16 +1,21 @@
 <!-- src/routes/rosters/+page.svelte -->
 <script>
-  // data provided by +page.server.js
   export let data;
 
-  let rosters = data.rosters || [];
-  let users = data.users || [];
-  let playersMap = data.playersMap || null;
+  // Defensive defaults
+  const leagueId = data && data.leagueId;
+  let rosters = Array.isArray(data && data.rosters) ? data.rosters : [];
+  let users = Array.isArray(data && data.users) ? data.users : [];
+  let playersMap = data && data.playersMap ? data.playersMap : null;
+  let fetchInfo = {
+    ok: data && data.ok,
+    errors: data && data.errors ? data.errors : [],
+    rostersStatus: data && data.rostersStatus,
+    usersStatus: data && data.usersStatus,
+    playersMapStatus: data && data.playersMapStatus
+  };
 
-  /* -------------------------
-     Helpers (copied + tightened from home page logic)
-     ------------------------- */
-
+  /* --- helpers (same robust helpers as before) --- */
   function findUserByOwner(ownerId) {
     if (!users) return null;
     for (let i = 0; i < users.length; i++) {
@@ -62,7 +67,6 @@
     return 'https://sleepercdn.com/avatars/' + encodeURIComponent(String(candidate));
   }
 
-  /* Player name & headshot helpers */
   function prettyNameFromId(id) {
     if (!id) return '';
     let s = String(id).replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
@@ -78,7 +82,6 @@
   function resolvePlayerInfo(playerId) {
     if (!playersMap || !playerId) return null;
 
-    // direct map lookups (string/upper/lower)
     if (playersMap[playerId]) return playersMap[playerId];
     if (playersMap[String(playerId)]) return playersMap[String(playerId)];
     const lower = String(playerId).toLowerCase();
@@ -86,7 +89,6 @@
     const upper = String(playerId).toUpperCase();
     if (playersMap[upper]) return playersMap[upper];
 
-    // search values for matching player_id/full_name
     const vals = Object.values(playersMap);
     const targetStr = String(playerId).trim();
 
@@ -98,7 +100,6 @@
       if (p.search_full_name && normalizeForCompare(p.search_full_name) === normalizeForCompare(targetStr)) return p;
     }
 
-    // partial-match by name parts
     const parts = targetStr.split(/[\s-_]+/).filter(Boolean).map(s => s.toLowerCase());
     if (parts.length > 0) {
       for (let i = 0; i < vals.length; i++) {
@@ -143,7 +144,6 @@
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
-  // helper to show player's display info using the playersMap when available
   function playerDisplayInfo(playerId) {
     const pi = resolvePlayerInfo(playerId);
     if (pi) {
@@ -152,7 +152,6 @@
       const team = pi.team || '';
       return { name, position, team, headshot: getPlayerHeadshot(pi.player_id || playerId) };
     }
-    // fallback
     const name = getPlayerName(null, playerId);
     return { name, position: '', team: '', headshot: getPlayerHeadshot(playerId) };
   }
@@ -160,6 +159,22 @@
 
 <section class="wrap page-rosters">
   <h1 class="title">Rosters</h1>
+
+  <!-- Diagnostic area: shows fetch status & errors (helpful in dev) -->
+  {#if !fetchInfo.ok}
+    <div class="diagnostic">
+      <strong>Data fetch issues detected</strong>
+      <div>League ID: {leagueId}</div>
+      <div>Rosters status: {fetchInfo.rostersStatus}</div>
+      <div>Users status: {fetchInfo.usersStatus}</div>
+      <div>PlayersMap status: {fetchInfo.playersMapStatus}</div>
+      <ul>
+        {#each fetchInfo.errors as e}
+          <li><strong>{e.key}</strong>: {e.status || 'no status'} — {e.fetchError || 'error'}</li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
 
   {#if !rosters || rosters.length === 0}
     <div class="notice">No rosters found.</div>
@@ -209,6 +224,12 @@
       {/each}
     </div>
   {/if}
+
+  <!-- Raw debug dump (only show in dev) -->
+  <details class="debug" open>
+    <summary>Raw payload (debug)</summary>
+    <pre style="max-height:320px; overflow:auto; font-size:12px; line-height:1.3">{JSON.stringify({ leagueId, rostersCount: rosters.length, usersCount: users.length, hasPlayersMap: !!playersMap, fetchInfo }, null, 2)}</pre>
+  </details>
 </section>
 
 <style>
@@ -222,10 +243,10 @@
   .wrap { max-width: 1100px; margin: 0 auto; padding: 1rem; box-sizing: border-box; }
   .title { margin: 0 0 1rem 0; color: var(--nav-text); font-size: 1.35rem; font-weight: 800; }
 
+  .diagnostic { padding:12px; background: rgba(255,80,80,0.04); border-radius:8px; color: #ffb6b6; margin-bottom: 1rem; }
   .notice { padding: 10px 12px; background: var(--bg-card); border-radius: 8px; color: var(--muted); text-align:center; }
   .notice.small { padding:6px 8px; font-size:0.95rem; }
 
-  /* grid of teams */
   .teams {
     display:grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -246,7 +267,7 @@
 
   .team-top { display:flex; gap:12px; align-items:center; }
   .team-left { flex: 0 0 auto; }
-  .team-avatar { width:64px; height:64px; border-radius:8px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); }
+  .team-avatar { width:64px; height:64px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); }
   .team-avatar.placeholder { width:64px; height:64px; background: rgba(255,255,255,0.02); border-radius:8px; }
 
   .team-meta { display:flex; flex-direction:column; min-width:0; }
@@ -260,7 +281,8 @@
   .player-name { font-weight:700; color:var(--nav-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:18rem; }
   .player-sub { color:var(--muted); font-size:0.85rem; margin-top:2px; }
 
-  /* small screens: compress avatar & name sizes so cards stay readable */
+  details.debug { margin-top:1rem; color:var(--muted); background: rgba(255,255,255,0.01); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
+
   @media (max-width:520px){
     .wrap { padding: 0.75rem; }
     .team-avatar, .team-avatar.placeholder { width:56px; height:56px; }
