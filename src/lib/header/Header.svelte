@@ -21,7 +21,7 @@
     mounted = true;
   });
 
-  // Nav links in the order you requested
+  // Nav links in the order requested
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
@@ -35,7 +35,6 @@
   function isActive(path, href) {
     if (!path) return false;
     if (href === '/' && (path === '/' || path === '')) return true;
-    // exact or startsWith for section prefixes
     return path === href || (href !== '/' && path.startsWith(href));
   }
 
@@ -65,10 +64,7 @@
         <span class="logo-emoji" aria-hidden="true">🦡</span>
       {/if}
 
-      <span class="brand-text">
-        <span class="brand-title">Badger Fantasy</span>
-        <span class="brand-sub">Association</span>
-      </span>
+      <span class="brand-text" title="Badger Fantasy Association">Badger Fantasy Association</span>
     </a>
 
     <nav class="nav-desktop" aria-label="Primary navigation">
@@ -134,60 +130,57 @@
   .header-inner {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.9rem;
     justify-content: space-between;
-    padding: 0.6rem 1rem;
+    padding: 0.5rem 1rem;
     max-width: 1100px;
     margin: 0 auto;
   }
 
+  /* Brand */
   .brand {
     display: inline-flex;
-    gap: 0.8rem;
+    gap: 0.9rem;
     align-items: center;
     text-decoration: none;
     color: var(--nav-text);
+    flex: 0 1 auto;
+    min-width: 0; /* allow shrinking */
   }
 
+  /* Larger logo: 64px on desktop, scales on smaller screens */
   .brand-logo {
-    width: 44px;
-    height: 44px;
+    width: 64px;
+    height: 64px;
     object-fit: contain;
-    border-radius: 8px;
+    border-radius: 10px;
     background: rgba(255,255,255,0.02);
-    box-shadow: 0 3px 12px rgba(0,0,0,0.45);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45);
     flex-shrink: 0;
   }
 
   .logo-emoji {
-    display: inline-block;
-    width: 44px;
-    height: 44px;
-    font-size: 1.35rem;
+    display: inline-flex;
+    width: 64px;
+    height: 64px;
+    font-size: 1.6rem;
     line-height: 1;
     background: rgba(255,255,255,0.02);
-    border-radius: 8px;
-    display: flex;
+    border-radius: 10px;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
+  /* Single-line brand text (no wrapping) */
   .brand-text {
-    display: flex;
-    flex-direction: column;
-    line-height: 1;
-  }
-
-  .brand-title {
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    font-size: 0.98rem;
-  }
-
-  .brand-sub {
-    font-weight: 700;
-    color: var(--muted);
-    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 800;
+    font-size: clamp(0.9rem, 2.2vw, 1.05rem); /* responsive sizing */
+    color: var(--nav-text);
+    min-width: 0;
   }
 
   /* Desktop nav */
@@ -195,6 +188,7 @@
     display: flex;
     gap: 0.6rem;
     align-items: center;
+    margin-left: 0.5rem;
   }
 
   .nav-link {
@@ -326,10 +320,30 @@
     color: #071122;
   }
 
-  /* Responsiveness */
+  /* Responsive adjustments */
   @media (max-width: 980px) {
     .nav-desktop { display: none; }
     .mobile-controls { display: inline-flex; }
+    .brand-logo, .logo-emoji {
+      width: 52px;
+      height: 52px;
+    }
+    .brand-text {
+      font-size: clamp(0.85rem, 3.2vw, 0.95rem);
+    }
+    .header-inner { padding: 0.45rem 0.75rem; gap: 0.6rem; }
+  }
+
+  @media (max-width: 520px) {
+    .brand-logo, .logo-emoji {
+      width: 48px;
+      height: 48px;
+    }
+    .brand-text {
+      font-size: 0.9rem;
+    }
+    /* make sure brand doesn't push hamburger off screen */
+    .header-inner { padding: 0.4rem 0.6rem; }
   }
 
   @media (min-width: 981px) {
