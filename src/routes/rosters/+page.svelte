@@ -195,33 +195,97 @@
 
   .section { background: rgba(255,255,255,0.01); padding:.45rem; border-radius:8px; }
 
-  /* starters grid: make rows taller and increase gap so nothing touches/overlaps */
-  .starters-grid {
-    display: grid;
-    gap: .75rem; /* increased gap */
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    align-items: start;
+  /* STARTERS: use pill style (same as bench/taxi) but stack vertically */
+  .starters-list {
+    display:flex;
+    flex-direction:column;
+    gap:0.75rem; /* space between starter pills */
+    align-items:stretch;
   }
-  .starter-slot {
+
+  .starter-pill {
     display:flex;
     gap:.6rem;
-    align-items:flex-start;
-    padding:.36rem;
-    border-radius:8px;
+    align-items:center;
+    padding:.38rem .6rem; /* similar to bench/taxi pills but full-width */
+    border-radius:999px;
     background: rgba(255,255,255,0.01);
-    min-width:0;
-    min-height:64px; /* ensures headshot+name have room */
+    color: #e6eef8;
+    font-weight:600;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
   }
-  .slot-badge { font-weight:700; padding:.28rem .45rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.82rem; }
 
-  /* allow starter name to wrap (keeps full name visible) */
-  .starter-name {
+  .starter-pill .left-badge {
+    min-width:44px;
+    height:32px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:.12rem .6rem;
+    border-radius:8px;
     font-weight:700;
-    line-height:1.05;
-    white-space:normal;
+    font-size:.78rem;
+    flex-shrink:0;
+  }
+
+  .starter-pill .thumb {
+    width:44px;
+    height:44px;
+    border-radius:8px;
+    object-fit:cover;
+    background:#0b1220;
+    flex-shrink:0;
+  }
+
+  .starter-pill .meta {
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    overflow:visible;
+  }
+
+  .starter-pill .meta .name {
+    font-weight:700;
+    white-space:normal; /* allow wrap so full name is visible */
     overflow:visible;
     text-overflow:clip;
+    font-size:0.98rem;
   }
+
+  .starter-pill .meta .team { color:#9ca3af; font-size:.82rem; margin-top:2px; }
+
+  .starter-pill .pos-badges { display:flex; gap:.25rem; margin-left:auto; flex-shrink:0; align-items:center; }
+
+  /* bench/taxi pills */
+  .pill-grid { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-start; }
+  .pill {
+    display:flex;
+    gap:.5rem;
+    align-items:center;
+    padding:.4rem .6rem;
+    border-radius:999px;
+    background: rgba(255,255,255,0.02);
+    color: #e6eef8;
+    font-weight:600;
+    min-width: 140px;
+    max-width: 100%;
+    overflow: visible;
+    flex: 0 1 auto;
+  }
+  .pill .left-badge { height:28px; display:flex; align-items:center; justify-content:center; padding:.12rem .6rem; border-radius:8px; font-weight:700; font-size:.72rem; }
+  .pill .thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; background:#0b1220; flex-shrink:0; }
+  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:visible; }
+  .pill .meta .name { font-weight:700; white-space:normal; overflow:visible; text-overflow:clip; }
+  .pill .meta .team { color:#9ca3af; font-size:.78rem; margin-top:2px; }
+
+  .pos-badges { display:flex; gap:.25rem; margin-left:.35rem; flex-wrap:wrap; }
+
+  .headshot { width:52px; height:52px; border-radius:8px; object-fit:cover; background:#0b1220; border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
+  .player-meta { display:flex; flex-direction:column; min-width:0; overflow:visible; }
+  .player-name { font-weight:700; overflow:visible; text-overflow:clip; white-space:normal; }
+  .player-team { color:#9ca3af; font-size:.85rem; margin-top:2px; }
 
   .compact-toggle {
     position:absolute;
@@ -238,35 +302,6 @@
     font-size:0.9rem;
   }
 
-  .pill-grid { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-start; } /* increased gap and align to top */
-  .pill {
-    display:flex;
-    gap:.5rem;
-    align-items:center;
-    padding:.4rem .6rem; /* slightly larger padding for wrapped names */
-    border-radius:999px;
-    background: rgba(255,255,255,0.02);
-    color: #e6eef8;
-    font-weight:600;
-    min-width: 140px; /* ensures pill has room */
-    max-width: 100%;
-    overflow: visible;
-    flex: 0 1 auto;
-  }
-  .pill .left-badge { height:28px; display:flex; align-items:center; justify-content:center; padding:.12rem .6rem; border-radius:8px; font-weight:700; font-size:.72rem; }
-  .pill .thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; background:#0b1220; flex-shrink:0; }
-  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:visible; }
-  /* allow bench/taxi names to wrap and show fully */
-  .pill .meta .name { font-weight:700; white-space:normal; overflow:visible; text-overflow:clip; }
-  .pill .meta .team { color:#9ca3af; font-size:.78rem; margin-top:2px; }
-
-  .pos-badges { display:flex; gap:.25rem; margin-left:.35rem; flex-wrap:wrap; }
-
-  .headshot { width:52px; height:52px; border-radius:8px; object-fit:cover; background:#0b1220; border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
-  .player-meta { display:flex; flex-direction:column; min-width:0; overflow:visible; }
-  .player-name { font-weight:700; overflow:visible; text-overflow:clip; white-space:normal; }
-  .player-team { color:#9ca3af; font-size:.85rem; margin-top:2px; }
-
   .empty { color:#9ca3af; font-style:italic; padding:.6rem; }
 
   @media (max-width: 760px) {
@@ -277,12 +312,11 @@
     .headshot { width:40px; height:40px; }
     .pill { min-width: 110px; padding:.3rem .45rem; }
     .compact-toggle { padding:.35rem .5rem; font-size:0.85rem; }
-    .starters-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:.5rem; }
-    .starter-slot { padding:.28rem; gap:.4rem; min-height:56px; }
-    .slot-badge { font-size:0.78rem; padding:.28rem .45rem; min-width:36px; }
-    .starter-name { font-size:0.95rem; }
+    .starters-list { gap:.5rem; }
+    .starter-pill { padding:.3rem .45rem; gap:.45rem; }
+    .starter-pill .thumb { width:40px; height:40px; }
+    .starter-pill .left-badge { min-width:40px; }
     .pill-grid { gap:.6rem; }
-    .pill .meta .name { font-size:0.95rem; }
   }
 
   @media (min-width: 1200px) {
@@ -334,20 +368,23 @@
                 </div>
 
                 <div class="team-body" aria-hidden={collapsed[roster.rosterId]}>
+                  <!-- Starters now use pill layout like bench/taxi, stacked vertically -->
                   <section class="section" aria-labelledby={"starters-" + roster.rosterId}>
                     <h3 id={"starters-" + roster.rosterId}>Starters</h3>
-                    <div class="starters-grid">
+                    <div class="starters-list">
                       {#each STARTER_SLOTS as slot, i}
-                        <div class="starter-slot">
-                          <div class="slot-badge" style="background:{posColor[slot] || '#64748B'}">{slot}</div>
-                          {#if getStarterForSlot(roster, i)}
-                            <img class="headshot" src={getPlayerHeadshot(getPlayerInfo(getStarterForSlot(roster, i)).player_id)} alt={getPlayerInfo(getStarterForSlot(roster, i)).name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                            <div style="margin-left:.5rem; min-width:0;">
-                              <div class="starter-name" title={getPlayerInfo(getStarterForSlot(roster, i)).name}>{getPlayerInfo(getStarterForSlot(roster, i)).name}</div>
-                              <div class="player-team">{getPlayerInfo(getStarterForSlot(roster, i)).team}</div>
-                              <div style="margin-top:.35rem;">
-                                {#if getPlayerInfo(getStarterForSlot(roster, i)).positions && getPlayerInfo(getStarterForSlot(roster, i)).positions.length}
-                                  {#each getPlayerInfo(getStarterForSlot(roster, i)).positions as pos}
+                        {#if getStarterForSlot(roster, i)}
+                          {#let pid = getStarterForSlot(roster, i)}
+                            <div class="starter-pill" title={getPlayerInfo(pid).name}>
+                              <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
+                              <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(pid).player_id)} alt={getPlayerInfo(pid).name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                              <div class="meta">
+                                <div class="name" title={getPlayerInfo(pid).name}>{getPlayerInfo(pid).name}</div>
+                                <div class="team">{getPlayerInfo(pid).team}</div>
+                              </div>
+                              <div class="pos-badges" aria-hidden="true">
+                                {#if getPlayerInfo(pid).positions && getPlayerInfo(pid).positions.length}
+                                  {#each getPlayerInfo(pid).positions as pos}
                                     <span style={posBadgeStyle(pos)}>{pos}</span>
                                   {/each}
                                 {:else}
@@ -355,10 +392,15 @@
                                 {/if}
                               </div>
                             </div>
-                          {:else}
-                            <div style="margin-left:.5rem; color:#9ca3af;">Empty</div>
-                          {/if}
-                        </div>
+                          {/let}
+                        {:else}
+                          <div class="starter-pill">
+                            <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
+                            <div class="meta">
+                              <div class="name">Empty</div>
+                            </div>
+                          </div>
+                        {/if}
                       {/each}
                     </div>
                   </section>
