@@ -207,17 +207,26 @@
 
   .section { background: rgba(255,255,255,0.01); padding:.55rem; border-radius:8px; }
 
-  /* starters grid — use auto-fit so slots wrap and don't force very tall columns */
+  /* starters grid — increased min width so names have room to show in one line */
   .starters-grid {
     display: grid;
     gap: .6rem;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    /* increased min width so each slot is comfortable for a single-line name */
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     align-items: start;
   }
   .starter-slot { display:flex; gap:.5rem; align-items:center; padding:.35rem; border-radius:8px; background: rgba(255,255,255,0.01); min-width:0; }
   .slot-badge { font-weight:700; padding:.35rem .5rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.86rem; }
 
-  .starter-name { font-weight:700; line-height:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:calc(100% - 64px); }
+  /* make starter name single-line and allow it to use full available width */
+  .starter-name {
+    font-weight:700;
+    line-height:1;
+    white-space:nowrap; /* keep on one line */
+    overflow:visible;   /* don't clip with ellipsis */
+    text-overflow:clip;
+    max-width:none;
+  }
 
   .compact-toggle {
     position:absolute;
@@ -274,7 +283,8 @@
     .headshot { width:40px; height:40px; }
     .pill { min-width: 100px; padding:.22rem .45rem; }
     .compact-toggle { padding:.35rem .5rem; font-size:0.85rem; }
-    .starters-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+    /* for small screens, reduce min width so grid naturally stacks */
+    .starters-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     .starter-slot { padding:.28rem; gap:.4rem; }
     .slot-badge { font-size:0.78rem; padding:.28rem .45rem; min-width:36px; }
     .starter-name { font-size:0.94rem; }
@@ -333,10 +343,7 @@
                     </div>
                   </div>
 
-                  <!-- simple action slot (keeps layout tidy on small screens) -->
-                  <div style="margin-left:auto; display:flex; align-items:center; gap:.5rem;">
-                    <a class="btn small" style="text-decoration:none;" href={"/rosters?owner=" + encodeURIComponent(roster.rosterId ?? roster.roster_id)} aria-label={"View roster " + (roster.team_name || roster.rosterId)}>View</a>
-                  </div>
+                  <!-- removed View button per request; header keeps compact layout -->
                 </div>
 
                 <!-- The entire body will be hidden when collapsed -->
