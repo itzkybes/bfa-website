@@ -135,16 +135,21 @@
 
 <style>
   :global(body) { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #e6eef8; background: transparent; }
-  .page { padding: 1rem 1.25rem; max-width: 1200px; margin: 0 auto; }
+  /* Allow more horizontal room while staying centered */
+  .page { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 
   h1 { margin: 0 0 .5rem 0; font-size: 1.6rem; }
   h2 { margin: .5rem 0 0.75rem 0; font-size: 1.05rem; color:#e6eef8; }
 
-  /* responsive teams grid: 1 column on small, 2 on medium, 3 on large */
-  .teams-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
-  @media (min-width: 760px) { .teams-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 1100px) { .teams-grid { grid-template-columns: repeat(3, 1fr); } }
+  /* responsive teams grid using auto-fit so item widths expand comfortably */
+  .teams-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    align-items: start;
+  }
 
+  /* team card */
   .team-card {
     background: rgba(255,255,255,0.02);
     border-radius: 10px;
@@ -171,7 +176,7 @@
     display: none !important;
   }
 
-  /* team-side responsive — no fixed width */
+  /* team-side responsive — now flexible (no fixed 220px) */
   .team-side { display:flex; flex-direction:row; gap:.5rem; align-items:center; min-width:0; flex: 1 1 auto; }
   .team-card.collapsed .team-side { flex: 0 1 auto; }
 
@@ -194,8 +199,13 @@
 
   .section { background: rgba(255,255,255,0.01); padding:.55rem; border-radius:8px; }
 
-  /* starters grid — responsive */
-  .starters-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:.6rem; }
+  /* starters grid — use auto-fit so slots wrap and don't force very tall columns */
+  .starters-grid {
+    display: grid;
+    gap: .6rem;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    align-items: start;
+  }
   .starter-slot { display:flex; gap:.5rem; align-items:center; padding:.35rem; border-radius:8px; background: rgba(255,255,255,0.01); min-width:0; }
   .slot-badge { font-weight:700; padding:.35rem .5rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.86rem; }
 
@@ -249,7 +259,8 @@
   .empty { color:#9ca3af; font-style:italic; padding:.6rem; }
 
   /* adjustments for small screens */
-  @media (max-width: 420px) {
+  @media (max-width: 760px) {
+    .page { padding: 0.75rem 0.9rem; }
     .team-avatar { width:56px; height:56px; }
     .team-card.collapsed { max-height:78px; }
     .headshot { width:40px; height:40px; }
@@ -259,6 +270,13 @@
     .starter-slot { padding:.28rem; gap:.4rem; }
     .slot-badge { font-size:0.78rem; padding:.28rem .45rem; min-width:36px; }
     .starter-name { font-size:0.94rem; }
+  }
+
+  /* large screens — give heads more visual weight */
+  @media (min-width: 1200px) {
+    .team-avatar { width:88px; height:88px; }
+    .headshot { width:56px; height:56px; }
+    .teams-grid { gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
   }
 
   /* focus styles */
