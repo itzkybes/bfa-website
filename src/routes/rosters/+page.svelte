@@ -157,17 +157,20 @@
     }
   }
 
-  /* team card */
+  /* team card
+     - reduced gap so players sit closer to header
+     - team-side has a fixed-ish flex-basis so players start right after it
+  */
   .team-card {
     background: rgba(255,255,255,0.02);
     border-radius: 10px;
     padding: 0.9rem;
     display:flex;
-    gap:1rem;
+    gap:0.6rem; /* reduced from 1rem */
     align-items:flex-start;
     position:relative;
     transition: padding .18s ease, max-height .18s ease, box-shadow .18s ease;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
   }
 
@@ -184,48 +187,60 @@
     display: none !important;
   }
 
-  /* team-side responsive — now flexible (no fixed 220px) */
-  .team-side { display:flex; flex-direction:row; gap:.5rem; align-items:center; min-width:0; flex: 1 1 auto; }
+  /* team-side: keep a stable width so players column hugs it */
+  .team-side {
+    display:flex;
+    flex-direction:row;
+    gap:.5rem;
+    align-items:center;
+    min-width:0;
+    flex: 0 0 300px; /* fixed-ish width so player column sits immediately to right */
+  }
   .team-card.collapsed .team-side { flex: 0 1 auto; }
 
-  /* avatar sizes */
-  .team-avatar { width:72px; height:72px; border-radius:12px; object-fit:cover; background:#0f1724; transition: width .18s ease, height .18s ease, border-radius .18s ease; }
-  .team-card.collapsed .team-avatar { width:40px; height:40px; border-radius:8px; }
-
-  /* team meta */
-  .team-meta { display:flex; flex-direction:column; gap:.25rem; transition: opacity .12s ease, transform .18s ease; min-width:0; }
-  .team-card.collapsed .team-meta { transform: translateY(0); }
-  .team-name { font-weight:700; font-size:1.05rem; transition: font-size .18s ease; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-  .team-card.collapsed .team-name { font-size:.98rem; }
-  .team-owner { color:#94a3b8; font-size:.95rem; transition: font-size .18s ease; }
-  .team-card.collapsed .team-owner { font-size:.82rem; }
+  /* restrict team-meta width so long names don't push content */
+  .team-meta { display:flex; flex-direction:column; gap:.25rem; transition: opacity .12s ease, transform .18s ease; min-width:0; max-width:220px; }
+  .team-name { font-weight:700; font-size:1.05rem; transition: font-size .18s ease; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .team-owner { color:#94a3b8; font-size:.95rem; }
 
   .muted { font-size:.9rem; margin-top:.25rem; color:#9ca3af; }
   .team-card.collapsed .muted { display:none; }
 
-  .team-body { flex:1; display:flex; flex-direction:column; gap:.7rem; }
+  /* team-body becomes the flexible column next to team-side */
+  .team-body { flex:1 1 auto; display:flex; flex-direction:column; gap:.6rem; min-width:0; }
 
-  .section { background: rgba(255,255,255,0.01); padding:.55rem; border-radius:8px; }
+  .section {
+    background: rgba(255,255,255,0.01);
+    padding:.45rem; /* slightly reduced padding so items sit closer */
+    border-radius:8px;
+  }
 
-  /* starters grid — increased min width so names have room to show in one line */
+  /* starters grid — decreased min width so slots don't push far right */
   .starters-grid {
     display: grid;
-    gap: .6rem;
-    /* increased min width so each slot is comfortable for a single-line name */
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: .5rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* lowered from 220px */
     align-items: start;
   }
-  .starter-slot { display:flex; gap:.5rem; align-items:center; padding:.35rem; border-radius:8px; background: rgba(255,255,255,0.01); min-width:0; }
-  .slot-badge { font-weight:700; padding:.35rem .5rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.86rem; }
+  .starter-slot {
+    display:flex;
+    gap:.5rem;
+    align-items:center;
+    padding:.28rem;
+    border-radius:8px;
+    background: rgba(255,255,255,0.01);
+    min-width:0;
+  }
+  .slot-badge { font-weight:700; padding:.28rem .45rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.82rem; }
 
-  /* make starter name single-line and allow it to use full available width */
+  /* keep starter name on one line, but allow more room horizontally */
   .starter-name {
     font-weight:700;
     line-height:1;
     white-space:nowrap; /* keep on one line */
-    overflow:visible;   /* don't clip with ellipsis */
-    text-overflow:clip;
-    max-width:none;
+    overflow: hidden;
+    text-overflow:ellipsis;
+    max-width: calc(100% - 64px);
   }
 
   .compact-toggle {
@@ -278,6 +293,7 @@
   /* adjustments for small screens */
   @media (max-width: 760px) {
     .page { padding: 0.75rem 0.9rem; }
+    .team-side { flex: 0 0 auto; }
     .team-avatar { width:56px; height:56px; }
     .team-card.collapsed { max-height:78px; }
     .headshot { width:40px; height:40px; }
@@ -287,7 +303,7 @@
     .starters-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     .starter-slot { padding:.28rem; gap:.4rem; }
     .slot-badge { font-size:0.78rem; padding:.28rem .45rem; min-width:36px; }
-    .starter-name { font-size:0.94rem; }
+    .starter-name { font-size:0.94rem; white-space: normal; } /* allow wrap on tiny screens */
   }
 
   /* large screens — give heads more visual weight */
@@ -327,7 +343,7 @@
                 </button>
 
                 <!-- Header ALWAYS visible: avatar + team + owner -->
-                <div class="team-side" style="flex-direction:row; gap:.75rem; align-items:center;">
+                <div class="team-side">
                   <img class="team-avatar"
                     src={roster.team_avatar || roster.owner_avatar || 'https://via.placeholder.com/72?text=?'}
                     alt={roster.team_name}
@@ -342,8 +358,6 @@
                       Bench: {getBenchPlayers(roster).length} • Taxi: {getTaxiPlayers(roster).length}
                     </div>
                   </div>
-
-                  <!-- removed View button per request; header keeps compact layout -->
                 </div>
 
                 <!-- The entire body will be hidden when collapsed -->
