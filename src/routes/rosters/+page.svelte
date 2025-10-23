@@ -159,14 +159,14 @@
 
   /* team card
      - reduced gap so players sit closer to header
-     - team-side has a fixed-ish flex-basis so players start right after it
+     - team-side has a reduced flex-basis so players column moves left
   */
   .team-card {
     background: rgba(255,255,255,0.02);
     border-radius: 10px;
     padding: 0.9rem;
     display:flex;
-    gap:0.6rem; /* reduced from 1rem */
+    gap:0.4rem; /* reduced spacing so columns are tighter */
     align-items:flex-start;
     position:relative;
     transition: padding .18s ease, max-height .18s ease, box-shadow .18s ease;
@@ -187,19 +187,19 @@
     display: none !important;
   }
 
-  /* team-side: keep a stable width so players column hugs it */
+  /* team-side: smaller fixed width so players sit closer */
   .team-side {
     display:flex;
     flex-direction:row;
     gap:.5rem;
     align-items:center;
     min-width:0;
-    flex: 0 0 300px; /* fixed-ish width so player column sits immediately to right */
+    flex: 0 0 240px; /* moved left: 240px (was 300) */
   }
   .team-card.collapsed .team-side { flex: 0 1 auto; }
 
   /* restrict team-meta width so long names don't push content */
-  .team-meta { display:flex; flex-direction:column; gap:.25rem; transition: opacity .12s ease, transform .18s ease; min-width:0; max-width:220px; }
+  .team-meta { display:flex; flex-direction:column; gap:.25rem; transition: opacity .12s ease, transform .18s ease; min-width:0; max-width:200px; }
   .team-name { font-weight:700; font-size:1.05rem; transition: font-size .18s ease; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .team-owner { color:#94a3b8; font-size:.95rem; }
 
@@ -219,13 +219,13 @@
   .starters-grid {
     display: grid;
     gap: .5rem;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* lowered from 220px */
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* smaller min so grid fits better */
     align-items: start;
   }
   .starter-slot {
     display:flex;
     gap:.5rem;
-    align-items:center;
+    align-items:flex-start; /* allow name to wrap under headshot cleanly */
     padding:.28rem;
     border-radius:8px;
     background: rgba(255,255,255,0.01);
@@ -233,14 +233,14 @@
   }
   .slot-badge { font-weight:700; padding:.28rem .45rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.82rem; }
 
-  /* keep starter name on one line, but allow more room horizontally */
+  /* allow starter name to show fully (wrap if needed) */
   .starter-name {
     font-weight:700;
-    line-height:1;
-    white-space:nowrap; /* keep on one line */
-    overflow: hidden;
-    text-overflow:ellipsis;
-    max-width: calc(100% - 64px);
+    line-height:1.05;
+    white-space:normal; /* allow wrapping so full name is visible */
+    overflow:visible;
+    text-overflow:clip;
+    max-width:none;
   }
 
   .compact-toggle {
@@ -303,7 +303,7 @@
     .starters-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
     .starter-slot { padding:.28rem; gap:.4rem; }
     .slot-badge { font-size:0.78rem; padding:.28rem .45rem; min-width:36px; }
-    .starter-name { font-size:0.94rem; white-space: normal; } /* allow wrap on tiny screens */
+    .starter-name { font-size:0.94rem; white-space:normal; } /* allow wrap on tiny screens */
   }
 
   /* large screens — give heads more visual weight */
