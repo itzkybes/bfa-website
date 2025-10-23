@@ -1,6 +1,5 @@
 <script>
   // src/routes/rosters/+page.svelte
-  // Collapses the entire team card (header only visible when collapsed) and shrinks it visually.
   import { onMount } from 'svelte';
   export let data;
 
@@ -11,7 +10,6 @@
   let isMobile = false;
   onMount(() => {
     isMobile = (typeof window !== 'undefined') && window.innerWidth <= 760;
-    // if mobile, mark existing keys collapsed (will be reconciled by reactive block below)
     if (isMobile && data?.data) {
       const keys = [];
       for (const league of (data.data || [])) {
@@ -135,38 +133,30 @@
 
 <style>
   :global(body) { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #e6eef8; background: transparent; }
-  /* Slightly wider max width to breathe on desktop */
   .page { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 
   h1 { margin: 0 0 .5rem 0; font-size: 1.6rem; }
   h2 { margin: .5rem 0 0.75rem 0; font-size: 1.05rem; color:#e6eef8; }
 
-  /* teams grid: one column by default (mobile), two large columns on desktop */
   .teams-grid {
     display: grid;
     gap: 1rem;
-    grid-template-columns: 1fr; /* mobile: single column */
+    grid-template-columns: 1fr;
     align-items: start;
   }
-
-  /* two-column layout on wider viewports */
   @media (min-width: 900px) {
     .teams-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr)); /* two large columns */
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 1.25rem;
     }
   }
 
-  /* team card
-     - reduced gap so players sit closer to header
-     - team-side has a reduced flex-basis so players column moves left
-  */
   .team-card {
     background: rgba(255,255,255,0.02);
     border-radius: 10px;
     padding: 0.9rem;
     display:flex;
-    gap:0.4rem; /* reduced spacing so columns are tighter */
+    gap:0.4rem;
     align-items:flex-start;
     position:relative;
     transition: padding .18s ease, max-height .18s ease, box-shadow .18s ease;
@@ -174,73 +164,63 @@
     box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
   }
 
-  /* collapsed whole-card: shrink padding, avatar, and hide body */
   .team-card.collapsed {
     padding: 0.45rem 0.6rem;
     align-items:center;
-    max-height:82px; /* compact height */
+    max-height:82px;
     box-shadow: none;
   }
 
-  /* hide the whole body area when collapsed */
   .team-card.collapsed .team-body {
     display: none !important;
   }
 
-  /* team-side: smaller fixed width so players sit closer */
+  /* reduce header width so players are closer */
   .team-side {
     display:flex;
     flex-direction:row;
     gap:.5rem;
     align-items:center;
     min-width:0;
-    flex: 0 0 240px; /* moved left: 240px (was 300) */
+    flex: 0 0 220px; /* tightened to 220px to bring players closer */
   }
   .team-card.collapsed .team-side { flex: 0 1 auto; }
 
-  /* restrict team-meta width so long names don't push content */
   .team-meta { display:flex; flex-direction:column; gap:.25rem; transition: opacity .12s ease, transform .18s ease; min-width:0; max-width:200px; }
   .team-name { font-weight:700; font-size:1.05rem; transition: font-size .18s ease; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .team-owner { color:#94a3b8; font-size:.95rem; }
-
   .muted { font-size:.9rem; margin-top:.25rem; color:#9ca3af; }
-  .team-card.collapsed .muted { display:none; }
 
-  /* team-body becomes the flexible column next to team-side */
-  .team-body { flex:1 1 auto; display:flex; flex-direction:column; gap:.6rem; min-width:0; }
+  .team-body { flex:1 1 auto; display:flex; flex-direction:column; gap:1rem; min-width:0; }
 
-  .section {
-    background: rgba(255,255,255,0.01);
-    padding:.45rem; /* slightly reduced padding so items sit closer */
-    border-radius:8px;
-  }
+  .section { background: rgba(255,255,255,0.01); padding:.45rem; border-radius:8px; }
 
-  /* starters grid — decreased min width so slots don't push far right */
+  /* starters grid: make rows taller and increase gap so nothing touches/overlaps */
   .starters-grid {
     display: grid;
-    gap: .5rem;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* smaller min so grid fits better */
+    gap: .75rem; /* increased gap */
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     align-items: start;
   }
   .starter-slot {
     display:flex;
-    gap:.5rem;
-    align-items:flex-start; /* allow name to wrap under headshot cleanly */
-    padding:.28rem;
+    gap:.6rem;
+    align-items:flex-start;
+    padding:.36rem;
     border-radius:8px;
     background: rgba(255,255,255,0.01);
     min-width:0;
+    min-height:64px; /* ensures headshot+name have room */
   }
   .slot-badge { font-weight:700; padding:.28rem .45rem; border-radius:6px; color:white; min-width:42px; text-align:center; font-size:.82rem; }
 
-  /* allow starter name to show fully (wrap if needed) */
+  /* allow starter name to wrap (keeps full name visible) */
   .starter-name {
     font-weight:700;
     line-height:1.05;
-    white-space:normal; /* allow wrapping so full name is visible */
+    white-space:normal;
     overflow:visible;
     text-overflow:clip;
-    max-width:none;
   }
 
   .compact-toggle {
@@ -258,63 +238,59 @@
     font-size:0.9rem;
   }
 
-  .compact-toggle:active { transform: translateY(1px); }
-
-  /* pill layout for bench + taxi */
-  .pill-grid { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  .pill-grid { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-start; } /* increased gap and align to top */
   .pill {
     display:flex;
     gap:.5rem;
     align-items:center;
-    padding:.28rem .5rem;
+    padding:.4rem .6rem; /* slightly larger padding for wrapped names */
     border-radius:999px;
     background: rgba(255,255,255,0.02);
     color: #e6eef8;
     font-weight:600;
-    min-width: 120px;
+    min-width: 140px; /* ensures pill has room */
     max-width: 100%;
-    overflow:hidden;
+    overflow: visible;
+    flex: 0 1 auto;
   }
   .pill .left-badge { height:28px; display:flex; align-items:center; justify-content:center; padding:.12rem .6rem; border-radius:8px; font-weight:700; font-size:.72rem; }
   .pill .thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; background:#0b1220; flex-shrink:0; }
-  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:hidden; }
-  .pill .meta .name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:visible; }
+  /* allow bench/taxi names to wrap and show fully */
+  .pill .meta .name { font-weight:700; white-space:normal; overflow:visible; text-overflow:clip; }
   .pill .meta .team { color:#9ca3af; font-size:.78rem; margin-top:2px; }
 
   .pos-badges { display:flex; gap:.25rem; margin-left:.35rem; flex-wrap:wrap; }
 
   .headshot { width:52px; height:52px; border-radius:8px; object-fit:cover; background:#0b1220; border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
-  .player-meta { display:flex; flex-direction:column; min-width:0; overflow:hidden; }
-  .player-name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .player-meta { display:flex; flex-direction:column; min-width:0; overflow:visible; }
+  .player-name { font-weight:700; overflow:visible; text-overflow:clip; white-space:normal; }
   .player-team { color:#9ca3af; font-size:.85rem; margin-top:2px; }
 
   .empty { color:#9ca3af; font-style:italic; padding:.6rem; }
 
-  /* adjustments for small screens */
   @media (max-width: 760px) {
     .page { padding: 0.75rem 0.9rem; }
     .team-side { flex: 0 0 auto; }
     .team-avatar { width:56px; height:56px; }
     .team-card.collapsed { max-height:78px; }
     .headshot { width:40px; height:40px; }
-    .pill { min-width: 100px; padding:.22rem .45rem; }
+    .pill { min-width: 110px; padding:.3rem .45rem; }
     .compact-toggle { padding:.35rem .5rem; font-size:0.85rem; }
-    /* for small screens, reduce min width so grid naturally stacks */
-    .starters-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-    .starter-slot { padding:.28rem; gap:.4rem; }
+    .starters-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:.5rem; }
+    .starter-slot { padding:.28rem; gap:.4rem; min-height:56px; }
     .slot-badge { font-size:0.78rem; padding:.28rem .45rem; min-width:36px; }
-    .starter-name { font-size:0.94rem; white-space:normal; } /* allow wrap on tiny screens */
+    .starter-name { font-size:0.95rem; }
+    .pill-grid { gap:.6rem; }
+    .pill .meta .name { font-size:0.95rem; }
   }
 
-  /* large screens — give heads more visual weight */
   @media (min-width: 1200px) {
     .team-avatar { width:88px; height:88px; }
     .headshot { width:56px; height:56px; }
-    /* keep two columns but a bit wider */
     .teams-grid { gap: 1.25rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
-  /* focus styles */
   a:focus, button:focus {
     outline: 3px solid rgba(0,198,216,0.18);
     outline-offset: 2px;
@@ -333,16 +309,13 @@
         {#if league.rosters && league.rosters.length}
           <div class="teams-grid">
             {#each league.rosters as roster (roster.rosterId)}
-              <!-- bind collapsed class on the entire card -->
               <article class="team-card" class:collapsed={collapsed[roster.rosterId]} aria-labelledby={"team-" + roster.rosterId}>
-                <!-- Collapse/Expand toggle -->
                 <button class="compact-toggle"
                   aria-pressed={!collapsed[roster.rosterId]}
                   on:click={() => toggleCollapsed(roster.rosterId)}>
                   {collapsed[roster.rosterId] ? 'Expand' : 'Collapse'}
                 </button>
 
-                <!-- Header ALWAYS visible: avatar + team + owner -->
                 <div class="team-side">
                   <img class="team-avatar"
                     src={roster.team_avatar || roster.owner_avatar || 'https://via.placeholder.com/72?text=?'}
@@ -360,9 +333,7 @@
                   </div>
                 </div>
 
-                <!-- The entire body will be hidden when collapsed -->
                 <div class="team-body" aria-hidden={collapsed[roster.rosterId]}>
-                  <!-- Starters -->
                   <section class="section" aria-labelledby={"starters-" + roster.rosterId}>
                     <h3 id={"starters-" + roster.rosterId}>Starters</h3>
                     <div class="starters-grid">
@@ -392,7 +363,6 @@
                     </div>
                   </section>
 
-                  <!-- Bench pills -->
                   <section class="section" aria-labelledby={"bench-" + roster.rosterId}>
                     <h3 id={"bench-" + roster.rosterId}>Bench</h3>
                     {#if (getBenchPlayers(roster) || []).length}
@@ -403,7 +373,7 @@
                               <div class="left-badge" style={slotLeftBadgeStyle('BN')}>BN</div>
                               <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(pid).player_id)} alt={getPlayerInfo(pid).name} on:error={(e)=>e.target.style.visibility='hidden'} />
                               <div class="meta">
-                                <div class="name" title={getPlayerInfo(pid).name}>{shortName(getPlayerInfo(pid).name)}</div>
+                                <div class="name" title={getPlayerInfo(pid).name}>{getPlayerInfo(pid).name}</div>
                                 <div class="team">{getPlayerInfo(pid).team}</div>
                               </div>
                               <div class="pos-badges" aria-hidden="true">
@@ -424,7 +394,6 @@
                     {/if}
                   </section>
 
-                  <!-- Taxi pills -->
                   <section class="section" aria-labelledby={"taxi-" + roster.rosterId}>
                     <h3 id={"taxi-" + roster.rosterId}>Taxi Squad</h3>
                     {#if (getTaxiPlayers(roster) || []).length}
@@ -435,7 +404,7 @@
                               <div class="left-badge" style={slotLeftBadgeStyle('TX')}>TX</div>
                               <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(pid).player_id)} alt={getPlayerInfo(pid).name} on:error={(e)=>e.target.style.visibility='hidden'} />
                               <div class="meta">
-                                <div class="name" title={getPlayerInfo(pid).name}>{shortName(getPlayerInfo(pid).name)}</div>
+                                <div class="name" title={getPlayerInfo(pid).name}>{getPlayerInfo(pid).name}</div>
                                 <div class="team">{getPlayerInfo(pid).team}</div>
                               </div>
                               <div class="pos-badges" aria-hidden="true">
