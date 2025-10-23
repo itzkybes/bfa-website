@@ -374,25 +374,26 @@
                     <div class="starters-list">
                       {#each STARTER_SLOTS as slot, i}
                         {#if getStarterForSlot(roster, i)}
-                          {#let pid = getStarterForSlot(roster, i)}
-                            <div class="starter-pill" title={getPlayerInfo(pid).name}>
-                              <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
-                              <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(pid).player_id)} alt={getPlayerInfo(pid).name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div class="meta">
-                                <div class="name" title={getPlayerInfo(pid).name}>{getPlayerInfo(pid).name}</div>
-                                <div class="team">{getPlayerInfo(pid).team}</div>
+                          <!-- directly call helper functions (no {#let}) -->
+                          <div class="starter-pill" title={getPlayerInfo(getStarterForSlot(roster, i)).name}>
+                            <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
+                            <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(getStarterForSlot(roster, i)).player_id)} alt={getPlayerInfo(getStarterForSlot(roster, i)).name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                            <div class="meta">
+                              <div class="name" title={getPlayerInfo(getStarterForSlot(roster, i)).name}>
+                                {getPlayerInfo(getStarterForSlot(roster, i)).name}
                               </div>
-                              <div class="pos-badges" aria-hidden="true">
-                                {#if getPlayerInfo(pid).positions && getPlayerInfo(pid).positions.length}
-                                  {#each getPlayerInfo(pid).positions as pos}
-                                    <span style={posBadgeStyle(pos)}>{pos}</span>
-                                  {/each}
-                                {:else}
-                                  <span style={posBadgeStyle('UTIL')}>UTIL</span>
-                                {/if}
-                              </div>
+                              <div class="team">{getPlayerInfo(getStarterForSlot(roster, i)).team}</div>
                             </div>
-                          {/let}
+                            <div class="pos-badges" aria-hidden="true">
+                              {#if getPlayerInfo(getStarterForSlot(roster, i)).positions && getPlayerInfo(getStarterForSlot(roster, i)).positions.length}
+                                {#each getPlayerInfo(getStarterForSlot(roster, i)).positions as pos}
+                                  <span style={posBadgeStyle(pos)}>{pos}</span>
+                                {/each}
+                              {:else}
+                                <span style={posBadgeStyle('UTIL')}>UTIL</span>
+                              {/if}
+                            </div>
+                          </div>
                         {:else}
                           <div class="starter-pill">
                             <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
