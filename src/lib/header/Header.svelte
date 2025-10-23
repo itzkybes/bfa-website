@@ -21,15 +21,12 @@
     mounted = true;
   });
 
-  // primary nav links
+  // Only include routes that exist in your repo
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
     { href: '/standings', label: 'Standings' },
-    { href: '/matchups', label: 'Matchups' },
-    { href: '/players', label: 'Players' },
-    { href: '/schedule', label: 'Schedule' },
-    { href: '/about', label: 'About' }
+    { href: '/records', label: 'Records' }
   ];
 
   // helper to test active link
