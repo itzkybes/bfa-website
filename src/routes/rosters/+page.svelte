@@ -120,11 +120,36 @@
     return `background:${bg}; color:${color}; padding:.12rem .45rem; border-radius: 8px; font-weight:700; font-size:.72rem; margin-right:.45rem;`;
   }
 
-  function getStarterForSlot(roster, index) {
-    const arr = getStartersRaw(roster) || [];
-    return arr[index] || null;
-  }
+  // --- Derived / enhanced data: compute player objects for starters/bench/taxi per roster ---
+  $: enhancedData = (data && Array.isArray(data.data))
+    ? data.data.map(league => {
+        const rosters = (Array.isArray(league.rosters) ? league.rosters : []).map(r => {
+          // map starters for each STARTER_SLOTS position
+          const starterRaw = getStartersRaw(r);
+          const starters = STARTER_SLOTS.map((slot, idx) => {
+            const pid = starterRaw && starterRaw.length > idx ? starterRaw[idx] : null;
+            return pid ? { slot, pid, player: getPlayerInfo(pid) } : { slot, pid: null, player: null };
+          });
 
+          // bench & taxi arrays (pre-resolved)
+          const benchIds = getBenchPlayers(r);
+          const bench = benchIds.map(pid => ({ pid, player: getPlayerInfo(pid) }));
+
+          const taxiIds = getTaxiPlayers(r);
+          const taxi = taxiIds.map(pid => ({ pid, player: getPlayerInfo(pid) }));
+
+          return {
+            ...r,
+            _starters: starters,
+            _bench: bench,
+            _taxi: taxi
+          };
+        });
+        return { ...league, rosters };
+      })
+    : [];
+
+  // utility shortName (kept for compatibility)
   function shortName(fullName) {
     if (!fullName) return '';
     return fullName.split(' ')[0];
@@ -335,8 +360,8 @@
 <div class="page">
   <h1>Team Rosters — Current Season</h1>
 
-  {#if data?.data && data.data.length}
-    {#each data.data as league (league.leagueId)}
+  {#if enhancedData && enhancedData.length}
+    {#each enhancedData as league (league.leagueId)}
       <div style="margin-bottom:1rem;">
         <h2>{league.leagueName ?? `Season ${league.season ?? league.leagueId}`}</h2>
 
@@ -362,31 +387,28 @@
                       <div class="team-owner" title={roster.owner_name}>{roster.owner_name}</div>
                     {/if}
                     <div class="muted">
-                      Bench: {getBenchPlayers(roster).length} • Taxi: {getTaxiPlayers(roster).length}
+                      Bench: {roster._bench.length} • Taxi: {roster._taxi.length}
                     </div>
                   </div>
                 </div>
 
                 <div class="team-body" aria-hidden={collapsed[roster.rosterId]}>
-                  <!-- Starters now use pill layout like bench/taxi, stacked vertically -->
+                  <!-- Starters (precomputed starter objects) -->
                   <section class="section" aria-labelledby={"starters-" + roster.rosterId}>
                     <h3 id={"starters-" + roster.rosterId}>Starters</h3>
                     <div class="starters-list">
-                      {#each STARTER_SLOTS as slot, i}
-                        {#if getStarterForSlot(roster, i)}
-                          <!-- directly call helper functions (no {#let}) -->
-                          <div class="starter-pill" title={getPlayerInfo(getStarterForSlot(roster, i)).name}>
-                            <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
-                            <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(getStarterForSlot(roster, i)).player_id)} alt={getPlayerInfo(getStarterForSlot(roster, i)).name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      {#each roster._starters as st (st.slot)}
+                        {#if st && st.pid}
+                          <div class="starter-pill" title={st.player?.name}>
+                            <div class="left-badge" style={slotLeftBadgeStyle(st.slot)}>{st.slot}</div>
+                            <img class="thumb" src={getPlayerHeadshot(st.player?.player_id)} alt={st.player?.name} on:error={(e)=>e.target.style.visibility='hidden'} />
                             <div class="meta">
-                              <div class="name" title={getPlayerInfo(getStarterForSlot(roster, i)).name}>
-                                {getPlayerInfo(getStarterForSlot(roster, i)).name}
-                              </div>
-                              <div class="team">{getPlayerInfo(getStarterForSlot(roster, i)).team}</div>
+                              <div class="name" title={st.player?.name}>{st.player?.name}</div>
+                              <div class="team">{st.player?.team}</div>
                             </div>
                             <div class="pos-badges" aria-hidden="true">
-                              {#if getPlayerInfo(getStarterForSlot(roster, i)).positions && getPlayerInfo(getStarterForSlot(roster, i)).positions.length}
-                                {#each getPlayerInfo(getStarterForSlot(roster, i)).positions as pos}
+                              {#if st.player && st.player.positions && st.player.positions.length}
+                                {#each st.player.positions as pos}
                                   <span style={posBadgeStyle(pos)}>{pos}</span>
                                 {/each}
                               {:else}
@@ -396,7 +418,7 @@
                           </div>
                         {:else}
                           <div class="starter-pill">
-                            <div class="left-badge" style={slotLeftBadgeStyle(slot)}>{slot}</div>
+                            <div class="left-badge" style={slotLeftBadgeStyle(st.slot)}>{st.slot}</div>
                             <div class="meta">
                               <div class="name">Empty</div>
                             </div>
@@ -406,30 +428,29 @@
                     </div>
                   </section>
 
+                  <!-- Bench -->
                   <section class="section" aria-labelledby={"bench-" + roster.rosterId}>
                     <h3 id={"bench-" + roster.rosterId}>Bench</h3>
-                    {#if (getBenchPlayers(roster) || []).length}
+                    {#if roster._bench && roster._bench.length}
                       <div class="pill-grid">
-                        {#each getBenchPlayers(roster) as pid (pid)}
-                          {#if pid}
-                            <div class="pill" title={getPlayerInfo(pid).name}>
-                              <div class="left-badge" style={slotLeftBadgeStyle('BN')}>BN</div>
-                              <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(pid).player_id)} alt={getPlayerInfo(pid).name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div class="meta">
-                                <div class="name" title={getPlayerInfo(pid).name}>{getPlayerInfo(pid).name}</div>
-                                <div class="team">{getPlayerInfo(pid).team}</div>
-                              </div>
-                              <div class="pos-badges" aria-hidden="true">
-                                {#if getPlayerInfo(pid).positions && getPlayerInfo(pid).positions.length}
-                                  {#each getPlayerInfo(pid).positions as pos}
-                                    <span style={posBadgeStyle(pos)}>{pos}</span>
-                                  {/each}
-                                {:else}
-                                  <span style={posBadgeStyle('BN')}>BN</span>
-                                {/if}
-                              </div>
+                        {#each roster._bench as b (b.pid)}
+                          <div class="pill" title={b.player?.name}>
+                            <div class="left-badge" style={slotLeftBadgeStyle('BN')}>BN</div>
+                            <img class="thumb" src={getPlayerHeadshot(b.player?.player_id)} alt={b.player?.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                            <div class="meta">
+                              <div class="name" title={b.player?.name}>{b.player?.name}</div>
+                              <div class="team">{b.player?.team}</div>
                             </div>
-                          {/if}
+                            <div class="pos-badges" aria-hidden="true">
+                              {#if b.player && b.player.positions && b.player.positions.length}
+                                {#each b.player.positions as pos}
+                                  <span style={posBadgeStyle(pos)}>{pos}</span>
+                                {/each}
+                              {:else}
+                                <span style={posBadgeStyle('BN')}>BN</span>
+                              {/if}
+                            </div>
+                          </div>
                         {/each}
                       </div>
                     {:else}
@@ -437,30 +458,29 @@
                     {/if}
                   </section>
 
+                  <!-- Taxi -->
                   <section class="section" aria-labelledby={"taxi-" + roster.rosterId}>
                     <h3 id={"taxi-" + roster.rosterId}>Taxi Squad</h3>
-                    {#if (getTaxiPlayers(roster) || []).length}
+                    {#if roster._taxi && roster._taxi.length}
                       <div class="pill-grid">
-                        {#each getTaxiPlayers(roster) as pid (pid)}
-                          {#if pid}
-                            <div class="pill" title={getPlayerInfo(pid).name}>
-                              <div class="left-badge" style={slotLeftBadgeStyle('TX')}>TX</div>
-                              <img class="thumb" src={getPlayerHeadshot(getPlayerInfo(pid).player_id)} alt={getPlayerInfo(pid).name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div class="meta">
-                                <div class="name" title={getPlayerInfo(pid).name}>{getPlayerInfo(pid).name}</div>
-                                <div class="team">{getPlayerInfo(pid).team}</div>
-                              </div>
-                              <div class="pos-badges" aria-hidden="true">
-                                {#if getPlayerInfo(pid).positions && getPlayerInfo(pid).positions.length}
-                                  {#each getPlayerInfo(pid).positions as pos}
-                                    <span style={posBadgeStyle(pos)}>{pos}</span>
-                                  {/each}
-                                {:else}
-                                  <span style={posBadgeStyle('TX')}>TX</span>
-                                {/if}
-                              </div>
+                        {#each roster._taxi as t (t.pid)}
+                          <div class="pill" title={t.player?.name}>
+                            <div class="left-badge" style={slotLeftBadgeStyle('TX')}>TX</div>
+                            <img class="thumb" src={getPlayerHeadshot(t.player?.player_id)} alt={t.player?.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                            <div class="meta">
+                              <div class="name" title={t.player?.name}>{t.player?.name}</div>
+                              <div class="team">{t.player?.team}</div>
                             </div>
-                          {/if}
+                            <div class="pos-badges" aria-hidden="true">
+                              {#if t.player && t.player.positions && t.player.positions.length}
+                                {#each t.player.positions as pos}
+                                  <span style={posBadgeStyle(pos)}>{pos}</span>
+                                {/each}
+                              {:else}
+                                <span style={posBadgeStyle('TX')}>TX</span>
+                              {/if}
+                            </div>
+                          </div>
                         {/each}
                       </div>
                     {:else}
