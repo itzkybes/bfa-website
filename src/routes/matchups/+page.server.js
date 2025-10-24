@@ -287,7 +287,7 @@ export async function load(event) {
       try {
         // If the file is in project static folder, bundlers will resolve this at build-time.
         // Path from src/routes/matchups/+page.server.js to repo root: '../../../../static/early2023.json'
-        const imported = await import('../../../../static/early2023.json');
+        const imported = await import('/early2023.json');
         ovJson = imported && (imported.default ?? imported);
         messages.push('Loaded early2023.json via build-time import (static asset).');
       } catch (impErr) {
