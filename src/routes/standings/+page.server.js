@@ -59,6 +59,182 @@ function computeStreaks(resultsArray) {
   return { maxW: maxW, maxL: maxL };
 }
 
+/**
+ * Robust extractor: prefer starters-level totals, then per-player maps (sum),
+ * then sum only the players listed in `starters` if a player-points map is present,
+ * finally fall back to points/points_for/pts numeric fields.
+ */
+function extractPointsFromEntry(entry) {
+  if (!entry || typeof entry !== 'object') return 0;
+
+  // helper to try a list of keys on an object and return the first numeric
+  function tryKeys(obj, keys) {
+    if (!obj || typeof obj !== 'object') return null;
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (Object.prototype.hasOwnProperty.call(obj, k)) {
+        var v = obj[k];
+        if (v != null && v !== '') {
+          var n = Number(v);
+          if (!isNaN(n)) return n;
+        }
+      }
+    }
+    return null;
+  }
+
+  // candidate direct aggregate fields (prefer starter totals)
+  var priorityFields = [
+    'starters_points',
+    'starters_points_for',
+    'starters_points_total',
+    'starters_points_for_total',
+    'starters_points_week',
+    'starters_points_for_week',
+    'players_points_total',
+    'points_for',
+    'points',
+    'pts',
+    'points_for_total',
+    'points_total'
+  ];
+
+  // check entry top-level then raw sub-object
+  var v = tryKeys(entry, priorityFields);
+  if (v != null) return safeNum(v);
+  if (entry.raw && typeof entry.raw === 'object') {
+    v = tryKeys(entry.raw, priorityFields);
+    if (v != null) return safeNum(v);
+  }
+
+  // candidate per-player maps (object where keys = playerId and values = numeric points)
+  var playerMapKeys = [
+    'players_points',
+    'players_points_map',
+    'player_points',
+    'player_points_map',
+    'players_scored',
+    'playerScoring',
+    'player_scores',
+    'players_score_map'
+  ];
+
+  // try to find any player-points map and sum numeric values
+  function sumPlayerMap(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    for (var i = 0; i < playerMapKeys.length; i++) {
+      var pk = playerMapKeys[i];
+      if (Object.prototype.hasOwnProperty.call(obj, pk)) {
+        var map = obj[pk];
+        // if it's an object of playerId -> number
+        if (map && typeof map === 'object' && !Array.isArray(map)) {
+          var sum = 0, any = false;
+          for (var kk in map) {
+            if (!Object.prototype.hasOwnProperty.call(map, kk)) continue;
+            var val = map[kk];
+            var num = Number(val);
+            if (!isNaN(num)) { sum += num; any = true; }
+          }
+          if (any) return sum;
+        }
+        // if it's an array of items with a numeric field
+        if (Array.isArray(map)) {
+          var sum2 = 0, any2 = false;
+          for (var ai = 0; ai < map.length; ai++) {
+            var it = map[ai];
+            if (it == null) continue;
+            // try numeric value directly
+            if (typeof it === 'number') { sum2 += it; any2 = true; continue; }
+            // try known numeric props
+            var candidateVals = [it.points, it.pts, it.score, it.total, it.points_for];
+            var foundNum = null;
+            for (var cv = 0; cv < candidateVals.length; cv++) {
+              var vv = candidateVals[cv];
+              if (vv != null && !isNaN(Number(vv))) { foundNum = Number(vv); break; }
+            }
+            if (foundNum != null) { sum2 += foundNum; any2 = true; }
+          }
+          if (any2) return sum2;
+        }
+      }
+    }
+    return null;
+  }
+
+  var sumAllPlayers = sumPlayerMap(entry);
+  if (sumAllPlayers != null) return safeNum(sumAllPlayers);
+  if (entry.raw && typeof entry.raw === 'object') {
+    var sumAllPlayersRaw = sumPlayerMap(entry.raw);
+    if (sumAllPlayersRaw != null) return safeNum(sumAllPlayersRaw);
+  }
+
+  // If starters array exists, try to sum only the starters using any available player map (top-level or raw)
+  var startersList = null;
+  if (Array.isArray(entry.starters) && entry.starters.length) startersList = entry.starters.slice();
+  else if (Array.isArray(entry.starting_lineup) && entry.starting_lineup.length) startersList = entry.starting_lineup.slice();
+  else if (Array.isArray(entry.starters_list) && entry.starters_list.length) startersList = entry.starters_list.slice();
+  else if (entry.raw && Array.isArray(entry.raw.starters) && entry.raw.starters.length) startersList = entry.raw.starters.slice();
+
+  if (startersList && startersList.length) {
+    // try to find player -> points map on entry or entry.raw
+    function sumStartersFromMap(obj) {
+      if (!obj || typeof obj !== 'object') return null;
+      for (var i2 = 0; i2 < playerMapKeys.length; i2++) {
+        var pkey = playerMapKeys[i2];
+        if (Object.prototype.hasOwnProperty.call(obj, pkey)) {
+          var pmap = obj[pkey];
+          if (pmap && typeof pmap === 'object') {
+            // if map is array, convert to lookup by player_id/ID field
+            var sum = 0, any = false;
+            if (Array.isArray(pmap)) {
+              // build lookup by possible id fields
+              var lookup = {};
+              for (var ai2 = 0; ai2 < pmap.length; ai2++) {
+                var it = pmap[ai2];
+                if (!it) continue;
+                var idCandidate = it.player_id ?? it.playerId ?? it.player ?? it.id ?? it.pid ?? null;
+                var scoreCandidate = it.points ?? it.pts ?? it.score ?? it.total ?? null;
+                if (idCandidate != null && scoreCandidate != null && !isNaN(Number(scoreCandidate))) {
+                  lookup[String(idCandidate)] = Number(scoreCandidate);
+                }
+              }
+              for (var si = 0; si < startersList.length; si++) {
+                var sid = String(startersList[si]);
+                if (Object.prototype.hasOwnProperty.call(lookup, sid)) { sum += lookup[sid]; any = true; }
+              }
+              if (any) return sum;
+            } else {
+              // pmap is object keyed by playerId
+              for (var si2 = 0; si2 < startersList.length; si2++) {
+                var sId = String(startersList[si2]);
+                // try raw key and uppercased/lowercased variants
+                var foundVal = null;
+                if (Object.prototype.hasOwnProperty.call(pmap, sId)) foundVal = pmap[sId];
+                else if (Object.prototype.hasOwnProperty.call(pmap, sId.toUpperCase())) foundVal = pmap[sId.toUpperCase()];
+                else if (Object.prototype.hasOwnProperty.call(pmap, sId.toLowerCase())) foundVal = pmap[sId.toLowerCase()];
+                if (foundVal != null && !isNaN(Number(foundVal))) { sum += Number(foundVal); any = true; }
+              }
+              if (any) return sum;
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    var sumFromMapTop = sumStartersFromMap(entry);
+    if (sumFromMapTop != null) return safeNum(sumFromMapTop);
+    if (entry.raw && typeof entry.raw === 'object') {
+      var sumFromMapRaw = sumStartersFromMap(entry.raw);
+      if (sumFromMapRaw != null) return safeNum(sumFromMapRaw);
+    }
+  }
+
+  // last resort: use points/points_for/pts numeric fields (already tried above but try again more explicitly)
+  var fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? (entry.raw && (entry.raw.points ?? entry.raw.points_for ?? entry.raw.pts)) ?? 0);
+  return fallback;
+}
+
 export async function load(event) {
   // set CDN caching
   event.setHeaders({
@@ -282,7 +458,8 @@ export async function load(event) {
           if (entries.length === 1) {
             var only = entries[0];
             var ridOnly = only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId;
-            var ptsOnly = safeNum(only.points ?? only.points_for ?? only.pts ?? 0);
+            // use new extractor that prefers starters and per-player sums
+            var ptsOnly = safeNum(extractPointsFromEntry(only));
             paByRoster[String(ridOnly)] = paByRoster[String(ridOnly)] || 0;
             resultsByRoster[String(ridOnly)] = resultsByRoster[String(ridOnly)] || [];
             statsByRoster[String(ridOnly)] = statsByRoster[String(ridOnly)] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
@@ -294,7 +471,8 @@ export async function load(event) {
           for (var e = 0; e < entries.length; e++) {
             var en = entries[e];
             var pid = en.roster_id ?? en.rosterId ?? en.owner_id ?? en.ownerId;
-            var ppts = safeNum(en.points ?? en.points_for ?? en.pts ?? 0);
+            // NEW: compute participant points via extractPointsFromEntry
+            var ppts = safeNum(extractPointsFromEntry(en));
             participants.push({ rosterId: String(pid), points: ppts });
             paByRoster[String(pid)] = paByRoster[String(pid)] || 0;
             resultsByRoster[String(pid)] = resultsByRoster[String(pid)] || [];
