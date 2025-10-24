@@ -349,10 +349,34 @@
     .starter-pill .left-badge { min-width:40px; }
     .pill-grid { gap:.6rem; }
 
-    /* extra safety on tiny screens: let pos-badges wrap to next line if needed */
+    /* MOBILE: force pills to wrap so pos-badges drop below the player meta */
+    .starter-pill,
+    .pill {
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    /* Position badges: full-width row below name/team on mobile */
     .starter-pill .pos-badges,
     .pill .pos-badges {
-      margin-left: 8px;
+      order: 4;
+      width: 100%;
+      margin-left: 0;
+      margin-top: 6px;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    /* ensure meta comes before badges in visual order */
+    .starter-pill .meta,
+    .pill .meta {
+      order: 3;
+      margin-right: 0;
+    }
+
+    /* allow badges to wrap to next line on very small screens */
+    .starter-pill .pos-badges,
+    .pill .pos-badges {
       flex-wrap: wrap;
     }
   }
