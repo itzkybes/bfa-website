@@ -222,6 +222,7 @@ export function createSleeperClient({ cache = null, concurrency = 8 } = {}) {
   }
 
   // getMatchupScoresForWeek: fetch matchups + build enriched matchup list using starters_points preferentially
+  // Returns: [ { week: <weekNumber>, participants: [ { roster_id, owner_id, matchup_id, starters, starters_points, score, team_name, owner_name, ... , raw } ] }, ... ]
   async function getMatchupScoresForWeek(leagueId, week, opts = {}) {
     const ttl = opts.ttl || 0;
     // fetch raw matchups
@@ -284,26 +285,10 @@ export function createSleeperClient({ cache = null, concurrency = 8 } = {}) {
         };
       });
 
-      // compute winners / losers / tie
-      let maxScore = -Infinity, minScore = Infinity;
-      for (const p of participants) {
-        if (typeof p.score === 'number') {
-          if (p.score > maxScore) maxScore = p.score;
-          if (p.score < minScore) minScore = p.score;
-        }
-      }
-
-      const winners = participants.filter(p => Math.abs(p.score - maxScore) <= 1e-9).map(p => p.roster_id).filter(Boolean);
-      const losers = participants.filter(p => Math.abs(p.score - maxScore) > 1e-9).map(p => p.roster_id).filter(Boolean);
-      const tie = winners.length > 1 && participants.length > 1 && Math.abs(maxScore - minScore) <= 1e-9;
-
+      // Push only week + participants (each participant contains matchup_id so pages can match opponents)
       results.push({
-        matchup_id: sampleMid != null ? String(sampleMid) : key,
         week: wkSample,
-        participants,
-        winners,
-        losers,
-        tie
+        participants: participants
       });
     }
 
