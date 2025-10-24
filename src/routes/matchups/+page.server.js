@@ -309,7 +309,7 @@ export async function load(event) {
 
     if (isEarly2023) {
       // server-side fetch of static asset (works when static files are served at root)
-      const ovRes = await event.fetch('/early2023.json');
+      const ovRes = await event.fetch('/static/early2023.json');
       if (ovRes && ovRes.ok) {
         let ovJson = null;
         try { ovJson = await ovRes.json(); } catch (e) { ovJson = null; messages.push('early2023.json parse failed: ' + (e && e.message ? e.message : e)); }
