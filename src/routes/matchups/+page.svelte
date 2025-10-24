@@ -32,6 +32,11 @@
   $: rowsForWeek = (Array.isArray(matchupsRows) && selectedWeek != null)
     ? matchupsRows.filter(r => Number(r.week) === Number(selectedWeek))
     : [];
+
+  // debug convenience variables (server is expected to provide 'participants' or similar shapes)
+  // We'll display the server-returned `participants` variable if present, otherwise fallback to matchupsRows.
+  const debugWeek = data.week ?? data.selectedWeek ?? selectedWeek;
+  const debugParticipants = data.participants ?? matchupsRows ?? null;
 </script>
 
 <style>
@@ -120,6 +125,10 @@
     .team-name { font-size:0.98rem; max-width: 55%; }
     .score { padding:5px 8px; font-size:0.95rem; min-width:60px; }
   }
+
+  /* debug block */
+  .debug-note { margin: 10px 0 14px 0; color: var(--muted); font-size: 0.9rem; }
+  .debug-note pre { background: rgba(0,0,0,0.16); padding:8px; border-radius:8px; color: #e6eef8; overflow:auto; max-height: 320px; }
 </style>
 
 <div class="page">
@@ -130,6 +139,13 @@
         <div>{i+1}. {m}</div>
       {/each}
     {/if}
+  </div>
+
+  <!-- DEBUG: participants & week -->
+  <div class="debug-note" aria-live="polite">
+    <strong>Debug — participants & week</strong>
+    <div style="margin-top:6px; font-size:0.95rem;">(server-returned `data.participants` or fallback to `matchupsRows`, and `week`)</div>
+    <pre>{JSON.stringify({ week: debugWeek, participants: debugParticipants }, null, 2)}</pre>
   </div>
 
   <div class="card">
