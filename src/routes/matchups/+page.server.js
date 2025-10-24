@@ -3,6 +3,7 @@ import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 import fs from 'fs/promises';
 import path from 'path';
+import { onMount } from 'svelte';
 
 let cache;
 try {
@@ -293,7 +294,7 @@ export async function load(event) {
       // 1) Try event.fetch (served static)
       let ovJson = null;
       try {
-        const ovRes = await event.fetch('/early2023.json');
+        const ovRes = await fetch('/early2023.json');
         messages.push(`fetch('/early2023.json') status=${ovRes.status} ok=${ovRes.ok}`);
         const txt = await ovRes.text();
         if (!ovRes.ok) {
