@@ -54,12 +54,61 @@ function starterPointsFromEntry(entry) {
   return 0;
 }
 
+async function tryLoadEarlyJsonCandidates(messages) {
+  // Try multiple disk / module-relative locations where static files may live in different environments.
+  const candidates = [];
+
+  // 1) Path relative to this module (works in many build setups)
+  try {
+    const candidateUrl = new URL('../../../static/early2023.json', import.meta.url);
+    candidates.push({ desc: 'module-relative import.meta.url', value: candidateUrl.pathname });
+  } catch (e) {
+    // ignore
+  }
+
+  // 2) Process cwd common locations
+  const cwd = process.cwd();
+  candidates.push({ desc: 'process.cwd()/static', value: path.join(cwd, 'static', 'early2023.json') });
+  candidates.push({ desc: 'process.cwd()/public', value: path.join(cwd, 'public', 'early2023.json') });
+  candidates.push({ desc: 'process.cwd()/.vercel_build_output/static', value: path.join(cwd, '.vercel_build_output', 'static', 'early2023.json') });
+  candidates.push({ desc: 'process.cwd()/.vercel/output/static', value: path.join(cwd, '.vercel', 'output', 'static', 'early2023.json') });
+  candidates.push({ desc: 'process.cwd()/.vercel_build_output', value: path.join(cwd, '.vercel_build_output', 'output', 'static', 'early2023.json') });
+
+  // 3) Node's dist/build output possibilities
+  candidates.push({ desc: 'process.cwd()/build/static', value: path.join(cwd, 'build', 'static', 'early2023.json') });
+  candidates.push({ desc: 'process.cwd()/dist/static', value: path.join(cwd, 'dist', 'static', 'early2023.json') });
+
+  // Try each candidate in order
+  for (const c of candidates) {
+    if (!c.value) continue;
+    try {
+      messages.push(`Attempting to read override from ${c.desc}: ${c.value}`);
+      const raw = await fs.readFile(c.value, 'utf8');
+      try {
+        const parsed = JSON.parse(raw);
+        messages.push(`Successfully parsed JSON from ${c.value}`);
+        return parsed;
+      } catch (pe) {
+        messages.push(`JSON.parse failed for ${c.value}: ${pe && pe.message ? pe.message : String(pe)}`);
+        messages.push(`File snippet (first 200 chars): ${raw.slice(0,200)}`);
+        // continue to next candidate
+      }
+    } catch (fsErr) {
+      messages.push(`Read failed for ${c.value}: ${fsErr && fsErr.message ? fsErr.message : String(fsErr)}`);
+      // continue
+    }
+  }
+
+  // Nothing found
+  return null;
+}
+
 export async function load(event) {
   // set CDN caching
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
   const url = event.url;
-  // We'll collect messages; note: we'll clear these before the override step as requested.
+  // We'll collect messages; we'll clear these before the override step (we'll preserve only new override debug below).
   let messages = [];
   const prevChain = [];
 
@@ -290,50 +339,17 @@ export async function load(event) {
     messages.push(`Override debug: season=${useSeason} week=${useWeek} isEarly2023=${isEarly2023}`);
 
     if (isEarly2023) {
-      // 1) Try event.fetch (served static)
+      // Try to load override JSON from multiple candidates
       let ovJson = null;
+
       try {
-        const ovRes = await event.fetch('/early2023.json');
-        messages.push(`fetch('/early2023.json') status=${ovRes.status} ok=${ovRes.ok}`);
-        const txt = await ovRes.text();
-        if (!ovRes.ok) {
-          messages.push(`fetch returned non-ok status ${ovRes.status}; response text (first 400 chars): ${txt.slice(0,400)}`);
-        } else {
-          // attempt parse
-          try {
-            ovJson = JSON.parse(txt);
-            messages.push(`Parsed early2023.json via event.fetch — top-level keys: ${Object.keys(ovJson).slice(0,20).join(', ')}`);
-          } catch (pe) {
-            messages.push('JSON.parse failed for fetch text: ' + (pe && pe.message ? pe.message : String(pe)));
-            messages.push('Fetched body (first 1000 chars): ' + txt.slice(0,1000));
-            ovJson = null;
-          }
-        }
-      } catch (fetchErr) {
-        messages.push('event.fetch("/early2023.json") threw: ' + (fetchErr && fetchErr.message ? fetchErr.message : String(fetchErr)));
-        ovJson = null;
+        // Prefer module-relative / build-friendly read first, then other candidates.
+        ovJson = await tryLoadEarlyJsonCandidates(messages);
+      } catch (e) {
+        messages.push('Unexpected error while trying to load early2023.json candidates: ' + (e && e.message ? e.message : String(e)));
       }
 
-      // 2) If fetch didn't produce JSON, try reading from disk (useful in dev/build)
-      if (!ovJson) {
-        try {
-          const staticPath = path.join(process.cwd(), 'static', 'early2023.json');
-          messages.push('Attempting to read from disk: ' + staticPath);
-          const raw = await fs.readFile(staticPath, 'utf8');
-          try {
-            ovJson = JSON.parse(raw);
-            messages.push('Parsed early2023.json from disk successfully.');
-          } catch (pe2) {
-            messages.push('JSON.parse failed for disk file: ' + (pe2 && pe2.message ? pe2.message : String(pe2)));
-            messages.push('Disk file body (first 1000 chars): ' + raw.slice(0,1000));
-            ovJson = null;
-          }
-        } catch (fsErr) {
-          messages.push('Reading static/early2023.json from disk failed: ' + (fsErr && fsErr.message ? fsErr.message : String(fsErr)));
-        }
-      }
-
-      // 3) If we have JSON, validate shape and map to matchupsRows
+      // If we got valid JSON, map it
       if (ovJson) {
         if (ovJson['2023'] && ovJson['2023'][String(useWeek)] && Array.isArray(ovJson['2023'][String(useWeek)])) {
           const overrides = ovJson['2023'][String(useWeek)];
@@ -370,12 +386,11 @@ export async function load(event) {
           matchupsRows = mapped;
           messages.push(`Applied early2023 override: ${mapped.length} matchups replaced for season ${useSeason} week ${useWeek}`);
         } else {
-          // present but missing the exact key — show top-level keys for debugging
           const topKeys = Object.keys(ovJson).slice(0,50);
           messages.push(`early2023.json parsed but missing key '2023' or week '${useWeek}'. top-level keys: ${topKeys.join(', ')}`);
         }
       } else {
-        messages.push('No valid early2023.json found (fetch + disk attempts failed or produced invalid JSON).');
+        messages.push('No valid early2023.json found in candidates (see prior messages for attempts).');
       }
     } else {
       messages.push('Override conditions not met — not applying early2023.json (season/week mismatch).');
