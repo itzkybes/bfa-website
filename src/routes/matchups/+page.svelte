@@ -1,51 +1,56 @@
 <script>
   export let data;
 
-  // page data
+  // data shape (compatible with existing loader)
   const seasons = data.seasons || [];
-  // keep 'weeks' for backward compat; weekOptions contains grouped lists
-  const weeks = data.weeks || [];
-  const weekOptions = data.weekOptions || { regular: [], playoffs: [] };
-  const playoffWeeks = data.playoffWeeks || [];
   let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
-  const matchupsRows = data.matchupsRows || [];
+  const selectedSeasonResult = data.selectedSeasonResult || null;
   const messages = data.messages || [];
-  const originalRecords = data.originalRecords || {};
 
-  // helpers
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
-  }
+  // fallback arrays (may be named differently in your loader — adjust if needed)
+  const regularStandings = (selectedSeasonResult && selectedSeasonResult.regularStandings) ? selectedSeasonResult.regularStandings : (selectedSeasonResult && selectedSeasonResult.standings) ? selectedSeasonResult.standings : [];
+  const playoffStandings = (selectedSeasonResult && selectedSeasonResult.playoffStandings) ? selectedSeasonResult.playoffStandings : [];
 
-  function fmt2(n) { return Number(n ?? 0).toFixed(2); }
-
-  // used by the filter selects to submit the GET form
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form && form.requestSubmit) form.requestSubmit();
     else if (form) form.submit();
   }
+
+  function avatarOrPlaceholder(url, name, size = 56) {
+    if (url) return url;
+    const letter = name ? name[0] : 'T';
+    return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
+  }
+
+  function fmtPts(n) { return (n == null) ? '-' : (Math.round(Number(n) * 10) / 10).toFixed(1); }
+  function fmtWL(w, l, t) {
+    const wv = Number(w ?? 0);
+    const lv = Number(l ?? 0);
+    const tv = Number(t ?? 0);
+    return `${wv}-${lv}${tv ? '-' + tv : ''}`;
+  }
+  function fmtPct(p) {
+    if (p == null) return '-';
+    const n = Number(p);
+    if (isNaN(n)) return '-';
+    return n.toFixed(3).replace(/^0\./,'0.');
+  }
 </script>
 
 <style>
-  :global(body) {
-    /* keep dark page but do not force global background changes here */
-  }
-
   :root{
     --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
     --card-border: rgba(255,255,255,0.03);
     --muted: #9ca3af;
     --text: #e6eef8;
+    --accent-outline: rgba(99,102,241,0.06);
   }
 
-  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
+  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; color: var(--text); }
   .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:10px; margin-bottom:1rem; }
-  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
-  /* improved select styling for visibility */
+
+  /* reuse the select style used in matchups for visual consistency */
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -59,61 +64,62 @@
   }
   .select:focus {
     border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
+    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px var(--accent-outline);
   }
+
+  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
+
   table { width:100%; border-collapse:collapse; }
   thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
   td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
-  .team-cell { display:flex; gap:.6rem; align-items:center; width:100%; min-width:0; }
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
-  .muted { color: var(--muted); font-size:.9rem; }
+
+  .team-cell { display:flex; gap:.6rem; align-items:center; min-width:0; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  /* winning score — made more prominent */
-  .score.winner {
-    background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
-    color: #f8fbff;
-    font-weight:900;
-    font-size:1.05rem;
-    box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
-    border: 1px solid rgba(99,102,241,0.36);
-  }
-  /* subtle tie style */
-  .score.tie {
-    background: rgba(255,255,255,0.02);
-    color: var(--text);
-    font-weight:700;
-  }
+  .team-meta { display:flex; flex-direction:column; min-width:0; }
+  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
+  .muted { color: var(--muted); font-size:.9rem; }
 
-  /* multi-matchup inner table */
-  .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
-  .inner-table th { text-align:left; color:var(--muted); font-size:.82rem; padding:6px 8px; border-bottom:1px solid var(--card-border); }
-  .inner-table td { padding:8px 8px; }
+  /* standings stats column — align right on desktop */
+  .stats { text-align:right; min-width:120px; white-space:nowrap; }
 
-  /* small-screen friendly tweaks */
+  /* highlight winner/top rows optionally */
+  .top-row { background: rgba(99,102,241,0.02); border-radius:6px; }
+
+  /* responsive: collapse into card rows on small screens */
   @media (max-width:900px) {
     .filters { flex-direction:column; align-items:stretch; gap:0.5rem; }
     .select { min-width: 100%; width:100%; }
     .card { padding:12px; }
 
-    /* make table rows act like cards */
     thead { display:none; }
     tbody { display:block; }
     tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid var(--card-border); padding:10px; }
     tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-    /* keep team-cell layout horizontal inside each td */
-    .team-cell { align-items:center; justify-content:space-between; }
+
+    /* team row layout: avatar + name on left, stats block floats to right */
+    .team-row { display:flex; align-items:center; gap:0.6rem; justify-content:space-between; }
+    .team-row .left { display:flex; gap:0.6rem; align-items:center; min-width:0; flex:1 1 auto; }
+    .team-meta { max-width: calc(100% - 140px); } /* leave room for stats */
+    .team-name { max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .stats { text-align:right; min-width:0; margin-left:auto; display:flex; gap:8px; align-items:center; justify-content:flex-end; }
+    .stat-pill { background: rgba(255,255,255,0.01); padding:6px 10px; border-radius:8px; font-weight:700; color:var(--text); min-width:48px; text-align:center; }
+    .stat-muted { font-size:.85rem; color:var(--muted); font-weight:600; }
+
+    /* shrink avatar slightly */
     .avatar { width:48px; height:48px; }
-    .team-name { max-width: 60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    /* On small screens, ensure score pushes to the far right */
-    .score { min-width:auto; padding:6px 8px; margin-left:auto; }
   }
 
   @media (max-width:520px) {
     .avatar { width:40px; height:40px; }
-    .team-name { font-size:0.98rem; max-width: 55%; }
-    .score { padding:5px 8px; font-size:0.95rem; }
+    .team-name { font-size:0.98rem; }
+    .stat-pill { padding:5px 8px; font-size:0.95rem; }
+  }
+
+  a:focus, button:focus, select:focus {
+    outline: 3px solid rgba(0,198,216,0.12);
+    outline-offset: 2px;
+    border-radius:6px;
   }
 </style>
 
@@ -130,8 +136,8 @@
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .6rem; gap:1rem; flex-wrap:wrap;">
       <div style="min-width:0;">
-        <h2 style="margin:0 0 2px 0;">Matchups</h2>
-        <div class="muted" style="font-size:.95rem;">Choose a season and week to view matchups</div>
+        <h2 style="margin:0 0 2px 0;">Standings</h2>
+        <div class="muted" style="font-size:.95rem;">Choose a season to view standings</div>
       </div>
 
       <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
@@ -142,163 +148,101 @@
           {/each}
         </select>
 
-        <label class="muted" for="week">Week</label>
-
-        {#if (weekOptions && (weekOptions.regular?.length || weekOptions.playoffs?.length))}
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#if weekOptions.regular && weekOptions.regular.length}
-              <optgroup label="Regular Season">
-                {#each weekOptions.regular as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-                {/each}
-              </optgroup>
-            {/if}
-            {#if weekOptions.playoffs && weekOptions.playoffs.length}
-              <optgroup label="Playoffs">
-                {#each weekOptions.playoffs as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-                {/each}
-              </optgroup>
-            {/if}
-          </select>
-        {:else}
-          <!-- fallback to previous simple weeks list -->
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#each weeks as w}
-              <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-            {/each}
-          </select>
-        {/if}
-
         <noscript>
           <button type="submit" class="select" style="cursor:pointer;">Go</button>
         </noscript>
       </form>
     </div>
 
-    {#if matchupsRows.length}
-      <table aria-label="Matchups table">
+    {#if regularStandings && regularStandings.length}
+      <table aria-label="Standings table">
         <thead>
           <tr>
-            <th style="width:50%;">Team A</th>
-            <th style="width:50%;">Team B</th>
+            <th style="width:60%;">Team</th>
+            <th style="width:40%; text-align:right;">Record</th>
           </tr>
         </thead>
 
         <tbody>
-          {#each matchupsRows as row}
-            {#if row.participantsCount === 2}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+          {#each regularStandings as s, idx}
+            <tr class={idx < 1 ? 'top-row' : ''} aria-label={"Standing " + (s.rank ?? idx+1)}>
+              <td>
+                <div class="team-cell team-row">
+                  <div class="left" style="display:flex; align-items:center; gap:.6rem; min-width:0;">
+                    <img class="avatar" src={avatarOrPlaceholder(s.avatar || s.team_avatar || s.owner_avatar, s.team_name || s.name)} alt={s.team_name || s.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                    <div class="team-meta">
+                      <div class="team-name">{s.team_name ?? s.name ?? s.owner ?? ('Roster ' + (s.roster_id ?? ''))}</div>
+                      {#if s.ownerName || s.owner} <div class="muted">{s.ownerName ?? s.owner}</div> {/if}
                     </div>
+                  </div>
 
-                    {#if row.teamA.points != null}
-                      {#if row.teamA.points > row.teamB.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamA.points)}</div>
-                      {:else if row.teamA.points === row.teamB.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamA.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                      {/if}
+                  <div class="stats" role="group" aria-label="Team stats">
+                    <!-- desktop shows cohesive columns; mobile will display pills -->
+                    {#if s.wins != null || s.losses != null}
+                      <div class="stat-pill" title="W-L">{fmtWL(s.wins, s.losses, s.ties)}</div>
+                    {/if}
+                    {#if s.win_pct != null}
+                      <div class="stat-pill" title="Win %">{(typeof s.win_pct === 'number') ? s.win_pct.toFixed(3) : s.win_pct}</div>
+                    {/if}
+                    {#if s.points_for != null}
+                      <div class="stat-pill" title="Points For">{fmtPts(s.points_for)}</div>
                     {/if}
                   </div>
-                </td>
+                </div>
+              </td>
 
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamB.name}</div>
-                      {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamB.points != null}
-                      {#if row.teamB.points > row.teamA.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamB.points)}</div>
-                      {:else if row.teamB.points === row.teamA.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamB.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamB.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-
-            {:else if row.participantsCount === 1}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed var(--card-border); color:var(--muted); font-weight:700;">
-                      BYE
-                    </div>
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">Bye</div>
-                      <div class="muted">Bye week</div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-
-            {:else}
-              <tr>
-                <td colspan="2">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-weight:700;">Multi-team matchup ({row.participantsCount})</div>
-                    <div class="muted">Week {row.week ?? '-'} • Season {row.season ?? '-'}</div>
-                  </div>
-
-                  <table class="inner-table" aria-label="Multi-match participants">
-                    <thead>
-                      <tr><th>Team</th><th style="text-align:right">Points</th></tr>
-                    </thead>
-                    <tbody>
-                      {#each row.combinedParticipants as p}
-                        <tr>
-                          <td>
-                            <div style="display:flex; gap:.6rem; align-items:center;">
-                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div style="font-weight:700;">{p.name}</div>
-                            </div>
-                          </td>
-                          <td style="text-align:right;">
-                            {#if p.points === row.combinedWinnerPoints}
-                              <span class="score winner" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {:else}
-                              <span class="score" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {/if}
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {/if}
+              <td class="stats" style="vertical-align:middle; text-align:right;">
+                <!-- fallback numeric display for larger screens -->
+                <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
+                  {#if s.wins != null || s.losses != null}
+                    <div class="muted" style="min-width:80px; text-align:right;">{fmtWL(s.wins, s.losses, s.ties)}</div>
+                  {/if}
+                  {#if s.win_pct != null}
+                    <div class="muted" style="min-width:70px; text-align:right;">{(typeof s.win_pct === 'number') ? s.win_pct.toFixed(3) : s.win_pct}</div>
+                  {/if}
+                  {#if s.points_for != null}
+                    <div style="min-width:72px; font-weight:800; text-align:right;">{fmtPts(s.points_for)}</div>
+                  {/if}
+                </div>
+              </td>
+            </tr>
           {/each}
         </tbody>
       </table>
     {:else}
-      <div class="muted">No matchups found for the selected season/week or this week is outside the available window.</div>
+      <div class="muted">No standings available for this season.</div>
+    {/if}
+
+    {#if playoffStandings && playoffStandings.length}
+      <div style="margin-top:1rem;">
+        <h3 style="margin:0 0 .4rem 0;">Playoff Standings</h3>
+        <table aria-label="Playoff standings">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th style="text-align:right">Record</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each playoffStandings as p}
+              <tr>
+                <td>
+                  <div class="team-cell">
+                    <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                    <div class="team-meta">
+                      <div class="team-name">{p.name}</div>
+                      {#if p.ownerName}<div class="muted">{p.ownerName}</div>{/if}
+                    </div>
+                  </div>
+                </td>
+                <td class="stats" style="text-align:right;">
+                  <div>{fmtWL(p.wins, p.losses, p.ties)} • {p.points_for != null ? fmtPts(p.points_for) : '-'}</div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
 </div>
