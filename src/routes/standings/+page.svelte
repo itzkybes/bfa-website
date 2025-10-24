@@ -101,6 +101,7 @@
     --card: #071025;
     --muted: #9ca3af;
     --accent: rgba(99,102,241,0.08);
+    --text: #e6eef8;
     color-scheme: dark;
   }
 
@@ -121,12 +122,14 @@
     font-size: 0.95rem;
   }
 
+  /* Controls layout */
   .controls-row {
     display:flex;
     justify-content:space-between;
     gap:1rem;
     align-items:center;
     margin: .6rem 0 1rem 0;
+    flex-wrap:wrap;
   }
 
   .card {
@@ -157,12 +160,13 @@
   }
 
   /* Table styling */
+  .table-wrap { width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border-radius:8px; }
   .tbl {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.95rem;
     overflow: hidden;
-    border-radius: 8px;
+    min-width: 680px; /* allow horizontal scroll on small screens */
   }
 
   thead th {
@@ -179,7 +183,7 @@
   tbody td {
     padding: 10px 12px;
     border-bottom: 1px solid rgba(255,255,255,0.03);
-    color: #e6eef8;
+    color: var(--text);
     vertical-align: middle;
   }
 
@@ -192,9 +196,9 @@
     transform: translateZ(0);
   }
 
-  .team-row { display:flex; align-items:center; gap:0.75rem; }
+  .team-row { display:flex; align-items:center; gap:0.75rem; min-width:0; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; }
-  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
+  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px; }
   .owner { color: var(--muted); font-size:.9rem; margin-top:2px; }
 
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
@@ -208,14 +212,39 @@
     align-items:center;
   }
 
-  select.season-select { padding:.45rem .6rem; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background: #fff; color: #000; }
+  /* Matchups-like select */
+  select.season-select {
+    padding:.6rem .8rem;
+    border-radius:8px;
+    background: #07101a;
+    color: var(--text);
+    border: 1px solid rgba(99,102,241,0.25);
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
+    min-width: 160px;
+    font-weight: 700;
+    outline: none;
+  }
+  select.season-select:focus {
+    border-color: rgba(99,102,241,0.6);
+    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
+  }
 
-  /* Responsive adjustments */
-  @media (max-width: 800px) {
-    .avatar { width:44px; height:44px; }
+  /* Small-screen friendly tweaks */
+  @media (max-width: 900px) {
+    .controls-row { flex-direction:column; align-items:stretch; }
+    .controls { width:100%; justify-content:flex-start; flex-wrap:wrap; }
+    .controls form { width:100%; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+    .section-sub { font-size:0.88rem; }
+
+    .avatar { width:48px; height:48px; }
+    .team-name { font-size: .98rem; max-width: 55vw; } /* give team name more room but still ellipsis */
     thead th, tbody td { padding: 8px; }
-    .team-name { font-size: .95rem; }
-    .col-hide-sm { display:none; }
+    .col-hide-sm { display:none; } /* hide PF/PA on smaller screens */
+  }
+
+  @media (max-width: 520px) {
+    .avatar { width:40px; height:40px; }
+    .team-name { font-size:0.96rem; max-width: 50vw; }
   }
 </style>
 
@@ -260,42 +289,44 @@
     </div>
 
     {#if selectedSeasonResult && selectedSeasonResult.regularStandings && selectedSeasonResult.regularStandings.length}
-      <table class="tbl" role="table" aria-label="Regular season standings">
-        <thead>
-          <tr>
-            <th>Team / Owner</th>
-            <th class="col-numeric">W</th>
-            <th class="col-numeric">L</th>
-            <th class="col-numeric">Longest W-Str</th>
-            <th class="col-numeric">Longest L-Str</th>
-            <th class="col-numeric col-hide-sm">PF</th>
-            <th class="col-numeric col-hide-sm">PA</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each selectedSeasonResult.regularStandings as row}
+      <div class="table-wrap" role="region" aria-label="Regular standings table - scroll horizontally if needed">
+        <table class="tbl" role="table" aria-label="Regular season standings">
+          <thead>
             <tr>
-              <td>
-                <div class="team-row">
-                  <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                  <div>
-                    <div class="team-name">{row.team_name}</div>
-                    {#if row.owner_name}
-                      <div class="owner">{row.owner_name}</div>
-                    {/if}
-                  </div>
-                </div>
-              </td>
-              <td class="col-numeric">{row.wins}</td>
-              <td class="col-numeric">{row.losses}</td>
-              <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '')}</td>
-              <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '')}</td>
-              <td class="col-numeric col-hide-sm">{row.pf}</td>
-              <td class="col-numeric col-hide-sm">{row.pa}</td>
+              <th>Team / Owner</th>
+              <th class="col-numeric">W</th>
+              <th class="col-numeric">L</th>
+              <th class="col-numeric">Longest W-Str</th>
+              <th class="col-numeric">Longest L-Str</th>
+              <th class="col-numeric col-hide-sm">PF</th>
+              <th class="col-numeric col-hide-sm">PA</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {#each selectedSeasonResult.regularStandings as row}
+              <tr>
+                <td>
+                  <div class="team-row">
+                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                    <div style="min-width:0;">
+                      <div class="team-name" title={row.team_name}>{row.team_name}</div>
+                      {#if row.owner_name}
+                        <div class="owner">{row.owner_name}</div>
+                      {/if}
+                    </div>
+                  </div>
+                </td>
+                <td class="col-numeric">{row.wins}</td>
+                <td class="col-numeric">{row.losses}</td>
+                <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '')}</td>
+                <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '')}</td>
+                <td class="col-numeric col-hide-sm">{row.pf}</td>
+                <td class="col-numeric col-hide-sm">{row.pa}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {:else}
       <div class="small-muted" style="padding:.5rem 0;">No regular season results to show.</div>
     {/if}
@@ -311,43 +342,45 @@
     </div>
 
     {#if selectedSeasonResult && ( (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length) || (selectedSeasonResult.standings && selectedSeasonResult.standings.length) )}
-      <table class="tbl" role="table" aria-label="Playoff standings">
-        <thead>
-          <tr>
-            <th>Team / Owner</th>
-            <th class="col-numeric">W</th>
-            <th class="col-numeric">L</th>
-            <th class="col-numeric col-hide-sm">PF</th>
-            <th class="col-numeric col-hide-sm">PA</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each playoffDisplay as row}
-            <tr aria-current={row.champion === true ? 'true' : undefined}>
-              <td>
-                <div class="team-row">
-                  <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                  <div>
-                    <div class="team-name">
-                      <span>{row.team_name}</span>
-                      {#if row.champion === true}
-                        <span class="trophies" title="Champion">🏆</span>
+      <div class="table-wrap" role="region" aria-label="Playoff standings table - scroll horizontally if needed">
+        <table class="tbl" role="table" aria-label="Playoff standings">
+          <thead>
+            <tr>
+              <th>Team / Owner</th>
+              <th class="col-numeric">W</th>
+              <th class="col-numeric">L</th>
+              <th class="col-numeric col-hide-sm">PF</th>
+              <th class="col-numeric col-hide-sm">PA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each playoffDisplay as row}
+              <tr aria-current={row.champion === true ? 'true' : undefined}>
+                <td>
+                  <div class="team-row">
+                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                    <div style="min-width:0;">
+                      <div class="team-name" title={row.team_name}>
+                        <span>{row.team_name}</span>
+                        {#if row.champion === true}
+                          <span class="trophies" title="Champion">🏆</span>
+                        {/if}
+                      </div>
+                      {#if row.owner_name}
+                        <div class="owner">{row.owner_name}</div>
                       {/if}
                     </div>
-                    {#if row.owner_name}
-                      <div class="owner">{row.owner_name}</div>
-                    {/if}
                   </div>
-                </div>
-              </td>
-              <td class="col-numeric">{row.wins}</td>
-              <td class="col-numeric">{row.losses}</td>
-              <td class="col-numeric col-hide-sm">{row.pf}</td>
-              <td class="col-numeric col-hide-sm">{row.pa}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+                </td>
+                <td class="col-numeric">{row.wins}</td>
+                <td class="col-numeric">{row.losses}</td>
+                <td class="col-numeric col-hide-sm">{row.pf}</td>
+                <td class="col-numeric col-hide-sm">{row.pa}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {:else}
       <div class="small-muted" style="padding:.5rem 0;">No playoff results to show.</div>
     {/if}
