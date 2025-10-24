@@ -1,6 +1,8 @@
 // src/routes/matchups/+page.server.js
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
+import fs from 'fs/promises';
+import path from 'path';
 
 let cache;
 try {
@@ -29,15 +31,12 @@ function sumArray(arr) {
   return arr.reduce((a, b) => a + safeNum(b), 0);
 }
 
-// Try to determine a sensible "starter points" total for an entry.
-// Prefer explicit starter arrays (starters_points etc.), fall back to points / points_for.
 function starterPointsFromEntry(entry) {
   if (!entry) return 0;
 
-  // common keys that may contain starter-level points (array or number)
   const candidates = [
     'starters_points', 'startersPoints', 'starter_points', 'starterPoints',
-    'starters_points_total', 'starters_points_total', 'starters_points_sum'
+    'starter_points_total', 'starters_points_sum', 'starter_points_sum'
   ];
 
   for (const k of candidates) {
@@ -45,28 +44,26 @@ function starterPointsFromEntry(entry) {
       const v = entry[k];
       if (Array.isArray(v)) return sumArray(v);
       if (typeof v === 'number') return safeNum(v);
-      // sometimes it's an object mapping or string; ignore
     }
   }
 
-  // fallback to points fields
   if (entry.points != null) return safeNum(entry.points);
   if (entry.points_for != null) return safeNum(entry.points_for);
   if (entry.pts != null) return safeNum(entry.pts);
 
-  // ultimate fallback 0
   return 0;
 }
 
 export async function load(event) {
-  // CDN caching
+  // set CDN caching
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
   const url = event.url;
-  const messages = [];
+  // We'll collect messages; note: we'll clear these before the override step as requested.
+  let messages = [];
   const prevChain = [];
 
-  // Build seasons chain (walk previous_league_id from BASE_LEAGUE_ID)
+  // Build seasons chain (walk previous_league_id)
   let seasons = [];
   try {
     let mainLeague = null;
@@ -95,7 +92,7 @@ export async function load(event) {
     messages.push('Error building seasons chain: ' + (err && err.message ? err.message : String(err)));
   }
 
-  // dedupe by league id & sort by season (old -> new)
+  // dedupe & sort seasons
   const byId = {};
   for (const s of seasons) byId[String(s.league_id)] = s;
   seasons = Object.keys(byId).map(k => byId[k]);
@@ -108,7 +105,7 @@ export async function load(event) {
     return a.season < b.season ? -1 : 1;
   });
 
-  // selected season: param or latest
+  // selected season default to latest
   let selectedSeasonParam = url.searchParams.get('season') || null;
   if (!selectedSeasonParam) {
     if (seasons.length) {
@@ -119,22 +116,20 @@ export async function load(event) {
     }
   }
 
-  // selected week: param or default 1
+  // selected week default to 1 (per request)
   let selectedWeek = Number(url.searchParams.get('week') ?? 1);
   if (!selectedWeek || isNaN(selectedWeek) || selectedWeek < 1) selectedWeek = 1;
 
-  // decide league id to process for selectedSeasonParam
+  // determine league id to process
   let leagueIdToProcess = null;
   if (!selectedSeasonParam || selectedSeasonParam === 'all') {
     leagueIdToProcess = seasons.length ? String(seasons[seasons.length - 1].league_id) : String(BASE_LEAGUE_ID);
   } else {
-    // try match by league_id
     let matched = false;
     for (let i = 0; i < seasons.length; i++) {
       if (String(seasons[i].league_id) === String(selectedSeasonParam)) { leagueIdToProcess = String(seasons[i].league_id); matched = true; break; }
     }
     if (!matched) {
-      // try match by season value
       for (let j = 0; j < seasons.length; j++) {
         if (seasons[j].season != null && String(seasons[j].season) === String(selectedSeasonParam)) { leagueIdToProcess = String(seasons[j].league_id); matched = true; break; }
       }
@@ -142,38 +137,29 @@ export async function load(event) {
     if (!matched) leagueIdToProcess = String(selectedSeasonParam);
   }
 
-  // prepare week lists: we'll attempt to get playoff start from league meta
-  let weekOptions = { regular: [], playoffs: [] };
-  let weeks = Array.from({ length: MAX_WEEKS }, (_, i) => i + 1);
-  let playoffWeeks = [];
-
+  // build week options using league meta (playoff start)
   let leagueMeta = null;
-  try {
-    leagueMeta = await sleeper.getLeague(leagueIdToProcess, { ttl: 60 * 5 });
-  } catch (e) {
-    leagueMeta = null;
-  }
-
+  try { leagueMeta = await sleeper.getLeague(leagueIdToProcess, { ttl: 60 * 5 }); } catch (e) { leagueMeta = null; }
   let playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 15;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
   const playoffEnd = playoffStart + 2;
+  const weekOptions = {
+    regular: Array.from({ length: Math.max(0, playoffStart - 1) }, (_, i) => i + 1),
+    playoffs: Array.from({ length: Math.max(0, playoffEnd - playoffStart + 1) }, (_, i) => playoffStart + i)
+  };
+  const weeks = Array.from({ length: MAX_WEEKS }, (_, i) => i + 1);
+  const playoffWeeks = weekOptions.playoffs;
 
-  weekOptions.regular = Array.from({ length: Math.max(0, playoffStart - 1) }, (_, i) => i + 1);
-  weekOptions.playoffs = Array.from({ length: Math.max(0, playoffEnd - playoffStart + 1) }, (_, i) => playoffStart + i);
-  playoffWeeks = weekOptions.playoffs;
-
-  // fetch roster map (for enrichment)
+  // fetch roster map (enrichment)
   let rosterMap = {};
   try {
     rosterMap = await sleeper.getRosterMapWithOwners(leagueIdToProcess, { ttl: 60 * 5 });
     if (!rosterMap || Object.keys(rosterMap).length === 0) {
-      // fallback to getRostersWithOwners
-      const arr = await sleeper.getRostersWithOwners(leagueIdToProcess, { ttl: 60 * 5 });
+      const arr = await sleeper.getRostersWithOwners(leagueIdToProcess, { ttl: 60 * 5 }).catch(()=>[]);
       if (Array.isArray(arr) && arr.length) {
         rosterMap = {};
         for (const e of arr) if (e && e.roster_id != null) rosterMap[String(e.roster_id)] = e;
       } else {
-        // deeper fallback -> raw rosters & users
         const rawRosters = await sleeper.getRosters(leagueIdToProcess, { ttl: 60 * 5 }).catch(()=>[]);
         const rawUsers = await sleeper.getUsers(leagueIdToProcess, { ttl: 60 * 5 }).catch(()=>[]);
         const usersById = {};
@@ -201,11 +187,10 @@ export async function load(event) {
     rosterMap = rosterMap || {};
   }
 
-  // fetch matchups for the selected week and normalize into rows
+  // fetch matchups for selected week and normalize
   let matchupsRows = [];
   try {
     const rawMatchups = await sleeper.getMatchupsForWeek(leagueIdToProcess, selectedWeek, { ttl: 60 * 5 });
-    // group entries by matchup_id (or synthetic key) so pairs are identified
     const groups = {};
     if (Array.isArray(rawMatchups)) {
       for (let i = 0; i < rawMatchups.length; i++) {
@@ -218,14 +203,11 @@ export async function load(event) {
       }
     }
 
-    // convert groups to match rows (teamA/teamB)
     const keys = Object.keys(groups);
     for (let k = 0; k < keys.length; k++) {
-      const key = keys[k];
-      const bucket = groups[key];
+      const bucket = groups[keys[k]];
       if (!bucket || bucket.length === 0) continue;
 
-      // if bucket has 2 entries, treat as a head-to-head; otherwise handle multi-team or single participant (bye)
       if (bucket.length === 1) {
         const only = bucket[0];
         const rid = String(only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId ?? '');
@@ -253,7 +235,6 @@ export async function load(event) {
           }
         });
       } else if (bucket.length >= 2) {
-        // sort deterministically so teamA/teamB are stable (by rosterId)
         const parts = bucket.map(e => {
           const rid = String(e.roster_id ?? e.rosterId ?? e.owner_id ?? e.ownerId ?? '');
           const pts = starterPointsFromEntry(e);
@@ -269,9 +250,7 @@ export async function load(event) {
           };
         });
 
-        // If bucket length is exactly 2, map to teamA/teamB
         if (parts.length === 2) {
-          // preserve the order as given by Sleeper (bucket array order), but ensure stable assignment
           const a = parts[0];
           const b = parts[1];
           matchupsRows.push({
@@ -282,7 +261,6 @@ export async function load(event) {
             teamB: { ...b }
           });
         } else {
-          // multi-team matchup: create a combinedParticipants list and include participantsCount
           const combined = parts;
           const wk = selectedWeek;
           matchupsRows.push({
@@ -290,9 +268,8 @@ export async function load(event) {
             season: selectedSeasonParam,
             participantsCount: combined.length,
             combinedParticipants: combined,
-            // compute combined winner points for highlighting
             combinedWinnerPoints: combined.reduce((max, p) => Math.max(max, p.points || 0), 0),
-            matchupId: key
+            matchupId: keys[k]
           });
         }
       }
@@ -301,30 +278,71 @@ export async function load(event) {
     messages.push('Error fetching matchups for week ' + selectedWeek + ': ' + (err && err.message ? err.message : String(err)));
   }
 
-  // --- override early2023.json for season 2023 weeks 1-3 if present ---
+  // --- OVERRIDE: early2023.json for season 2023 weeks 1-3 ---
+  // Clear previous debug messages as requested so only override debug is returned.
+  messages = [];
+
   try {
     const useSeason = String(selectedSeasonParam ?? '').trim();
     const useWeek = Number(selectedWeek);
     const isEarly2023 = (useSeason === '2023' && [1, 2, 3].includes(useWeek));
 
+    messages.push(`Override debug: season=${useSeason} week=${useWeek} isEarly2023=${isEarly2023}`);
+
     if (isEarly2023) {
-      // server-side fetch of static asset (works when static files are served at root)
-      const ovRes = await event.fetch('/static/early2023.json');
-      if (ovRes && ovRes.ok) {
-        let ovJson = null;
-        try { ovJson = await ovRes.json(); } catch (e) { ovJson = null; messages.push('early2023.json parse failed: ' + (e && e.message ? e.message : e)); }
+      // 1) Try event.fetch (served static)
+      let ovJson = null;
+      try {
+        const ovRes = await event.fetch('/early2023.json');
+        messages.push(`fetch('/early2023.json') status=${ovRes.status} ok=${ovRes.ok}`);
+        const txt = await ovRes.text();
+        if (!ovRes.ok) {
+          messages.push(`fetch returned non-ok status ${ovRes.status}; response text (first 400 chars): ${txt.slice(0,400)}`);
+        } else {
+          // attempt parse
+          try {
+            ovJson = JSON.parse(txt);
+            messages.push(`Parsed early2023.json via event.fetch — top-level keys: ${Object.keys(ovJson).slice(0,20).join(', ')}`);
+          } catch (pe) {
+            messages.push('JSON.parse failed for fetch text: ' + (pe && pe.message ? pe.message : String(pe)));
+            messages.push('Fetched body (first 1000 chars): ' + txt.slice(0,1000));
+            ovJson = null;
+          }
+        }
+      } catch (fetchErr) {
+        messages.push('event.fetch("/early2023.json") threw: ' + (fetchErr && fetchErr.message ? fetchErr.message : String(fetchErr)));
+        ovJson = null;
+      }
 
-        if (ovJson && ovJson['2023'] && Array.isArray(ovJson['2023'][String(useWeek)])) {
+      // 2) If fetch didn't produce JSON, try reading from disk (useful in dev/build)
+      if (!ovJson) {
+        try {
+          const staticPath = path.join(process.cwd(), 'static', 'early2023.json');
+          messages.push('Attempting to read from disk: ' + staticPath);
+          const raw = await fs.readFile(staticPath, 'utf8');
+          try {
+            ovJson = JSON.parse(raw);
+            messages.push('Parsed early2023.json from disk successfully.');
+          } catch (pe2) {
+            messages.push('JSON.parse failed for disk file: ' + (pe2 && pe2.message ? pe2.message : String(pe2)));
+            messages.push('Disk file body (first 1000 chars): ' + raw.slice(0,1000));
+            ovJson = null;
+          }
+        } catch (fsErr) {
+          messages.push('Reading static/early2023.json from disk failed: ' + (fsErr && fsErr.message ? fsErr.message : String(fsErr)));
+        }
+      }
+
+      // 3) If we have JSON, validate shape and map to matchupsRows
+      if (ovJson) {
+        if (ovJson['2023'] && ovJson['2023'][String(useWeek)] && Array.isArray(ovJson['2023'][String(useWeek)])) {
           const overrides = ovJson['2023'][String(useWeek)];
-
+          messages.push(`early2023.json contains ${overrides.length} entries for 2023 week ${useWeek}. Mapping...`);
           const mapped = overrides.map((m, idx) => {
             const tA = m.teamA || {};
             const tB = m.teamB || {};
-
-            // Determine ownerName keys: allow ownerName or owner_name
             const ownerA = tA.ownerName ?? tA.owner_name ?? null;
             const ownerB = tB.ownerName ?? tB.owner_name ?? null;
-
             return {
               week: useWeek,
               season: useSeason,
@@ -350,20 +368,24 @@ export async function load(event) {
           });
 
           matchupsRows = mapped;
-          messages.push(`Applied early2023.json overrides for season ${useSeason} week ${useWeek} (${mapped.length} matchups)`);
+          messages.push(`Applied early2023 override: ${mapped.length} matchups replaced for season ${useSeason} week ${useWeek}`);
         } else {
-          messages.push(`early2023.json present but no entry for season 2023 week ${useWeek}`);
+          // present but missing the exact key — show top-level keys for debugging
+          const topKeys = Object.keys(ovJson).slice(0,50);
+          messages.push(`early2023.json parsed but missing key '2023' or week '${useWeek}'. top-level keys: ${topKeys.join(', ')}`);
         }
       } else {
-        messages.push('No early2023.json found (fetch failed)');
+        messages.push('No valid early2023.json found (fetch + disk attempts failed or produced invalid JSON).');
       }
+    } else {
+      messages.push('Override conditions not met — not applying early2023.json (season/week mismatch).');
     }
   } catch (ovErr) {
-    console.error('Error applying early2023 overrides:', ovErr);
-    messages.push('Error applying early2023 overrides: ' + (ovErr && ovErr.message ? ovErr.message : String(ovErr)));
+    messages.push('Unexpected error during override processing: ' + (ovErr && ovErr.message ? ovErr.message : String(ovErr)));
+    console.error('early2023 override error', ovErr);
   }
 
-  // Return payload expected by client page
+  // return payload
   return {
     seasons,
     weeks,
