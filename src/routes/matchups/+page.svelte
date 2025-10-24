@@ -1,33 +1,37 @@
 <script>
+  // src/routes/matchups/+page.svelte
   export let data;
 
-  // page data
   const seasons = data.seasons || [];
-  // keep 'weeks' for backward compat; weekOptions contains grouped lists
   const weeks = data.weeks || [];
   const weekOptions = data.weekOptions || { regular: [], playoffs: [] };
   const playoffWeeks = data.playoffWeeks || [];
-  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
   const matchupsRows = data.matchupsRows || [];
   const messages = data.messages || [];
-  const originalRecords = data.originalRecords || {};
+
+  // selectedWeek comes from server (default to 1 fallback)
+  let selectedWeek = Number(data.selectedWeek ?? 1);
+  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : null);
 
   // helpers
-  function avatarOrPlaceholder(url, name, size = 64) {
+  function avatarOrPlaceholder(url, name, size = 56) {
     if (url) return url;
     const letter = name ? name[0] : 'T';
     return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
   }
-
   function fmt2(n) { return Number(n ?? 0).toFixed(2); }
 
-  // used by the filter selects to submit the GET form
+  // submit filter form
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form && form.requestSubmit) form.requestSubmit();
     else if (form) form.submit();
   }
+
+  // Only render rows for the currently selected week
+  $: rowsForWeek = (Array.isArray(matchupsRows) && selectedWeek != null)
+    ? matchupsRows.filter(r => Number(r.week) === Number(selectedWeek))
+    : [];
 </script>
 
 <style>
@@ -45,7 +49,6 @@
   .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
   .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:10px; margin-bottom:1rem; }
   .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
-  /* improved select styling for visibility */
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -61,6 +64,7 @@
     border-color: rgba(99,102,241,0.6);
     box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
   }
+
   table { width:100%; border-collapse:collapse; }
   thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
   td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
@@ -70,7 +74,6 @@
   .muted { color: var(--muted); font-size:.9rem; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
   .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  /* winning score — made more prominent */
   .score.winner {
     background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
     color: #f8fbff;
@@ -79,14 +82,12 @@
     box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
     border: 1px solid rgba(99,102,241,0.36);
   }
-  /* subtle tie style */
   .score.tie {
     background: rgba(255,255,255,0.02);
     color: var(--text);
     font-weight:700;
   }
 
-  /* multi-matchup inner table */
   .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
   .inner-table th { text-align:left; color:var(--muted); font-size:.82rem; padding:6px 8px; border-bottom:1px solid var(--card-border); }
   .inner-table td { padding:8px 8px; }
@@ -97,23 +98,27 @@
     .select { min-width: 100%; width:100%; }
     .card { padding:12px; }
 
-    /* make table rows act like cards */
     thead { display:none; }
     tbody { display:block; }
+    /* each matchup becomes a card */
     tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid var(--card-border); padding:10px; }
-    tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-    /* keep team-cell layout horizontal inside each td */
-    .team-cell { align-items:center; justify-content:space-between; }
-    .avatar { width:48px; height:48px; }
+    tbody tr td { display:block; padding:6px 0; border-bottom:none; }
+
+    /* ensure team-cell spreads left content and score to extremes */
+    .team-cell { display:flex; align-items:center; justify-content:space-between; gap: .75rem; width:100%; }
+    .avatar { width:48px; height:48px; flex-shrink:0; }
+    .team-meta { flex:1 1 auto; min-width:0; margin-left:.5rem; }
     .team-name { max-width: 60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    /* On small screens, ensure score pushes to the far right */
-    .score { min-width:auto; padding:6px 8px; margin-left:auto; }
+    .score { min-width:72px; padding:6px 8px; margin-left:0.5rem; flex:0 0 auto; }
+
+    /* multi-matchup inner rows: align points to right */
+    .inner-table td { display:flex; justify-content:space-between; }
   }
 
   @media (max-width:520px) {
     .avatar { width:40px; height:40px; }
     .team-name { font-size:0.98rem; max-width: 55%; }
-    .score { padding:5px 8px; font-size:0.95rem; }
+    .score { padding:5px 8px; font-size:0.95rem; min-width:60px; }
   }
 </style>
 
@@ -149,23 +154,22 @@
             {#if weekOptions.regular && weekOptions.regular.length}
               <optgroup label="Regular Season">
                 {#each weekOptions.regular as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+                  <option value={w} selected={Number(w) === Number(selectedWeek)}>{w}</option>
                 {/each}
               </optgroup>
             {/if}
             {#if weekOptions.playoffs && weekOptions.playoffs.length}
               <optgroup label="Playoffs">
                 {#each weekOptions.playoffs as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+                  <option value={w} selected={Number(w) === Number(selectedWeek)}>{w}</option>
                 {/each}
               </optgroup>
             {/if}
           </select>
         {:else}
-          <!-- fallback to previous simple weeks list -->
           <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
             {#each weeks as w}
-              <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+              <option value={w} selected={Number(w) === Number(selectedWeek)}>{w}</option>
             {/each}
           </select>
         {/if}
@@ -176,7 +180,7 @@
       </form>
     </div>
 
-    {#if matchupsRows.length}
+    {#if rowsForWeek && rowsForWeek.length}
       <table aria-label="Matchups table">
         <thead>
           <tr>
@@ -186,15 +190,18 @@
         </thead>
 
         <tbody>
-          {#each matchupsRows as row}
+          {#each rowsForWeek as row}
             {#if row.participantsCount === 2}
               <tr>
+                <!-- TEAM A -->
                 <td>
                   <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                    <div style="display:flex; align-items:center; gap:.6rem; min-width:0;">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div class="team-meta" style="min-width:0;">
+                        <div class="team-name" title={row.teamA.name}>{row.teamA.name}</div>
+                        {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                      </div>
                     </div>
 
                     {#if row.teamA.points != null}
@@ -209,12 +216,15 @@
                   </div>
                 </td>
 
+                <!-- TEAM B -->
                 <td>
                   <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamB.name}</div>
-                      {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
+                    <div style="display:flex; align-items:center; gap:.6rem; min-width:0;">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div class="team-meta" style="min-width:0;">
+                        <div class="team-name" title={row.teamB.name}>{row.teamB.name}</div>
+                        {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
+                      </div>
                     </div>
 
                     {#if row.teamB.points != null}
@@ -234,10 +244,12 @@
               <tr>
                 <td>
                   <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                    <div style="display:flex; align-items:center; gap:.6rem;">
+                      <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div class="team-meta" style="min-width:0;">
+                        <div class="team-name" title={row.teamA.name}>{row.teamA.name}</div>
+                        {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
+                      </div>
                     </div>
 
                     {#if row.teamA.points != null}
@@ -248,12 +260,14 @@
 
                 <td>
                   <div class="team-cell">
-                    <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed var(--card-border); color:var(--muted); font-weight:700;">
-                      BYE
-                    </div>
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">Bye</div>
-                      <div class="muted">Bye week</div>
+                    <div style="display:flex; align-items:center; gap:.6rem;">
+                      <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed var(--card-border); color:var(--muted); font-weight:700;">
+                        BYE
+                      </div>
+                      <div class="team-meta">
+                        <div class="team-name">Bye</div>
+                        <div class="muted">Bye week</div>
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -276,8 +290,8 @@
                         <tr>
                           <td>
                             <div style="display:flex; gap:.6rem; align-items:center;">
-                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div style="font-weight:700;">{p.name}</div>
+                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name, 40)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
+                              <div style="font-weight:700; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; max-width:320px;">{p.name}</div>
                             </div>
                           </td>
                           <td style="text-align:right;">
@@ -298,7 +312,7 @@
         </tbody>
       </table>
     {:else}
-      <div class="muted">No matchups found for the selected season/week or this week is outside the available window.</div>
+      <div class="muted">No matchups found for the selected season/week.</div>
     {/if}
   </div>
 </div>
