@@ -1,303 +1,554 @@
 <script>
-  export let data;
+  import { onMount } from 'svelte';
 
-  // page data
-  const seasons = data.seasons || [];
-  // keep 'weeks' for backward compat; weekOptions contains grouped lists
-  const weeks = data.weeks || [];
-  const weekOptions = data.weekOptions || { regular: [], playoffs: [] };
-  const playoffWeeks = data.playoffWeeks || [];
-  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
-  const matchupsRows = data.matchupsRows || [];
-  const messages = data.messages || [];
-  const originalRecords = data.originalRecords || {};
+  const CONFIG_PATH = '/week-ranges.json';
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const forcedWeekParam = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
+  const leagueId = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || '1219816671624048640';
 
-  // helpers
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
+  let loading = true;
+  let error = null;
+  let matchupPairs = [];
+  let rosters = [];
+  let users = [];
+  let weekRanges = null;
+  let fetchWeek = null;
+
+  // IMPORTANT: default the dropdown to week 1 unless the URL provided a week explicitly.
+  // This satisfies "default the week dropdown selector to week 1".
+  let selectedWeek = forcedWeekParam && !isNaN(forcedWeekParam) ? forcedWeekParam : 1;
+
+  /* -------------------------
+     Utility & helper methods (kept consistent with other pages)
+     ------------------------- */
+
+  function parseLocalDateYMD(ymd) {
+    return new Date(ymd + 'T00:00:00');
   }
 
-  function fmt2(n) { return Number(n ?? 0).toFixed(2); }
+  function computeEffectiveWeekFromRanges(ranges) {
+    if (forcedWeekParam && !isNaN(forcedWeekParam)) return forcedWeekParam;
+    if (!Array.isArray(ranges) || ranges.length === 0) return 1;
+    const now = new Date();
 
-  // used by the filter selects to submit the GET form
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form && form.requestSubmit) form.requestSubmit();
-    else if (form) form.submit();
+    for (let i = 0; i < ranges.length; i++) {
+      const r = ranges[i];
+      const start = parseLocalDateYMD(r.start);
+      const end = parseLocalDateYMD(r.end);
+      const endInclusive = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+      if (now >= start && now <= endInclusive) {
+        const rotateAt = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12, 0, 0, 0);
+        rotateAt.setDate(rotateAt.getDate() + 1); // rotate the week at noon the day after
+        if (now >= rotateAt) {
+          const next = (i + 1 < ranges.length) ? ranges[i + 1] : null;
+          return next ? next.week : r.week;
+        } else {
+          return r.week;
+        }
+      }
+    }
+
+    // If before first start, return first week
+    const first = ranges[0];
+    const firstStart = parseLocalDateYMD(first.start);
+    if (now < firstStart) return first.week;
+
+    // If after last rotate, return last week
+    const last = ranges[ranges.length - 1];
+    const lastEnd = parseLocalDateYMD(last.end);
+    const lastRotateAt = new Date(lastEnd.getFullYear(), lastEnd.getMonth(), lastEnd.getDate(), 12, 0, 0, 0);
+    lastRotateAt.setDate(lastRotateAt.getDate() + 1);
+    if (now >= lastRotateAt) return last.week;
+
+    // Otherwise, fallback: find last range that ended and return its week
+    for (let j = ranges.length - 1; j >= 0; j--) {
+      const rr = ranges[j];
+      const rrEnd = parseLocalDateYMD(rr.end);
+      const rrEndInclusive = new Date(rrEnd.getFullYear(), rrEnd.getMonth(), rrEnd.getDate(), 23, 59, 59, 999);
+      if (now > rrEndInclusive) {
+        const rotateAtPast = new Date(rrEnd.getFullYear(), rrEnd.getMonth(), rrEnd.getDate(), 12, 0, 0, 0);
+        rotateAtPast.setDate(rotateAtPast.getDate() + 1);
+        if (now >= rotateAtPast) {
+          const nx = (j + 1 < ranges.length) ? ranges[j + 1] : null;
+          return nx ? nx.week : rr.week;
+        } else {
+          return rr.week;
+        }
+      }
+    }
+
+    return first.week;
+  }
+
+  function findRoster(id) {
+    if (!rosters) return null;
+    for (let i = 0; i < rosters.length; i++) {
+      const r = rosters[i];
+      if (String(r.roster_id) === String(id) || r.roster_id === id || String(r.rosterId) === String(id)) return r;
+    }
+    return null;
+  }
+
+  function findUserByOwner(ownerId) {
+    if (!users) return null;
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      if (String(u.user_id) === String(ownerId) || u.user_id === ownerId || u.id === ownerId) return u;
+    }
+    return null;
+  }
+
+  function avatarForRoster(rosterOrId) {
+    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+    if (!roster) return null;
+    const md = roster.metadata || {};
+    const settings = roster.settings || {};
+    let candidate = null;
+    if (md && md.team_avatar) candidate = md.team_avatar;
+    if (!candidate && md && md.avatar) candidate = md.avatar;
+    if (!candidate && settings && settings.team_avatar) candidate = settings.team_avatar;
+    if (!candidate && settings && settings.avatar) candidate = settings.avatar;
+    if (!candidate) {
+      const u = findUserByOwner(roster.owner_id);
+      if (u) {
+        if (u.metadata && u.metadata.avatar) candidate = u.metadata.avatar;
+        else if (u.avatar) candidate = u.avatar;
+      }
+    }
+    if (!candidate) return null;
+    if (typeof candidate === 'string' && (candidate.indexOf('http://') === 0 || candidate.indexOf('https://') === 0)) {
+      return candidate;
+    }
+    return 'https://sleepercdn.com/avatars/' + encodeURIComponent(String(candidate));
+  }
+
+  function displayNameForRoster(rosterOrId) {
+    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+    if (roster) {
+      const md = roster.metadata || {};
+      const settings = roster.settings || {};
+      const nameCandidates = [
+        md.team_name, md.teamName, md.team, md.name,
+        settings.team_name, settings.teamName, settings.team, settings.name
+      ];
+      for (let i = 0; i < nameCandidates.length; i++) {
+        const cand = nameCandidates[i];
+        if (cand && typeof cand === 'string' && cand.trim() !== '') {
+          return cand.trim();
+        }
+      }
+      if (roster.name && typeof roster.name === 'string' && roster.name.trim() !== '') {
+        return roster.name.trim();
+      }
+    }
+
+    let ownerId = null;
+    if (roster && roster.owner_id) ownerId = roster.owner_id;
+    if (!ownerId && roster) ownerId = roster.user_id || roster.owner || roster.user;
+
+    if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
+
+    if (ownerId) {
+      const u = findUserByOwner(ownerId);
+      if (u) {
+        if (u.metadata && u.metadata.team_name && u.metadata.team_name.trim() !== '') return u.metadata.team_name.trim();
+        if (u.display_name && u.display_name.trim() !== '') return u.display_name.trim();
+        if (u.username && u.username.trim() !== '') return u.username.trim();
+      }
+    }
+
+    if (roster && roster.roster_id != null) return 'Roster ' + roster.roster_id;
+    if (typeof rosterOrId === 'string' || typeof rosterOrId === 'number') return 'Roster ' + rosterOrId;
+    return 'Roster';
+  }
+
+  function ownerNameForRoster(rosterOrId) {
+    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+    let ownerId = roster && (roster.owner_id || roster.user_id || roster.owner || roster.user);
+    if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
+    if (!ownerId) return null;
+    const u = findUserByOwner(ownerId);
+    if (!u) return null;
+    return u.display_name || u.username || (u.metadata && u.metadata.team_name) || null;
+  }
+
+  function fmt(n) {
+    if (n == null) return '-';
+    if (typeof n === 'number') return (Math.round(n * 10) / 10).toFixed(1);
+    return String(n);
+  }
+
+  function normalizeMatchups(raw) {
+    const pairs = [];
+    if (!raw) return pairs;
+
+    if (Array.isArray(raw)) {
+      const map = {};
+      for (let i = 0; i < raw.length; i++) {
+        const e = raw[i];
+        const mid = e.matchup_id != null ? String(e.matchup_id) : null;
+        if (mid) {
+          if (!map[mid]) map[mid] = [];
+          map[mid].push(e);
+        } else if (e.opponent_roster_id != null) {
+          let attached = false;
+          const keys = Object.keys(map);
+          for (let k = 0; k < keys.length && !attached; k++) {
+            const arr = map[keys[k]];
+            for (let j = 0; j < arr.length; j++) {
+              if (String(arr[j].roster_id) === String(e.opponent_roster_id) || String(arr[j].roster_id) === String(e.roster_id)) {
+                arr.push(e);
+                attached = true;
+                break;
+              }
+            }
+          }
+          if (!attached) map['p_' + i] = [e];
+        } else {
+          map['p_' + i] = [e];
+        }
+      }
+
+      const mids = Object.keys(map);
+      for (let m = 0; m < mids.length; m++) {
+        const bucket = map[mids[m]];
+        if (bucket.length === 2) {
+          pairs.push({ matchup_id: mids[m], home: normalizeEntry(bucket[0]), away: normalizeEntry(bucket[1]) });
+        } else if (bucket.length === 1) {
+          pairs.push({ matchup_id: mids[m], home: normalizeEntry(bucket[0]), away: null });
+        } else if (bucket.length > 2) {
+          for (let s = 0; s < bucket.length; s += 2) {
+            pairs.push({ matchup_id: mids[m] + '_' + s, home: normalizeEntry(bucket[s]), away: normalizeEntry(bucket[s + 1] || null) });
+          }
+        }
+      }
+    } else if (typeof raw === 'object') {
+      const arrFromObj = [];
+      Object.keys(raw).forEach(k => {
+        const v = raw[k];
+        if (v && typeof v === 'object') arrFromObj.push(v);
+      });
+      if (arrFromObj.length > 0) {
+        const grouping = {};
+        for (let ii = 0; ii < arrFromObj.length; ii++) {
+          const ee = arrFromObj[ii];
+          const gm = ee.matchup_id != null ? String(ee.matchup_id) : 'p_' + ii;
+          if (!grouping[gm]) grouping[gm] = [];
+          grouping[gm].push(ee);
+        }
+        const gkeys = Object.keys(grouping);
+        for (let g = 0; g < gkeys.length; g++) {
+          const b = grouping[gkeys[g]];
+          if (b.length >= 2) {
+            for (let z = 0; z < b.length; z += 2) {
+              pairs.push({ matchup_id: gkeys[g] + '_' + z, home: normalizeEntry(b[z]), away: normalizeEntry(b[z + 1] || null) });
+            }
+          } else {
+            pairs.push({ matchup_id: gkeys[g], home: normalizeEntry(b[0]), away: null });
+          }
+        }
+      }
+    }
+    return pairs;
+
+    function normalizeEntry(rawEntry) {
+      if (!rawEntry) return null;
+      const entry = {
+        roster_id: rawEntry.roster_id != null ? rawEntry.roster_id : (rawEntry.roster || rawEntry.owner_id || null),
+        points: rawEntry.points != null ? rawEntry.points : (rawEntry.points_for != null ? rawEntry.points_for : (rawEntry.starters_points != null ? rawEntry.starters_points : null)),
+        matchup_id: rawEntry.matchup_id != null ? rawEntry.matchup_id : null,
+        raw: rawEntry
+      };
+      if (rawEntry.opponent_roster_id != null) entry.opponent_roster_id = rawEntry.opponent_roster_id;
+      return entry;
+    }
+  }
+
+  function weekDateRangeLabel(weekNum) {
+    if (!Array.isArray(weekRanges)) return null;
+    for (let i = 0; i < weekRanges.length; i++) {
+      if (weekRanges[i] && Number(weekRanges[i].week) === Number(weekNum)) {
+        const s = weekRanges[i].start;
+        const e = weekRanges[i].end;
+        try {
+          const sd = new Date(s + 'T00:00:00');
+          const ed = new Date(e + 'T00:00:00');
+          const opts = { month: 'short', day: 'numeric' };
+          const sdStr = sd.toLocaleDateString(undefined, opts);
+          const edStr = ed.toLocaleDateString(undefined, opts);
+          return sdStr + ' — ' + edStr;
+        } catch (err) {
+          return s + ' — ' + e;
+        }
+      }
+    }
+    return null;
+  }
+
+  /* -------------------------
+     Lifecycle & fetching
+     ------------------------- */
+
+  async function loadForWeek(week) {
+    loading = true;
+    error = null;
+    matchupPairs = [];
+    rosters = [];
+    users = [];
+
+    try {
+      // fetch week ranges if not loaded
+      if (!weekRanges) {
+        try {
+          const cfgRes = await fetch(CONFIG_PATH);
+          if (cfgRes.ok) weekRanges = await cfgRes.json();
+        } catch (e) {
+          // ignore — optional
+        }
+      }
+
+      // ensure selectedWeek exists
+      fetchWeek = (week && !isNaN(week)) ? Number(week) : 1;
+
+      const mRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/matchups/' + fetchWeek);
+      if (!mRes.ok) throw new Error('matchups fetch failed: ' + mRes.status);
+      const matchupsRaw = await mRes.json();
+
+      const rRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/rosters');
+      if (rRes.ok) rosters = await rRes.json();
+
+      const uRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/users');
+      if (uRes.ok) users = await uRes.json();
+
+      matchupPairs = normalizeMatchups(matchupsRaw);
+    } catch (err) {
+      error = String(err && err.message ? err.message : err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  onMount(async () => {
+    // If weekRanges exist, we might consider showing a particular week — but user wanted default=1,
+    // so only override if URL param provided (handled above).
+    // We'll still compute an effectiveWeek for info display where useful, but we leave selectedWeek default = 1.
+    try {
+      const cfgRes = await fetch(CONFIG_PATH);
+      if (cfgRes.ok) {
+        weekRanges = await cfgRes.json();
+        // if no explicit ?week param, do NOT override selectedWeek; it remains 1 per request.
+        if (forcedWeekParam && !isNaN(forcedWeekParam)) {
+          selectedWeek = forcedWeekParam;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    await loadForWeek(selectedWeek);
+  });
+
+  // watch for dropdown changes
+  $: if (selectedWeek) {
+    // load only when selectedWeek changes (prevent firing while mounting before initial load)
+    // debounce/guard could be added, but keep it simple: run loadForWeek
+    loadForWeek(selectedWeek);
   }
 </script>
 
-<style>
-  :global(body) {
-    /* keep dark page but do not force global background changes here */
-  }
-
-  :root{
-    --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
-    --card-border: rgba(255,255,255,0.03);
-    --muted: #9ca3af;
-    --text: #e6eef8;
-  }
-
-  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
-  .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:10px; margin-bottom:1rem; }
-  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
-  /* improved select styling for visibility */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: var(--text);
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
-  table { width:100%; border-collapse:collapse; }
-  thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
-  td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
-  .team-cell { display:flex; gap:.6rem; align-items:center; width:100%; min-width:0; }
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
-  .muted { color: var(--muted); font-size:.9rem; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  /* winning score — made more prominent */
-  .score.winner {
-    background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
-    color: #f8fbff;
-    font-weight:900;
-    font-size:1.05rem;
-    box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
-    border: 1px solid rgba(99,102,241,0.36);
-  }
-  /* subtle tie style */
-  .score.tie {
-    background: rgba(255,255,255,0.02);
-    color: var(--text);
-    font-weight:700;
-  }
-
-  /* multi-matchup inner table */
-  .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
-  .inner-table th { text-align:left; color:var(--muted); font-size:.82rem; padding:6px 8px; border-bottom:1px solid var(--card-border); }
-  .inner-table td { padding:8px 8px; }
-
-  /* small-screen friendly tweaks */
-  @media (max-width:900px) {
-    .filters { flex-direction:column; align-items:stretch; gap:0.5rem; }
-    .select { min-width: 100%; width:100%; }
-    .card { padding:12px; }
-
-    /* make table rows act like cards */
-    thead { display:none; }
-    tbody { display:block; }
-    tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid var(--card-border); padding:10px; }
-    tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-    /* keep team-cell layout horizontal inside each td */
-    .team-cell { align-items:center; }
-    .avatar { width:48px; height:48px; }
-    .team-name { max-width: 60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .score { min-width:auto; padding:6px 8px; margin-left:0.5rem; }
-  }
-
-  @media (max-width:520px) {
-    .avatar { width:40px; height:40px; }
-    .team-name { font-size:0.98rem; max-width: 55%; }
-    .score { padding:5px 8px; font-size:0.95rem; }
-  }
-</style>
-
-<div class="page">
-  <div class="muted" style="margin-bottom:.5rem;">
-    {#if messages.length}
-      <div><strong>Debug</strong></div>
-      {#each messages as m, i}
-        <div>{i+1}. {m}</div>
-      {/each}
-    {/if}
-  </div>
-
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .6rem; gap:1rem; flex-wrap:wrap;">
-      <div style="min-width:0;">
-        <h2 style="margin:0 0 2px 0;">Matchups</h2>
-        <div class="muted" style="font-size:.95rem;">Choose a season and week to view matchups</div>
-      </div>
-
-      <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
-        <label class="muted" for="season">Season</label>
-        <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
-          {/each}
-        </select>
-
-        <label class="muted" for="week">Week</label>
-
-        {#if (weekOptions && (weekOptions.regular?.length || weekOptions.playoffs?.length))}
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#if weekOptions.regular && weekOptions.regular.length}
-              <optgroup label="Regular Season">
-                {#each weekOptions.regular as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-                {/each}
-              </optgroup>
-            {/if}
-            {#if weekOptions.playoffs && weekOptions.playoffs.length}
-              <optgroup label="Playoffs">
-                {#each weekOptions.playoffs as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-                {/each}
-              </optgroup>
-            {/if}
-          </select>
-        {:else}
-          <!-- fallback to previous simple weeks list -->
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#each weeks as w}
-              <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-            {/each}
-          </select>
-        {/if}
-
-        <noscript>
-          <button type="submit" class="select" style="cursor:pointer;">Go</button>
-        </noscript>
-      </form>
+<main class="matchups-page">
+  <section class="wrap header">
+    <div class="header-left">
+      <h1>Matchups</h1>
+      <p class="sub">Browse head-to-head matchups for your league.</p>
     </div>
 
-    {#if matchupsRows.length}
-      <table aria-label="Matchups table">
-        <thead>
-          <tr>
-            <th style="width:50%;">Team A</th>
-            <th style="width:50%;">Team B</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {#each matchupsRows as row}
-            {#if row.participantsCount === 2}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      {#if row.teamA.points > row.teamB.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamA.points)}</div>
-                      {:else if row.teamA.points === row.teamB.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamA.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamB.name}</div>
-                      {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamB.points != null}
-                      {#if row.teamB.points > row.teamA.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamB.points)}</div>
-                      {:else if row.teamB.points === row.teamA.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamB.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamB.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-
-            {:else if row.participantsCount === 1}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed var(--card-border); color:var(--muted); font-weight:700;">
-                      BYE
-                    </div>
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">Bye</div>
-                      <div class="muted">Bye week</div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-
-            {:else}
-              <tr>
-                <td colspan="2">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-weight:700;">Multi-team matchup ({row.participantsCount})</div>
-                    <div class="muted">Week {row.week ?? '-'} • Season {row.season ?? '-'}</div>
-                  </div>
-
-                  <table class="inner-table" aria-label="Multi-match participants">
-                    <thead>
-                      <tr><th>Team</th><th style="text-align:right">Points</th></tr>
-                    </thead>
-                    <tbody>
-                      {#each row.combinedParticipants as p}
-                        <tr>
-                          <td>
-                            <div style="display:flex; gap:.6rem; align-items:center;">
-                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div style="font-weight:700;">{p.name}</div>
-                            </div>
-                          </td>
-                          <td style="text-align:right;">
-                            {#if p.points === row.combinedWinnerPoints}
-                              <span class="score winner" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {:else}
-                              <span class="score" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {/if}
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {/if}
+    <div class="header-right">
+      <label for="week-select" class="visually-hidden">Select week</label>
+      <select id="week-select" bind:value={selectedWeek} aria-label="Select week">
+        {#if weekRanges && weekRanges.length}
+          {#each weekRanges as w}
+            <option value={w.week}>Week {w.week}{w.start && w.end ? ` — ${w.start}` : ''}</option>
           {/each}
-        </tbody>
-      </table>
+        {:else}
+          {#each Array.from({length: 20}, (_, i) => i + 1) as w}
+            <option value={w}>Week {w}</option>
+          {/each}
+        {/if}
+      </select>
+    </div>
+  </section>
+
+  <section class="wrap content">
+    <div class="matchups-header">
+      <h2>This week's matchups</h2>
+      <div class="week-pill">Week {fetchWeek || selectedWeek}
+        {#if weekRanges}
+          <span class="week-range">{weekDateRangeLabel(fetchWeek || selectedWeek)}</span>
+        {/if}
+      </div>
+    </div>
+
+    {#if loading}
+      <div class="notice">Loading matchups for week {selectedWeek}...</div>
+    {:else if error}
+      <div class="notice error">Error: {error}</div>
+    {:else if matchupPairs && matchupPairs.length > 0}
+      <div class="matchups">
+        {#each matchupPairs as p (p.matchup_id)}
+          <article class="matchup-card" role="group" aria-labelledby={"matchup-" + p.matchup_id}>
+            <div class="teams">
+              <div class="team team-left">
+                {#if p.home}
+                  {#if findRoster(p.home.roster_id)}
+                    <img class="avatar" src={avatarForRoster(findRoster(p.home.roster_id))} alt={displayNameForRoster(findRoster(p.home.roster_id))} on:error={(e)=>e.target.style.visibility='hidden'} />
+                    <div class="meta">
+                      <div class="name" id={"matchup-" + p.matchup_id} title={displayNameForRoster(findRoster(p.home.roster_id))}>{displayNameForRoster(findRoster(p.home.roster_id))}</div>
+                      <div class="sub">{ownerNameForRoster(findRoster(p.home.roster_id)) || ('Roster ' + p.home.roster_id)}</div>
+                    </div>
+                  {:else}
+                    <div class="avatar placeholder"></div>
+                    <div class="meta">
+                      <div class="name">Roster {p.home.roster_id}</div>
+                    </div>
+                  {/if}
+                {:else}
+                  <div class="avatar placeholder"></div>
+                  <div class="meta"><div class="name">TBD</div></div>
+                {/if}
+              </div>
+
+              <div class="vs">vs</div>
+
+              <div class="team team-right">
+                {#if p.away}
+                  {#if findRoster(p.away.roster_id)}
+                    <img class="avatar" src={avatarForRoster(findRoster(p.away.roster_id))} alt={displayNameForRoster(findRoster(p.away.roster_id))} on:error={(e)=>e.target.style.visibility='hidden'} />
+                    <div class="meta">
+                      <div class="name" title={displayNameForRoster(findRoster(p.away.roster_id))}>{displayNameForRoster(findRoster(p.away.roster_id))}</div>
+                      <div class="sub">{ownerNameForRoster(findRoster(p.away.roster_id)) || ('Roster ' + p.away.roster_id)}</div>
+                    </div>
+                  {:else}
+                    <div class="avatar placeholder"></div>
+                    <div class="meta">
+                      <div class="name">Roster {p.away.roster_id}</div>
+                    </div>
+                  {/if}
+                {:else}
+                  <div class="avatar placeholder"></div>
+                  <div class="meta"><div class="name">TBD</div></div>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Score block pushed to the far right -->
+            <div class="score-block" aria-hidden="true">
+              <div class="score">
+                <div class="score-num">{fmt(p.home && p.home.points)}</div>
+                <div class="score-divider">—</div>
+                <div class="score-num">{fmt(p.away && p.away.points)}</div>
+              </div>
+              <div class="score-label">PTS</div>
+            </div>
+          </article>
+        {/each}
+      </div>
     {:else}
-      <div class="muted">No matchups found for the selected season/week or this week is outside the available window.</div>
+      <div class="notice">No matchups found for week {selectedWeek}. Try a different week via the selector.</div>
     {/if}
-  </div>
-</div>
+  </section>
+</main>
+
+<style>
+  :root {
+    --muted: #9fb0c4;
+    --bg-card: rgba(255,255,255,0.02);
+    --accent: #00c6d8;
+    --nav-text: #e6eef6;
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
+  main.matchups-page { padding: 1.25rem 0 3rem; min-height: 100vh; color: var(--nav-text); }
+
+  .header { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom: 0.6rem; }
+  .header-left h1 { margin:0; font-size:1.4rem; }
+  .header-left .sub { margin:0; color:var(--muted); font-size:0.95rem; }
+
+  .header-right { display:flex; align-items:center; gap:0.5rem; }
+  select { background: var(--bg-card); color: var(--nav-text); border: 1px solid rgba(255,255,255,0.03); padding: 0.5rem 0.6rem; border-radius:8px; font-weight:700; }
+
+  .matchups-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; gap:1rem; }
+  .matchups-header h2 { margin:0; font-size:1.02rem; font-weight:800; }
+  .week-pill { background: rgba(255,255,255,0.02); padding:6px 10px; border-radius:999px; font-weight:700; color:var(--nav-text); display:inline-flex; align-items:center; gap:8px; }
+  .week-range { color:var(--muted); font-weight:600; font-size:0.86rem; margin-left:6px; }
+
+  .notice { padding:10px 12px; background: rgba(255,255,255,0.01); border-radius:8px; margin-bottom:1rem; color:var(--muted); font-size:0.95rem; text-align:center; }
+  .notice.error { background: rgba(255,80,80,0.04); color:#ffb6b6; }
+
+  .matchups { display:flex; flex-direction:column; gap:10px; }
+
+  .matchup-card {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background: var(--bg-card);
+    padding:12px;
+    border-radius:10px;
+    border: 1px solid rgba(255,255,255,0.03);
+    width:100%;
+    box-sizing:border-box;
+    justify-content:space-between; /* push score-block to right */
+  }
+
+  .matchup-card:hover { transform: translateY(-3px); }
+
+  .teams { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 auto; }
+  .team { display:flex; align-items:center; gap:10px; min-width:0; }
+  .team-left { justify-content:flex-start; }
+  .team-right { justify-content:flex-end; flex-direction:row-reverse; text-align:right; }
+
+  .avatar { width:56px; height:56px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
+  .avatar.placeholder { background: var(--bg-card); }
+
+  .meta { display:flex; flex-direction:column; min-width:0; }
+  .name { font-weight:800; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:18rem; }
+  .sub { color:var(--muted); font-size:0.88rem; margin-top:4px; }
+
+  .vs { color:var(--muted); font-weight:800; padding:0 0.4rem; }
+
+  /* Score block forced to right */
+  .score-block { display:flex; flex-direction:column; align-items:flex-end; min-width:96px; margin-left:12px; flex-shrink:0; }
+  .score { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+  .score-num { font-weight:900; font-size:1.12rem; color:var(--nav-text); min-width:36px; text-align:right; }
+  .score-divider { color:var(--muted); }
+  .score-label { font-size:0.72rem; color:var(--muted); font-weight:700; margin-top:4px; }
+
+  /* Responsive: collapse avatars and keep score readable */
+  @media (max-width: 900px) {
+    .avatar { width:48px; height:48px; }
+    .name { max-width:12rem; font-size:0.98rem; }
+    .score-block { min-width:82px; }
+  }
+
+  @media (max-width: 560px) {
+    .header { flex-direction:column; align-items:flex-start; gap:0.6rem; }
+    .teams { gap:8px; }
+    .matchup-card { gap:8px; padding:10px; align-items:flex-start; }
+    .team-right { text-align:left; flex-direction:row; } /* stack right team under left on very small screens */
+    .vs { display:none; }
+    .meta .name { white-space:normal; max-width:100%; }
+    .score-block { align-self:flex-start; margin-left:0; margin-top:6px; }
+  }
+
+  /* accessibility helper */
+  .visually-hidden {
+    position:absolute !important;
+    height:1px; width:1px;
+    overflow:hidden;
+    clip:rect(1px,1px,1px,1px);
+    white-space:nowrap;
+    border:0;
+    padding:0;
+    margin:-1px;
+  }
+</style>
