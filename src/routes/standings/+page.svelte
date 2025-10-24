@@ -36,20 +36,17 @@
 
   // reactive seasonsResults / selectedSeasonResult
   $: seasonsResults = (data && data.seasonsResults && Array.isArray(data.seasonsResults)) ? data.seasonsResults
-      // some loaders use "seasonsResults" while others use "seasonsResults" wrapped differently;
-      // as a fallback, try data.seasonsResults, data.seasonsResultsFromServer, or construct from data.results
-      : (data && data.seasonsResults ? data.seasonsResults : (data && data.seasonsResultsFromServer ? data.seasonsResultsFromServer : (data && data.seasonsResultsRaw ? data.seasonsResultsRaw : [])));
+      : (data && data.seasonsResultsFromServer && Array.isArray(data.seasonsResultsFromServer)) ? data.seasonsResultsFromServer
+      : (data && Array.isArray(data.data) ? data.data : []); // fallback to data.data
 
-  // Many loaders use data.seasonsResults or data.seasonsResults; if none provided, try other shapes:
-  $: if ((!seasonsResults || seasonsResults.length === 0) && data && Array.isArray(data.data)) {
-    // fallback: some loaders put season results in data.data
-    seasonsResults = data.data;
+  // If still empty and loader returned a single data object, normalize:
+  $: if ((!seasonsResults || seasonsResults.length === 0) && data && data.seasonsResultsRaw && Array.isArray(data.seasonsResultsRaw)) {
+    seasonsResults = data.seasonsResultsRaw;
   }
 
   $: selectedSeasonResult = (() => {
     if (!seasonsResults || seasonsResults.length === 0) return null;
 
-    // if selectedSeasonId is 'all' or falsy, pick the last (most recent) seasonsResults
     if (!selectedSeasonId || selectedSeasonId === 'all') {
       return seasonsResults[seasonsResults.length - 1];
     }
@@ -60,7 +57,7 @@
     found = seasonsResults.find(r => String(r.leagueId) === String(selectedSeasonId));
     if (found) return found;
 
-    // some loaders provide nested "data" array (e.g. data.data[0])
+    // try nested shapes
     for (const r of seasonsResults) {
       if (r && r.data && Array.isArray(r.data)) {
         const f2 = r.data.find(x => (x.season != null && String(x.season) === String(selectedSeasonId)) || String(x.leagueId) === String(selectedSeasonId));
@@ -68,7 +65,6 @@
       }
     }
 
-    // fallback to first available
     return seasonsResults[0];
   })();
 
@@ -85,6 +81,36 @@
     seasonForm && seasonForm.submit && seasonForm.submit();
   }
 
+  // helper to display W-L-T string
+  function wlString(row) {
+    const w = Number(row.wins ?? 0);
+    const l = Number(row.losses ?? 0);
+    const t = Number(row.ties ?? 0);
+    return `${w}-${l}${t ? '-' + t : ''}`;
+  }
+
+  // Sorting helpers: wins desc -> pf desc -> win_pct desc -> team name asc
+  function sortByWinsPf(a, b) {
+    const wa = Number(a.wins ?? 0), wb = Number(b.wins ?? 0);
+    if (wb !== wa) return wb - wa;
+    const pfa = Number(a.pf ?? 0), pfb = Number(b.pf ?? 0);
+    if (pfb !== pfa) return pfb - pfa;
+    const pa = Number(a.win_pct ?? (a.winPct ?? 0)), pb = Number(b.win_pct ?? (b.winPct ?? 0));
+    if (!isNaN(pb) && !isNaN(pa) && pb !== pa) return pb - pa;
+    const na = (a.team_name || a.name || '').toString().toLowerCase();
+    const nb = (b.team_name || b.name || '').toString().toLowerCase();
+    if (na < nb) return -1;
+    if (na > nb) return 1;
+    return 0;
+  }
+
+  // Sorted regular standings (apply tie-breaker PF)
+  $: sortedRegularStandings = (selectedSeasonResult && Array.isArray(selectedSeasonResult.regularStandings))
+    ? [...selectedSeasonResult.regularStandings].sort(sortByWinsPf)
+    : (selectedSeasonResult && Array.isArray(selectedSeasonResult.standings))
+      ? [...selectedSeasonResult.standings].sort(sortByWinsPf)
+      : [];
+
   // Build playoff display: champion(s) first, then others sorted by wins -> pf
   $: playoffDisplay = (() => {
     if (!selectedSeasonResult) return [];
@@ -98,14 +124,10 @@
     const others = raw.filter(r => r.champion !== true);
 
     // sort champions by pf desc (if multiple)
-    champs.sort((a,b) => (b.pf || 0) - (a.pf || 0));
+    champs.sort((a,b) => (Number(b.pf || 0) - Number(a.pf || 0)));
 
     // sort others by wins desc then pf desc
-    others.sort((a,b) => {
-      const wa = Number(a.wins || 0), wb = Number(b.wins || 0);
-      if (wb !== wa) return wb - wa;
-      return (b.pf || 0) - (a.pf || 0);
-    });
+    others.sort(sortByWinsPf);
 
     return [...champs, ...others];
   })();
@@ -241,6 +263,10 @@
     box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
   }
 
+  /* small tweaks to make the table easier to read */
+  .team-meta { min-width:0; }
+  .team-name { max-width: 420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
   /* Responsive adjustments */
   @media (max-width: 900px) {
     .avatar { width:48px; height:48px; }
@@ -315,10 +341,10 @@
         <div id="regular-title" class="section-title">Regular Season</div>
         <div class="section-sub">Weeks 1 → playoff start - 1</div>
       </div>
-      <div class="small-muted">Sorted by Wins → PF</div>
+      <div class="small-muted">Sorted by Wins (tiebreaker: Points For)</div>
     </div>
 
-    {#if selectedSeasonResult && selectedSeasonResult.regularStandings && selectedSeasonResult.regularStandings.length}
+    {#if sortedRegularStandings && sortedRegularStandings.length}
       <table class="tbl" role="table" aria-label="Regular season standings">
         <thead>
           <tr>
@@ -332,7 +358,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each selectedSeasonResult.regularStandings as row}
+          {#each sortedRegularStandings as row}
             <tr>
               <td>
                 <div class="team-row">
@@ -344,16 +370,11 @@
                     </div>
                   </div>
 
-                  <!-- desktop stats cluster; on mobile these will appear as pills -->
+                  <!-- record + win% only (removed duplicate PF here) -->
                   <div class="col-numeric" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
-                    {#if row.wins != null || row.losses != null}
-                      <div class="stat-pill" title="W-L">{(row.wins != null || row.losses != null) ? `${row.wins ?? 0}-${row.losses ?? 0}${row.ties ? '-' + row.ties : ''}` : '-'}</div>
-                    {/if}
+                    <div class="stat-pill" title="W-L">{wlString(row)}</div>
                     {#if row.win_pct != null}
                       <div class="stat-pill" title="Win %">{(typeof row.win_pct === 'number') ? row.win_pct.toFixed(3) : row.win_pct}</div>
-                    {/if}
-                    {#if row.pf != null}
-                      <div class="stat-pill" title="Points For">{row.pf}</div>
                     {/if}
                   </div>
                 </div>
@@ -380,10 +401,10 @@
         <div id="playoff-title" class="section-title">Playoffs</div>
         <div class="section-sub">Playoff window only</div>
       </div>
-      <div class="small-muted">Champion(s) pinned to top</div>
+      <div class="small-muted">Champion(s) pinned to top — tie-breaker PF</div>
     </div>
 
-    {#if selectedSeasonResult && ( (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length) || (selectedSeasonResult.standings && selectedSeasonResult.standings.length) )}
+    {#if playoffDisplay && playoffDisplay.length}
       <table class="tbl" role="table" aria-label="Playoff standings">
         <thead>
           <tr>
@@ -415,11 +436,9 @@
                   </div>
 
                   <div class="col-numeric" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
-                    {#if row.wins != null || row.losses != null}
-                      <div class="stat-pill" title="W-L">{(row.wins != null || row.losses != null) ? `${row.wins ?? 0}-${row.losses ?? 0}${row.ties ? '-' + row.ties : ''}` : '-'}</div>
-                    {/if}
-                    {#if row.pf != null}
-                      <div class="stat-pill" title="Points For">{row.pf}</div>
+                    <div class="stat-pill" title="W-L">{wlString(row)}</div>
+                    {#if row.win_pct != null}
+                      <div class="stat-pill" title="Win %">{(typeof row.win_pct === 'number') ? row.win_pct.toFixed(3) : row.win_pct}</div>
                     {/if}
                   </div>
                 </div>
