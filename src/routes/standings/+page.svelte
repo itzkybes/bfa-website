@@ -10,8 +10,8 @@
   function dismissDebug() { showDebug = false; }
 
   // helper
-  function avatarOrPlaceholder(url, name, size = 56) {
-    return url || `https://via.placeholder.com/${size}?text=${encodeURIComponent(name ? name[0] : 'T')}`;
+  function avatarOrPlaceholder(url, name) {
+    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
   }
 
   // seasons list from server
@@ -35,37 +35,25 @@
   })();
 
   // reactive seasonsResults / selectedSeasonResult
-  $: seasonsResults = (data && data.seasonsResults && Array.isArray(data.seasonsResults)) ? data.seasonsResults
-      : (data && data.seasonsResultsFromServer && Array.isArray(data.seasonsResultsFromServer)) ? data.seasonsResultsFromServer
-      : (data && Array.isArray(data.data) ? data.data : []); // fallback to data.data
-
-  // If still empty and loader returned a single data object, normalize:
-  $: if ((!seasonsResults || seasonsResults.length === 0) && data && data.seasonsResultsRaw && Array.isArray(data.seasonsResultsRaw)) {
-    seasonsResults = data.seasonsResultsRaw;
-  }
+  $: seasonsResults = (data && data.seasonsResults && Array.isArray(data.seasonsResults)) ? data.seasonsResults : [];
 
   $: selectedSeasonResult = (() => {
     if (!seasonsResults || seasonsResults.length === 0) return null;
-
     if (!selectedSeasonId || selectedSeasonId === 'all') {
-      return seasonsResults[seasonsResults.length - 1];
-    }
-
-    // prefer matching by season value (year), then leagueId
-    let found = seasonsResults.find(r => r.season != null && String(r.season) === String(selectedSeasonId));
-    if (found) return found;
-    found = seasonsResults.find(r => String(r.leagueId) === String(selectedSeasonId));
-    if (found) return found;
-
-    // try nested shapes
-    for (const r of seasonsResults) {
-      if (r && r.data && Array.isArray(r.data)) {
-        const f2 = r.data.find(x => (x.season != null && String(x.season) === String(selectedSeasonId)) || String(x.leagueId) === String(selectedSeasonId));
-        if (f2) return f2;
+      if (seasons && seasons.length) {
+        const last = seasons[seasons.length - 1];
+        return seasonsResults.find(r => String(r.leagueId) === String(last.league_id)) || seasonsResults[seasonsResults.length - 1];
       }
+      return seasonsResults[seasonsResults.length - 1];
+    } else {
+      // prefer matching by season value (year), then leagueId
+      let found = seasonsResults.find(r => r.season != null && String(r.season) === String(selectedSeasonId));
+      if (found) return found;
+      found = seasonsResults.find(r => String(r.leagueId) === String(selectedSeasonId));
+      if (found) return found;
+      // fallback
+      return seasonsResults[0];
     }
-
-    return seasonsResults[0];
   })();
 
   function seasonLabel(s) {
@@ -81,36 +69,6 @@
     seasonForm && seasonForm.submit && seasonForm.submit();
   }
 
-  // helper to display W-L-T string
-  function wlString(row) {
-    const w = Number(row.wins ?? 0);
-    const l = Number(row.losses ?? 0);
-    const t = Number(row.ties ?? 0);
-    return `${w}-${l}${t ? '-' + t : ''}`;
-  }
-
-  // Sorting helpers: wins desc -> pf desc -> win_pct desc -> team name asc
-  function sortByWinsPf(a, b) {
-    const wa = Number(a.wins ?? 0), wb = Number(b.wins ?? 0);
-    if (wb !== wa) return wb - wa;
-    const pfa = Number(a.pf ?? 0), pfb = Number(b.pf ?? 0);
-    if (pfb !== pfa) return pfb - pfa;
-    const pa = Number(a.win_pct ?? (a.winPct ?? 0)), pb = Number(b.win_pct ?? (b.winPct ?? 0));
-    if (!isNaN(pb) && !isNaN(pa) && pb !== pa) return pb - pa;
-    const na = (a.team_name || a.name || '').toString().toLowerCase();
-    const nb = (b.team_name || b.name || '').toString().toLowerCase();
-    if (na < nb) return -1;
-    if (na > nb) return 1;
-    return 0;
-  }
-
-  // Sorted regular standings (apply tie-breaker PF)
-  $: sortedRegularStandings = (selectedSeasonResult && Array.isArray(selectedSeasonResult.regularStandings))
-    ? [...selectedSeasonResult.regularStandings].sort(sortByWinsPf)
-    : (selectedSeasonResult && Array.isArray(selectedSeasonResult.standings))
-      ? [...selectedSeasonResult.standings].sort(sortByWinsPf)
-      : [];
-
   // Build playoff display: champion(s) first, then others sorted by wins -> pf
   $: playoffDisplay = (() => {
     if (!selectedSeasonResult) return [];
@@ -124,10 +82,14 @@
     const others = raw.filter(r => r.champion !== true);
 
     // sort champions by pf desc (if multiple)
-    champs.sort((a,b) => (Number(b.pf || 0) - Number(a.pf || 0)));
+    champs.sort((a,b) => (b.pf || 0) - (a.pf || 0));
 
     // sort others by wins desc then pf desc
-    others.sort(sortByWinsPf);
+    others.sort((a,b) => {
+      const wa = Number(a.wins || 0), wb = Number(b.wins || 0);
+      if (wb !== wa) return wb - wa;
+      return (b.pf || 0) - (a.pf || 0);
+    });
 
     return [...champs, ...others];
   })();
@@ -246,71 +208,25 @@
     align-items:center;
   }
 
-  /* New .select style — matches the Matchups page styles for visual consistency */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: #e6eef8;
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
-
-  /* small tweaks to make the table easier to read */
-  .team-meta { min-width:0; }
-  .team-name { max-width: 420px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  select.season-select { padding:.45rem .6rem; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background: #fff; color: #000; }
 
   /* Responsive adjustments */
-  @media (max-width: 900px) {
-    .avatar { width:48px; height:48px; }
+  @media (max-width: 800px) {
+    .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
     .team-name { font-size: .95rem; }
     .col-hide-sm { display:none; }
-
-    /* mobile: hide headers and display rows as cards */
-    thead { display:none; }
-    tbody { display:block; }
-    tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid rgba(255,255,255,0.03); padding:10px; }
-    tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-
-    /* team row layout: avatar + name on left, stats block floats to right */
-    .team-row { align-items:center; justify-content:space-between; }
-    .team-meta { max-width: calc(100% - 140px); } /* room for stat column */
-    .col-numeric { text-align:right; display:flex; gap:8px; justify-content:flex-end; align-items:center; }
-    .stat-pill { background: rgba(255,255,255,0.01); padding:6px 10px; border-radius:8px; font-weight:700; color: #e6eef8; min-width:48px; text-align:center; }
-  }
-
-  @media (max-width:520px) {
-    .avatar { width:40px; height:40px; }
-    .team-name { font-size:0.98rem; }
-    .stat-pill { padding:5px 8px; font-size:0.95rem; }
-  }
-
-  a:focus, button:focus, select:focus {
-    outline: 3px solid rgba(0,198,216,0.12);
-    outline-offset: 2px;
-    border-radius:6px;
   }
 </style>
 
 <div class="page">
-  {#if data?.messages && data.messages.length && showDebug}
-    <div class="debug" role="status" aria-live="polite">
+  {#if data?.messages && data.messages.length}
+    <div class="debug">
       <strong>Debug</strong>
       <div style="margin-top:.35rem;">
         {#each data.messages as m, i}
           <div>{i + 1}. {m}</div>
         {/each}
-      </div>
-      <div style="margin-top:.5rem;">
-        <button on:click={dismissDebug} class="select" style="background:transparent; border:1px solid rgba(255,255,255,0.03); color:var(--muted);">Dismiss</button>
       </div>
     </div>
   {/if}
@@ -321,10 +237,9 @@
     <div class="controls" aria-hidden="false">
       <form method="get" bind:this={seasonForm} style="display:flex; gap:.5rem; align-items:center;">
         <label for="season-select" class="small-muted" aria-hidden="true">Season</label>
-        <select id="season-select" name="season" class="select" bind:value={selectedSeasonId} on:change={submitForm} aria-label="Select season">
-          {#each seasons as s}
-            <!-- show only numeric seasons if available, but include league_id fallback -->
-            <option value={s.season != null ? s.season : s.league_id} selected={String(s.season != null ? s.season : s.league_id) === String(selectedSeasonId)}>{seasonLabel(s)}</option>
+        <select id="season-select" name="season" class="season-select" bind:value={selectedSeasonId} on:change={submitForm}>
+          {#each seasons.filter(s => s.season != null) as s}
+            <option value={s.season}>{seasonLabel(s)}</option>
           {/each}
         </select>
       </form>
@@ -341,10 +256,10 @@
         <div id="regular-title" class="section-title">Regular Season</div>
         <div class="section-sub">Weeks 1 → playoff start - 1</div>
       </div>
-      <div class="small-muted">Sorted by Wins (tiebreaker: Points For)</div>
+      <div class="small-muted">Sorted by Wins → PF</div>
     </div>
 
-    {#if sortedRegularStandings && sortedRegularStandings.length}
+    {#if selectedSeasonResult && selectedSeasonResult.regularStandings && selectedSeasonResult.regularStandings.length}
       <table class="tbl" role="table" aria-label="Regular season standings">
         <thead>
           <tr>
@@ -358,34 +273,25 @@
           </tr>
         </thead>
         <tbody>
-          {#each sortedRegularStandings as row}
+          {#each selectedSeasonResult.regularStandings as row}
             <tr>
               <td>
                 <div class="team-row">
-                  <div style="display:flex; align-items:center; gap:.6rem; min-width:0;">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatar || row.team_avatar || row.owner_avatar, row.team_name)} alt={row.team_name || row.name} />
-                    <div class="team-meta">
-                      <div class="team-name">{row.team_name ?? row.name ?? row.owner ?? (`Roster ${row.roster_id ?? ''}`)}</div>
-                      {#if row.owner_name || row.owner} <div class="owner">{row.owner_name ?? row.owner}</div> {/if}
-                    </div>
-                  </div>
-
-                  <!-- record + win% only (removed duplicate PF here) -->
-                  <div class="col-numeric" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
-                    <div class="stat-pill" title="W-L">{wlString(row)}</div>
-                    {#if row.win_pct != null}
-                      <div class="stat-pill" title="Win %">{(typeof row.win_pct === 'number') ? row.win_pct.toFixed(3) : row.win_pct}</div>
+                  <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                  <div>
+                    <div class="team-name">{row.team_name}</div>
+                    {#if row.owner_name}
+                      <div class="owner">{row.owner_name}</div>
                     {/if}
                   </div>
                 </div>
               </td>
-
-              <td class="col-numeric">{row.wins ?? '-'}</td>
-              <td class="col-numeric">{row.losses ?? '-'}</td>
-              <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '-')}</td>
-              <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '-')}</td>
-              <td class="col-numeric col-hide-sm">{row.pf ?? '-'}</td>
-              <td class="col-numeric col-hide-sm">{row.pa ?? '-'}</td>
+              <td class="col-numeric">{row.wins}</td>
+              <td class="col-numeric">{row.losses}</td>
+              <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '')}</td>
+              <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '')}</td>
+              <td class="col-numeric col-hide-sm">{row.pf}</td>
+              <td class="col-numeric col-hide-sm">{row.pa}</td>
             </tr>
           {/each}
         </tbody>
@@ -401,10 +307,10 @@
         <div id="playoff-title" class="section-title">Playoffs</div>
         <div class="section-sub">Playoff window only</div>
       </div>
-      <div class="small-muted">Champion(s) pinned to top — tie-breaker PF</div>
+      <div class="small-muted">Champion(s) pinned to top</div>
     </div>
 
-    {#if playoffDisplay && playoffDisplay.length}
+    {#if selectedSeasonResult && ( (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length) || (selectedSeasonResult.standings && selectedSeasonResult.standings.length) )}
       <table class="tbl" role="table" aria-label="Playoff standings">
         <thead>
           <tr>
@@ -420,34 +326,24 @@
             <tr aria-current={row.champion === true ? 'true' : undefined}>
               <td>
                 <div class="team-row">
-                  <div style="display:flex; align-items:center; gap:.6rem; min-width:0;">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatar || row.team_avatar || row.owner_avatar, row.team_name)} alt={row.team_name || row.name} />
-                    <div>
-                      <div class="team-name">
-                        <span>{row.team_name ?? row.name}</span>
-                        {#if row.champion === true}
-                          <span class="trophies" title="Champion">🏆</span>
-                        {/if}
-                      </div>
-                      {#if row.owner_name || row.owner}
-                        <div class="owner">{row.owner_name ?? row.owner}</div>
+                  <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                  <div>
+                    <div class="team-name">
+                      <span>{row.team_name}</span>
+                      {#if row.champion === true}
+                        <span class="trophies" title="Champion">🏆</span>
                       {/if}
                     </div>
-                  </div>
-
-                  <div class="col-numeric" style="display:flex; gap:8px; align-items:center; justify-content:flex-end;">
-                    <div class="stat-pill" title="W-L">{wlString(row)}</div>
-                    {#if row.win_pct != null}
-                      <div class="stat-pill" title="Win %">{(typeof row.win_pct === 'number') ? row.win_pct.toFixed(3) : row.win_pct}</div>
+                    {#if row.owner_name}
+                      <div class="owner">{row.owner_name}</div>
                     {/if}
                   </div>
                 </div>
               </td>
-
-              <td class="col-numeric">{row.wins ?? '-'}</td>
-              <td class="col-numeric">{row.losses ?? '-'}</td>
-              <td class="col-numeric col-hide-sm">{row.pf ?? '-'}</td>
-              <td class="col-numeric col-hide-sm">{row.pa ?? '-'}</td>
+              <td class="col-numeric">{row.wins}</td>
+              <td class="col-numeric">{row.losses}</td>
+              <td class="col-numeric col-hide-sm">{row.pf}</td>
+              <td class="col-numeric col-hide-sm">{row.pa}</td>
             </tr>
           {/each}
         </tbody>
