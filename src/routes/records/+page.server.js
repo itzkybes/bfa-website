@@ -214,7 +214,7 @@ export async function load(event) {
   const topPlayerCandidates = [];
   const allMatchMarginCandidates = [];
 
-  // head-to-head raw at roster level: headToHeadRaw[A][B] = { regWins, regLosses, regTies, regPF, regPA, playWins,... }
+  // head-to-head raw at roster level: headToHeadRaw[A][B] = { regWins, regLosses:..., playWins:... }
   const headToHeadRaw = {};
 
   // process each season
@@ -266,15 +266,26 @@ export async function load(event) {
       if (earlySeasonData) messages.push(`early overrides present for season ${seasonEntry.season}`);
 
       // helper to match early override candidate to a roster meta
-      function matchEarlyCandidateToMeta(candidate, meta) {
+      function matchEarlyCandidateToMeta(candidate, meta, sleeperEntry) {
         if (!candidate || !meta) return false;
         const candOwner = candidate.ownerName ? String(candidate.ownerName).toLowerCase() : null;
         const candTeam = candidate.name ? String(candidate.name).toLowerCase() : null;
         const metaOwnerUser = meta.owner_username ? String(meta.owner_username).toLowerCase() : null;
         const metaOwnerName = meta.owner_name ? String(meta.owner_name).toLowerCase() : null;
         const metaTeamName = meta.team_name ? String(meta.team_name).toLowerCase() : null;
+
+        // check owner username or owner display name or team name
         if (candOwner && (metaOwnerUser === candOwner || metaOwnerName === candOwner)) return true;
         if (candTeam && metaTeamName === candTeam) return true;
+
+        // also try matching against sleeperEntry raw fields if provided (some responses include team or owner fields)
+        if (sleeperEntry && typeof sleeperEntry === 'object') {
+          const seTeamName = (sleeperEntry.team_name || sleeperEntry.team || sleeperEntry.owner_name || '').toString().toLowerCase();
+          if (candTeam && seTeamName && seTeamName === candTeam) return true;
+          const seOwner = (sleeperEntry.owner_username || sleeperEntry.ownerName || '').toString().toLowerCase();
+          if (candOwner && seOwner && seOwner === candOwner) return true;
+        }
+
         return false;
       }
 
@@ -283,6 +294,35 @@ export async function load(event) {
         let matchups = null;
         try { matchups = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 }); } catch (mwErr) { continue; }
         if (!matchups || !matchups.length) continue;
+
+        // Skip counting a week when the *next* week shows un-played zero scores (indicates in-progress)
+        // Except: if week is the final playoff week (playoffEnd) ignore this check (we want to include final playoff week).
+        try {
+          const nextWeek = week + 1;
+          if (nextWeek && nextWeek <= MAX_WEEKS && week !== playoffEnd) {
+            let nextMatchups = null;
+            try { nextMatchups = await sleeper.getMatchupsForWeek(leagueId, nextWeek, { ttl: 60 * 5 }); } catch (nxErr) { nextMatchups = null; }
+            if (Array.isArray(nextMatchups) && nextMatchups.length) {
+              // if any participant in next week's matchups has a strictly zero score -> week in-progress -> skip current week
+              let foundZero = false;
+              for (let nm = 0; nm < nextMatchups.length && !foundZero; nm++) {
+                const nEntry = nextMatchups[nm];
+                const nPts = safeNum(nEntry.points ?? nEntry.points_for ?? nEntry.pts ?? 0);
+                // treat strict zero as un-played indicator
+                if (nPts === 0) {
+                  foundZero = true;
+                  break;
+                }
+              }
+              if (foundZero) {
+                messages.push(`Skipping week ${week} for league ${leagueId} because next week ${nextWeek} appears in-progress (zero scores found).`);
+                continue;
+              }
+            }
+          }
+        } catch (skipErr) {
+          // don't block processing on this check; continue to process week if something odd happened
+        }
 
         const isReg = (week >= 1 && week < playoffStart);
         const isPlay = (week >= playoffStart && week <= playoffEnd);
@@ -329,7 +369,7 @@ export async function load(event) {
             let ppts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0);
 
             // attempt to override points with early JSON when available & matches
-            if (earlySeasonData && earlySeasonData[String(week)] && Array.isArray(earlySeasonData[String(week)])) {
+            if (earlySeasonData && (Number(seasonEntry.season) === 2023) && earlySeasonData[String(week)] && Array.isArray(earlySeasonData[String(week)])) {
               const earlyWeekArr = earlySeasonData[String(week)];
               let matched = false;
               // metadata for roster (to compare with early JSON team/owner)
@@ -337,16 +377,17 @@ export async function load(event) {
               for (let ei = 0; ei < earlyWeekArr.length && !matched; ei++) {
                 const earlyMatch = earlyWeekArr[ei];
                 if (!earlyMatch) continue;
-                const candA = earlyMatch.teamA ? { name: earlyMatch.teamA.name, ownerName: earlyMatch.teamA.ownerName, score: earlyMatch.teamAScore } : null;
-                const candB = earlyMatch.teamB ? { name: earlyMatch.teamB.name, ownerName: earlyMatch.teamB.ownerName, score: earlyMatch.teamBScore } : null;
-                if (candA && matchEarlyCandidateToMeta(candA, meta)) { ppts = safeNum(candA.score); matched = true; break; }
-                if (candB && matchEarlyCandidateToMeta(candB, meta)) { ppts = safeNum(candB.score); matched = true; break; }
-                // also attempt matching by team name against Sleeper entry team name (if it's present in ent)
-                // (the above uses rosterMap metadata which is better)
+                const candA = earlyMatch.teamA ? { name: (earlyMatch.teamA.name ?? earlyMatch.teamA.team ?? null), ownerName: (earlyMatch.teamA.ownerName ?? earlyMatch.teamA.owner_name ?? null), score: (earlyMatch.teamAScore ?? earlyMatch.teamA.score ?? null) } : null;
+                const candB = earlyMatch.teamB ? { name: (earlyMatch.teamB.name ?? earlyMatch.teamB.team ?? null), ownerName: (earlyMatch.teamB.ownerName ?? earlyMatch.teamB.owner_name ?? null), score: (earlyMatch.teamBScore ?? earlyMatch.teamB.score ?? null) } : null;
+                if (candA && matchEarlyCandidateToMeta(candA, meta, ent)) {
+                  if (candA.score != null) { ppts = safeNum(candA.score); matched = true; break; }
+                }
+                if (candB && matchEarlyCandidateToMeta(candB, meta, ent)) {
+                  if (candB.score != null) { ppts = safeNum(candB.score); matched = true; break; }
+                }
               }
               if (matched) {
-                // note for debug
-                // (do not spam messages for every match - only top-level season message above)
+                // for debugging we won't spam messages here; season-level message already added above
               }
             }
 
