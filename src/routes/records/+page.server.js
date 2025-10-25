@@ -120,14 +120,149 @@ function extractPlayerPointsMap(participant) {
   return map;
 }
 
+/**
+ * Try to load static/early2023.json and build a flexible map:
+ * earlyMap[season][week] = { byRosterId: {rid->score}, byOwnerUser: {owner->score}, byOwnerName: {...}, byTeamName: {...} }
+ */
 async function tryLoadEarly2023JSON(messages) {
-  // attempt to load static/early2023.json from project static folder
   try {
     const p = path.join(process.cwd(), 'static', 'early2023.json');
     const raw = await fs.readFile(p, 'utf8');
     const parsed = JSON.parse(raw);
     messages.push('Loaded early2023.json from ' + p);
-    return parsed;
+
+    const result = {}; // season -> week -> maps
+    // parsed could be { "2023": {...} } or a top-level array - be flexible
+    const seasonsToProcess = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : { '2023': parsed };
+
+    for (const seasonKeyRaw in seasonsToProcess) {
+      if (!Object.prototype.hasOwnProperty.call(seasonsToProcess, seasonKeyRaw)) continue;
+      const seasonKey = String(seasonKeyRaw);
+      const seasonObj = seasonsToProcess[seasonKeyRaw];
+      if (!seasonObj) continue;
+
+      result[seasonKey] = result[seasonKey] || {};
+
+      // seasonObj might have numeric week keys, or an array of matches
+      // If seasonObj is array, assume week is embedded in each item or it corresponds to week 1..n in order.
+      if (Array.isArray(seasonObj)) {
+        // try to infer week from each item if present, else place them in week 1 (fallback)
+        for (const item of seasonObj) {
+          const weekNum = item.week ?? item.w ?? 1;
+          result[seasonKey][String(weekNum)] = result[seasonKey][String(weekNum)] || { byRosterId:{}, byOwnerUser:{}, byOwnerName:{}, byTeamName:{} };
+          // interpret item: it could be a match with teamA/teamB and score fields, or per-team object
+          if (item.teamA || item.teamB) {
+            const a = item.teamA ?? item.A ?? item.team_a ?? null;
+            const b = item.teamB ?? item.B ?? item.team_b ?? null;
+            const aScore = item.teamAScore ?? item.teamA_score ?? item.scoreA ?? item.team_a_score ?? (a && a.score) ?? null;
+            const bScore = item.teamBScore ?? item.teamB_score ?? item.scoreB ?? item.team_b_score ?? (b && b.score) ?? null;
+            if (a) {
+              const ownerUser = (a.ownerUsername ?? a.owner_username ?? a.owner ?? a.ownerName ?? a.owner_name) || null;
+              const ownerName = (a.ownerName ?? a.owner_name ?? a.owner ?? null) || null;
+              const teamName = (a.name ?? a.team ?? a.teamName ?? null) || null;
+              if (a.rosterId || a.roster_id) result[seasonKey][String(weekNum)].byRosterId[String(a.rosterId ?? a.roster_id)] = safeNum(aScore);
+              if (ownerUser) result[seasonKey][String(weekNum)].byOwnerUser[String(ownerUser).toLowerCase()] = safeNum(aScore);
+              if (ownerName) result[seasonKey][String(weekNum)].byOwnerName[String(ownerName).toLowerCase()] = safeNum(aScore);
+              if (teamName) result[seasonKey][String(weekNum)].byTeamName[String(teamName).toLowerCase()] = safeNum(aScore);
+            }
+            if (b) {
+              const ownerUser = (b.ownerUsername ?? b.owner_username ?? b.owner ?? b.ownerName ?? b.owner_name) || null;
+              const ownerName = (b.ownerName ?? b.owner_name ?? b.owner ?? null) || null;
+              const teamName = (b.name ?? b.team ?? b.teamName ?? null) || null;
+              if (b.rosterId || b.roster_id) result[seasonKey][String(weekNum)].byRosterId[String(b.rosterId ?? b.roster_id)] = safeNum(bScore);
+              if (ownerUser) result[seasonKey][String(weekNum)].byOwnerUser[String(ownerUser).toLowerCase()] = safeNum(bScore);
+              if (ownerName) result[seasonKey][String(weekNum)].byOwnerName[String(ownerName).toLowerCase()] = safeNum(bScore);
+              if (teamName) result[seasonKey][String(weekNum)].byTeamName[String(teamName).toLowerCase()] = safeNum(bScore);
+            }
+          } else if (item.rosterId || item.roster_id || item.ownerUsername || item.owner_username || item.name || item.team) {
+            // per-team entry
+            const rid = item.rosterId ?? item.roster_id ?? null;
+            const ownerUser = item.ownerUsername ?? item.owner_username ?? item.owner ?? null;
+            const ownerName = item.ownerName ?? item.owner_name ?? null;
+            const teamName = item.name ?? item.team ?? null;
+            const score = item.score ?? item.points ?? item.points_for ?? null;
+            if (rid) result[seasonKey][String(weekNum)].byRosterId[String(rid)] = safeNum(score);
+            if (ownerUser) result[seasonKey][String(weekNum)].byOwnerUser[String(ownerUser).toLowerCase()] = safeNum(score);
+            if (ownerName) result[seasonKey][String(weekNum)].byOwnerName[String(ownerName).toLowerCase()] = safeNum(score);
+            if (teamName) result[seasonKey][String(weekNum)].byTeamName[String(teamName).toLowerCase()] = safeNum(score);
+          } else if (typeof item === 'object') {
+            // generic object - try to extract any keys that look like roster/owner/team and a score
+            const candidates = Object.values(item);
+            // nothing more we can do reliably here
+          }
+        }
+      } else if (typeof seasonObj === 'object') {
+        // seasonObj probably has week keys like "1": [...], "2": {...}
+        for (const wkKeyRaw in seasonObj) {
+          if (!Object.prototype.hasOwnProperty.call(seasonObj, wkKeyRaw)) continue;
+          const wk = String(wkKeyRaw);
+          const wkVal = seasonObj[wkKeyRaw];
+          result[seasonKey][wk] = result[seasonKey][wk] || { byRosterId:{}, byOwnerUser:{}, byOwnerName:{}, byTeamName:{} };
+
+          if (Array.isArray(wkVal)) {
+            // similar handling as above
+            for (const item of wkVal) {
+              if (!item) continue;
+              if (item.teamA || item.teamB) {
+                const a = item.teamA ?? item.A ?? item.team_a ?? null;
+                const b = item.teamB ?? item.B ?? item.team_b ?? null;
+                const aScore = item.teamAScore ?? item.teamA_score ?? item.scoreA ?? item.team_a_score ?? (a && a.score) ?? null;
+                const bScore = item.teamBScore ?? item.teamB_score ?? item.scoreB ?? item.team_b_score ?? (b && b.score) ?? null;
+                if (a) {
+                  const ownerUser = (a.ownerUsername ?? a.owner_username ?? a.owner ?? a.ownerName ?? a.owner_name) || null;
+                  const ownerName = (a.ownerName ?? a.owner_name ?? a.owner ?? null) || null;
+                  const teamName = (a.name ?? a.team ?? a.teamName ?? null) || null;
+                  if (a.rosterId || a.roster_id) result[seasonKey][wk].byRosterId[String(a.rosterId ?? a.roster_id)] = safeNum(aScore);
+                  if (ownerUser) result[seasonKey][wk].byOwnerUser[String(ownerUser).toLowerCase()] = safeNum(aScore);
+                  if (ownerName) result[seasonKey][wk].byOwnerName[String(ownerName).toLowerCase()] = safeNum(aScore);
+                  if (teamName) result[seasonKey][wk].byTeamName[String(teamName).toLowerCase()] = safeNum(aScore);
+                }
+                if (b) {
+                  const ownerUser = (b.ownerUsername ?? b.owner_username ?? b.owner ?? b.ownerName ?? b.owner_name) || null;
+                  const ownerName = (b.ownerName ?? b.owner_name ?? b.owner ?? null) || null;
+                  const teamName = (b.name ?? b.team ?? b.teamName ?? null) || null;
+                  if (b.rosterId || b.roster_id) result[seasonKey][wk].byRosterId[String(b.rosterId ?? b.roster_id)] = safeNum(bScore);
+                  if (ownerUser) result[seasonKey][wk].byOwnerUser[String(ownerUser).toLowerCase()] = safeNum(bScore);
+                  if (ownerName) result[seasonKey][wk].byOwnerName[String(ownerName).toLowerCase()] = safeNum(bScore);
+                  if (teamName) result[seasonKey][wk].byTeamName[String(teamName).toLowerCase()] = safeNum(bScore);
+                }
+                continue;
+              }
+
+              // per-team object
+              const rid = item.rosterId ?? item.roster_id ?? null;
+              const ownerUser = item.ownerUsername ?? item.owner_username ?? item.owner ?? null;
+              const ownerName = item.ownerName ?? item.owner_name ?? null;
+              const teamName = item.name ?? item.team ?? null;
+              const score = item.score ?? item.points ?? item.points_for ?? null;
+              if (rid) result[seasonKey][wk].byRosterId[String(rid)] = safeNum(score);
+              if (ownerUser) result[seasonKey][wk].byOwnerUser[String(ownerUser).toLowerCase()] = safeNum(score);
+              if (ownerName) result[seasonKey][wk].byOwnerName[String(ownerName).toLowerCase()] = safeNum(score);
+              if (teamName) result[seasonKey][wk].byTeamName[String(teamName).toLowerCase()] = safeNum(score);
+            }
+          } else if (typeof wkVal === 'object') {
+            // wkVal might be a mapping from rosterId/owner -> score
+            for (const subKey in wkVal) {
+              if (!Object.prototype.hasOwnProperty.call(wkVal, subKey)) continue;
+              const v = wkVal[subKey];
+              const maybeScore = (v && (v.score ?? v.points ?? v.points_for)) ?? v;
+              // subKey might be numeric roster id or owner username
+              const subKeyStr = String(subKey).toLowerCase();
+              if (/^\d+$/.test(subKeyStr)) {
+                result[seasonKey][wk].byRosterId[subKeyStr] = safeNum(maybeScore);
+              } else {
+                // put in ownerUser and ownerName and teamName as possible
+                result[seasonKey][wk].byOwnerUser[subKeyStr] = safeNum(maybeScore);
+                result[seasonKey][wk].byOwnerName[subKeyStr] = safeNum(maybeScore);
+                result[seasonKey][wk].byTeamName[subKeyStr] = safeNum(maybeScore);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return result;
   } catch (e) {
     // fallback: no file or parse error
     messages.push('Could not load early2023.json: ' + (e?.message ?? String(e)));
@@ -142,9 +277,8 @@ export async function load(event) {
   const messages = [];
 
   // attempt to load early overrides (weeks 1-3 of 2023)
-  const earlyData = await tryLoadEarly2023JSON(messages);
-  // will collect applied override records for debugging
-  const overridesApplied = [];
+  const earlyDataMap = await tryLoadEarly2023JSON(messages);
+  // earlyDataMap shape: { "2023": { "1": {byRosterId:..., byOwnerUser:..., ...}, "2": {...} }, ... }
 
   // load players dataset for names
   let playersMap = {};
@@ -219,124 +353,8 @@ export async function load(event) {
   // head-to-head raw at roster level: headToHeadRaw[A][B] = { regWins, regLosses, regTies, regPF, regPA, playWins,... }
   const headToHeadRaw = {};
 
-  // A robust helper to find an override score for a given participant entry (returns null if none)
-  function findOverrideForParticipant(earlyWeekArr, ent, meta, pid) {
-    if (!earlyWeekArr || !Array.isArray(earlyWeekArr) || earlyWeekArr.length === 0) return null;
-
-    const normalizedPid = String(pid);
-    const metaOwnerUser = (meta && meta.owner_username) ? String(meta.owner_username).toLowerCase() : null;
-    const metaOwnerName = (meta && meta.owner_name) ? String(meta.owner_name).toLowerCase() : null;
-    const metaTeamName = (meta && meta.team_name) ? String(meta.team_name).toLowerCase() : null;
-
-    // Accept many shapes in early JSON:
-    // - array of objects where each object corresponds to a team (has rosterId / roster_id / owner / ownerName / team / name / score)
-    // - array of matchup objects where each has teamA/teamB with nested info
-    // - array of objects where keys might differ; be permissive
-    for (let i = 0; i < earlyWeekArr.length; i++) {
-      const e = earlyWeekArr[i];
-      if (!e || typeof e !== 'object') continue;
-
-      // 1) direct roster id match
-      const candRoster = (e.rosterId ?? e.roster_id ?? e.roster) ?? null;
-      if (candRoster != null && String(candRoster) === normalizedPid) {
-        // many formats use e.score or e.points or e.points_for or e.teamScore
-        const sc = (e.score ?? e.points ?? e.points_for ?? e.teamScore ?? e.team_score ?? e.pointsFor ?? e.team_points);
-        if (sc != null) return safeNum(sc);
-      }
-
-      // 2) top-level owner/team fields
-      const candOwner = (e.owner_username ?? e.ownerName ?? e.owner ?? e.owner_name) ?? null;
-      const candTeam = (e.team ?? e.name ?? e.team_name ?? e.teamName) ?? null;
-      const scoreCandidates = [e.score, e.points, e.points_for, e.teamScore, e.team_score, e.pointsFor, e.team_points];
-
-      // normalize strings
-      const candOwnerNorm = candOwner ? String(candOwner).toLowerCase() : null;
-      const candTeamNorm = candTeam ? String(candTeam).toLowerCase() : null;
-
-      if (candOwnerNorm && (metaOwnerUser === candOwnerNorm || metaOwnerName === candOwnerNorm)) {
-        // pick first score-like field
-        for (const sc of scoreCandidates) if (sc != null) return safeNum(sc);
-      }
-      if (candTeamNorm && metaTeamName && metaTeamName === candTeamNorm) {
-        for (const sc of scoreCandidates) if (sc != null) return safeNum(sc);
-      }
-
-      // 3) nested teamA/teamB shapes (common)
-      if (e.teamA && typeof e.teamA === 'object') {
-        const ta = e.teamA;
-        const tb = e.teamB;
-        // check teamA
-        const taRoster = (ta.rosterId ?? ta.roster_id ?? ta.roster) ?? null;
-        if (taRoster != null && String(taRoster) === normalizedPid) {
-          const sc = (ta.score ?? ta.points ?? ta.points_for ?? ta.teamScore ?? ta.team_score);
-          if (sc != null) return safeNum(sc);
-        }
-        const taOwner = (ta.owner_username ?? ta.ownerName ?? ta.owner ?? ta.owner_name) ?? null;
-        const taTeam = (ta.team ?? ta.name ?? ta.team_name ?? ta.teamName) ?? null;
-        const taOwnerNorm = taOwner ? String(taOwner).toLowerCase() : null;
-        const taTeamNorm = taTeam ? String(taTeam).toLowerCase() : null;
-        if (taOwnerNorm && (metaOwnerUser === taOwnerNorm || metaOwnerName === taOwnerNorm)) {
-          const sc = (ta.score ?? ta.points ?? ta.points_for);
-          if (sc != null) return safeNum(sc);
-        }
-        if (taTeamNorm && metaTeamName && metaTeamName === taTeamNorm) {
-          const sc = (ta.score ?? ta.points ?? ta.points_for);
-          if (sc != null) return safeNum(sc);
-        }
-
-        // check teamB
-        if (tb && typeof tb === 'object') {
-          const tbRoster = (tb.rosterId ?? tb.roster_id ?? tb.roster) ?? null;
-          if (tbRoster != null && String(tbRoster) === normalizedPid) {
-            const sc = (tb.score ?? tb.points ?? tb.points_for ?? tb.teamScore ?? tb.team_score);
-            if (sc != null) return safeNum(sc);
-          }
-          const tbOwner = (tb.owner_username ?? tb.ownerName ?? tb.owner ?? tb.owner_name) ?? null;
-          const tbTeam = (tb.team ?? tb.name ?? tb.team_name ?? tb.teamName) ?? null;
-          const tbOwnerNorm = tbOwner ? String(tbOwner).toLowerCase() : null;
-          const tbTeamNorm = tbTeam ? String(tbTeam).toLowerCase() : null;
-          if (tbOwnerNorm && (metaOwnerUser === tbOwnerNorm || metaOwnerName === tbOwnerNorm)) {
-            const sc = (tb.score ?? tb.points ?? tb.points_for);
-            if (sc != null) return safeNum(sc);
-          }
-          if (tbTeamNorm && metaTeamName && metaTeamName === tbTeamNorm) {
-            const sc = (tb.score ?? tb.points ?? tb.points_for);
-            if (sc != null) return safeNum(sc);
-          }
-        }
-      }
-
-      // 4) if e looks like a mapping object where keys are roster ids (less likely)
-      try {
-        const maybeKeys = Object.keys(e || {});
-        for (const k of maybeKeys) {
-          if (k && String(k) === normalizedPid) {
-            const v = e[k];
-            if (typeof v === 'object') {
-              const sc = (v.score ?? v.points ?? v.points_for ?? v.teamScore ?? v.team_score);
-              if (sc != null) return safeNum(sc);
-            } else {
-              return safeNum(v);
-            }
-          }
-        }
-      } catch (xx) {
-        // ignore
-      }
-
-      // 5) last resort: if an early entry has owner/team strings that loosely match meta fields
-      const looseOwner = candOwner ? candOwner.toString().toLowerCase() : null;
-      const looseTeam = candTeam ? candTeam.toString().toLowerCase() : null;
-      if (looseOwner && (metaOwnerUser && metaOwnerUser.includes(looseOwner) || metaOwnerName && metaOwnerName.includes(looseOwner))) {
-        for (const sc of scoreCandidates) if (sc != null) return safeNum(sc);
-      }
-      if (looseTeam && metaTeamName && metaTeamName.includes(looseTeam)) {
-        for (const sc of scoreCandidates) if (sc != null) return safeNum(sc);
-      }
-    }
-
-    return null;
-  }
+  // record overrides applied for debugging
+  const overrideLogs = [];
 
   // process each season
   for (let si = 0; si < seasons.length; si++) {
@@ -383,8 +401,8 @@ export async function load(event) {
       }
 
       // pick early-season data for this season (if available)
-      const earlySeasonData = earlyData && seasonEntry.season != null ? (earlyData[String(seasonEntry.season)] || null) : null;
-      if (earlySeasonData) messages.push(`early overrides present for season ${seasonEntry.season}`);
+      const earlySeasonMap = earlyDataMap && seasonEntry.season != null ? (earlyDataMap[String(seasonEntry.season)] || null) : null;
+      if (earlySeasonMap) messages.push(`early overrides present for season ${seasonEntry.season}`);
 
       // loop weeks
       for (let week = 1; week <= MAX_WEEKS; week++) {
@@ -466,27 +484,70 @@ export async function load(event) {
             let ppts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0);
 
             // attempt to override points with early JSON when available & matches
-            if (earlySeasonData && String(seasonEntry.season) === '2023' && earlySeasonData[String(week)]) {
-              const earlyWeekArr = earlySeasonData[String(week)];
-              const meta = (rosterMap && rosterMap[pid]) ? rosterMap[pid] : {};
+            if (earlySeasonMap && earlySeasonMap[String(week)]) {
+              const wkMap = earlySeasonMap[String(week)];
+              // check rosterId exact match
+              let overridden = false;
               try {
-                const overrideScore = findOverrideForParticipant(earlyWeekArr, ent, meta, pid);
-                if (overrideScore != null) {
-                  const before = ppts;
-                  ppts = safeNum(overrideScore);
-                  overridesApplied.push({
-                    season: seasonEntry.season,
-                    week,
-                    rosterId: String(pid),
-                    owner_username: meta.owner_username ?? null,
-                    owner_name: meta.owner_name ?? null,
-                    team_name: meta.team_name ?? null,
-                    before,
-                    after: ppts
-                  });
+                const ridKey = String(pid);
+                if (ridKey && wkMap.byRosterId && Object.prototype.hasOwnProperty.call(wkMap.byRosterId, ridKey)) {
+                  const newScore = wkMap.byRosterId[ridKey];
+                  if (newScore != null) {
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: ridKey, from: ppts, to: newScore });
+                    ppts = safeNum(newScore);
+                    overridden = true;
+                  }
+                }
+                // if not by roster id, check owner_username from rosterMap (if known)
+                if (!overridden && rosterMap && rosterMap[pid]) {
+                  const meta = rosterMap[pid] || {};
+                  const ownerUser = meta.owner_username ? String(meta.owner_username).toLowerCase() : null;
+                  const ownerName = meta.owner_name ? String(meta.owner_name).toLowerCase() : null;
+                  const teamName = meta.team_name ? String(meta.team_name).toLowerCase() : null;
+
+                  if (ownerUser && wkMap.byOwnerUser && Object.prototype.hasOwnProperty.call(wkMap.byOwnerUser, ownerUser)) {
+                    const newScore = wkMap.byOwnerUser[ownerUser];
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: String(pid), ownerUser, from: ppts, to: newScore });
+                    ppts = safeNum(newScore);
+                    overridden = true;
+                  } else if (ownerName && wkMap.byOwnerName && Object.prototype.hasOwnProperty.call(wkMap.byOwnerName, ownerName)) {
+                    const newScore = wkMap.byOwnerName[ownerName];
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: String(pid), ownerName, from: ppts, to: newScore });
+                    ppts = safeNum(newScore);
+                    overridden = true;
+                  } else if (teamName && wkMap.byTeamName && Object.prototype.hasOwnProperty.call(wkMap.byTeamName, teamName)) {
+                    const newScore = wkMap.byTeamName[teamName];
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: String(pid), teamName, from: ppts, to: newScore });
+                    ppts = safeNum(newScore);
+                    overridden = true;
+                  }
+                }
+
+                // fallback: check raw entry fields (owner_username, owner_name, team_name) in the sleeper matchup entry
+                if (!overridden) {
+                  const entOwnerUser = (ent.owner_username ?? ent.ownerUsername ?? ent.owner ?? null);
+                  const entOwnerName = (ent.owner_name ?? ent.ownerName ?? ent.owner ?? null);
+                  const entTeamName = (ent.team_name ?? ent.team ?? ent.teamName ?? null);
+                  const testOwnerUser = entOwnerUser ? String(entOwnerUser).toLowerCase() : null;
+                  const testOwnerName = entOwnerName ? String(entOwnerName).toLowerCase() : null;
+                  const testTeam = entTeamName ? String(entTeamName).toLowerCase() : null;
+
+                  if (testOwnerUser && wkMap.byOwnerUser && Object.prototype.hasOwnProperty.call(wkMap.byOwnerUser, testOwnerUser)) {
+                    const newScore = wkMap.byOwnerUser[testOwnerUser];
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: String(pid), ownerUser: testOwnerUser, from: ppts, to: newScore });
+                    ppts = safeNum(newScore); overridden = true;
+                  } else if (testOwnerName && wkMap.byOwnerName && Object.prototype.hasOwnProperty.call(wkMap.byOwnerName, testOwnerName)) {
+                    const newScore = wkMap.byOwnerName[testOwnerName];
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: String(pid), ownerName: testOwnerName, from: ppts, to: newScore });
+                    ppts = safeNum(newScore); overridden = true;
+                  } else if (testTeam && wkMap.byTeamName && Object.prototype.hasOwnProperty.call(wkMap.byTeamName, testTeam)) {
+                    const newScore = wkMap.byTeamName[testTeam];
+                    overrideLogs.push({ season: String(seasonEntry.season), week: String(week), rosterId: String(pid), teamName: testTeam, from: ppts, to: newScore });
+                    ppts = safeNum(newScore); overridden = true;
+                  }
                 }
               } catch (ovErr) {
-                // do not block on override search errors
+                // ignore per-item override errors
               }
             }
 
@@ -801,20 +862,26 @@ export async function load(event) {
     }
   } // end seasons
 
-  // add override summary to messages (if any)
-  if (overridesApplied.length) {
-    messages.push(`Applied ${overridesApplied.length} early overrides (showing up to 20):`);
-    for (let i = 0; i < Math.min(20, overridesApplied.length); i++) {
-      const o = overridesApplied[i];
-      messages.push(
-        `OVERRIDE: season=${o.season} week=${o.week} roster=${o.rosterId} ` +
-        `owner=${o.owner_username || o.owner_name || 'unknown'} team=${o.team_name || 'unknown'} ` +
-        `before=${o.before} -> after=${o.after}`
-      );
+  // If we have overrideLogs, summarize them into messages for debugging
+  try {
+    if (overrideLogs && overrideLogs.length) {
+      // group counts by season/week
+      const grouped = {};
+      for (const ov of overrideLogs) {
+        const key = `${ov.season}::${ov.week}`;
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+      for (const k in grouped) {
+        if (!Object.prototype.hasOwnProperty.call(grouped, k)) continue;
+        const [season, wk] = k.split('::');
+        messages.push(`Applied ${grouped[k]} early-score override(s) for season ${season} week ${wk}`);
+      }
+    } else {
+      // If the file was present but no overrides were applied, note that
+      if (earlyDataMap) messages.push('early2023.json loaded but no matching overrides applied to roster entries (check keys).');
     }
-    if (overridesApplied.length > 20) messages.push(`...and ${overridesApplied.length - 20} more overrides`);
-  } else {
-    messages.push('No early overrides applied.');
+  } catch (e) {
+    // ignore
   }
 
   // recompute championships counts for safety
@@ -997,85 +1064,6 @@ export async function load(event) {
       }
     }
   } catch (tppErr) { messages.push('Error assembling topPlayerMatchups: ' + (tppErr?.message ?? String(tppErr))); }
-
-  // ---------------------------
-  // Normalize some lists for UI convenience (prefer latest roster meta)
-  // ---------------------------
-
-  function latestTeamForRoster(rid) {
-    if (!rid) return { team_name: null, team_avatar: null };
-    const m = (rosterLatest && rosterLatest[String(rid)]) || {};
-    return {
-      team_name: m.team_name || null,
-      team_avatar: m.team_avatar || null
-    };
-  }
-
-  function prefer(...vals) {
-    for (let i = 0; i < vals.length; i++) {
-      const v = vals[i];
-      if (v !== undefined && v !== null) return v;
-    }
-    return null;
-  }
-
-  // normalize topTeamMatchups
-  try {
-    for (let i = 0; i < topTeamMatchups.length; i++) {
-      const e = topTeamMatchups[i];
-      const tinfo = e.team_rosterId ? latestTeamForRoster(e.team_rosterId) : { team_name: null, team_avatar: null };
-      const oinfo = e.opponent_rosterId ? latestTeamForRoster(e.opponent_rosterId) : { team_name: null, team_avatar: null };
-      e.team_name = prefer(tinfo.team_name, e.team_name, e.team, e.latest_team) || null;
-      e.team_avatar = prefer(tinfo.team_avatar, e.team_avatar, e.teamAvatar, e.latest_avatar, e.avatar) || null;
-      e.opponent_name = prefer(oinfo.team_name, e.opponent_name, e.opponent, e.opponent_team) || null;
-      e.opponent_avatar = prefer(oinfo.team_avatar, e.opponent_avatar, e.opponentAvatar, e.opponent_latest_avatar) || null;
-      e.season = e.season ?? null; e.week = e.week ?? null;
-    }
-  } catch (err) { /* ignore */ }
-
-  // normalize topPlayerMatchups
-  try {
-    for (let i = 0; i < topPlayerMatchups.length; i++) {
-      const e = topPlayerMatchups[i];
-      const tinfo = e.team_rosterId ? latestTeamForRoster(e.team_rosterId) : { team_name: null, team_avatar: null };
-      const oinfo = e.opponent_rosterId ? latestTeamForRoster(e.opponent_rosterId) : { team_name: null, team_avatar: null };
-      e.team_name = prefer(tinfo.team_name, e.team_name, e.team, e.latest_team) || null;
-      e.team_avatar = prefer(tinfo.team_avatar, e.team_avatar, e.teamAvatar, e.latest_avatar, e.avatar) || null;
-      e.opponent_name = prefer(oinfo.team_name, e.opponent_name, e.opponent, e.opponent_team) || null;
-      e.opponent_avatar = prefer(oinfo.team_avatar, e.opponent_avatar, e.opponentAvatar, e.opponent_latest_avatar) || null;
-      e.season = e.season ?? null; e.week = e.week ?? null;
-    }
-  } catch (err) { /* ignore */ }
-
-  // normalize closestMatches
-  try {
-    for (let i = 0; i < closestMatches.length; i++) {
-      const e = closestMatches[i];
-      const tinfo = e.team_rosterId ? latestTeamForRoster(e.team_rosterId) : { team_name: null, team_avatar: null };
-      const oinfo = e.opponent_rosterId ? latestTeamForRoster(e.opponent_rosterId) : { team_name: null, team_avatar: null };
-      e.team_name = prefer(tinfo.team_name, e.team_name, e.team) || null;
-      e.team_avatar = prefer(tinfo.team_avatar, e.team_avatar, e.teamAvatar, e.latest_avatar) || null;
-      e.opponent_name = prefer(oinfo.team_name, e.opponent_name, e.opponent) || null;
-      e.opponent_avatar = prefer(oinfo.team_avatar, e.opponent_avatar, e.opponentAvatar) || null;
-      e.margin = e.margin ?? Math.abs((e.winning_score ?? e.team_score ?? 0) - (e.losing_score ?? e.opponent_score ?? 0));
-      e.season = e.season ?? null; e.week = e.week ?? null;
-    }
-  } catch (err) { /* ignore */ }
-
-  // normalize largestMargins
-  try {
-    for (let i = 0; i < largestMargins.length; i++) {
-      const e = largestMargins[i];
-      const tinfo = e.team_rosterId ? latestTeamForRoster(e.team_rosterId) : { team_name: null, team_avatar: null };
-      const oinfo = e.opponent_rosterId ? latestTeamForRoster(e.opponent_rosterId) : { team_name: null, team_avatar: null };
-      e.team_name = prefer(tinfo.team_name, e.team_name, e.team) || null;
-      e.team_avatar = prefer(tinfo.team_avatar, e.team_avatar, e.teamAvatar, e.latest_avatar) || null;
-      e.opponent_name = prefer(oinfo.team_name, e.opponent_name, e.opponent) || null;
-      e.opponent_avatar = prefer(oinfo.team_avatar, e.opponent_avatar, e.opponentAvatar) || null;
-      e.margin = e.margin ?? Math.abs((e.winning_score ?? e.team_score ?? 0) - (e.losing_score ?? e.opponent_score ?? 0));
-      e.season = e.season ?? null; e.week = e.week ?? null;
-    }
-  } catch (err) { /* ignore */ }
 
   // ---------------------------
   // Convert headToHeadRaw (roster->roster) into headToHeadByOwner aggregated to canonical owners
