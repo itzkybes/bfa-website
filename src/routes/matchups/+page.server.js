@@ -25,9 +25,6 @@ function safeNum(v) {
 }
 
 async function tryLoadEarly2023(origin) {
-  // Try to fetch from same origin (deployed static), then fallback to reading from disk.
-  // Return parsed JSON or null.
-  // NOTE: this function swallows errors and returns null on failure.
   try {
     if (typeof fetch === 'function' && origin) {
       const url = origin.replace(/\/$/, '') + '/early2023.json';
@@ -50,9 +47,7 @@ async function tryLoadEarly2023(origin) {
     // ignore
   }
 
-  // Disk fallback: attempt to read static/early2023.json relative to this file.
   try {
-    // from src/routes/matchups/+page.server.js -> project root is ../../../
     const fileUrl = new URL('../../../static/early2023.json', import.meta.url);
     const txt = await readFile(fileUrl, 'utf8');
     try {
@@ -161,10 +156,41 @@ export async function load(event) {
     else rosterMap = {};
   } catch (e) { rosterMap = {}; }
 
+  // normalize rosterMap for easy searching (lowercased lookups)
+  const rosterByOwner = {};
+  const rosterByTeamName = {};
+  try {
+    for (const rk of Object.keys(rosterMap || {})) {
+      const meta = rosterMap[rk] || {};
+      if (meta.owner_name) rosterByOwner[String(meta.owner_name).toLowerCase()] = { id: String(rk), meta };
+      if (meta.owner_username) rosterByOwner[String(meta.owner_username).toLowerCase()] = { id: String(rk), meta };
+      if (meta.team_name) rosterByTeamName[String(meta.team_name).toLowerCase()] = { id: String(rk), meta };
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  function findRosterMeta(ownerName, teamName) {
+    if (!ownerName && !teamName) return null;
+    if (ownerName) {
+      const low = String(ownerName).toLowerCase();
+      if (rosterByOwner[low]) return rosterByOwner[low];
+      // sometimes JSON ownerName has extra whitespace
+      const trimmed = low.trim();
+      if (trimmed && rosterByOwner[trimmed]) return rosterByOwner[trimmed];
+    }
+    if (teamName) {
+      const lowt = String(teamName).toLowerCase();
+      if (rosterByTeamName[lowt]) return rosterByTeamName[lowt];
+      const trimmedt = lowt.trim();
+      if (trimmedt && rosterByTeamName[trimmedt]) return rosterByTeamName[trimmedt];
+    }
+    return null;
+  }
+
   // Attempt to load early2023.json if needed
   let earlyData = null;
   if (String(selectedSeason) === '2023' && selectedWeek >= 1 && selectedWeek <= 3) {
-    // try loading; pass origin so fetch uses same host
     try {
       earlyData = await tryLoadEarly2023(event.url?.origin || null);
     } catch (e) {
@@ -176,7 +202,6 @@ export async function load(event) {
   const matchupsRows = [];
   if (earlyData && earlyData['2023'] && earlyData['2023'][String(selectedWeek)] && earlyData['2023'][String(selectedWeek)].length) {
     const weekArr = earlyData['2023'][String(selectedWeek)];
-    // Each entry is expected to be { teamA: { name, ownerName }, teamB: {...}, teamAScore, teamBScore }
     for (const entry of weekArr) {
       const aName = entry?.teamA?.name ?? 'Roster A';
       const bName = entry?.teamB?.name ?? 'Roster B';
@@ -185,19 +210,26 @@ export async function load(event) {
       const aPts = safeNum(entry?.teamAScore ?? entry?.teamA?.score ?? 0);
       const bPts = safeNum(entry?.teamBScore ?? entry?.teamB?.score ?? 0);
 
-      // We don't know roster IDs from the JSON; keep rosterId null but include ownerName for mapping.
+      // Attempt to resolve rosterId + avatar by matching ownerName or teamName against rosterMap
+      const aMatch = findRosterMeta(aOwner, aName);
+      const bMatch = findRosterMeta(bOwner, bName);
+
+      const aRosterId = aMatch ? aMatch.id : null;
+      const bRosterId = bMatch ? bMatch.id : null;
+      const aAvatar = aMatch ? (aMatch.meta.team_avatar || aMatch.meta.owner_avatar || null) : null;
+      const bAvatar = bMatch ? (bMatch.meta.team_avatar || bMatch.meta.owner_avatar || null) : null;
+
       matchupsRows.push({
         matchup_id: `early2023-${selectedWeek}-${matchupsRows.length}`,
         season: selectedSeason,
         week: selectedWeek,
-        teamA: { rosterId: null, name: aName, ownerName: aOwner, avatar: null, points: aPts },
-        teamB: { rosterId: null, name: bName, ownerName: bOwner, avatar: null, points: bPts },
+        teamA: { rosterId: aRosterId, name: aName, ownerName: aOwner, avatar: aAvatar, points: aPts },
+        teamB: { rosterId: bRosterId, name: bName, ownerName: bOwner, avatar: bAvatar, points: bPts },
         participantsCount: 2,
         _source: 'early2023.json'
       });
     }
 
-    // sort to keep consistent ordering (desc teamA.points)
     matchupsRows.sort((x,y) => ( (y.teamA?.points || 0) - (x.teamA?.points || 0) ));
   } else {
     // No early JSON mapping for this week/season — fallback to Sleeper API matchups
@@ -300,7 +332,6 @@ export async function load(event) {
     playoffs: playoffWeeks
   };
 
-  // Return only the UI-facing data (no debug messages)
   return {
     seasons,
     weeks,
