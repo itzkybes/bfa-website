@@ -101,6 +101,7 @@
     --card: #071025;
     --muted: #9ca3af;
     --accent: rgba(99,102,241,0.08);
+    --text: #e6eef8;
     color-scheme: dark;
   }
 
@@ -216,7 +217,22 @@
     align-items:center;
   }
 
-  select.season-select { padding:.45rem .6rem; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background: #fff; color: #000; }
+  /* Matchups-style select to match site-wide UI */
+  .select {
+    padding:.6rem .8rem;
+    border-radius:8px;
+    background: #07101a;
+    color: var(--text);
+    border: 1px solid rgba(99,102,241,0.25);
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
+    min-width: 160px;
+    font-weight: 600;
+    outline: none;
+  }
+  .select:focus {
+    border-color: rgba(99,102,241,0.6);
+    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
+  }
 
   /* Rank column */
   .rank {
@@ -232,7 +248,8 @@
     .tbl { min-width: 720px; }
   }
 
-  @media (max-width: 800px) {
+  @media (max-width: 900px) {
+    .select { min-width: 100%; width:100%; }
     .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
     .team-name { font-size: .95rem; }
@@ -265,7 +282,7 @@
     <div class="controls" aria-hidden="false">
       <form method="get" bind:this={seasonForm} style="display:flex; gap:.5rem; align-items:center;">
         <label for="season-select" class="small-muted" aria-hidden="true">Season</label>
-        <select id="season-select" name="season" class="season-select" bind:value={selectedSeasonId} on:change={submitForm}>
+        <select id="season-select" name="season" class="select" bind:value={selectedSeasonId} on:change={submitForm}>
           {#each seasons.filter(s => s.season != null) as s}
             <option value={s.season}>{seasonLabel(s)}</option>
           {/each}
