@@ -7,10 +7,15 @@
   const weeks = data.weeks || [];
   const weekOptions = data.weekOptions || { regular: [], playoffs: [] };
   const playoffWeeks = data.playoffWeeks || [];
+  // default selectedSeason from server or fallback to last season
   let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
+
+  // DEFAULT THE WEEK SELECTOR TO 1 if server didn't provide selectedWeek
+  let selectedWeek = Number(data.selectedWeek ?? 1);
+
   const matchupsRows = data.matchupsRows || [];
   const messages = data.messages || [];
+  const debug = data.debug || [];
   const originalRecords = data.originalRecords || {};
 
   // helpers
@@ -61,6 +66,18 @@
     border-color: rgba(99,102,241,0.6);
     box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
   }
+
+  .debug-box {
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.02);
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .debug-box strong { color: var(--text); }
+
   table { width:100%; border-collapse:collapse; }
   thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
   td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
@@ -118,12 +135,33 @@
 </style>
 
 <div class="page">
-  <div class="muted" style="margin-bottom:.5rem;">
-    {#if messages.length}
+  <!-- Debug / info box: show server debug and messages -->
+  <div class="debug-box" aria-live="polite">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
       <div><strong>Debug</strong></div>
-      {#each messages as m, i}
-        <div>{i+1}. {m}</div>
-      {/each}
+      <div class="muted" style="font-size:.9rem;">season={selectedSeason} • week={selectedWeek}</div>
+    </div>
+
+    {#if debug && debug.length}
+      <div style="margin-top:.5rem;">
+        <div style="font-weight:700; margin-bottom:.25rem;">Server debug:</div>
+        {#each debug as d, i}
+          <div>{i+1}. {d}</div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if messages && messages.length}
+      <div style="margin-top:.5rem;">
+        <div style="font-weight:700; margin-bottom:.25rem;">Messages:</div>
+        {#each messages as m, j}
+          <div>{j+1}. {m}</div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if !(debug && debug.length) && !(messages && messages.length)}
+      <div style="margin-top:.5rem;" class="muted">No debug messages from the server.</div>
     {/if}
   </div>
 
