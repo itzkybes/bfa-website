@@ -1,426 +1,607 @@
 <script>
+  // Records page: all-time regular season and playoff standings + extra record tables.
   export let data;
 
-  // page data
-  const seasons = data.seasons || [];
-  // keep 'weeks' for backward compat; weekOptions contains grouped lists
-  const weeks = data.weeks || [];
-  const weekOptions = data.weekOptions || { regular: [], playoffs: [] };
-  const playoffWeeks = data.playoffWeeks || [];
-
-  // default selected season / week
-  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-
-  // default week -> 1 if not provided (user requested week selector start at 1)
-  let selectedWeek = Number(data.selectedWeek ?? 1);
-
-  // original containers from server (kept for fallback)
-  const matchupsRows = data.matchupsRows || [];
-  const messages = data.messages || [];
-  const originalRecords = data.originalRecords || {};
-
-  // Normalization: rows is what the template consumes.
-  // It will be filled either from matchupsRows (legacy) or assembled from data.weeksParticipants (new).
-  let rows = [];
-
   // Helpers
-  function avatarOrPlaceholder(url, name, size = 64) {
+  function avatarOrPlaceholder(url, name, size = 56) {
     if (url) return url;
     const letter = name ? name[0] : 'T';
     return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
   }
-
-  function fmt2(n) { return Number(n ?? 0).toFixed(2); }
 
   function safeNum(v) {
     const n = Number(v);
     return isNaN(n) ? 0 : n;
   }
 
-  // Build rows from an array of participants for a given week (new server shape / early json)
-  function buildRowsFromParticipants(participantsForWeek, week, season) {
-    const byMatch = {};
-    if (!Array.isArray(participantsForWeek)) return [];
-
-    for (const p of participantsForWeek) {
-      const mid = p.matchup_id ?? p.matchupId ?? p.matchup ?? p.matchupIdFromAPI ?? ('auto|' + (p.rosterId ?? p.ownerId ?? Math.random()));
-      if (!byMatch[mid]) byMatch[mid] = [];
-      byMatch[mid].push(p);
-    }
-
-    const built = [];
-    for (const key of Object.keys(byMatch)) {
-      const items = byMatch[key] || [];
-
-      if (items.length === 2) {
-        const A = items[0];
-        const B = items[1];
-
-        const aId = String(A.rosterId ?? A.roster_id ?? A.ownerId ?? A.owner_id ?? 'A');
-        const bId = String(B.rosterId ?? B.roster_id ?? B.ownerId ?? B.owner_id ?? 'B');
-
-        const aName = A.team_name ?? A.name ?? A.teamName ?? A.ownerName ?? A.owner_name ?? (`Roster ${aId}`);
-        const bName = B.team_name ?? B.name ?? B.teamName ?? B.ownerName ?? B.owner_name ?? (`Roster ${bId}`);
-
-        const aOwner = A.owner_name ?? A.ownerName ?? A.owner ?? null;
-        const bOwner = B.owner_name ?? B.ownerName ?? B.owner ?? null;
-
-        const aAvatar = A.team_avatar ?? A.avatar ?? A.teamAvatar ?? null;
-        const bAvatar = B.team_avatar ?? B.avatar ?? B.teamAvatar ?? null;
-
-        // Points should be computed server-side (starter points), but tolerate multiple input fields
-        const aPts = (A.points != null) ? safeNum(A.points) : (A.teamAScore ?? A.teamA?.score ?? A.points_for ?? A.pts ?? null);
-        const bPts = (B.points != null) ? safeNum(B.points) : (B.teamBScore ?? B.teamB?.score ?? B.points_for ?? B.pts ?? null);
-
-        built.push({
-          matchup_id: key,
-          season: season ?? null,
-          week: week,
-          teamA: { rosterId: aId, name: aName, ownerName: aOwner, avatar: aAvatar, points: (aPts == null ? null : safeNum(aPts)) },
-          teamB: { rosterId: bId, name: bName, ownerName: bOwner, avatar: bAvatar, points: (bPts == null ? null : safeNum(bPts)) },
-          participantsCount: 2
-        });
-
-      } else if (items.length === 1) {
-        const A = items[0];
-        const aId = String(A.rosterId ?? A.roster_id ?? A.ownerId ?? A.owner_id ?? 'A');
-        const aName = A.team_name ?? A.name ?? A.teamName ?? A.ownerName ?? A.owner_name ?? (`Roster ${aId}`);
-        const aOwner = A.owner_name ?? A.ownerName ?? A.owner ?? null;
-        const aAvatar = A.team_avatar ?? A.avatar ?? A.teamAvatar ?? null;
-        const aPts = (A.points != null) ? safeNum(A.points) : (A.teamAScore ?? A.points_for ?? A.pts ?? null);
-
-        built.push({
-          matchup_id: key,
-          season: season ?? null,
-          week: week,
-          teamA: { rosterId: aId, name: aName, ownerName: aOwner, avatar: aAvatar, points: (aPts == null ? null : safeNum(aPts)) },
-          teamB: null,
-          participantsCount: 1,
-          isBye: true
-        });
-
-      } else {
-        // multi-team matchup
-        const participantsBuilt = items.map(it => {
-          const id = String(it.rosterId ?? it.roster_id ?? it.ownerId ?? it.owner_id ?? Math.random());
-          return {
-            rosterId: id,
-            name: it.team_name ?? it.name ?? it.teamName ?? it.ownerName ?? it.owner_name ?? (`Roster ${id}`),
-            ownerName: it.owner_name ?? it.ownerName ?? null,
-            avatar: it.team_avatar ?? it.avatar ?? null,
-            points: safeNum(it.points ?? it.teamScore ?? it.points_for ?? it.pts ?? 0)
-          };
-        });
-
-        built.push({
-          matchup_id: key,
-          season: season ?? null,
-          week: week,
-          combinedParticipants: participantsBuilt,
-          combinedLabel: participantsBuilt.map(p => p.name).join(' / '),
-          participantsCount: participantsBuilt.length
-        });
-      }
-    }
-
-    return built;
+  // Return string with two decimals for numbers (safe)
+  function fmt2(v) {
+    return Number(v ?? 0).toFixed(2);
   }
 
-  // Reactive computation of rows based on incoming server data and selectedWeek
-  $: {
-    // If server already provided legacy matchupsRows, prefer it
-    if (Array.isArray(data?.matchupsRows) && data.matchupsRows.length) {
-      rows = data.matchupsRows;
-    } else if (data && data.weeksParticipants) {
-      // data.weeksParticipants is expected to be an object keyed by week number (string or numeric)
-      const wp = data.weeksParticipants;
-      const weekKey = String(selectedWeek);
-      const participantsForWeek = wp?.[weekKey] ?? wp?.[selectedWeek] ?? [];
-      rows = buildRowsFromParticipants(participantsForWeek, selectedWeek, selectedSeason);
-    } else {
-      // fallback: try to build from any raw matchups array (if present)
-      if (Array.isArray(matchupsRows) && matchupsRows.length) rows = matchupsRows;
-      else rows = [];
+  // Try a bunch of common team avatar fields and fall back to owner avatar
+  function teamAvatarFor(row, side = 'team') {
+    if (!row || typeof row !== 'object') return null;
+    const keys = [
+      `${side}_avatar`, `${side}Avatar`, `${side}avatar`, `${side}_team_avatar`, `${side}TeamAvatar`, `${side}AvatarUrl`, `${side}AvatarUrl`,
+      'team_avatar', 'teamAvatar', 'avatar', 'latest_avatar'
+    ];
+    for (const k of keys) {
+      if (row[k]) return row[k];
     }
+    if (row.owner_avatar) return row.owner_avatar;
+    if (row.ownerAvatar) return row.ownerAvatar;
+    if (row.owner_avatar_url) return row.owner_avatar_url;
+    return null;
   }
 
-  // used by the filter selects to submit the GET form
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form && form.requestSubmit) form.requestSubmit();
-    else if (form) form.submit();
+  function teamNameFor(row, side = 'team') {
+    if (!row || typeof row !== 'object') return '';
+    const keys = [`${side}_name`, `${side}Name`, `${side}team`, `${side}_team`, 'team', 'team_name', 'teamName', 'latest_team'];
+    for (const k of keys) {
+      if (row[k]) return row[k];
+    }
+    if (row.team) return row.team;
+    return '';
+  }
+
+  // Player headshot helper
+  function playerHeadshot(playerId) {
+    if (!playerId) return '';
+    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+  }
+
+  // Data sources (from server)
+  const regularAllTime = (data && data.regularAllTime) ? data.regularAllTime : [];
+  const playoffAllTime = (data && data.playoffAllTime) ? data.playoffAllTime : [];
+  const originalRecords = (data && data.originalRecords) ? data.originalRecords : {};
+
+  const topTeamMatchups = (data && data.topTeamMatchups) ? data.topTeamMatchups : [];
+  const topPlayerMatchups = (data && data.topPlayerMatchups) ? data.topPlayerMatchups : [];
+  const closestMatches = (data && data.closestMatches) ? data.closestMatches : [];
+  const largestMargins = (data && data.largestMargins) ? data.largestMargins : [];
+
+  const headToHeadByOwner = (data && data.headToHeadByOwner) ? data.headToHeadByOwner : {};
+  const ownersList = (data && data.ownersList) ? data.ownersList : [];
+  const playersMap = (data && data.players) ? data.players : {};
+
+  // default selected ownerKey (first in ownersList)
+  let selectedOwnerKey = ownersList && ownersList.length ? ownersList[0].ownerKey : null;
+
+  // reactive filtered head-to-head
+  $: filteredHeadToHead = (selectedOwnerKey && headToHeadByOwner[selectedOwnerKey]) ? headToHeadByOwner[selectedOwnerKey] : [];
+
+  // UI helpers
+  function ownerLabel(o) {
+    if (!o) return '';
+    return o.team || o.owner_name || o.owner_username || o.ownerKey || '';
   }
 </script>
 
 <style>
   :global(body) {
-    /* keep dark page but do not force global background changes here */
-  }
-
-  :root{
-    --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
-    --card-border: rgba(255,255,255,0.03);
+    --bg: transparent; /* keep page background as site default; do not color the whole page */
+    --card: #071025;
     --muted: #9ca3af;
-    --text: #e6eef8;
+    --accent: rgba(99,102,241,0.08);
+    color-scheme: dark;
   }
 
-  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
-  .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:10px; margin-bottom:1rem; }
-  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
-  /* improved select styling for visibility */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: var(--text);
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
-  table { width:100%; border-collapse:collapse; }
-  thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
-  td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
-  .team-cell { display:flex; gap:.6rem; align-items:center; width:100%; min-width:0; }
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
-  .muted { color: var(--muted); font-size:.9rem; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  /* winning score — made more prominent */
-  .score.winner {
-    background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
-    color: #f8fbff;
-    font-weight:900;
-    font-size:1.05rem;
-    box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
-    border: 1px solid rgba(99,102,241,0.36);
-  }
-  /* subtle tie style */
-  .score.tie {
-    background: rgba(255,255,255,0.02);
-    color: var(--text);
-    font-weight:700;
+  .page {
+    max-width: 1200px;
+    margin: 1.25rem auto;
+    padding: 0 1rem;
   }
 
-  /* multi-matchup inner table */
-  .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
-  .inner-table th { text-align:left; color:var(--muted); font-size:.82rem; padding:6px 8px; border-bottom:1px solid var(--card-border); }
-  .inner-table td { padding:8px 8px; }
+  h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items:start; }
 
-  /* small-screen friendly tweaks */
-  @media (max-width:900px) {
-    .filters { flex-direction:column; align-items:stretch; gap:0.5rem; }
-    .select { min-width: 100%; width:100%; }
-    .card { padding:12px; }
-
-    /* make table rows act like cards */
-    thead { display:none; }
-    tbody { display:block; }
-    tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid var(--card-border); padding:10px; }
-    tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-    /* keep team-cell layout horizontal inside each td */
-    .team-cell { align-items:center; justify-content:space-between; }
-    .avatar { width:48px; height:48px; }
-    .team-name { max-width: 60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    /* On small screens, ensure score pushes to the far right */
-    .score { min-width:auto; padding:6px 8px; margin-left:auto; }
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    overflow: hidden;
   }
 
-  @media (max-width:520px) {
-    .avatar { width:40px; height:40px; }
-    .team-name { font-size:0.98rem; max-width: 55%; }
-    .score { padding:5px 8px; font-size:0.95rem; }
+  .card-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom: 0.5rem; }
+  .section-title { font-size:1.05rem; font-weight:700; margin:0; }
+  .section-sub { color: var(--muted); font-size: .9rem; }
+
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.95rem; overflow: hidden; border-radius: 8px; }
+  thead th { text-align:left; padding: 10px 12px; font-size: 0.85rem; color: var(--muted); background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.004)); text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  tbody td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #e6eef8; vertical-align: middle; }
+  tbody tr:nth-child(odd) { background: rgba(255,255,255,0.005); }
+  tbody tr:hover { background: rgba(99,102,241,0.06); transform: translateZ(0); }
+
+  .team-row { display:flex; align-items:center; gap:0.75rem; }
+  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; }
+  .player-avatar { width:44px; height:44px; border-radius:8px; object-fit:cover; background:#111; flex-shrink:0; }
+  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
+  .owner { color: var(--muted); font-size:.9rem; margin-top:2px; }
+  .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
+  .small-muted { color: var(--muted); font-size: .88rem; }
+
+  .note { margin-top: 0.6rem; padding: 12px; border-radius: 10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border:1px solid rgba(255,255,255,0.03); color: #cfe2ff; font-size: .95rem; }
+
+  .owner-record { margin-top: .5rem; display:flex; gap: .75rem; align-items:center; }
+
+  .right-card-list { display:flex; flex-direction:column; gap:.75rem; }
+  .team-card { display:flex; align-items:center; gap:.75rem; padding:10px; background: rgba(0,0,0,0.25); border-radius:10px; }
+  .team-card .meta { display:flex; flex-direction:column; }
+  .team-card .season { color: var(--muted); font-size:0.8rem; margin-top:2px; }
+
+  @media (max-width: 1100px) {
+    .grid { grid-template-columns: 1fr; }
+    .avatar { width:44px; height:44px; }
+    thead th, tbody td { padding: 8px; }
+    .col-hide-sm { display:none; }
   }
+
+  .select-inline { margin-left:0.5rem; }
+  .fallback { color: var(--muted); padding: 12px 0; }
 </style>
 
 <div class="page">
-  <div class="muted" style="margin-bottom:.5rem;">
-    {#if messages.length}
-      <div><strong>Debug</strong></div>
-      {#each messages as m, i}
-        <div>{i+1}. {m}</div>
-      {/each}
-    {/if}
-  </div>
+  {#if data?.messages && data.messages.length}
+    <div class="small-muted" style="margin-bottom:1rem;">
+      <strong>Debug</strong>
+      <div style="margin-top:.35rem;">
+        {#each data.messages as m, i}
+          <div>{i + 1}. {m}</div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .6rem; gap:1rem; flex-wrap:wrap;">
-      <div style="min-width:0;">
-        <h2 style="margin:0 0 2px 0;">Matchups</h2>
-        <div class="muted" style="font-size:.95rem;">Choose a season and week to view matchups</div>
+  <h1>All-time Records</h1>
+
+  <div class="grid">
+    <!-- LEFT COLUMN -->
+    <div>
+      <!-- Regular Season -->
+      <div class="card" aria-labelledby="regular-title">
+        <div class="card-header">
+          <div>
+            <div id="regular-title" class="section-title">All-time Regular Season</div>
+            <div class="section-sub">Aggregated across seasons (weeks 1 → playoff start - 1)</div>
+          </div>
+          <div class="small-muted">Rows sorted by Wins → PF</div>
+        </div>
+
+        {#if regularAllTime && regularAllTime.length}
+          <table class="tbl" role="table" aria-label="All-time regular season standings">
+            <thead>
+              <tr>
+                <th>Team / Owner</th>
+                <th class="col-numeric">W</th>
+                <th class="col-numeric">L</th>
+                <th class="col-numeric">Longest W-Str</th>
+                <th class="col-numeric">Longest L-Str</th>
+                <th class="col-numeric col-hide-sm">PF</th>
+                <th class="col-numeric col-hide-sm">PA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each regularAllTime as row}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(row.avatar || row.latest_avatar || row.team_avatar, row.team)} alt={row.team} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{row.team}</div>
+                        {#if row.owner_name}
+                          <div class="owner">{row.owner_name}</div>
+                        {:else if row.owner_username}
+                          <div class="owner">{row.owner_username}</div>
+                        {/if}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="col-numeric">{row.wins}</td>
+                  <td class="col-numeric">{row.losses}</td>
+                  <td class="col-numeric">{row.maxWinStreak}</td>
+                  <td class="col-numeric">{row.maxLoseStreak}</td>
+                  <td class="col-numeric col-hide-sm">{fmt2(row.pf)}</td>
+                  <td class="col-numeric col-hide-sm">{fmt2(row.pa)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <div class="small-muted" style="padding:.5rem 0;">No regular-season records available.</div>
+        {/if}
       </div>
 
-      <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
-        <label class="muted" for="season">Season</label>
-        <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
-          {/each}
-        </select>
+      <!-- Playoffs -->
+      <div class="card" aria-labelledby="playoff-title" style="margin-top:1rem;">
+        <div class="card-header">
+          <div>
+            <div id="playoff-title" class="section-title">All-time Playoffs</div>
+            <div class="section-sub">Aggregated playoff stats (playoff window only)</div>
+          </div>
+          <div class="small-muted">Sorted by Championships → Playoff Wins → PF</div>
+        </div>
 
-        <label class="muted" for="week">Week</label>
+        {#if playoffAllTime && playoffAllTime.length}
+          <table class="tbl" role="table" aria-label="All-time playoff standings">
+            <thead>
+              <tr>
+                <th>Team / Owner</th>
+                <th class="col-numeric">W</th>
+                <th class="col-numeric">L</th>
+                <th class="col-numeric col-hide-sm">PF</th>
+                <th class="col-numeric col-hide-sm">PA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each playoffAllTime as row}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(row.avatar || row.latest_avatar || row.team_avatar, row.team)} alt={row.team} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">
+                          <span>{row.team}</span>
+                          {#if row.championships && row.championships > 0}
+                            <span style="margin-left:.4rem">{'🏆'.repeat(row.championships)}</span>
+                          {/if}
+                        </div>
+                        {#if row.owner_name}
+                          <div class="owner">{row.owner_name}</div>
+                        {:else if row.owner_username}
+                          <div class="owner">{row.owner_username}</div>
+                        {/if}
+                      </div>
+                    </div>
+                  </td>
 
-        {#if (weekOptions && (weekOptions.regular?.length || weekOptions.playoffs?.length))}
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#if weekOptions.regular && weekOptions.regular.length}
-              <optgroup label="Regular Season">
-                {#each weekOptions.regular as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-                {/each}
-              </optgroup>
-            {/if}
-            {#if weekOptions.playoffs && weekOptions.playoffs.length}
-              <optgroup label="Playoffs">
-                {#each weekOptions.playoffs as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-                {/each}
-              </optgroup>
-            {/if}
-          </select>
+                  <td class="col-numeric">{row.playoffWins}</td>
+                  <td class="col-numeric">{row.playoffLosses}</td>
+                  <td class="col-numeric col-hide-sm">{fmt2(row.pf)}</td>
+                  <td class="col-numeric col-hide-sm">{fmt2(row.pa)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
         {:else}
-          <!-- fallback to previous simple weeks list -->
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#each weeks as w}
-              <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
-            {/each}
-          </select>
+          <div class="small-muted" style="padding:.5rem 0;">No playoff records available.</div>
         {/if}
+      </div>
 
-        <noscript>
-          <button type="submit" class="select" style="cursor:pointer;">Go</button>
-        </noscript>
-      </form>
+      <!-- Head-to-Head Records (bottom of left column) -->
+      <div class="card" style="margin-top:1rem;">
+        <div class="card-header">
+          <div>
+            <div class="section-title">Head-to-Head Records</div>
+            <div class="section-sub">Pick a team to view its record vs every opponent</div>
+          </div>
+          <div class="small-muted">
+            Show:
+            <select class="select-inline" bind:value={selectedOwnerKey} aria-label="Select team to view head-to-head">
+              {#each ownersList as o}
+                <option value={o.ownerKey}>{ownerLabel(o)}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+
+        {#if selectedOwnerKey && filteredHeadToHead && filteredHeadToHead.length}
+          <table class="tbl" role="table" aria-label="Head to Head records">
+            <thead>
+              <tr>
+                <th>Opponent</th>
+                <th class="col-numeric">Reg Record</th>
+                <th class="col-numeric">Reg GP</th>
+                <th class="col-numeric">Play Record</th>
+                <th class="col-numeric">Play GP</th>
+                <th class="col-numeric col-hide-sm">PF</th>
+                <th class="col-numeric col-hide-sm">PA</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each filteredHeadToHead as hh}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(hh,'opponent') || hh.opponent_avatar, hh.opponent_name)} alt={hh.opponent_name} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{hh.opponent_name}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="col-numeric">{(hh.regWins ?? 0)} - {(hh.regLosses ?? 0)}</td>
+                  <td class="col-numeric">{(hh.regGP ?? ( (hh.regWins||0) + (hh.regLosses||0) ))}</td>
+
+                  <td class="col-numeric">{(hh.playWins ?? 0)} - {(hh.playLosses ?? 0)}</td>
+                  <td class="col-numeric">{(hh.playGP ?? ( (hh.playWins||0) + (hh.playLosses||0) ))}</td>
+
+                  <td class="col-numeric col-hide-sm">{fmt2(hh.regPF ?? 0)}</td>
+                  <td class="col-numeric col-hide-sm">{fmt2(hh.regPA ?? 0)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <div class="fallback">
+            No head-to-head records found for the selected team. If you expect data, double-check the server <code>headToHeadByOwner</code> payload or try selecting a different team.
+          </div>
+        {/if}
+      </div>
+
+      <!-- Ownership note -->
+      <div class="card" style="margin-top:1rem;">
+        <div class="section-title">Ownership note</div>
+        <div class="section-sub" style="margin-bottom:.6rem;">Lineage and preserved records (original owners before merging into canonical owners)</div>
+
+        <details class="note" aria-label="Canonicalization lineage">
+          <summary>Canonical owner mapping</summary>
+
+          <div style="margin-top:.6rem; color:#dbeafe;">
+            <div>We canonicalize Bellooshio &amp; cholybevv into <strong>jakepratt</strong> for combined stats shown in the all-time tables.</div>
+
+            {#if originalRecords.bellooshio}
+              <div class="owner-record" style="margin-top:.6rem;">
+                <img class="avatar" src={avatarOrPlaceholder(originalRecords.bellooshio.avatar, originalRecords.bellooshio.team)} alt="Bellooshio avatar" on:error={(e)=>e.target.style.visibility='hidden'} />
+                <div>
+                  <div style="font-weight:700">Bellooshio</div>
+                  <div class="small-muted">
+                    {#if originalRecords.bellooshio.team}Team: {originalRecords.bellooshio.team}{' • '}{/if}
+                    Regular: <strong>{originalRecords.bellooshio.regWins}</strong>-<strong>{originalRecords.bellooshio.regLosses}</strong> (PF {fmt2(originalRecords.bellooshio.regPF)}, PA {fmt2(originalRecords.bellooshio.regPA)})<br/>
+                    Playoffs: <strong>{originalRecords.bellooshio.playoffWins}</strong>-<strong>{originalRecords.bellooshio.playoffLosses}</strong> (PF {fmt2(originalRecords.bellooshio.playoffPF)}, PA {fmt2(originalRecords.bellooshio.playoffPA)})<br/>
+                    Championships: <strong>{originalRecords.bellooshio.championships}</strong>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <div class="small-muted" style="margin-top:.6rem;">No preserved record found for Bellooshio.</div>
+            {/if}
+
+            {#if originalRecords.cholybevv}
+              <div class="owner-record" style="margin-top:.6rem;">
+                <img class="avatar" src={avatarOrPlaceholder(originalRecords.cholybevv.avatar, originalRecords.cholybevv.team)} alt="cholybevv avatar" on:error={(e)=>e.target.style.visibility='hidden'} />
+                <div>
+                  <div style="font-weight:700">cholybevv</div>
+                  <div class="small-muted">
+                    {#if originalRecords.cholybevv.team}Team: {originalRecords.cholybevv.team}{' • '}{/if}
+                    Regular: <strong>{originalRecords.cholybevv.regWins}</strong>-<strong>{originalRecords.cholybevv.regLosses}</strong> (PF {fmt2(originalRecords.cholybevv.regPF)}, PA {fmt2(originalRecords.cholybevv.regPA)})<br/>
+                    Playoffs: <strong>{originalRecords.cholybevv.playoffWins}</strong>-<strong>{originalRecords.cholybevv.playoffLosses}</strong> (PF {fmt2(originalRecords.cholybevv.playoffPF)}, PA {fmt2(originalRecords.cholybevv.playoffPA)})<br/>
+                    Championships: <strong>{originalRecords.cholybevv.championships}</strong>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <div class="small-muted" style="margin-top:.6rem;">No preserved record found for cholybevv.</div>
+            {/if}
+          </div>
+        </details>
+      </div>
     </div>
 
-    {#if rows.length}
-      <table aria-label="Matchups table">
-        <thead>
-          <tr>
-            <th style="width:50%;">Team A</th>
-            <th style="width:50%;">Team B</th>
-          </tr>
-        </thead>
+    <!-- RIGHT COLUMN -->
+    <div>
+      <!-- Top team single-matchup -->
+      <div class="card" aria-labelledby="top-team-title">
+        <div class="card-header">
+          <div>
+            <div id="top-team-title" class="section-title">Top 10 Single-Matchup Team Scores (All-time)</div>
+            <div class="section-sub">Highest scoring team performances in one matchup</div>
+          </div>
+          <div class="small-muted">Sorted by Winning Score</div>
+        </div>
 
-        <tbody>
-          {#each rows as row}
-            {#if row.participantsCount === 2}
+        {#if topTeamMatchups && topTeamMatchups.length}
+          <table class="tbl" role="table" aria-label="Top single-matchup team scores">
+            <thead>
               <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      {#if row.teamA.points > row.teamB.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamA.points)}</div>
-                      {:else if row.teamA.points === row.teamB.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamA.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamB.name}</div>
-                      {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamB.points != null}
-                      {#if row.teamB.points > row.teamA.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamB.points)}</div>
-                      {:else if row.teamB.points === row.teamA.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamB.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamB.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
+                <th>Team</th>
+                <th>Opponent</th>
+                <th class="col-numeric">Scoring</th>
+                <th class="col-numeric col-hide-sm">Season</th>
+                <th class="col-numeric col-hide-sm">Week</th>
               </tr>
+            </thead>
+            <tbody>
+              {#each topTeamMatchups as row}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(row,'team') || row.team_avatar || row.teamAvatar, teamNameFor(row,'team'))} alt={teamNameFor(row,'team')} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{teamNameFor(row,'team')}</div>
+                        <div class="small-muted">{row.team_rosterId ? '' : ''}</div>
+                      </div>
+                    </div>
+                  </td>
 
-            {:else if row.participantsCount === 1}
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(row,'opponent') || row.opponent_avatar || row.opponentAvatar, teamNameFor(row,'opponent'))} alt={teamNameFor(row,'opponent')} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{teamNameFor(row,'opponent')}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="col-numeric">{fmt2(row.winning_score ?? row.team_score ?? row.points ?? row.score ?? 0)} - {fmt2(row.losing_score ?? row.opponent_score ?? row.opp_points ?? 0)}</td>
+                  <td class="col-numeric col-hide-sm">{row.season ?? ''}</td>
+                  <td class="col-numeric col-hide-sm">{row.week ?? ''}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <div class="small-muted" style="padding:.5rem 0;">No team single-matchup records available.</div>
+        {/if}
+      </div>
+
+      <!-- Top player single-matchup -->
+      <div class="card" aria-labelledby="top-player-title" style="margin-top:1rem;">
+        <div class="card-header">
+          <div>
+            <div id="top-player-title" class="section-title">Top 10 Single-Matchup Player Scores (All-time)</div>
+            <div class="section-sub">Highest scoring player performances in a single matchup</div>
+          </div>
+          <div class="small-muted">Sorted by Points</div>
+        </div>
+
+        {#if topPlayerMatchups && topPlayerMatchups.length}
+          <table class="tbl" role="table" aria-label="Top single-matchup player scores">
+            <thead>
               <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed var(--card-border); color:var(--muted); font-weight:700;">
-                      BYE
-                    </div>
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">Bye</div>
-                      <div class="muted">Bye week</div>
-                    </div>
-                  </div>
-                </td>
+                <th>Player</th>
+                <th>Team</th>
+                <th class="col-numeric">Scoring</th>
+                <th class="col-numeric col-hide-sm">Season</th>
+                <th class="col-numeric col-hide-sm">Week</th>
               </tr>
+            </thead>
+            <tbody>
+              {#each topPlayerMatchups as p}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="player-avatar" src={playerHeadshot(p.player_id || p.playerId || p.player)} alt={p.player_name || p.playerName || p.player || 'Player'} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{p.player_name || p.playerName || p.player || 'Unknown'}</div>
+                      </div>
+                    </div>
+                  </td>
 
-            {:else}
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(p,'team') || p.team_avatar || p.teamAvatar, p.team_name || p.team)} alt={p.team_name || p.team} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{p.team_name || p.team}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="col-numeric">{fmt2(p.points ?? p.player_points ?? p.score ?? 0)}</td>
+                  <td class="col-numeric col-hide-sm">{p.season ?? ''}</td>
+                  <td class="col-numeric col-hide-sm">{p.week ?? ''}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <div class="small-muted" style="padding:.5rem 0;">No player single-matchup records available.</div>
+        {/if}
+      </div>
+
+      <!-- Closest matches -->
+      <div class="card" aria-labelledby="closest-title" style="margin-top:1rem;">
+        <div class="card-header">
+          <div>
+            <div id="closest-title" class="section-title">Top 10 Closest Matches (All-time)</div>
+            <div class="section-sub">Smallest margin victories (ties excluded)</div>
+          </div>
+          <div class="small-muted">Sorted by Margin (ascending)</div>
+        </div>
+
+        {#if closestMatches && closestMatches.length}
+          <table class="tbl" role="table" aria-label="Closest matches">
+            <thead>
               <tr>
-                <td colspan="2">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-weight:700;">Multi-team matchup ({row.participantsCount})</div>
-                    <div class="muted">Week {row.week ?? '-'} • Season {row.season ?? '-'}</div>
-                  </div>
-
-                  <table class="inner-table" aria-label="Multi-match participants">
-                    <thead>
-                      <tr><th>Team</th><th style="text-align:right">Points</th></tr>
-                    </thead>
-                    <tbody>
-                      {#each row.combinedParticipants as p}
-                        <tr>
-                          <td>
-                            <div style="display:flex; gap:.6rem; align-items:center;">
-                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div style="font-weight:700;">{p.name}</div>
-                            </div>
-                          </td>
-                          <td style="text-align:right;">
-                            {#if p.points === row.combinedWinnerPoints}
-                              <span class="score winner" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {:else}
-                              <span class="score" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {/if}
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </td>
+                <th>Team</th>
+                <th>Opponent</th>
+                <th class="col-numeric">Margin</th>
+                <th class="col-numeric">Scoring</th>
+                <th class="col-numeric col-hide-sm">Season</th>
+                <th class="col-numeric col-hide-sm">Week</th>
               </tr>
-            {/if}
-          {/each}
-        </tbody>
-      </table>
-    {:else}
-      <div class="muted">No matchups found for the selected season/week or this week is outside the available window.</div>
-    {/if}
+            </thead>
+            <tbody>
+              {#each closestMatches as row}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(row,'team') || row.team_avatar || row.teamAvatar, teamNameFor(row,'team'))} alt={teamNameFor(row,'team')} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{teamNameFor(row,'team')}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(row,'opponent') || row.opponent_avatar || row.opponentAvatar, teamNameFor(row,'opponent'))} alt={teamNameFor(row,'opponent')} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{teamNameFor(row,'opponent')}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="col-numeric">{fmt2(Math.abs(safeNum(row.margin ?? row.team_score ?? 0) - safeNum(row.opponent_score ?? row.opp_points ?? 0)))}</td>
+                  <td class="col-numeric">{fmt2(row.winning_score ?? 0)} - {fmt2(row.losing_score ?? 0)}</td>
+                  <td class="col-numeric col-hide-sm">{row.season ?? ''}</td>
+                  <td class="col-numeric col-hide-sm">{row.week ?? ''}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <div class="small-muted" style="padding:.5rem 0;">No closest match records available.</div>
+        {/if}
+      </div>
+
+      <!-- Largest margins -->
+      <div class="card" aria-labelledby="largest-title" style="margin-top:1rem;">
+        <div class="card-header">
+          <div>
+            <div id="largest-title" class="section-title">Top 10 Largest Margins (All-time)</div>
+            <div class="section-sub">Largest margin of victory across seasons</div>
+          </div>
+          <div class="small-muted">Sorted by Margin (descending)</div>
+        </div>
+
+        {#if largestMargins && largestMargins.length}
+          <table class="tbl" role="table" aria-label="Largest margin matches">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Opponent</th>
+                <th class="col-numeric">Margin</th>
+                <th class="col-numeric">Scoring</th>
+                <th class="col-numeric col-hide-sm">Season</th>
+                <th class="col-numeric col-hide-sm">Week</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each largestMargins as row}
+                <tr>
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(row,'team') || row.team_avatar || row.teamAvatar, teamNameFor(row,'team'))} alt={teamNameFor(row,'team')} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{teamNameFor(row,'team')}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td>
+                    <div class="team-row">
+                      <img class="avatar" src={avatarOrPlaceholder(teamAvatarFor(row,'opponent') || row.opponent_avatar || row.opponentAvatar, teamNameFor(row,'opponent'))} alt={teamNameFor(row,'opponent')} on:error={(e)=>e.target.style.visibility='hidden'} />
+                      <div>
+                        <div class="team-name">{teamNameFor(row,'opponent')}</div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="col-numeric">{fmt2(row.margin ?? 0)}</td>
+                  <td class="col-numeric">{fmt2(row.winning_score ?? 0)} - {fmt2(row.losing_score ?? 0)}</td>
+                  <td class="col-numeric col-hide-sm">{row.season ?? ''}</td>
+                  <td class="col-numeric col-hide-sm">{row.week ?? ''}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <div class="small-muted" style="padding:.5rem 0;">No large-margin records available.</div>
+        {/if}
+      </div>
+    </div>
   </div>
 </div>
