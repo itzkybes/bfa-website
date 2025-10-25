@@ -59,97 +59,62 @@ const EXCLUDE_OWNER_KEYS = PRESERVE_ORIGINAL_OWNERS.map(k => String(k).toLowerCa
 
 /**
  * Extract player points mapping from a participant object (best-effort)
- * --- patched to prioritize STARTERS and STARTERS_POINTS ---
  */
 function extractPlayerPointsMap(participant) {
   const map = {};
   if (!participant || typeof participant !== 'object') return map;
 
-  // 1) Prefer explicit starters_points object or startersPoints
-  const startersPointsObj = participant.starters_points ?? participant.startersPoints ?? participant.starter_points ?? participant.starterPoints ?? null;
-  if (startersPointsObj && typeof startersPointsObj === 'object') {
-    if (Array.isArray(startersPointsObj)) {
-      // we need starters array to map indexes to player ids
-      const starters = participant.starters ?? participant.starting_lineup ?? participant.starters_list ?? participant.players ?? participant.player_ids ?? [];
-      if (Array.isArray(starters)) {
-        for (let i = 0; i < startersPointsObj.length; i++) {
-          const pid = starters[i];
-          if (!pid) continue;
-          map[String(pid)] = safeNum(startersPointsObj[i]);
-        }
-        return map;
-      } else {
-        // as a last resort map by index string
-        for (let i = 0; i < startersPointsObj.length; i++) {
-          map[String(i)] = safeNum(startersPointsObj[i]);
-        }
-        return map;
-      }
-    } else {
-      // object mapping playerId -> points
-      for (const k in startersPointsObj) {
-        if (!Object.prototype.hasOwnProperty.call(startersPointsObj, k)) continue;
-        map[String(k)] = safeNum(startersPointsObj[k]);
-      }
-      return map;
+  const pp = participant.player_points ?? participant.playerPoints ?? participant.player_points_for ?? participant.player_points_for;
+  const playersList = participant.players ?? participant.player_ids ?? participant.playerIds ?? participant.player_ids_list;
+
+  if (pp && typeof pp === 'object' && !Array.isArray(pp)) {
+    for (const k in pp) {
+      if (!Object.prototype.hasOwnProperty.call(pp, k)) continue;
+      map[String(k)] = safeNum(pp[k]);
     }
+    return map;
   }
 
-  // 2) If there's a player_points map keyed by playerId (but only include those that are starters if we can)
-  const ppObj = participant.player_points ?? participant.playerPoints ?? participant.player_points_for ?? participant.playerPointsFor ?? null;
-  if (ppObj && typeof ppObj === 'object' && !Array.isArray(ppObj)) {
-    // if starters list available, only keep starters keys
-    const starters = participant.starters ?? participant.starting_lineup ?? participant.starters_list ?? participant.players ?? participant.player_ids ?? [];
-    if (Array.isArray(starters) && starters.length) {
-      const starterSet = new Set(starters.map(s => String(s)));
-      for (const k in ppObj) {
-        if (!Object.prototype.hasOwnProperty.call(ppObj, k)) continue;
-        if (starterSet.has(String(k)) || starterSet.has(String(k).toUpperCase())) {
-          map[String(k)] = safeNum(ppObj[k]);
-        }
-      }
-      // If map has entries return it
-      if (Object.keys(map).length) return map;
-    } else {
-      // no starters list available, return the full map (best-effort fallback)
-      for (const k in ppObj) {
-        if (!Object.prototype.hasOwnProperty.call(ppObj, k)) continue;
-        map[String(k)] = safeNum(ppObj[k]);
-      }
-      return map;
-    }
-  }
-
-  // 3) Array-shaped player_points with parallel players list
-  if (Array.isArray(ppObj)) {
-    const playersList = participant.players ?? participant.player_ids ?? participant.playerIds ?? participant.player_ids_list ?? [];
-    if (Array.isArray(playersList) && playersList.length) {
-      for (let i = 0; i < ppObj.length; i++) {
-        const pid = playersList[i];
-        if (!pid) continue;
-        const v = ppObj[i];
+  if (Array.isArray(pp)) {
+    for (let i = 0; i < pp.length; i++) {
+      const v = pp[i];
+      if (playersList && Array.isArray(playersList) && playersList[i]) {
+        const pid = String(playersList[i]);
         if (v && typeof v === 'object') {
+          const vid = v.player_id ?? v.player ?? v.id ?? pid;
           const pts = safeNum(v.points ?? v.pts ?? v.p ?? 0);
-          map[String(pid)] = pts;
+          map[String(vid)] = pts;
         } else {
-          map[String(pid)] = safeNum(v);
+          map[pid] = safeNum(v);
+        }
+      } else {
+        if (v && typeof v === 'object' && (v.player_id || v.player)) {
+          const vid2 = v.player_id ?? v.player;
+          const pts2 = safeNum(v.points ?? v.pts ?? 0);
+          map[String(vid2)] = pts2;
         }
       }
-      // restrict to starters if starters list exists
-      const starters = participant.starters ?? participant.starting_lineup ?? participant.starters_list ?? [];
-      if (Array.isArray(starters) && starters.length) {
-        const starterSet = new Set(starters.map(s => String(s)));
-        const filtered = {};
-        for (const k in map) {
-          if (starterSet.has(String(k)) || starterSet.has(String(k).toUpperCase())) filtered[k] = map[k];
-        }
-        if (Object.keys(filtered).length) return filtered;
+    }
+    return map;
+  }
+
+  const sp = participant.starters_points ?? participant.startersPoints ?? null;
+  if (sp && typeof sp === 'object') {
+    if (!Array.isArray(sp)) {
+      for (const kk in sp) {
+        if (!Object.prototype.hasOwnProperty.call(sp, kk)) continue;
+        map[String(kk)] = safeNum(sp[kk]);
+      }
+      return map;
+    } else {
+      const starters = participant.starters ?? participant.starting_lineup ?? participant.starters_list ?? participant.starters_list ?? participant.players ?? participant.player_ids ?? [];
+      for (let si = 0; si < sp.length; si++) {
+        if (starters && starters[si]) map[String(starters[si])] = safeNum(sp[si]);
       }
       return map;
     }
   }
 
-  // 4) last-resort: if participant has a `points` field (team total) we can't break down players; return empty map
   return map;
 }
 
@@ -158,49 +123,6 @@ export async function load(event) {
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
   const messages = [];
-
-  // Attempt to load static override early2023.json (tries event.fetch then disk)
-  let earlyOverrides = null;
-  try {
-    // 1) try to fetch from site origin using event.fetch (works in SSR)
-    try {
-      const origin = (event && event.url && event.url.origin) ? event.url.origin : null;
-      if (origin && event.fetch) {
-        const resp = await event.fetch(`${origin}/early2023.json`);
-        if (resp && resp.ok) {
-          const json = await resp.json();
-          earlyOverrides = json;
-          messages.push('Loaded early2023.json via fetch from origin');
-        } else {
-          if (resp) messages.push(`early2023.json fetch returned ${resp.status}`);
-        }
-      } else {
-        messages.push('event.fetch not available or origin unknown; will try disk');
-      }
-    } catch (fe) {
-      messages.push('event.fetch failed while loading early2023.json: ' + (fe?.message ?? String(fe)));
-    }
-
-    // 2) fallback: try reading from static/early2023.json on disk
-    if (!earlyOverrides) {
-      try {
-        const fs = await import('fs/promises');
-        const pathMod = await import('path');
-        const staticPath = pathMod.resolve(process.cwd(), 'static', 'early2023.json');
-        try {
-          const txt = await fs.readFile(staticPath, { encoding: 'utf8' });
-          earlyOverrides = JSON.parse(txt);
-          messages.push('Loaded early2023.json from disk: ' + staticPath);
-        } catch (diskErr) {
-          messages.push('Reading static/early2023.json from disk failed: ' + (diskErr?.message ?? String(diskErr)));
-        }
-      } catch (impErr) {
-        messages.push('Failed to import fs for disk read of early2023.json: ' + (impErr?.message ?? String(impErr)));
-      }
-    }
-  } catch (errEarly) {
-    messages.push('Unexpected error while attempting to load early2023.json: ' + (errEarly?.message ?? String(errEarly)));
-  }
 
   // load players dataset for names
   let playersMap = {};
@@ -319,28 +241,49 @@ export async function load(event) {
         }
       }
 
-      // helper to find rosterId by owner username / owner name / team name
-      function findRosterByOwnerOrTeam(identifier) {
-        if (!identifier) return null;
-        const low = String(identifier).toLowerCase();
-        for (const rk in rosterMap) {
-          if (!Object.prototype.hasOwnProperty.call(rosterMap, rk)) continue;
-          const m = rosterMap[rk] || {};
-          if (m.owner_username && String(m.owner_username).toLowerCase() === low) return String(rk);
-          if (m.owner_name && String(m.owner_name).toLowerCase() === low) return String(rk);
-          if (m.team_name && String(m.team_name).toLowerCase() === low) return String(rk);
-        }
-        return null;
-      }
-
       // loop weeks
       for (let week = 1; week <= MAX_WEEKS; week++) {
         let matchups = null;
         try { matchups = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 }); } catch (mwErr) { continue; }
-        if (!matchups || !matchups.length) {
-          // no matchups from API - but still we might have early overrides for this season/week
-          // We'll handle overrides below.
+        if (!matchups || !matchups.length) continue;
+
+        // ------- NEW: detect if this week should be skipped because next week is "in progress"
+        // The rule: if the next week's matchups exist and ALL participant scores are exactly zero,
+        // then the site considers the *current* week not yet finished and should not be applied to the all-time tables.
+        // Exception: if this week is the FINAL playoff week (playoffEnd) then skip check and include the week.
+        try {
+          const isReg = (week >= 1 && week < playoffStart);
+          const isPlay = (week >= playoffStart && week <= playoffEnd);
+          // only consider skip logic for weeks that we would otherwise include (reg or play)
+          if ((isReg || isPlay) && week !== playoffEnd) {
+            const nextWeek = week + 1;
+            try {
+              const nextMatchups = await sleeper.getMatchupsForWeek(leagueId, nextWeek, { ttl: 60 * 5 });
+              if (nextMatchups && Array.isArray(nextMatchups) && nextMatchups.length > 0) {
+                // Determine if all participant entries in nextMatchups have zero points
+                let allZero = true;
+                for (let nm = 0; nm < nextMatchups.length; nm++) {
+                  const ent = nextMatchups[nm];
+                  const pts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0);
+                  if (Math.abs(pts) > 1e-9) { allZero = false; break; }
+                }
+                if (allZero) {
+                  // Skip applying this week because the following week looks like it's not finished.
+                  messages.push(`Skipping week ${week} (league ${leagueId}) because next week ${nextWeek} appears incomplete (all zero scores).`);
+                  continue; // skip processing this week entirely
+                }
+              }
+            } catch (e) {
+              // can't fetch next week - don't block processing; just continue with normal flow
+              // add a debug message for visibility
+              messages.push(`Could not fetch next-week (${week + 1}) matchups for league ${leagueId}: ${e?.message ?? String(e)}`);
+            }
+          }
+        } catch (skipErr) {
+          // defensive - do not interrupt aggregation if the skip check has an issue
+          messages.push('Error during in-progress-week check for league ' + leagueId + ' week ' + week + ' — ' + (skipErr?.message ?? String(skipErr)));
         }
+        // ------- END NEW SKIP LOGIC
 
         const isReg = (week >= 1 && week < playoffStart);
         const isPlay = (week >= playoffStart && week <= playoffEnd);
@@ -350,68 +293,15 @@ export async function load(event) {
         const results = isPlay ? resultsPlay : resultsReg;
         const pa = isPlay ? paPlay : paReg;
 
-        // If early overrides are present for this season/week and this is one of the weeks we want,
-        // build synthetic matchups from the JSON and *override* the API matchups for this week.
-        try {
-          const seasonKey = seasonEntry.season != null ? String(seasonEntry.season) : String(seasonEntry.league_id);
-          if (earlyOverrides && seasonKey && earlyOverrides[seasonKey] && earlyOverrides[seasonKey][String(week)]) {
-            const earlyList = earlyOverrides[seasonKey][String(week)];
-            if (Array.isArray(earlyList) && earlyList.length) {
-              const synthetic = [];
-              for (let ei = 0; ei < earlyList.length; ei++) {
-                const m = earlyList[ei];
-                // m expected shape: { teamA: { name, ownerName }, teamB: {...}, teamAScore, teamBScore }
-                const aOwner = (m.teamA && (m.teamA.ownerName ?? m.teamA.owner_name ?? m.teamA.owner_username)) ?? (m.teamA && (m.teamA.owner || m.teamA.ownerName));
-                const bOwner = (m.teamB && (m.teamB.ownerName ?? m.teamB.owner_name ?? m.teamB.owner_username)) ?? (m.teamB && (m.teamB.owner || m.teamB.ownerName));
-                const aTeamName = (m.teamA && (m.teamA.name ?? m.teamA.team)) ?? null;
-                const bTeamName = (m.teamB && (m.teamB.name ?? m.teamB.team)) ?? null;
-
-                // try resolve roster ids
-                let ridA = findRosterByOwnerOrTeam(aOwner) || findRosterByOwnerOrTeam(aTeamName);
-                let ridB = findRosterByOwnerOrTeam(bOwner) || findRosterByOwnerOrTeam(bTeamName);
-
-                // If either roster can't be found, we still create an entry but leave roster id null (won't update stats)
-                const scoreA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.teamAScore);
-                const scoreB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? m.teamBScore);
-
-                // Use a synthetic matchup id for grouping
-                const syntheticMid = `early|${seasonKey}|${week}|${ei}`;
-
-                if (ridA) {
-                  synthetic.push({ roster_id: ridA, points: scoreA, matchup_id: syntheticMid, raw: { early: true, source: 'early2023', team: 'A', teamName: aTeamName, owner: aOwner } });
-                } else {
-                  messages.push(`early2023 override: could not map teamA owner/team -> ${JSON.stringify(m.teamA)} for season ${seasonKey} week ${week}`);
-                }
-
-                if (ridB) {
-                  synthetic.push({ roster_id: ridB, points: scoreB, matchup_id: syntheticMid, raw: { early: true, source: 'early2023', team: 'B', teamName: bTeamName, owner: bOwner } });
-                } else {
-                  messages.push(`early2023 override: could not map teamB owner/team -> ${JSON.stringify(m.teamB)} for season ${seasonKey} week ${week}`);
-                }
-              } // end earlyList loop
-
-              // only replace matchups if we have at least one synthetic entry
-              if (synthetic.length) {
-                matchups = synthetic;
-                messages.push(`Applied early2023 overrides for season ${seasonKey} week ${week} (used ${synthetic.length} synthetic entries)`);
-              }
-            }
-          }
-        } catch (earlyErr) {
-          messages.push('Error applying early2023 overrides: ' + (earlyErr?.message ?? String(earlyErr)));
-        }
-
         // group by matchup id / week
         const byMatch = {};
-        if (Array.isArray(matchups)) {
-          for (let mi = 0; mi < matchups.length; mi++) {
-            const e = matchups[mi];
-            const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-            const wk = e.week ?? e.w ?? week;
-            const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
-            if (!byMatch[key]) byMatch[key] = [];
-            byMatch[key].push(e);
-          }
+        for (let mi = 0; mi < matchups.length; mi++) {
+          const e = matchups[mi];
+          const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
+          const wk = e.week ?? e.w ?? week;
+          const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
+          if (!byMatch[key]) byMatch[key] = [];
+          byMatch[key].push(e);
         }
 
         const mids = Object.keys(byMatch);
@@ -436,9 +326,6 @@ export async function load(event) {
           for (let p = 0; p < entries.length; p++) {
             const ent = entries[p];
             const pid = ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId;
-            // Prefer starters-based points when present in the raw entry:
-            // Some API shapes may include 'starters_points' inside participant raw; but at this stage we only have per-roster 'points' total.
-            // We'll use ent.points as the team total (overrides from early2023 are already reflected in ent.points if applied).
             const ppts = safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0);
             participants.push({ rosterId: String(pid), points: ppts, raw: ent });
             pa[String(pid)] = pa[String(pid)] || 0;
@@ -501,12 +388,12 @@ export async function load(event) {
             }
           } catch (ttErr) { /* ignore */ }
 
-          // topPlayerCandidates (use starters and starters_points only)
+          // topPlayerCandidates
           try {
             for (let pi2 = 0; pi2 < participants.length; pi2++) {
               const pPart = participants[pi2];
               const entRaw = pPart.raw || {};
-              const playerPointsMap = extractPlayerPointsMap(entRaw); // now prioritizes starters
+              const playerPointsMap = extractPlayerPointsMap(entRaw);
               let starters = entRaw.starters ?? entRaw.starting_lineup ?? entRaw.starters_list ?? entRaw.players ?? entRaw.player_ids ?? [];
               if (!Array.isArray(starters)) starters = [];
               for (let si2 = 0; si2 < starters.length; si2++) {
