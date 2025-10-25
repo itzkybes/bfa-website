@@ -2,132 +2,132 @@
   "2023": {
     "1": [
       {
-        "teamA": { "name": "The Void", "ownerName": "Kybes"},
-        "teamB": { "name": "I could gopher a beer", "ownerName": "JFK4312"},
+        "teamA": { "name": "The Void", "ownerName": "Kybes" },
+        "teamB": { "name": "I could gopher a beer", "ownerName": "JFK4312" },
         "teamAScore": 131.69,
         "teamBScore": 161.94
       },
       {
-        "teamA": { "name": "DAMN!!!!!!!!!!!!!!!!!", "ownerName": "smallvt"},
-        "teamB": { "name": "Team "armyjunior"", "ownerName": "armyjunior"},
+        "teamA": { "name": "DAMN!!!!!!!!!!!!!!!!!", "ownerName": "smallvt" },
+        "teamB": { "name": "Team "armyjunior"", "ownerName": "armyjunior" },
         "teamAScore": 185.57,
         "teamBScore": 204.19
       },
       {
-        "teamA": { "name": "The Fraggle Rock 9", "ownerName": "riguy506"},
-        "teamB": { "name": "Pact Nicely", "ownerName": "WillMichael"},
+        "teamA": { "name": "The Fraggle Rock 9", "ownerName": "riguy506" },
+        "teamB": { "name": "Pact Nicely", "ownerName": "WillMichael" },
         "teamAScore": 196,
         "teamBScore": 190.75
       },
       {
-        "teamA": { "name": "The Mog Squad", "ownerName": "slawflesh"},
-        "teamB": { "name": "Team "WebbWarrior"", "ownerName": "WebbWarrior"},
+        "teamA": { "name": "The Mog Squad", "ownerName": "slawflesh" },
+        "teamB": { "name": "Team "WebbWarrior"", "ownerName": "WebbWarrior" },
         "teamAScore": 204.25,
         "teamBScore": 198.44
       },
       {
-        "teamA": { "name": "The Codfather", "ownerName": "samsilverman12"},
-        "teamB": { "name": "Team Lobster", "ownerName": "noahlap01"},
+        "teamA": { "name": "The Codfather", "ownerName": "samsilverman12" },
+        "teamB": { "name": "Team Lobster", "ownerName": "noahlap01" },
         "teamAScore": 155.25,
         "teamBScore": 160.94
       },
       {
-        "teamA": { "name": "Team "Bellooshio"", "ownerName": "Bellooshio"},
-        "teamB": { "name": "Kanto Embers", "ownerName": "TLupinetti"},
+        "teamA": { "name": "Team "Bellooshio"", "ownerName": "Bellooshio" },
+        "teamB": { "name": "Kanto Embers", "ownerName": "TLupinetti" },
         "teamAScore": 171.69,
         "teamBScore": 174.44
       },
       {
-        "teamA": { "name": "Team "zamt"", "ownerName": "zamt"},
-        "teamB": { "name": "Harlem Globetrotters", "ownerName": "jewishhorsemen"},
+        "teamA": { "name": "Team "zamt"", "ownerName": "zamt" },
+        "teamB": { "name": "Harlem Globetrotters", "ownerName": "jewishhorsemen" },
         "teamAScore": 199.94,
         "teamBScore": 179
       }
     ],
     "2": [
       {
-        "teamA": { "name": "The Void", "ownerName": "Kybes"},
-        "teamB": { "name": "Team "WebbWarrior"", "ownerName": "WebbWarrior"},
+        "teamA": { "name": "The Void", "ownerName": "Kybes" },
+        "teamB": { "name": "Team "WebbWarrior"", "ownerName": "WebbWarrior" },
         "teamAScore": 176.69,
         "teamBScore": 206
       },
       {
-        "teamA": { "name": "DAMN!!!!!!!!!!!!!!!!!", "ownerName": "smallvt"},
-        "teamB": { "name": "The Codfather", "ownerName": "samsilverman12"},
+        "teamA": { "name": "DAMN!!!!!!!!!!!!!!!!!", "ownerName": "smallvt" },
+        "teamB": { "name": "The Codfather", "ownerName": "samsilverman12" },
         "teamAScore": 192.25,
         "teamBScore": 142.44
       },
       {
-        "teamA": { "name": "The Fraggle Rock 9", "ownerName": "riguy506"},
-        "teamB": { "name": "Team "armyjunior"", "ownerName": "armyjunior"},
+        "teamA": { "name": "The Fraggle Rock 9", "ownerName": "riguy506" },
+        "teamB": { "name": "Team "armyjunior"", "ownerName": "armyjunior" },
         "teamAScore": 221.5,
         "teamBScore": 193
       },
       {
-        "teamA": { "name": "The Mog Squad", "ownerName": "slawflesh"},
-        "teamB": { "name": "Team "Bellooshio"", "ownerName": "Bellooshio"},
+        "teamA": { "name": "The Mog Squad", "ownerName": "slawflesh" },
+        "teamB": { "name": "Team "Bellooshio"", "ownerName": "Bellooshio" },
         "teamAScore": 156.63,
         "teamBScore": 175.75
       },
       {
-        "teamA": { "name": "Kanto Embers", "ownerName": "TLupinetti"},
-        "teamB": { "name": "Team "zamt"", "ownerName": "zamt"},
+        "teamA": { "name": "Kanto Embers", "ownerName": "TLupinetti" },
+        "teamB": { "name": "Team "zamt"", "ownerName": "zamt" },
         "teamAScore": 178.94,
         "teamBScore": 213.19
       },
       {
-        "teamA": { "name": "Team Lobster", "ownerName": "noahlap01"},
-        "teamB": { "name": "Harlem Globetrotters", "ownerName": "jewishhorsemen"},
+        "teamA": { "name": "Team Lobster", "ownerName": "noahlap01" },
+        "teamB": { "name": "Harlem Globetrotters", "ownerName": "jewishhorsemen" },
         "teamAScore": 182.5,
         "teamBScore": 217.75
       },
       {
-        "teamA": { "name": "Pact Nicely", "ownerName": "WillMichael"},
-        "teamB": { "name": "I could gopher a beer", "ownerName": "JFK4312"},
+        "teamA": { "name": "Pact Nicely", "ownerName": "WillMichael" },
+        "teamB": { "name": "I could gopher a beer", "ownerName": "JFK4312" },
         "teamAScore": 172.5,
         "teamBScore": 212.5
       }
     ],
     "3": [
       {
-        "teamA": { "name": "The Void", "ownerName": "Kybes"},
-        "teamB": { "name": "The Mog Squad", "ownerName": "slawflesh"},
+        "teamA": { "name": "The Void", "ownerName": "Kybes" },
+        "teamB": { "name": "The Mog Squad", "ownerName": "slawflesh" },
         "teamAScore": 179.5,
         "teamBScore": 207.25
       },
       {
-        "teamA": { "name": "DAMN!!!!!!!!!!!!!!!!!", "ownerName": "smallvt"},
-        "teamB": { "name": "Harlem Globetrotters", "ownerName": "jewishhorsemen"},
+        "teamA": { "name": "DAMN!!!!!!!!!!!!!!!!!", "ownerName": "smallvt" },
+        "teamB": { "name": "Harlem Globetrotters", "ownerName": "jewishhorsemen" },
         "teamAScore": 166.88,
         "teamBScore": 175.25
       },
       {
-        "teamA": { "name": "The Fraggle Rock 9", "ownerName": "riguy506"},
-        "teamB": { "name": "The Codfather", "ownerName": "samsilverman12"},
+        "teamA": { "name": "The Fraggle Rock 9", "ownerName": "riguy506" },
+        "teamB": { "name": "The Codfather", "ownerName": "samsilverman12" },
         "teamAScore": 149,
         "teamBScore": 136.69
       },
       {
-        "teamA": { "name": "Team "Bellooshio"", "ownerName": "Bellooshio"},
-        "teamB": { "name": "Team "zamt"", "ownerName": "zamt"},
+        "teamA": { "name": "Team "Bellooshio"", "ownerName": "Bellooshio" },
+        "teamB": { "name": "Team "zamt"", "ownerName": "zamt" },
         "teamAScore": 156.25,
         "teamBScore": 154.75
       },
       {
-        "teamA": { "name": "Kanto Embers", "ownerName": "TLupinetti"},
-        "teamB": { "name": "Team Lobster", "ownerName": "noahlap01"},
+        "teamA": { "name": "Kanto Embers", "ownerName": "TLupinetti" },
+        "teamB": { "name": "Team Lobster", "ownerName": "noahlap01" },
         "teamAScore": 153.94,
         "teamBScore": 179
       },
       {
-        "teamA": { "name": "Pact Nicely", "ownerName": "WillMichael"},
-        "teamB": { "name": "Team "WebbWarrior"", "ownerName": "WebbWarrior"},
+        "teamA": { "name": "Pact Nicely", "ownerName": "WillMichael" },
+        "teamB": { "name": "Team "WebbWarrior"", "ownerName": "WebbWarrior" },
         "teamAScore": 184.88,
         "teamBScore": 148.75
       },
       {
-        "teamA": { "name": "Team "armyjunior"", "ownerName": "armyjunior"},
-        "teamB": { "name": "I could gopher a beer", "ownerName": "JFK4312"},
+        "teamA": { "name": "Team "armyjunior"", "ownerName": "armyjunior" },
+        "teamB": { "name": "I could gopher a beer", "ownerName": "JFK4312" },
         "teamAScore": 201.44,
         "teamBScore": 203.5
       }
