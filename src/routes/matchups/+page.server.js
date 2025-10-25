@@ -1,6 +1,7 @@
 // src/routes/matchups/+page.server.js
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
+import { readFile } from 'fs/promises';
 
 let cache;
 try {
@@ -21,6 +22,48 @@ const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 25;
 function safeNum(v) {
   const n = Number(v);
   return isNaN(n) ? 0 : n;
+}
+
+async function tryLoadEarly2023(origin) {
+  // Try to fetch from same origin (deployed static), then fallback to reading from disk.
+  // Return parsed JSON or null.
+  // NOTE: this function swallows errors and returns null on failure.
+  try {
+    if (typeof fetch === 'function' && origin) {
+      const url = origin.replace(/\/$/, '') + '/early2023.json';
+      try {
+        const res = await fetch(url, { method: 'GET' });
+        if (res && res.ok) {
+          const txt = await res.text();
+          try {
+            const parsed = JSON.parse(txt);
+            return parsed;
+          } catch (e) {
+            // fallthrough to disk fallback
+          }
+        }
+      } catch (e) {
+        // continue to disk fallback
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Disk fallback: attempt to read static/early2023.json relative to this file.
+  try {
+    // from src/routes/matchups/+page.server.js -> project root is ../../../
+    const fileUrl = new URL('../../../static/early2023.json', import.meta.url);
+    const txt = await readFile(fileUrl, 'utf8');
+    try {
+      const parsed = JSON.parse(txt);
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function load(event) {
@@ -47,7 +90,7 @@ export async function load(event) {
       }
     }
   } catch (err) {
-    // swallow — we will return at least defaults
+    // ignore; we'll return empty seasons if necessary
   }
 
   // de-dupe + sort ascending by season
@@ -100,14 +143,15 @@ export async function load(event) {
   const playoffEnd = Math.min(MAX_WEEKS, playoffStart + 2);
   for (let w = playoffStart; w <= playoffEnd; w++) playoffWeeks.push(w);
 
-  // selected week param (or default to latest regular week if not provided)
+  // selected week param (or default to 1 if not provided)
   const weekParamRaw = url.searchParams.get('week');
   let selectedWeek = null;
   if (weekParamRaw != null) {
     const wp = Number(weekParamRaw);
     selectedWeek = Number.isFinite(wp) && wp >= 1 ? wp : null;
   }
-  if (!selectedWeek) selectedWeek = 1; // default week selector to 1 per request
+  // default to week 1 per request
+  if (!selectedWeek) selectedWeek = 1;
   if (selectedWeek > MAX_WEEKS) selectedWeek = MAX_WEEKS;
 
   // fetch roster map for selected league (to use latest team names/avatars)
@@ -117,108 +161,146 @@ export async function load(event) {
     else rosterMap = {};
   } catch (e) { rosterMap = {}; }
 
-  // fetch matchups for the selected week (regular season or playoff)
-  let rawMatchups = [];
-  try {
-    if (selectedLeagueId && selectedWeek >= 1) {
-      rawMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, selectedWeek, { ttl: 60 * 5 }) || [];
+  // Attempt to load early2023.json if needed
+  let earlyData = null;
+  if (String(selectedSeason) === '2023' && selectedWeek >= 1 && selectedWeek <= 3) {
+    // try loading; pass origin so fetch uses same host
+    try {
+      earlyData = await tryLoadEarly2023(event.url?.origin || null);
+    } catch (e) {
+      earlyData = null;
     }
-  } catch (e) {
-    rawMatchups = [];
   }
 
-  // group matchups by matchup id / week
-  const byMatch = {};
-  for (let i = 0; i < rawMatchups.length; i++) {
-    const e = rawMatchups[i];
-    const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-    const wk = e.week ?? e.w ?? selectedWeek;
-    const key = mid != null ? `${mid}|${wk}` : `auto|${wk}|${i}`;
-    if (!byMatch[key]) byMatch[key] = [];
-    byMatch[key].push(e);
-  }
-
-  // Build rows for UI
+  // If earlyData contains the week, build matchupsRows from that JSON
   const matchupsRows = [];
-  for (const k of Object.keys(byMatch)) {
-    const entries = byMatch[k];
-    if (!entries || entries.length === 0) continue;
+  if (earlyData && earlyData['2023'] && earlyData['2023'][String(selectedWeek)] && earlyData['2023'][String(selectedWeek)].length) {
+    const weekArr = earlyData['2023'][String(selectedWeek)];
+    // Each entry is expected to be { teamA: { name, ownerName }, teamB: {...}, teamAScore, teamBScore }
+    for (const entry of weekArr) {
+      const aName = entry?.teamA?.name ?? 'Roster A';
+      const bName = entry?.teamB?.name ?? 'Roster B';
+      const aOwner = entry?.teamA?.ownerName ?? null;
+      const bOwner = entry?.teamB?.ownerName ?? null;
+      const aPts = safeNum(entry?.teamAScore ?? entry?.teamA?.score ?? 0);
+      const bPts = safeNum(entry?.teamBScore ?? entry?.teamB?.score ?? 0);
 
-    if (entries.length === 2) {
-      const a = entries[0];
-      const b = entries[1];
-      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
-      const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
-      const aMeta = rosterMap[aId] || {};
-      const bMeta = rosterMap[bId] || {};
-      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
-      const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? 0);
-      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? 0);
+      // We don't know roster IDs from the JSON; keep rosterId null but include ownerName for mapping.
       matchupsRows.push({
-        matchup_id: k,
-        season: selectedSeason ?? null,
+        matchup_id: `early2023-${selectedWeek}-${matchupsRows.length}`,
+        season: selectedSeason,
         week: selectedWeek,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
-        teamB: { rosterId: bId, name: bName, avatar: bAvatar, points: bPts },
-        participantsCount: 2
-      });
-
-    } else if (entries.length === 1) {
-      const a = entries[0];
-      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
-      const aMeta = rosterMap[aId] || {};
-      const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
-      const aPts = (a.points != null || a.points_for != null || a.pts != null) ? safeNum(a.points ?? a.points_for ?? a.pts ?? 0) : null;
-      matchupsRows.push({
-        matchup_id: k,
-        season: selectedSeason ?? null,
-        week: selectedWeek,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts },
-        teamB: null,
-        participantsCount: 1,
-        isBye: true
-      });
-
-    } else {
-      const participants = entries.map(ent => {
-        const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
-        const meta = rosterMap[pid] || {};
-        return {
-          rosterId: pid,
-          name: meta.team_name || meta.owner_name || ('Roster ' + pid),
-          avatar: meta.team_avatar || meta.owner_avatar || null,
-          points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0)
-        };
-      });
-      const combinedNames = participants.map(p => p.name).join(' / ');
-      matchupsRows.push({
-        matchup_id: k,
-        season: selectedSeason ?? null,
-        week: selectedWeek,
-        combinedParticipants: participants,
-        combinedLabel: combinedNames,
-        participantsCount: participants.length
+        teamA: { rosterId: null, name: aName, ownerName: aOwner, avatar: null, points: aPts },
+        teamB: { rosterId: null, name: bName, ownerName: bOwner, avatar: null, points: bPts },
+        participantsCount: 2,
+        _source: 'early2023.json'
       });
     }
-  }
 
-  // sort rows by teamA.points desc when possible
-  matchupsRows.sort((x,y) => {
-    const ax = (x.teamA && x.teamA.points != null) ? x.teamA.points : (x.combinedParticipants ? (x.combinedParticipants[0]?.points || 0) : 0);
-    const by = (y.teamA && y.teamA.points != null) ? y.teamA.points : (y.combinedParticipants ? (y.combinedParticipants[0]?.points || 0) : 0);
-    return (by - ax);
-  });
+    // sort to keep consistent ordering (desc teamA.points)
+    matchupsRows.sort((x,y) => ( (y.teamA?.points || 0) - (x.teamA?.points || 0) ));
+  } else {
+    // No early JSON mapping for this week/season — fallback to Sleeper API matchups
+    let rawMatchups = [];
+    try {
+      if (selectedLeagueId && selectedWeek >= 1) {
+        rawMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, selectedWeek, { ttl: 60 * 5 }) || [];
+      }
+    } catch (e) {
+      rawMatchups = [];
+    }
+
+    // group matchups by matchup id / week
+    const byMatch = {};
+    for (let i = 0; i < rawMatchups.length; i++) {
+      const e = rawMatchups[i];
+      const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
+      const wk = e.week ?? e.w ?? selectedWeek;
+      const key = mid != null ? `${mid}|${wk}` : `auto|${wk}|${i}`;
+      if (!byMatch[key]) byMatch[key] = [];
+      byMatch[key].push(e);
+    }
+
+    for (const k of Object.keys(byMatch)) {
+      const entries = byMatch[k];
+      if (!entries || entries.length === 0) continue;
+
+      if (entries.length === 2) {
+        const a = entries[0];
+        const b = entries[1];
+        const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+        const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
+        const aMeta = rosterMap[aId] || {};
+        const bMeta = rosterMap[bId] || {};
+        const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
+        const bName = bMeta.team_name || bMeta.owner_name || ('Roster ' + bId);
+        const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
+        const bAvatar = bMeta.team_avatar || bMeta.owner_avatar || null;
+        const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? 0);
+        const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? 0);
+        matchupsRows.push({
+          matchup_id: k,
+          season: selectedSeason ?? null,
+          week: selectedWeek,
+          teamA: { rosterId: aId, name: aName, ownerName: aMeta.owner_name ?? null, avatar: aAvatar, points: aPts },
+          teamB: { rosterId: bId, name: bName, ownerName: bMeta.owner_name ?? null, avatar: bAvatar, points: bPts },
+          participantsCount: 2
+        });
+
+      } else if (entries.length === 1) {
+        const a = entries[0];
+        const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+        const aMeta = rosterMap[aId] || {};
+        const aName = aMeta.team_name || aMeta.owner_name || ('Roster ' + aId);
+        const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || null;
+        const aPts = (a.points != null || a.points_for != null || a.pts != null) ? safeNum(a.points ?? a.points_for ?? a.pts ?? 0) : null;
+        matchupsRows.push({
+          matchup_id: k,
+          season: selectedSeason ?? null,
+          week: selectedWeek,
+          teamA: { rosterId: aId, name: aName, ownerName: aMeta.owner_name ?? null, avatar: aAvatar, points: aPts },
+          teamB: null,
+          participantsCount: 1,
+          isBye: true
+        });
+
+      } else {
+        const participants = entries.map(ent => {
+          const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? 'r');
+          const meta = rosterMap[pid] || {};
+          return {
+            rosterId: pid,
+            name: meta.team_name || meta.owner_name || ('Roster ' + pid),
+            avatar: meta.team_avatar || meta.owner_avatar || null,
+            points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0)
+          };
+        });
+        const combinedNames = participants.map(p => p.name).join(' / ');
+        matchupsRows.push({
+          matchup_id: k,
+          season: selectedSeason ?? null,
+          week: selectedWeek,
+          combinedParticipants: participants,
+          combinedLabel: combinedNames,
+          participantsCount: participants.length
+        });
+      }
+    }
+
+    // sort rows by teamA.points desc when possible
+    matchupsRows.sort((x,y) => {
+      const ax = (x.teamA && x.teamA.points != null) ? x.teamA.points : (x.combinedParticipants ? (x.combinedParticipants[0]?.points || 0) : 0);
+      const by = (y.teamA && y.teamA.points != null) ? y.teamA.points : (y.combinedParticipants ? (y.combinedParticipants[0]?.points || 0) : 0);
+      return (by - ax);
+    });
+  }
 
   const weekOptions = {
     regular: weeks,
     playoffs: playoffWeeks
   };
 
-  // IMPORTANT: do NOT return internal debug messages — keep the response clean for the UI
+  // Return only the UI-facing data (no debug messages)
   return {
     seasons,
     weeks,
