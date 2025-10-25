@@ -101,7 +101,6 @@
     --card: #071025;
     --muted: #9ca3af;
     --accent: rgba(99,102,241,0.08);
-    --text: #e6eef8;
     color-scheme: dark;
   }
 
@@ -122,14 +121,12 @@
     font-size: 0.95rem;
   }
 
-  /* Controls layout */
   .controls-row {
     display:flex;
     justify-content:space-between;
     gap:1rem;
     align-items:center;
     margin: .6rem 0 1rem 0;
-    flex-wrap:wrap;
   }
 
   .card {
@@ -160,13 +157,20 @@
   }
 
   /* Table styling */
-  .table-wrap { width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border-radius:8px; }
+  .table-wrap {
+    width:100%;
+    overflow:auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: .5rem;
+  }
+
   .tbl {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.95rem;
     overflow: hidden;
-    min-width: 680px; /* allow horizontal scroll on small screens */
+    border-radius: 8px;
+    min-width: 740px; /* force horizontal scroll on narrow screens so PF/PA remain reachable */
   }
 
   thead th {
@@ -183,7 +187,7 @@
   tbody td {
     padding: 10px 12px;
     border-bottom: 1px solid rgba(255,255,255,0.03);
-    color: var(--text);
+    color: #e6eef8;
     vertical-align: middle;
   }
 
@@ -196,9 +200,9 @@
     transform: translateZ(0);
   }
 
-  .team-row { display:flex; align-items:center; gap:0.75rem; min-width:0; }
+  .team-row { display:flex; align-items:center; gap:0.75rem; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; }
-  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:360px; }
+  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
   .owner { color: var(--muted); font-size:.9rem; margin-top:2px; }
 
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
@@ -212,39 +216,34 @@
     align-items:center;
   }
 
-  /* Matchups-like select */
-  select.season-select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: var(--text);
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 700;
-    outline: none;
-  }
-  select.season-select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
+  select.season-select { padding:.45rem .6rem; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background: #fff; color: #000; }
+
+  /* Rank column */
+  .rank {
+    width:48px;
+    text-align:right;
+    font-weight:700;
+    padding-right:12px;
+    color: #e6eef8;
   }
 
-  /* Small-screen friendly tweaks */
-  @media (max-width: 900px) {
-    .controls-row { flex-direction:column; align-items:stretch; }
-    .controls { width:100%; justify-content:flex-start; flex-wrap:wrap; }
-    .controls form { width:100%; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
-    .section-sub { font-size:0.88rem; }
+  /* Responsive adjustments */
+  @media (max-width: 1000px) {
+    .tbl { min-width: 720px; }
+  }
 
-    .avatar { width:48px; height:48px; }
-    .team-name { font-size: .98rem; max-width: 55vw; } /* give team name more room but still ellipsis */
+  @media (max-width: 800px) {
+    .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
-    .col-hide-sm { display:none; } /* hide PF/PA on smaller screens */
+    .team-name { font-size: .95rem; }
+    /* allow full horizontal scroll on small screens */
+    .table-wrap { overflow:auto; }
   }
 
   @media (max-width: 520px) {
     .avatar { width:40px; height:40px; }
-    .team-name { font-size:0.96rem; max-width: 50vw; }
+    thead th, tbody td { padding: 6px 8px; }
+    .team-name { font-size: .98rem; }
   }
 </style>
 
@@ -289,27 +288,29 @@
     </div>
 
     {#if selectedSeasonResult && selectedSeasonResult.regularStandings && selectedSeasonResult.regularStandings.length}
-      <div class="table-wrap" role="region" aria-label="Regular standings table - scroll horizontally if needed">
+      <div class="table-wrap" role="region" aria-label="Regular season standings table scrollable">
         <table class="tbl" role="table" aria-label="Regular season standings">
           <thead>
             <tr>
+              <th>#</th>
               <th>Team / Owner</th>
               <th class="col-numeric">W</th>
               <th class="col-numeric">L</th>
               <th class="col-numeric">Longest W-Str</th>
               <th class="col-numeric">Longest L-Str</th>
-              <th class="col-numeric col-hide-sm">PF</th>
-              <th class="col-numeric col-hide-sm">PA</th>
+              <th class="col-numeric">PF</th>
+              <th class="col-numeric">PA</th>
             </tr>
           </thead>
           <tbody>
-            {#each selectedSeasonResult.regularStandings as row}
+            {#each selectedSeasonResult.regularStandings as row, idx}
               <tr>
+                <td class="rank">{idx + 1}</td>
                 <td>
                   <div class="team-row">
                     <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                    <div style="min-width:0;">
-                      <div class="team-name" title={row.team_name}>{row.team_name}</div>
+                    <div>
+                      <div class="team-name">{row.team_name}</div>
                       {#if row.owner_name}
                         <div class="owner">{row.owner_name}</div>
                       {/if}
@@ -320,8 +321,8 @@
                 <td class="col-numeric">{row.losses}</td>
                 <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '')}</td>
                 <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '')}</td>
-                <td class="col-numeric col-hide-sm">{row.pf}</td>
-                <td class="col-numeric col-hide-sm">{row.pa}</td>
+                <td class="col-numeric">{row.pf}</td>
+                <td class="col-numeric">{row.pa}</td>
               </tr>
             {/each}
           </tbody>
@@ -342,15 +343,16 @@
     </div>
 
     {#if selectedSeasonResult && ( (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length) || (selectedSeasonResult.standings && selectedSeasonResult.standings.length) )}
-      <div class="table-wrap" role="region" aria-label="Playoff standings table - scroll horizontally if needed">
+      <!-- wrap playoff table as well so users can horizontally scroll to PF/PA on mobile -->
+      <div class="table-wrap" role="region" aria-label="Playoff standings table scrollable">
         <table class="tbl" role="table" aria-label="Playoff standings">
           <thead>
             <tr>
               <th>Team / Owner</th>
               <th class="col-numeric">W</th>
               <th class="col-numeric">L</th>
-              <th class="col-numeric col-hide-sm">PF</th>
-              <th class="col-numeric col-hide-sm">PA</th>
+              <th class="col-numeric">PF</th>
+              <th class="col-numeric">PA</th>
             </tr>
           </thead>
           <tbody>
@@ -359,8 +361,8 @@
                 <td>
                   <div class="team-row">
                     <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                    <div style="min-width:0;">
-                      <div class="team-name" title={row.team_name}>
+                    <div>
+                      <div class="team-name">
                         <span>{row.team_name}</span>
                         {#if row.champion === true}
                           <span class="trophies" title="Champion">🏆</span>
@@ -374,8 +376,8 @@
                 </td>
                 <td class="col-numeric">{row.wins}</td>
                 <td class="col-numeric">{row.losses}</td>
-                <td class="col-numeric col-hide-sm">{row.pf}</td>
-                <td class="col-numeric col-hide-sm">{row.pa}</td>
+                <td class="col-numeric">{row.pf}</td>
+                <td class="col-numeric">{row.pa}</td>
               </tr>
             {/each}
           </tbody>
