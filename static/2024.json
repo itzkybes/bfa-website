@@ -1,0 +1,2469 @@
+{
+  "1": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 245.25,
+      "teamBScore": 247.69
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 179.25,
+      "teamBScore": 174.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 225,
+      "teamBScore": 210.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 227,
+      "teamBScore": 196
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 187.25,
+      "teamBScore": 177
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 195.69,
+      "teamBScore": 168.25
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 176.94,
+      "teamBScore": 209.5
+    }
+  ],
+  "2": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamAScore": 228.5,
+      "teamBScore": 206.38
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 241.75,
+      "teamBScore": 151.69
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 201.75,
+      "teamBScore": 250.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 224.19,
+      "teamBScore": 201.44
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 214.19,
+      "teamBScore": 213.44
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 178.25,
+      "teamBScore": 162.44
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 154.19,
+      "teamBScore": 175
+    }
+  ],
+  "3": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 250,
+      "teamBScore": 153.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 128.19,
+      "teamBScore": 220.44
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 186.94,
+      "teamBScore": 206
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 199.25,
+      "teamBScore": 171.75
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 203.19,
+      "teamBScore": 176
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 203,
+      "teamBScore": 185.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 140.38,
+      "teamBScore": 185.19
+    }
+  ],
+  "4": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 211.25,
+      "teamBScore": 224.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 149,
+      "teamBScore": 211.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 188,
+      "teamBScore": 203.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 266.25,
+      "teamBScore": 204.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 204.75,
+      "teamBScore": 176.75
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 170.5,
+      "teamBScore": 214.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 206.19,
+      "teamBScore": 134
+    }
+  ],
+  "5": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 226.44,
+      "teamBScore": 227.63
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 172.5,
+      "teamBScore": 163.25
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 175.94,
+      "teamBScore": 206.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 219.75,
+      "teamBScore": 156
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 221.75,
+      "teamBScore": 204.44
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 145,
+      "teamBScore": 248.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 176.44,
+      "teamBScore": 228.25
+    }
+  ],
+  "6": [
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 189.44,
+      "teamBScore": 219.44
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 164,
+      "teamBScore": 221.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 240,
+      "teamBScore": 202
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 228.19,
+      "teamBScore": 205.94
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 119.25,
+      "teamBScore": 227.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 216,
+      "teamBScore": 219.69
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 164.5,
+      "teamBScore": 179.5
+    }
+  ],
+  "7": [
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 150.25,
+      "teamBScore": 217.94
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 118.75,
+      "teamBScore": 168
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 180.44,
+      "teamBScore": 215.19
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 223.25,
+      "teamBScore": 207.38
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 239.5,
+      "teamBScore": 177
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 191.88,
+      "teamBScore": 242.44
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 214.69,
+      "teamBScore": 199.5
+    }
+  ],
+  "8": [
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 184.13,
+      "teamBScore": 186.75
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 153.75,
+      "teamBScore": 158.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 225.44,
+      "teamBScore": 208.5
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 196.5,
+      "teamBScore": 234
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 206.25,
+      "teamBScore": 198.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 147.5,
+      "teamBScore": 266.88
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 184.13,
+      "teamBScore": 178.5
+    }
+  ],
+  "9": [
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 237.88,
+      "teamBScore": 182.44
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 180.13,
+      "teamBScore": 207.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 205.19,
+      "teamBScore": 191.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 192.25,
+      "teamBScore": 210.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 207.5,
+      "teamBScore": 168.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 246.88,
+      "teamBScore": 188.94
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 238.5,
+      "teamBScore": 199
+    }
+  ],
+  "10": [
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 210.94,
+      "teamBScore": 260
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 225.63,
+      "teamBScore": 236.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 196.51,
+      "teamBScore": 217
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 217,
+      "teamBScore": 156
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 221.75,
+      "teamBScore": 176.25
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 159,
+      "teamBScore": 209
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 250.44,
+      "teamBScore": 245.94
+    }
+  ],
+  "11": [
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 171.25,
+      "teamBScore": 211.88
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 203,
+      "teamBScore": 182
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 239.69,
+      "teamBScore": 201.44
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 152.5,
+      "teamBScore": 218.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 250.63,
+      "teamBScore": 111.25
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 239.38,
+      "teamBScore": 103.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 205.69,
+      "teamBScore": 184.19
+    }
+  ],
+  "12": [
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 176.44,
+      "teamBScore": 210.25
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 193.94,
+      "teamBScore": 230.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 239.5,
+      "teamBScore": 219
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 208.5,
+      "teamBScore": 212.69
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 206,
+      "teamBScore": 196.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 211.69,
+      "teamBScore": 90.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 109,
+      "teamBScore": 193.25
+    }
+  ],
+  "13": [
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 198.25,
+      "teamBScore": 246.69
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 232.69,
+      "teamBScore": 211.63
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 243.94,
+      "teamBScore": 213.5
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 195.75,
+      "teamBScore": 200.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 196.63,
+      "teamBScore": 237.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 267.25,
+      "teamBScore": 202
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 82,
+      "teamBScore": 119
+    }
+  ],
+  "14": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 241.94,
+      "teamBScore": 194
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 188.38,
+      "teamBScore": 140.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 211.44,
+      "teamBScore": 253.75
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 195.5,
+      "teamBScore": 237.25
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 214.5,
+      "teamBScore": 209
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 220,
+      "teamBScore": 203.25
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 186.75,
+      "teamBScore": 241
+    }
+  ],
+  "15": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamAScore": 231.25,
+      "teamBScore": 199.25
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 217.19,
+      "teamBScore": 167
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 47.5,
+      "teamBScore": 174
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 198.75,
+      "teamBScore": 246.69
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 275.19,
+      "teamBScore": 132.25
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 221.94,
+      "teamBScore": 158.94
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 139,
+      "teamBScore": 232
+    }
+  ],
+  "16": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 240.69,
+      "teamBScore": 130.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 195.5,
+      "teamBScore": 133.19
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 248.5,
+      "teamBScore": 287.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 196.25,
+      "teamBScore": 237.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 252.69,
+      "teamBScore": 209.5
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 187.25,
+      "teamBScore": 168.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 181.69,
+      "teamBScore": 217.19
+    }
+  ],
+  "17": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 228.5,
+      "teamBScore": 125.44
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 164.75,
+      "teamBScore": 183.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 240.5,
+      "teamBScore": 124.5
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 224.75,
+      "teamBScore": 166.25
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 211,
+      "teamBScore": 159.44
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 193.94,
+      "teamBScore": 177.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 203,
+      "teamBScore": 246.25
+    }
+  ],
+  "18": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 228.94,
+      "teamBScore": 208
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 215.5,
+      "teamBScore": 190.75
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 288.25,
+      "teamBScore": 209.44
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 85,
+      "teamBScore": 122.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 185.5,
+      "teamBScore": 210.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 184.75,
+      "teamBScore": 158.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 214.32,
+      "teamBScore": 221.25
+    }
+  ],
+  "19": [
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 215.5,
+      "teamBScore": 191.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 232,
+      "teamBScore": 205.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 233,
+      "teamBScore": 243.13
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 134.19,
+      "teamBScore": 157.75
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 192.38,
+      "teamBScore": 196
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 133.5,
+      "teamBScore": 218
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 166.94,
+      "teamBScore": 218
+    }
+  ],
+  "20": [
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 233.69,
+      "teamBScore": 199.44
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 224.25,
+      "teamBScore": 157.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 218.19,
+      "teamBScore": 207.25
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 101.75,
+      "teamBScore": 296
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 233.5,
+      "teamBScore": 88
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 215.75,
+      "teamBScore": 223.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 20.5,
+      "teamBScore": 201
+    }
+  ],
+  "21": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 243.94,
+      "teamBScore": 178.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 244.25,
+      "teamBScore": 239.25
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 257.94,
+      "teamBScore": 234
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 185.94,
+      "teamBScore": 182.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 218,
+      "teamBScore": 227.44
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 189.25
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 90.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 209.75,
+      "teamBScore": 177.57
+    }
+  ],
+  "22": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 201.44,
+      "teamBScore": 277.25
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 205,
+      "teamBScore": 201.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 177.75,
+      "teamBScore": 161.44
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 224.19,
+      "teamBScore": 206.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 209.94,
+      "teamBScore": 186.75
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 188,
+      "teamBScore": 156.13
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 184.19,
+      "teamBScore": 198.19
+    }
+  ],
+  "23": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt"
+      },
+      "teamAScore": 170.25,
+      "teamBScore": 214.25
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 185.25,
+      "teamBScore": 313.69
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "4",
+        "name": "The Mog Squad",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 180.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 152.5,
+      "teamBScore": 209
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 158.75,
+      "teamBScore": 196.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 164,
+      "teamBScore": 165.94
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 218.25,
+      "teamBScore": 197
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 199.44
+    }
+  ]
+}
