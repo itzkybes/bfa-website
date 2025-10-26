@@ -1,0 +1,2362 @@
+{
+  "1": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 153,
+      "teamBScore": 149.13
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 190.75,
+      "teamBScore": 145.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 180,
+      "teamBScore": 172.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 219.19,
+      "teamBScore": 203.63
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 142.94,
+      "teamBScore": 176.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 166.69,
+      "teamBScore": 205.88
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 177.38,
+      "teamBScore": 171.69
+    }
+  ],
+  "2": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamAScore": 198.44,
+      "teamBScore": 190.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 198,
+      "teamBScore": 218.25
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 181.5,
+      "teamBScore": 202.75
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 135.5,
+      "teamBScore": 207.69
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 120.94,
+      "teamBScore": 134
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 196.75,
+      "teamBScore": 137.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 232.25,
+      "teamBScore": 170.25
+    }
+  ],
+  "3": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 164.25,
+      "teamBScore": 107.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 201.5,
+      "teamBScore": 217.44
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 197.69,
+      "teamBScore": 170
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 208.25,
+      "teamBScore": 129.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 94.19,
+      "teamBScore": 166.19
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 221.94,
+      "teamBScore": 159.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 198,
+      "teamBScore": 199.5
+    }
+  ],
+  "4": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 120.5,
+      "teamBScore": 179
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 197.75,
+      "teamBScore": 119.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 174.38,
+      "teamBScore": 171.94
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 179.5,
+      "teamBScore": 148.13
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 169.19,
+      "teamBScore": 146.44
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 128.25,
+      "teamBScore": 199.75
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 163.44,
+      "teamBScore": 185
+    }
+  ],
+  "5": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 130.94,
+      "teamBScore": 161.25
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 194.19,
+      "teamBScore": 165.44
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 192.94,
+      "teamBScore": 181
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 115,
+      "teamBScore": 207.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 184,
+      "teamBScore": 133.19
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 99.19,
+      "teamBScore": 147.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 161.75,
+      "teamBScore": 156.75
+    }
+  ],
+  "6": [
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 237.19,
+      "teamBScore": 174.63
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 197,
+      "teamBScore": 150.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 209.94,
+      "teamBScore": 153.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 181.5,
+      "teamBScore": 193.69
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 158.19,
+      "teamBScore": 194.69
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 221.69,
+      "teamBScore": 105.44
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 183.25,
+      "teamBScore": 195
+    }
+  ],
+  "7": [
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 205.44,
+      "teamBScore": 135.25
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 210.69,
+      "teamBScore": 200.69
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 187.25,
+      "teamBScore": 147.5
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 127.94,
+      "teamBScore": 184.88
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 126.32,
+      "teamBScore": 114.94
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 196.19,
+      "teamBScore": 179.69
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 128.19,
+      "teamBScore": 179.25
+    }
+  ],
+  "8": [
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 162.75,
+      "teamBScore": 167.94
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 172.19,
+      "teamBScore": 188.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 208.19,
+      "teamBScore": 163.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 203.69,
+      "teamBScore": 211.38
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 140.19,
+      "teamBScore": 178.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 154,
+      "teamBScore": 194
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 160,
+      "teamBScore": 148
+    }
+  ],
+  "9": [
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 178,
+      "teamBScore": 129.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 128.07,
+      "teamBScore": 138.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 232.5,
+      "teamBScore": 201.25
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 160.75,
+      "teamBScore": 183.25
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 155.19,
+      "teamBScore": 213.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 158.69,
+      "teamBScore": 151.25
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 198.44,
+      "teamBScore": 172.69
+    }
+  ],
+  "10": [
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 185.69,
+      "teamBScore": 190.75
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 164,
+      "teamBScore": 245.88
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 104.13,
+      "teamBScore": 174.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 130,
+      "teamBScore": 169.88
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 231.13,
+      "teamBScore": 201.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 180,
+      "teamBScore": 133.5
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 179.13,
+      "teamBScore": 216.69
+    }
+  ],
+  "11": [
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 203.94,
+      "teamBScore": 226.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 222.75,
+      "teamBScore": 164.69
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 180.69,
+      "teamBScore": 191.94
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 149,
+      "teamBScore": 138.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 139.5,
+      "teamBScore": 177.63
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 96,
+      "teamBScore": 128.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 212.13,
+      "teamBScore": 165.38
+    }
+  ],
+  "12": [
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 180.75,
+      "teamBScore": 133
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 163.25,
+      "teamBScore": 194.44
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 200.75,
+      "teamBScore": 181.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 212.19,
+      "teamBScore": 123.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 137.19,
+      "teamBScore": 184.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 149,
+      "teamBScore": 161.63
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 158.25,
+      "teamBScore": 163.38
+    }
+  ],
+  "13": [
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 165.5,
+      "teamBScore": 197.44
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 193.5,
+      "teamBScore": 194.94
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 253.13,
+      "teamBScore": 143.25
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 148.44,
+      "teamBScore": 126
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 117.25,
+      "teamBScore": 182.5
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 163.19,
+      "teamBScore": 142.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 193,
+      "teamBScore": 185.75
+    }
+  ],
+  "14": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 205.25,
+      "teamBScore": 169.75
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 189.75,
+      "teamBScore": 132.75
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 247.25,
+      "teamBScore": 129
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 168.5,
+      "teamBScore": 168.75
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 164.25,
+      "teamBScore": 195.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 141.75,
+      "teamBScore": 188.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 153.25,
+      "teamBScore": 192.25
+    }
+  ],
+  "15": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamAScore": 162.69,
+      "teamBScore": 175.44
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 228.57,
+      "teamBScore": 164.69
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 171.38,
+      "teamBScore": 192.69
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 164.75,
+      "teamBScore": 159.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 152.5,
+      "teamBScore": 165.25
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 125.38,
+      "teamBScore": 145.44
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 125.44,
+      "teamBScore": 168.25
+    }
+  ],
+  "16": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 160,
+      "teamBScore": 105
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 228.57,
+      "teamBScore": 169.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 215.88,
+      "teamBScore": 180.5
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 148.44,
+      "teamBScore": 174.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 145,
+      "teamBScore": 198.75
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 148,
+      "teamBScore": 196.5
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 119.5,
+      "teamBScore": 171.69
+    }
+  ],
+  "17": [
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 163,
+      "teamBScore": 138.5
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 209.44,
+      "teamBScore": 168.69
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 176.57,
+      "teamBScore": 117.5
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 182.5,
+      "teamBScore": 125.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 155.5,
+      "teamBScore": 183.75
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 177,
+      "teamBScore": 151.5
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 153.75,
+      "teamBScore": 115.75
+    }
+  ],
+  "18": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamAScore": 94.75,
+      "teamBScore": 162.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 223.69,
+      "teamBScore": 175
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamAScore": 173.19,
+      "teamBScore": 189.25
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 123.5,
+      "teamBScore": 129.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 164.25,
+      "teamBScore": 230.19
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 198.25,
+      "teamBScore": 146.38
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 189.94,
+      "teamBScore": 160.13
+    }
+  ],
+  "19": [
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 188.5,
+      "teamBScore": 172.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamAScore": 214.69,
+      "teamBScore": 147.19
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 191.5,
+      "teamBScore": 136.75
+    },
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 179.19,
+      "teamBScore": 197.69
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 155.19,
+      "teamBScore": 126.25
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 139.44,
+      "teamBScore": 191.19
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 198.75,
+      "teamBScore": 165.5
+    }
+  ],
+  "20": [
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 165.69,
+      "teamBScore": 213.94
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamAScore": 203.25
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 215
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 182.5,
+      "teamBScore": 165.25
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 146.5,
+      "teamBScore": 168.75
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 159.25,
+      "teamBScore": 207.94
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 168.19,
+      "teamBScore": 225.94
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 235.75,
+      "teamBScore": 213.69
+    }
+  ],
+  "21": [
+    {
+      "matchup_id": 3,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamB": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 177.75,
+      "teamBScore": 180.19
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamAScore": 197.75,
+      "teamBScore": 186.44
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 211,
+      "teamBScore": 149.13
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 195.5,
+      "teamBScore": 194.5
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 110,
+      "teamBScore": 189.38
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamB": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamAScore": 165.25,
+      "teamBScore": 181.75
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 141.75,
+      "teamBScore": 183.5
+    }
+  ],
+  "22": [
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Void",
+        "ownerName": "Kybes"
+      },
+      "teamAScore": 135.44
+    },
+    {
+      "matchup_id": 1,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt"
+      },
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506"
+      },
+      "teamAScore": 217.82,
+      "teamBScore": 255.69
+    },
+    {
+      "matchup_id": 7,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh"
+      },
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior's Team",
+        "ownerName": "armyjunior"
+      },
+      "teamAScore": 170.75,
+      "teamBScore": 243
+    },
+    {
+      "matchup_id": 4,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12"
+      },
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv"
+      },
+      "teamAScore": 136.25,
+      "teamBScore": 161.25
+    },
+    {
+      "matchup_id": 5,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti"
+      },
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior's Team",
+        "ownerName": "WebbWarrior"
+      },
+      "teamAScore": 130.5,
+      "teamBScore": 190
+    },
+    {
+      "matchup_id": null,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01"
+      },
+      "teamAScore": 180.94
+    },
+    {
+      "matchup_id": 6,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael"
+      },
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312"
+      },
+      "teamAScore": 205.5,
+      "teamBScore": 197
+    },
+    {
+      "matchup_id": 2,
+      "teamA": {
+        "rosterId": "12",
+        "name": "zamt's Team",
+        "ownerName": "zamt"
+      },
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen"
+      },
+      "teamAScore": 152.94,
+      "teamBScore": 196
+    }
+  ]
+}
