@@ -65,6 +65,17 @@
   const ownersList = (data && data.ownersList) ? data.ownersList : [];
   const playersMap = (data && data.players) ? data.players : {};
 
+  // NEW: seasonMatchups object from server
+  const seasonMatchups = (data && data.seasonMatchups) ? data.seasonMatchups : {};
+
+  // Build seasons list for selector (use keys of seasonMatchups if present, else fallback to server seasons)
+  const seasonKeys = Object.keys(seasonMatchups && Object.keys(seasonMatchups).length ? seasonMatchups : (data && data.seasons ? data.seasons.reduce((acc, s) => {
+    acc[s.season != null ? String(s.season) : String(s.league_id)] = s;
+    return acc;
+  }, {}) : {}));
+
+  let selectedJsonSeason = seasonKeys.length ? seasonKeys[seasonKeys.length - 1] : (seasonKeys[0] || null);
+
   // default selected ownerKey (first in ownersList)
   let selectedOwnerKey = ownersList && ownersList.length ? ownersList[0].ownerKey : null;
 
@@ -76,6 +87,16 @@
     if (!o) return '';
     return o.team || o.owner_name || o.owner_username || o.ownerKey || '';
   }
+
+  // pretty JSON for selected season
+  $: prettySeasonJson = (() => {
+    if (!selectedJsonSeason || !seasonMatchups || !seasonMatchups[selectedJsonSeason]) return '{}';
+    try {
+      return JSON.stringify(seasonMatchups[selectedJsonSeason], null, 2);
+    } catch (e) {
+      return '{}';
+    }
+  })();
 </script>
 
 <style>
@@ -132,6 +153,18 @@
   .team-card .meta { display:flex; flex-direction:column; }
   .team-card .season { color: var(--muted); font-size:0.8rem; margin-top:2px; }
 
+  pre.json-view {
+    max-height: 420px;
+    overflow: auto;
+    background: #051023;
+    padding: 12px;
+    border-radius: 8px;
+    color: #cfe2ff;
+    font-size: 0.86rem;
+    line-height: 1.35;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+
   @media (max-width: 1100px) {
     .grid { grid-template-columns: 1fr; }
     .avatar { width:44px; height:44px; }
@@ -156,6 +189,28 @@
   {/if}
 
   <h1>All-time Records</h1>
+
+  <!-- NEW: Season Matchups JSON viewer -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+      <div>
+        <div class="section-title">Season Matchups JSON (temporary viewer)</div>
+        <div class="section-sub">This JSON was generated server-side for each available season — contains weeks & matchups using starters' points where available.</div>
+      </div>
+      <div class="small-muted">
+        Season:
+        <select class="select-inline" bind:value={selectedJsonSeason}>
+          {#each Object.keys(seasonMatchups) as sk}
+            <option value={sk}>{sk}</option>
+          {/each}
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:8px;">
+      <pre class="json-view">{prettySeasonJson}</pre>
+    </div>
+  </div>
 
   <div class="grid">
     <!-- LEFT COLUMN -->
