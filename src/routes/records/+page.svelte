@@ -65,7 +65,7 @@
   const ownersList = (data && data.ownersList) ? data.ownersList : [];
   const playersMap = (data && data.players) ? data.players : {};
 
-  // season overrides loaded by server (object: season -> week -> array)
+  // seasonMatchups (imported JSON overrides + fetched season data)
   const seasonMatchups = (data && data.seasonMatchups) ? data.seasonMatchups : {};
 
   // default selected ownerKey (first in ownersList)
@@ -80,94 +80,29 @@
     return o.team || o.owner_name || o.owner_username || o.ownerKey || '';
   }
 
-  // --- Debug / Import summary computations ---
-
-  // build a season summary: for each season count weeks and matchups
-  function buildSeasonImportSummary(seasonMatchups) {
-    const out = [];
-    if (!seasonMatchups || typeof seasonMatchups !== 'object') return out;
-    const seasons = Object.keys(seasonMatchups).sort((a,b) => Number(a) - Number(b));
-    for (const s of seasons) {
-      const weeks = seasonMatchups[s] || {};
-      const weekKeys = Object.keys(weeks).sort((a,b) => Number(a) - Number(b));
-      let totalMatchups = 0;
-      const perWeek = [];
-      for (const wk of weekKeys) {
-        const arr = (Array.isArray(weeks[wk]) ? weeks[wk] : []);
-        perWeek.push({ week: wk, matchups: arr.length });
-        totalMatchups += arr.length;
-      }
-      out.push({ season: s, weeks: weekKeys.length, totalMatchups, perWeek });
+  // --- Debug / import summary derived data (reactive)
+  $: seasonsLoaded = Object.keys(seasonMatchups || {}).sort((a,b)=>Number(a)-Number(b));
+  $: seasonSummaries = seasonsLoaded.map(s => {
+    const weeksObj = seasonMatchups[s] || {};
+    const wkKeys = Object.keys(weeksObj).filter(k => k !== 'season');
+    let total = 0;
+    for (const wk of wkKeys) {
+      const arr = Array.isArray(weeksObj[wk]) ? weeksObj[wk] : [];
+      total += arr.length;
     }
-    return out;
-  }
+    return { season: s, weeks: wkKeys.length, matchups: total };
+  });
 
-  $: importSummary = buildSeasonImportSummary(seasonMatchups);
-
-  // quick table completion checks
-  $: tableStatus = {
-    regular: Array.isArray(regularAllTime) && regularAllTime.length > 0,
-    playoff: Array.isArray(playoffAllTime) && playoffAllTime.length > 0,
-    owners: Array.isArray(ownersList) && ownersList.length > 0,
-    topTeam: Array.isArray(topTeamMatchups) && topTeamMatchups.length > 0,
-    topPlayer: Array.isArray(topPlayerMatchups) && topPlayerMatchups.length > 0
+  $: tableCompletion = {
+    regularAllTime: Array.isArray(regularAllTime) ? 'OK' : 'Missing',
+    playoffAllTime: Array.isArray(playoffAllTime) ? 'OK' : 'Missing',
+    ownersList: Array.isArray(ownersList) ? 'OK' : 'Missing',
+    topTeamMatchups: Array.isArray(topTeamMatchups) ? 'OK' : 'Missing',
+    topPlayerMatchups: Array.isArray(topPlayerMatchups) ? 'OK' : 'Missing'
   };
 
-  // debug team patterns we care about (case-insensitive substring)
-  const DBG_PATTERNS = [
-    'the emperors',
-    'damn!!!!!!!!!!!!!!!!!',
-    "corey's shower",
-    "corey’s shower",
-    'corey',
-    'kanto embers'
-  ];
-
-  function normalize(s) {
-    return (s || '').toString().toLowerCase();
-  }
-
-  // collect every matchup involving debug teams from seasonMatchups
-  function collectDebugMatchups(seasonMatchups) {
-    const rows = [];
-    if (!seasonMatchups || typeof seasonMatchups !== 'object') return rows;
-    for (const seasonKey of Object.keys(seasonMatchups).sort((a,b) => Number(a) - Number(b))) {
-      const weeks = seasonMatchups[seasonKey] || {};
-      for (const wkKey of Object.keys(weeks).sort((a,b) => Number(a) - Number(b))) {
-        const arr = Array.isArray(weeks[wkKey]) ? weeks[wkKey] : [];
-        for (const m of arr) {
-          const aName = (m.teamA?.name ?? m.teamA?.team ?? '').toString();
-          const bName = (m.teamB?.name ?? m.teamB?.team ?? '').toString();
-          const aNorm = normalize(aName);
-          const bNorm = normalize(bName);
-          let matched = false;
-          for (const pat of DBG_PATTERNS) {
-            if (aNorm.includes(pat) || bNorm.includes(pat)) { matched = true; break; }
-          }
-          if (matched) {
-            rows.push({
-              season: seasonKey,
-              week: wkKey,
-              matchup_id: m.matchup_id ?? m.matchupId ?? null,
-              teamA_name: aName,
-              teamB_name: bName,
-              teamA_score: safeNum(m.teamAScore ?? m.teamA?.teamAScore ?? m.teamA?.points ?? m.teamA?.score),
-              teamB_score: safeNum(m.teamBScore ?? m.teamB?.teamBScore ?? m.teamB?.points ?? m.teamB?.score),
-              raw: m
-            });
-          }
-        }
-      }
-    }
-    return rows.sort((x,y) => {
-      if (x.season !== y.season) return Number(x.season) - Number(y.season);
-      if (x.week !== y.week) return Number(x.week) - Number(y.week);
-      return (x.matchup_id ?? 0) - (y.matchup_id ?? 0);
-    });
-  }
-
-  $: debugMatchups = collectDebugMatchups(seasonMatchups);
-
+  // Server messages
+  const serverMessages = (data && data.messages) ? data.messages : [];
 </script>
 
 <style>
@@ -224,79 +159,101 @@
   .team-card .meta { display:flex; flex-direction:column; }
   .team-card .season { color: var(--muted); font-size:0.8rem; margin-top:2px; }
 
+  .debug-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  .debug-pre { max-height: 260px; overflow:auto; background: rgba(0,0,0,0.12); padding:10px; border-radius:8px; font-family: monospace; font-size:0.85rem; color:#dbeafe; border:1px solid rgba(255,255,255,0.03); }
+
   @media (max-width: 1100px) {
     .grid { grid-template-columns: 1fr; }
     .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
     .col-hide-sm { display:none; }
+    .debug-grid { grid-template-columns: 1fr; }
   }
 
   .select-inline { margin-left:0.5rem; }
   .fallback { color: var(--muted); padding: 12px 0; }
-
-  .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:.5rem; vertical-align:middle; }
-  .ok { background: #22c55e; }
-  .bad { background: #ef4444; }
-  .warn { background: #f59e0b; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size: .95rem; color:#cfe2ff; }
 </style>
 
 <div class="page">
-  <!-- Debug / import summary (enhanced) -->
-  <div class="card" aria-labelledby="debug-title" style="margin-bottom:1rem;">
+  <!-- Enhanced debug / import summary (preserves old short debug block if no seasonMatchups) -->
+  <div class="card" style="margin-bottom:1rem;">
     <div class="card-header">
       <div>
-        <div id="debug-title" class="section-title">Debug / Import Summary</div>
+        <div class="section-title">Debug / Import Summary</div>
         <div class="section-sub">Shows whether season JSON files imported, and a quick table completeness check.</div>
       </div>
       <div class="small-muted">Useful to validate per-season overrides + table generation.</div>
     </div>
 
-    <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:.6rem;">
-      <div style="min-width:220px;">
-        <div class="small-muted">Imported season files</div>
-        {#if importSummary && importSummary.length}
-          <div style="margin-top:.5rem;">
-            {#each importSummary as s}
-              <div class="mono" style="margin-bottom:.35rem;">
-                <strong>Season {s.season}</strong> — weeks: {s.weeks} — matchups: {s.totalMatchups}
-              </div>
-            {/each}
-          </div>
+    <div class="debug-grid">
+      <div>
+        <div style="font-weight:700; margin-bottom:.4rem;">Imported season files</div>
+        {#if seasonsLoaded && seasonsLoaded.length}
+          <table class="tbl" style="margin-bottom:.6rem;">
+            <thead>
+              <tr><th>Season</th><th class="col-numeric">Weeks</th><th class="col-numeric">Matchups</th></tr>
+            </thead>
+            <tbody>
+              {#each seasonSummaries as s}
+                <tr>
+                  <td>{s.season}</td>
+                  <td class="col-numeric">{s.weeks}</td>
+                  <td class="col-numeric">{s.matchups}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
         {:else}
-          <div class="small-muted">No per-season override files loaded (seasonMatchups empty).</div>
+          <div class="small-muted">No season JSON overrides loaded.</div>
         {/if}
-      </div>
 
-      <div style="min-width:220px;">
-        <div class="small-muted">Table completion</div>
-        <div style="margin-top:.5rem;">
-          <div><span class="status-dot {tableStatus.regular ? 'ok' : 'bad'}"></span>Regular All-time table: {tableStatus.regular ? 'OK' : 'Missing'}</div>
-          <div><span class="status-dot {tableStatus.playoff ? 'ok' : 'bad'}"></span>Playoff All-time table: {tableStatus.playoff ? 'OK' : 'Missing'}</div>
-          <div><span class="status-dot {tableStatus.owners ? 'ok' : 'bad'}"></span>Owners list: {tableStatus.owners ? 'OK' : 'Missing'}</div>
-          <div><span class="status-dot {tableStatus.topTeam ? 'ok' : 'warn'}"></span>Top team scores: {tableStatus.topTeam ? 'OK' : 'Empty'}</div>
-          <div><span class="status-dot {tableStatus.topPlayer ? 'ok' : 'warn'}"></span>Top player scores: {tableStatus.topPlayer ? 'OK' : 'Empty'}</div>
+        <div style="font-weight:700; margin-top:.4rem; margin-bottom:.3rem;">Table completion</div>
+        <div class="small-muted" style="margin-bottom:.6rem;">
+          <div>Regular All-time table: <strong>{tableCompletion.regularAllTime}</strong></div>
+          <div>Playoff All-time table: <strong>{tableCompletion.playoffAllTime}</strong></div>
+          <div>Owners list: <strong>{tableCompletion.ownersList}</strong></div>
+          <div>Top team scores: <strong>{tableCompletion.topTeamMatchups}</strong></div>
+          <div>Top player scores: <strong>{tableCompletion.topPlayerMatchups}</strong></div>
         </div>
-      </div>
 
-      <div style="min-width:300px;">
-        <div class="small-muted">Server messages</div>
-        {#if data?.messages && data.messages.length}
-          <div style="margin-top:.5rem;">
-            {#each data.messages as m, i}
-              <div class="mono">{i + 1}. {m}</div>
+        <div style="font-weight:700; margin-top:.4rem; margin-bottom:.3rem;">Server messages</div>
+        {#if serverMessages && serverMessages.length}
+          <div class="debug-pre">
+            {#each serverMessages as m, i}
+              <div>{i + 1}. {m}</div>
             {/each}
           </div>
         {:else}
-          <div class="small-muted" style="margin-top:.5rem;">No server debug messages.</div>
+          <div class="small-muted">No server messages.</div>
         {/if}
       </div>
-    </div>
 
-    <div class="note">
-      This debug panel confirms which per-season JSON files were imported and whether key tables completed client-side rendering.
+      <div>
+        <div style="font-weight:700; margin-bottom:.4rem;">Quick seasonMatchups preview</div>
+        {#if seasonsLoaded && seasonsLoaded.length}
+          <div class="debug-pre">
+            {#each seasonsLoaded as s}
+              <div style="margin-bottom:.45rem;"><strong>Season {s}:</strong></div>
+              {#if seasonMatchups[s]}
+                {#each Object.keys(seasonMatchups[s]).filter(k=>k!=='season').sort((a,b)=>Number(a)-Number(b)) as wk}
+                  <div style="margin-left:.5rem;">Week {wk} — matchups: {Array.isArray(seasonMatchups[s][wk]) ? seasonMatchups[s][wk].length : 0}</div>
+                {/each}
+              {:else}
+                <div class="small-muted">No data object for this season.</div>
+              {/if}
+            {/each}
+          </div>
+        {:else}
+          <div class="small-muted">No seasonMatchups to preview.</div>
+        {/if}
+      </div>
     </div>
   </div>
+
+  {#if data?.messages && data.messages.length === 0}
+    <!-- if server returned messages but empty, keep a tiny note -->
+    <div class="small-muted" style="margin-bottom:1rem;">Server returned zero messages.</div>
+  {/if}
 
   <h1>All-time Records</h1>
 
@@ -743,47 +700,6 @@
           </table>
         {:else}
           <div class="small-muted" style="padding:.5rem 0;">No large-margin records available.</div>
-        {/if}
-      </div>
-
-      <!-- Debug: list all debug matchups found in seasonMatchups -->
-      <div class="card" style="margin-top:1rem;">
-        <div class="card-header">
-          <div>
-            <div class="section-title">Debug: matchups for target teams</div>
-            <div class="section-sub">All matchups from imported season JSONs that include The Emperors / DAMN / Corey's Shower / Kanto Embers</div>
-          </div>
-          <div class="small-muted">Listed season → week → matchup</div>
-        </div>
-
-        {#if debugMatchups && debugMatchups.length}
-          <table class="tbl" aria-label="Debug matchups">
-            <thead>
-              <tr>
-                <th>Season</th>
-                <th class="col-numeric">Week</th>
-                <th>Matchup</th>
-                <th class="col-numeric">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each debugMatchups as d}
-                <tr>
-                  <td>{d.season}</td>
-                  <td class="col-numeric">{d.week}</td>
-                  <td>
-                    <div style="display:flex;flex-direction:column;">
-                      <div style="font-weight:700;">{d.teamA_name} vs {d.teamB_name}</div>
-                      <div class="small-muted" style="margin-top:.25rem;">matchup_id: {d.matchup_id ?? 'n/a'}</div>
-                    </div>
-                  </td>
-                  <td class="col-numeric">{fmt2(d.teamA_score)} — {fmt2(d.teamB_score)}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        {:else}
-          <div class="small-muted" style="padding:.5rem 0;">No debug matchups found in season override files.</div>
         {/if}
       </div>
     </div>
