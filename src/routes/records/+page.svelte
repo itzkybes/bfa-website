@@ -2,6 +2,8 @@
   // Records page: all-time regular season and playoff standings + extra record tables.
   export let data;
 
+  import { writable } from 'svelte/store';
+
   // Helpers
   function avatarOrPlaceholder(url, name, size = 56) {
     if (url) return url;
@@ -65,76 +67,16 @@
   const ownersList = (data && data.ownersList) ? data.ownersList : [];
   const playersMap = (data && data.players) ? data.players : {};
 
-  // seasonMatchups & import debug payload from server
-  const seasonMatchups = data?.seasonMatchups ?? {};
-  const importSummary = data?.importSummary ?? {};
-  const tableChecks = data?.tableChecks ?? {};
-  const messages = data?.messages ?? [];
-  const debugTeams = data?.debugTeams ?? [];
+  // selected ownerKey as a writable store (avoid 'let' for local mutables)
+  const selectedOwnerKey = writable(ownersList && ownersList.length ? ownersList[0].ownerKey : null);
 
-  // default selected ownerKey (first in ownersList)
-  let selectedOwnerKey = ownersList && ownersList.length ? ownersList[0].ownerKey : null;
-
-  // reactive filtered head-to-head
-  $: filteredHeadToHead = (selectedOwnerKey && headToHeadByOwner[selectedOwnerKey]) ? headToHeadByOwner[selectedOwnerKey] : [];
+  // reactive filtered head-to-head (uses the store value via $selectedOwnerKey)
+  $: filteredHeadToHead = ($selectedOwnerKey && headToHeadByOwner[$selectedOwnerKey]) ? headToHeadByOwner[$selectedOwnerKey] : [];
 
   // UI helpers
   function ownerLabel(o) {
     if (!o) return '';
     return o.team || o.owner_name || o.owner_username || o.ownerKey || '';
-  }
-
-  // Utility: find matchups for a given team across all seasons/weeks. We attempt to match by name (loose)
-  function findMatchupsForTeam(teamNames = []) {
-    const found = []; // { season, week, matchup, teamKey, teamScore, oppName, oppScore }
-    for (const [season, weeks] of Object.entries(seasonMatchups)) {
-      for (const [wk, arr] of Object.entries(weeks)) {
-        if (!Array.isArray(arr)) continue;
-        for (const m of arr) {
-          // Try multiple shapes:
-          // 1) override format: { teamA: {name,...}, teamB: {...}, teamAScore, teamBScore }
-          if (m.teamA && m.teamB) {
-            const nameA = (m.teamA.name || m.teamA.ownerName || m.teamA.rosterId || '').toString();
-            const nameB = (m.teamB.name || m.teamB.ownerName || m.teamB.rosterId || '').toString();
-            const aScore = Number(m.teamAScore ?? 0);
-            const bScore = Number(m.teamBScore ?? 0);
-            for (const tn of teamNames) {
-              if (nameA === tn || nameA.toLowerCase().includes(tn.toLowerCase())) {
-                found.push({ season, week: Number(wk), side: 'A', teamName: nameA, score: aScore, oppName: nameB, oppScore: bScore, raw: m });
-              } else if (nameB === tn || nameB.toLowerCase().includes(tn.toLowerCase())) {
-                found.push({ season, week: Number(wk), side: 'B', teamName: nameB, score: bScore, oppName: nameA, oppScore: aScore, raw: m });
-              }
-            }
-            continue;
-          }
-
-          // 2) sleeper API shape: an array of matchup objects often with `roster_id` keyed or `starters_points` etc.
-          // We'll do a simple defensive check: stringify and search for team name
-          const serialized = JSON.stringify(m).toLowerCase();
-          for (const tn of teamNames) {
-            if (serialized.includes(tn.toLowerCase())) {
-              // try to extract any obvious team score fields
-              const scoreFields = ['score', 'points', 'team_score', 'teamAScore', 'teamBScore'];
-              let extractedScore = null;
-              for (const k of scoreFields) {
-                if (k in m && typeof m[k] === 'number') {
-                  extractedScore = m[k];
-                  break;
-                }
-              }
-              // fallback: look for numeric fields and pick the largest (heuristic)
-              if (extractedScore === null) {
-                const nums = Object.values(m).filter(v => typeof v === 'number');
-                if (nums.length) extractedScore = Math.max(...nums);
-                else extractedScore = 0;
-              }
-              found.push({ season, week: Number(wk), teamName: tn, score: extractedScore, raw: m });
-            }
-          }
-        }
-      }
-    }
-    return found.sort((a,b) => (a.season - b.season) || (a.week - b.week));
   }
 </script>
 
@@ -201,118 +143,9 @@
 
   .select-inline { margin-left:0.5rem; }
   .fallback { color: var(--muted); padding: 12px 0; }
-
-  /* Debug-specific */
-  .debug { margin-bottom: 1rem; }
-  .debug pre { white-space: pre-wrap; font-size: 0.85rem; color: #dbeafe; background: rgba(0,0,0,0.18); padding: .7rem; border-radius: 8px; }
-  .import-row { display:flex; gap:1rem; align-items:center; }
 </style>
 
 <div class="page">
-  <!-- Debug / import summary -->
-  <div class="card debug" aria-label="Debug / Import Summary">
-    <div class="card-header">
-      <div>
-        <div class="section-title">Debug / Import Summary</div>
-        <div class="section-sub">Shows whether season JSON files imported, and a quick table completeness check.</div>
-      </div>
-      <div class="small-muted">Useful to validate per-season overrides + table generation.</div>
-    </div>
-
-    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-      <div style="min-width:260px;">
-        <strong>Imported season files</strong>
-        <div style="margin-top:.5rem;">
-          {#if Object.keys(importSummary).length === 0}
-            <div class="small-muted">No seasons imported.</div>
-          {:else}
-            {#each Object.entries(importSummary) as [season, info]}
-              <div class="import-row">
-                <div style="width:84px;"><strong>{season}</strong></div>
-                <div class="small-muted">weeks: {info.weeks} — matchups: {info.matchups}</div>
-              </div>
-            {/each}
-          {/if}
-        </div>
-      </div>
-
-      <div style="min-width:260px;">
-        <strong>Table completion</strong>
-        <div style="margin-top:.5rem;">
-          <div>Regular All-time table: {tableChecks.regularAllTime}</div>
-          <div>Playoff All-time table: {tableChecks.playoffAllTime}</div>
-          <div>Owners list: {tableChecks.ownersList}</div>
-          <div>Top team scores: {tableChecks.topTeamScores}</div>
-          <div>Top player scores: {tableChecks.topPlayerScores}</div>
-        </div>
-      </div>
-
-      <div style="flex:1;">
-        <strong>Server messages</strong>
-        <div style="margin-top:.5rem;">
-          {#if messages && messages.length}
-            <ol style="margin:.25rem 0 0 1rem;">
-              {#each messages as m, i}
-                <li style="margin-bottom:.2rem;"><code style="color:#a7f3d0">{m}</code></li>
-              {/each}
-            </ol>
-          {:else}
-            <div class="small-muted">No server messages.</div>
-          {/if}
-        </div>
-      </div>
-    </div>
-
-    <!-- Per-team debug: print every matchup these teams appear in -->
-    <details class="note" style="margin-top:.8rem;">
-      <summary>Per-team matchup debug</summary>
-      <div style="margin-top:.6rem;">
-        <div class="small-muted">Showing every matchup across imported seasons for these teams: {debugTeams.join(', ')}</div>
-        <div style="margin-top:.6rem;">
-          {#each debugTeams as team}
-            <div style="margin-top:.6rem;">
-              <div style="font-weight:700; margin-bottom:.25rem;">{team}</div>
-              {#if seasonMatchups && Object.keys(seasonMatchups).length}
-                {#let found = findMatchupsForTeam([team])}
-                  {#if found.length}
-                    <table class="tbl" style="margin-bottom:.5rem;">
-                      <thead>
-                        <tr>
-                          <th>Season</th>
-                          <th>Week</th>
-                          <th>Team</th>
-                          <th>Score</th>
-                          <th>Opponent</th>
-                          <th>Opp Score</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each found as f}
-                          <tr>
-                            <td>{f.season}</td>
-                            <td>{f.week}</td>
-                            <td>{f.teamName || team}</td>
-                            <td class="col-numeric">{fmt2(f.score ?? 0)}</td>
-                            <td>{f.oppName ?? '-' }</td>
-                            <td class="col-numeric">{fmt2(f.oppScore ?? 0)}</td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  {:else}
-                    <div class="small-muted">No matchups found for "{team}" in imported season files.</div>
-                  {/if}
-                {/let}
-              {:else}
-                <div class="small-muted">No season matchups imported yet.</div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      </div>
-    </details>
-  </div>
-
   {#if data?.messages && data.messages.length}
     <div class="small-muted" style="margin-bottom:1rem;">
       <strong>Debug</strong>
@@ -448,15 +281,15 @@
           </div>
           <div class="small-muted">
             Show:
-            <select class="select-inline" bind:value={selectedOwnerKey} aria-label="Select team to view head-to-head">
+            <select class="select-inline" on:change={(e)=>selectedOwnerKey.set(e.target.value)} aria-label="Select team to view head-to-head">
               {#each ownersList as o}
-                <option value={o.ownerKey}>{ownerLabel(o)}</option>
+                <option value={o.ownerKey} selected={$selectedOwnerKey === o.ownerKey}>{ownerLabel(o)}</option>
               {/each}
             </select>
           </div>
         </div>
 
-        {#if selectedOwnerKey && filteredHeadToHead && filteredHeadToHead.length}
+        {#if $selectedOwnerKey && filteredHeadToHead && filteredHeadToHead.length}
           <table class="tbl" role="table" aria-label="Head to Head records">
             <thead>
               <tr>
