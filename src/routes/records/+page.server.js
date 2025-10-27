@@ -31,6 +31,8 @@ function safeNum(v) {
 //
 // Robust loader for static/season_matchups — tries per-season file paths first,
 // then falls back to reading any JSON files in candidate directories.
+// NOTE: we'll still perform an HTTP fetch to origin:/season_matchups/{season}.json
+// if the fs attempts don't find a file (useful for Vercel/static-serving).
 //
 async function readAllSeasonMatchupFiles(messages = []) {
   const out = {};
@@ -42,7 +44,6 @@ async function readAllSeasonMatchupFiles(messages = []) {
   const candidateDirs = [
     path.join(process.cwd(), 'static', 'season_matchups'),
     path.join(process.cwd(), 'static', 'season-matchups'),
-    path.join(process.cwd(), 'static', 'season_matchups'), // duplicate kept intentionally
     path.join(process.cwd(), 'static'),
     path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season_matchups'),
     path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season-matchups')
@@ -50,8 +51,8 @@ async function readAllSeasonMatchupFiles(messages = []) {
 
   // also try import.meta.url based possibilities (useful for local dev)
   try {
-    candidateDirs.push(new URL('../../../static/season_matchups/2022.json', import.meta.url).pathname);
-    candidateDirs.push(new URL('../../../static/season-matchups/2022.json', import.meta.url).pathname);
+    candidateDirs.push(new URL('../../../static/season_matchups', import.meta.url).pathname);
+    candidateDirs.push(new URL('../../../static/season-matchups', import.meta.url).pathname);
     candidateDirs.push(new URL('../../../static', import.meta.url).pathname);
   } catch (e) {
     // ignore
@@ -268,13 +269,37 @@ function maxStreak(results, kind = 'W') {
   return max;
 }
 
-export async function load() {
+export async function load({ fetch, url }) {
   const messages = [];
   const seasonMatchups = {}; // season -> week -> [matchups]
   const importSummary = {};
 
   // 1) read override files (direct-season-file first, directory fallback)
   const files = await readAllSeasonMatchupFiles(messages);
+
+  // If any season missing from 'files', try HTTP fetch to origin/season_matchups/{season}.json (useful on Vercel)
+  const wantSeasons = ['2022','2023','2024'];
+  const origin = (url && url.origin) ? url.origin.replace(/\/$/, '') : null;
+  if (origin && fetch) {
+    for (const s of wantSeasons) {
+      if (files[s]) continue; // already loaded via fs
+      try {
+        const candidateUrl = `${origin}/season_matchups/${s}.json`;
+        const r = await fetch(candidateUrl, { method: 'GET' });
+        if (r && r.ok) {
+          const parsed = await r.json();
+          files[s] = { file: `${s}.json`, path: candidateUrl, json: parsed };
+          messages.push(`Fetched override season=${s} from ${candidateUrl}`);
+        } else {
+          messages.push(`No remote override at ${origin}/season_matchups/${s}.json (status ${r?.status})`);
+        }
+      } catch (err) {
+        messages.push(`Error fetching remote override for season=${s} from ${origin}: ${err?.message ?? err}`);
+      }
+    }
+  } else {
+    messages.push('Origin or fetch not available; skipping remote fetch attempt for per-season overrides.');
+  }
 
   // normalize into seasonMatchups
   for (const s of Object.keys(files)) {
@@ -306,7 +331,7 @@ export async function load() {
       weeksCount++;
       matchupsCount += Array.isArray(arr) ? arr.length : 0;
     }
-    importSummary[String(s)] = { weeks: weeksCount, matchups: matchupsCount, file: meta.file };
+    importSummary[String(s)] = { weeks: weeksCount, matchups: matchupsCount, file: meta.file || meta.path || null };
     messages.push(`Imported season=${s}: weeks=${weeksCount} matchups=${matchupsCount}`);
   }
 
