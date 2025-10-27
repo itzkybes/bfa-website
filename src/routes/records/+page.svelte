@@ -2,8 +2,6 @@
   // Records page: all-time regular season and playoff standings + extra record tables.
   export let data;
 
-  import { writable } from 'svelte/store';
-
   // Helpers
   function avatarOrPlaceholder(url, name, size = 56) {
     if (url) return url;
@@ -53,9 +51,7 @@
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
-  //
-  // Server-provided data (defensive defaults)
-  //
+  // Data sources (from server)
   const regularAllTime = (data && data.regularAllTime) ? data.regularAllTime : [];
   const playoffAllTime = (data && data.playoffAllTime) ? data.playoffAllTime : [];
   const originalRecords = (data && data.originalRecords) ? data.originalRecords : {};
@@ -69,14 +65,11 @@
   const ownersList = (data && data.ownersList) ? data.ownersList : [];
   const playersMap = (data && data.players) ? data.players : {};
 
-  // seasonMatchups: an object keyed by season (e.g. { "2023": { "1": [...], "2": [...], ... }, ... })
-  const seasonMatchups = (data && data.seasonMatchups) ? data.seasonMatchups : {};
-
-  // default selected ownerKey via a store
-  const selectedOwnerKey = writable(ownersList && ownersList.length ? ownersList[0].ownerKey : null);
+  // default selected ownerKey (first in ownersList)
+  let selectedOwnerKey = ownersList && ownersList.length ? ownersList[0].ownerKey : null;
 
   // reactive filtered head-to-head
-  $: filteredHeadToHead = ($selectedOwnerKey && headToHeadByOwner[$selectedOwnerKey]) ? headToHeadByOwner[$selectedOwnerKey] : [];
+  $: filteredHeadToHead = (selectedOwnerKey && headToHeadByOwner[selectedOwnerKey]) ? headToHeadByOwner[selectedOwnerKey] : [];
 
   // UI helpers
   function ownerLabel(o) {
@@ -84,32 +77,28 @@
     return o.team || o.owner_name || o.owner_username || o.ownerKey || '';
   }
 
-  // Debug helpers for season JSON links + counts
-  const seasonKeys = Object.keys(seasonMatchups).sort((a,b) => Number(a) - Number(b));
-
-  function weeksCountForSeason(season) {
-    const wkObj = seasonMatchups[season];
-    if (!wkObj || typeof wkObj !== 'object') return 0;
-    return Object.keys(wkObj).length;
+  // --- New: parse loader messages to find which override files were loaded ---
+  // returns array of { season: '2023', filename: '2023.json', url: '/season_matchups/2023.json' }
+  function parseLoadedOverrideFiles(messages) {
+    if (!messages || !Array.isArray(messages)) return [];
+    const out = [];
+    const re = /^Loaded override file for season=(\d+)\s+from\s+(.+)$/;
+    for (const m of messages) {
+      const match = typeof m === 'string' && m.match(re);
+      if (match) {
+        const season = match[1];
+        const fullPath = match[2];
+        // extract filename from path
+        const parts = fullPath.split(/[\\/]/);
+        const filename = parts[parts.length - 1];
+        const url = `/season_matchups/${filename}`; // static dir served at /season_matchups
+        out.push({ season, filename, url });
+      }
+    }
+    return out;
   }
 
-  function matchupsCountForSeason(season) {
-    const wkObj = seasonMatchups[season];
-    if (!wkObj || typeof wkObj !== 'object') return 0;
-    return Object.values(wkObj).reduce((acc, arr) => acc + ((Array.isArray(arr)) ? arr.length : 0), 0);
-  }
-
-  // Quick checks to show any missing expected payloads
-  const expectedVars = [
-    { key: 'regularAllTime', present: !!(data && data.regularAllTime) },
-    { key: 'playoffAllTime', present: !!(data && data.playoffAllTime) },
-    { key: 'ownersList', present: !!(data && data.ownersList) },
-    { key: 'headToHeadByOwner', present: !!(data && data.headToHeadByOwner) },
-    { key: 'seasonMatchups', present: !!(data && data.seasonMatchups) }
-  ];
-
-  // prepare server messages array (if provided)
-  const serverMessages = (data && data.messages && Array.isArray(data.messages)) ? data.messages : [];
+  const importedOverrideFiles = parseLoadedOverrideFiles(data?.messages ?? []);
 </script>
 
 <style>
@@ -157,9 +146,14 @@
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
   .small-muted { color: var(--muted); font-size: .88rem; }
 
-  .debug-card { margin-bottom: 1rem; }
-  .debug-list { font-family: monospace; color: #cfe2ff; font-size: .92rem; }
-  .debug-link { color: #9fc5ff; text-decoration: underline; }
+  .note { margin-top: 0.6rem; padding: 12px; border-radius: 10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border:1px solid rgba(255,255,255,0.03); color: #cfe2ff; font-size: .95rem; }
+
+  .owner-record { margin-top: .5rem; display:flex; gap: .75rem; align-items:center; }
+
+  .right-card-list { display:flex; flex-direction:column; gap:.75rem; }
+  .team-card { display:flex; align-items:center; gap:.75rem; padding:10px; background: rgba(0,0,0,0.25); border-radius:10px; }
+  .team-card .meta { display:flex; flex-direction:column; }
+  .team-card .season { color: var(--muted); font-size:0.8rem; margin-top:2px; }
 
   @media (max-width: 1100px) {
     .grid { grid-template-columns: 1fr; }
@@ -170,55 +164,69 @@
 
   .select-inline { margin-left:0.5rem; }
   .fallback { color: var(--muted); padding: 12px 0; }
+
+  .import-list { margin: 8px 0 16px 0; color: var(--muted); }
+  .import-list a { color: var(--accent); text-decoration: underline; }
 </style>
 
 <div class="page">
-  <!-- Debug: Season JSON files & quick server checks -->
-  <div class="card debug-card" aria-label="Debug / Season files">
-    <div class="card-header">
-      <div>
-        <div class="section-title">Debug — Season JSON files</div>
-        <div class="section-sub">Links to season matchup override JSON files (from <code>/season_matchups/*.json</code>) and quick checks.</div>
-      </div>
-      <div class="small-muted">Only shown for debugging / verification</div>
-    </div>
-
-    <div style="margin-top:.5rem;">
-      {#if seasonKeys.length === 0}
-        <div class="small-muted">No season JSON imports found in <code>seasonMatchups</code> (server did not supply any or keys are empty).</div>
-      {:else}
-        <div class="small-muted" style="margin-bottom:.4rem;">Imported season files (click to open):</div>
-        <div class="debug-list" style="display:flex; flex-direction:column; gap:.3rem;">
-          {#each seasonKeys as s}
-            <div>
-              <a class="debug-link" href={`/season_matchups/${s}.json`} target="_blank" rel="noopener noreferrer">{s}.json</a>
-               — weeks: <strong>{weeksCountForSeason(s)}</strong> — matchups: <strong>{matchupsCountForSeason(s)}</strong>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <div style="margin-top:.8rem;">
-      <div class="small-muted" style="margin-bottom:.3rem;">Table / payload sanity checks:</div>
-      <div class="debug-list">
-        {#each expectedVars as ev}
-          <div>{ev.present ? '✓' : '✕'} {ev.key}</div>
+  {#if data?.messages && data.messages.length}
+    <div class="small-muted" style="margin-bottom:1rem;">
+      <strong>Debug</strong>
+      <div style="margin-top:.35rem;">
+        {#each data.messages as m, i}
+          <div>{i + 1}. {m}</div>
         {/each}
       </div>
     </div>
+  {/if}
 
-    {#if serverMessages.length}
-      <div style="margin-top:.8rem;">
-        <div class="small-muted" style="margin-bottom:.3rem;">Server messages</div>
-        <div class="debug-list">
-          {#each serverMessages as m, i}
-            <div>{i + 1}. {m}</div>
-          {/each}
+  <!-- NEW: Imported override files (clickable) -->
+  {#if importedOverrideFiles && importedOverrideFiles.length}
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-header">
+        <div>
+          <div class="section-title">Imported season JSON overrides</div>
+          <div class="section-sub">Files loaded from <code>/static/season_matchups</code> (click to open)</div>
         </div>
+        <div class="small-muted">Serve path: <code>/season_matchups/</code></div>
       </div>
-    {/if}
-  </div>
+
+      <div class="import-list">
+        <ul>
+          {#each importedOverrideFiles as f}
+            <li>
+              Season {f.season}: <a href={f.url} target="_blank" rel="noopener">{f.filename}</a>
+            </li>
+          {/each}
+        </ul>
+      </div>
+
+      {#if data?.importSummary}
+        <div style="margin-top:.6rem;">
+          <div class="small-muted">Import summary (weeks / matchups):</div>
+          <table class="tbl" style="margin-top:.6rem;">
+            <thead>
+              <tr>
+                <th>Season</th>
+                <th class="col-numeric">Weeks</th>
+                <th class="col-numeric">Matchups</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each Object.entries(data.importSummary) as [season, info]}
+                <tr>
+                  <td>{season}</td>
+                  <td class="col-numeric">{info.weeks}</td>
+                  <td class="col-numeric">{info.matchups}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <h1>All-time Records</h1>
 
@@ -344,15 +352,15 @@
           </div>
           <div class="small-muted">
             Show:
-            <select class="select-inline" on:change={(e)=>selectedOwnerKey.set(e.target.value)} aria-label="Select team to view head-to-head">
+            <select class="select-inline" bind:value={selectedOwnerKey} aria-label="Select team to view head-to-head">
               {#each ownersList as o}
-                <option value={o.ownerKey} selected={$selectedOwnerKey === o.ownerKey}>{ownerLabel(o)}</option>
+                <option value={o.ownerKey}>{ownerLabel(o)}</option>
               {/each}
             </select>
           </div>
         </div>
 
-        {#if $selectedOwnerKey && filteredHeadToHead && filteredHeadToHead.length}
+        {#if selectedOwnerKey && filteredHeadToHead && filteredHeadToHead.length}
           <table class="tbl" role="table" aria-label="Head to Head records">
             <thead>
               <tr>
