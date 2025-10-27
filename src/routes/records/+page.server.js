@@ -50,8 +50,8 @@ async function readAllSeasonMatchupFiles(messages = []) {
 
   // also try import.meta.url based possibilities (useful for local dev)
   try {
-    candidateDirs.push(new URL('../../../static/season_matchups', import.meta.url).pathname);
-    candidateDirs.push(new URL('../../../static/season-matchups', import.meta.url).pathname);
+    candidateDirs.push(new URL('../../../static/season_matchups/2022.json', import.meta.url).pathname);
+    candidateDirs.push(new URL('../../../static/season-matchups/2022.json', import.meta.url).pathname);
     candidateDirs.push(new URL('../../../static', import.meta.url).pathname);
   } catch (e) {
     // ignore
