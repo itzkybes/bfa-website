@@ -53,7 +53,9 @@
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
-  // Data sources (from server)
+  //
+  // Server-provided data (defensive defaults)
+  //
   const regularAllTime = (data && data.regularAllTime) ? data.regularAllTime : [];
   const playoffAllTime = (data && data.playoffAllTime) ? data.playoffAllTime : [];
   const originalRecords = (data && data.originalRecords) ? data.originalRecords : {};
@@ -67,10 +69,13 @@
   const ownersList = (data && data.ownersList) ? data.ownersList : [];
   const playersMap = (data && data.players) ? data.players : {};
 
-  // selected ownerKey as a writable store (avoid 'let' for local mutables)
+  // seasonMatchups: an object keyed by season (e.g. { "2023": { "1": [...], "2": [...], ... }, ... })
+  const seasonMatchups = (data && data.seasonMatchups) ? data.seasonMatchups : {};
+
+  // default selected ownerKey via a store
   const selectedOwnerKey = writable(ownersList && ownersList.length ? ownersList[0].ownerKey : null);
 
-  // reactive filtered head-to-head (uses the store value via $selectedOwnerKey)
+  // reactive filtered head-to-head
   $: filteredHeadToHead = ($selectedOwnerKey && headToHeadByOwner[$selectedOwnerKey]) ? headToHeadByOwner[$selectedOwnerKey] : [];
 
   // UI helpers
@@ -78,6 +83,33 @@
     if (!o) return '';
     return o.team || o.owner_name || o.owner_username || o.ownerKey || '';
   }
+
+  // Debug helpers for season JSON links + counts
+  const seasonKeys = Object.keys(seasonMatchups).sort((a,b) => Number(a) - Number(b));
+
+  function weeksCountForSeason(season) {
+    const wkObj = seasonMatchups[season];
+    if (!wkObj || typeof wkObj !== 'object') return 0;
+    return Object.keys(wkObj).length;
+  }
+
+  function matchupsCountForSeason(season) {
+    const wkObj = seasonMatchups[season];
+    if (!wkObj || typeof wkObj !== 'object') return 0;
+    return Object.values(wkObj).reduce((acc, arr) => acc + ((Array.isArray(arr)) ? arr.length : 0), 0);
+  }
+
+  // Quick checks to show any missing expected payloads
+  const expectedVars = [
+    { key: 'regularAllTime', present: !!(data && data.regularAllTime) },
+    { key: 'playoffAllTime', present: !!(data && data.playoffAllTime) },
+    { key: 'ownersList', present: !!(data && data.ownersList) },
+    { key: 'headToHeadByOwner', present: !!(data && data.headToHeadByOwner) },
+    { key: 'seasonMatchups', present: !!(data && data.seasonMatchups) }
+  ];
+
+  // prepare server messages array (if provided)
+  const serverMessages = (data && data.messages && Array.isArray(data.messages)) ? data.messages : [];
 </script>
 
 <style>
@@ -125,14 +157,9 @@
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
   .small-muted { color: var(--muted); font-size: .88rem; }
 
-  .note { margin-top: 0.6rem; padding: 12px; border-radius: 10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border:1px solid rgba(255,255,255,0.03); color: #cfe2ff; font-size: .95rem; }
-
-  .owner-record { margin-top: .5rem; display:flex; gap: .75rem; align-items:center; }
-
-  .right-card-list { display:flex; flex-direction:column; gap:.75rem; }
-  .team-card { display:flex; align-items:center; gap:.75rem; padding:10px; background: rgba(0,0,0,0.25); border-radius:10px; }
-  .team-card .meta { display:flex; flex-direction:column; }
-  .team-card .season { color: var(--muted); font-size:0.8rem; margin-top:2px; }
+  .debug-card { margin-bottom: 1rem; }
+  .debug-list { font-family: monospace; color: #cfe2ff; font-size: .92rem; }
+  .debug-link { color: #9fc5ff; text-decoration: underline; }
 
   @media (max-width: 1100px) {
     .grid { grid-template-columns: 1fr; }
@@ -146,16 +173,52 @@
 </style>
 
 <div class="page">
-  {#if data?.messages && data.messages.length}
-    <div class="small-muted" style="margin-bottom:1rem;">
-      <strong>Debug</strong>
-      <div style="margin-top:.35rem;">
-        {#each data.messages as m, i}
-          <div>{i + 1}. {m}</div>
+  <!-- Debug: Season JSON files & quick server checks -->
+  <div class="card debug-card" aria-label="Debug / Season files">
+    <div class="card-header">
+      <div>
+        <div class="section-title">Debug — Season JSON files</div>
+        <div class="section-sub">Links to season matchup override JSON files (from <code>/season_matchups/*.json</code>) and quick checks.</div>
+      </div>
+      <div class="small-muted">Only shown for debugging / verification</div>
+    </div>
+
+    <div style="margin-top:.5rem;">
+      {#if seasonKeys.length === 0}
+        <div class="small-muted">No season JSON imports found in <code>seasonMatchups</code> (server did not supply any or keys are empty).</div>
+      {:else}
+        <div class="small-muted" style="margin-bottom:.4rem;">Imported season files (click to open):</div>
+        <div class="debug-list" style="display:flex; flex-direction:column; gap:.3rem;">
+          {#each seasonKeys as s}
+            <div>
+              <a class="debug-link" href={`/season_matchups/${s}.json`} target="_blank" rel="noopener noreferrer">{s}.json</a>
+               — weeks: <strong>{weeksCountForSeason(s)}</strong> — matchups: <strong>{matchupsCountForSeason(s)}</strong>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    <div style="margin-top:.8rem;">
+      <div class="small-muted" style="margin-bottom:.3rem;">Table / payload sanity checks:</div>
+      <div class="debug-list">
+        {#each expectedVars as ev}
+          <div>{ev.present ? '✓' : '✕'} {ev.key}</div>
         {/each}
       </div>
     </div>
-  {/if}
+
+    {#if serverMessages.length}
+      <div style="margin-top:.8rem;">
+        <div class="small-muted" style="margin-bottom:.3rem;">Server messages</div>
+        <div class="debug-list">
+          {#each serverMessages as m, i}
+            <div>{i + 1}. {m}</div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  </div>
 
   <h1>All-time Records</h1>
 
