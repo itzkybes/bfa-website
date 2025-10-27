@@ -1,7 +1,7 @@
 // src/routes/records/+page.server.js
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
-import { readFile, readdir } from 'fs/promises';
+import { readFile, readdir, access } from 'fs/promises';
 import path from 'path';
 
 let cache;
@@ -28,46 +28,98 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
+//
+// Robust loader for static/season_matchups — try multiple candidate directories because
+// runtime/build layout (Vercel / SvelteKit output) can differ from local repo layout.
+// Returns an object: { [season]: { file, path, json } }
+//
 async function readAllSeasonMatchupFiles(messages = []) {
   const out = {};
+
+  // Candidate directories to try (in order).
+  // process.cwd() is the best general approach in serverless; import.meta.url works in many dev cases.
+  const candidateDirs = [];
+
   try {
-    const folderUrl = new URL('../../../static/season_matchups', import.meta.url);
-    const folderPath = folderUrl.pathname;
-    let files;
+    candidateDirs.push(path.join(process.cwd(), 'static', 'season_matchups'));
+    candidateDirs.push(path.join(process.cwd(), 'static', 'season-matchups'));
+    candidateDirs.push(path.join(process.cwd(), 'static', 'season-matchups')); // alternate
+    // in some deploys static is placed in build/server/static...
+    candidateDirs.push(path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season_matchups'));
+    candidateDirs.push(path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season-matchups'));
+  } catch (e) {
+    // ignore
+  }
+
+  // Also try import.meta.url relative paths (useful in local dev)
+  try {
+    const rel1 = new URL('../../../static/season_matchups', import.meta.url).pathname;
+    const rel2 = new URL('../../../static/season-matchups', import.meta.url).pathname;
+    candidateDirs.push(rel1);
+    candidateDirs.push(rel2);
+  } catch (e) {
+    // ignore
+  }
+
+  // Deduplicate candidateDirs
+  const seen = new Set();
+  const uniq = [];
+  for (const d of candidateDirs) {
+    if (!d) continue;
+    if (!seen.has(d)) { uniq.push(d); seen.add(d); }
+  }
+
+  let foundDir = null;
+  for (const dir of uniq) {
     try {
-      files = await readdir(folderPath);
-    } catch (e) {
-      messages.push(`No override dir found in candidates: ${folderPath}`);
-      return out;
+      // use access to check directory exists
+      await access(dir);
+      // if directory is accessible, use it
+      foundDir = dir;
+      messages.push(`Found override directory: ${dir}`);
+      break;
+    } catch (errAccess) {
+      messages.push(`No override dir found in candidate: ${dir}`);
+      continue;
     }
-    for (const f of files) {
-      if (!f.toLowerCase().endsWith('.json')) continue;
-      const full = path.join(folderPath, f);
-      try {
-        const txt = await readFile(full, 'utf8');
-        const parsed = JSON.parse(txt);
-        // guess season key from filename like 2023.json or season_2023.json
-        const m = f.match(/(20\d{2})/);
-        const seasonKey = m ? m[1] : f.replace(/\.json$/i, '');
-        out[seasonKey] = { file: f, path: full, json: parsed };
-        messages.push(`Loaded override file for season=${seasonKey} from ${full}`);
-      } catch (err) {
-        messages.push(`Failed to read/parse ${full}: ${err?.message ?? err}`);
-      }
-    }
-    return out;
-  } catch (err) {
-    messages.push(`Error locating season_matchups folder: ${err?.message ?? err}`);
+  }
+
+  if (!foundDir) {
     return out;
   }
+
+  // read JSON files inside foundDir
+  let files;
+  try {
+    files = await readdir(foundDir);
+  } catch (e) {
+    messages.push(`Failed to read directory ${foundDir}: ${e?.message ?? e}`);
+    return out;
+  }
+
+  for (const f of files) {
+    if (!f.toLowerCase().endsWith('.json')) continue;
+    const full = path.join(foundDir, f);
+    try {
+      const txt = await readFile(full, 'utf8');
+      const parsed = JSON.parse(txt);
+      // guess season key from filename like 2023.json or season_2023.json
+      const m = f.match(/(20\d{2})/);
+      const seasonKey = m ? m[1] : f.replace(/\.json$/i, '');
+      out[seasonKey] = { file: f, path: full, json: parsed };
+      messages.push(`Loaded override file for season=${seasonKey} from ${full}`);
+    } catch (err) {
+      messages.push(`Failed to read/parse ${full}: ${err?.message ?? err}`);
+    }
+  }
+
+  return out;
 }
 
 function normalizeSeasonJson(payload) {
   const weeks = {};
   if (!payload) return weeks;
-  // if payload already keyed by week strings
   if (Array.isArray(payload)) {
-    // try to bucket by "week" in objects
     for (const m of payload) {
       const wk = Number(m.week ?? m.w ?? m.week_number ?? 0) || 0;
       if (!weeks[wk]) weeks[wk] = [];
@@ -84,14 +136,13 @@ function normalizeSeasonJson(payload) {
 
 function findBestScoreFromRow(row) {
   if (!row) return 0;
-  // prefer starters_points if present anywhere
   if (typeof row.starters_points === 'number') return row.starters_points;
   if (typeof row.starters_points_total === 'number') return row.starters_points_total;
   if (typeof row.points === 'number') return row.points;
   if (typeof row.points_for === 'number') return row.points_for;
   if (typeof row.pts === 'number') return row.pts;
   if (typeof row.score === 'number') return row.score;
-  // if nested participant object
+
   for (const v of Object.values(row)) {
     if (v && typeof v === 'object') {
       if (typeof v.starters_points === 'number') return v.starters_points;
@@ -103,7 +154,6 @@ function findBestScoreFromRow(row) {
 }
 
 function teamIdentityKey(team) {
-  // prefer rosterId, then ownerName, then team name
   if (!team) return null;
   if (team.rosterId) return `r:${team.rosterId}`;
   if (team.roster_id) return `r:${team.roster_id}`;
@@ -113,16 +163,6 @@ function teamIdentityKey(team) {
   return null;
 }
 
-function mergeTeamMeta(dest, src) {
-  if (!src) return dest;
-  dest.team = dest.team || src.name || src.team || src.team_name || null;
-  dest.owner_name = dest.owner_name || src.ownerName || src.owner_name || null;
-  dest.rosterId = dest.rosterId || src.rosterId || src.roster_id || null;
-  dest.avatar = dest.avatar || src.avatar || src.team_avatar || src.owner_avatar || null;
-  return dest;
-}
-
-// compute streaks given chronological results array of 'W'|'L'|'T'
 function maxStreak(results, kind = 'W') {
   let max = 0, cur = 0;
   for (const r of results) {
@@ -149,11 +189,12 @@ export async function load() {
     const meta = files[s];
     const norm = normalizeSeasonJson(meta.json);
     seasonMatchups[String(s)] = {};
+    let weeksCount = 0;
+    let matchupsCount = 0;
     for (const [wkStr, arr] of Object.entries(norm)) {
       const wk = Number(wkStr);
       if (Number.isNaN(wk) || wk <= 0) continue;
       seasonMatchups[String(s)][wk] = (Array.isArray(arr) ? arr : []).map((m, idx) => {
-        // normalize common shapes
         const teamA = m.teamA || m.home || m.team1 || {};
         const teamB = m.teamB || m.away || m.team2 || {};
         const aPts = (typeof m.teamAScore === 'number') ? m.teamAScore : safeNum(teamA.score ?? teamA.points ?? m.teamAScore ?? 0);
@@ -170,9 +211,11 @@ export async function load() {
           _source: meta.file || 'override'
         };
       });
+      weeksCount++;
+      matchupsCount += Array.isArray(arr) ? arr.length : 0;
     }
-    importSummary[String(s)] = { weeks: Object.keys(seasonMatchups[String(s)]).length, matchups: Object.values(seasonMatchups[String(s)]).reduce((a,b)=>a+(Array.isArray(b)?b.length:0),0), file: meta.file };
-    messages.push(`Imported season=${s}: weeks=${importSummary[String(s)].weeks} matchups=${importSummary[String(s)].matchups}`);
+    importSummary[String(s)] = { weeks: weeksCount, matchups: matchupsCount, file: meta.file };
+    messages.push(`Imported season=${s}: weeks=${weeksCount} matchups=${matchupsCount}`);
   }
 
   // ensure default seasons if none present
@@ -181,7 +224,7 @@ export async function load() {
     if (!importSummary[String(s)]) importSummary[String(s)] = { weeks: 0, matchups: 0 };
   }
 
-  // 2) discover league chain to map seasons -> league_id (so we can fetch playoff_week_start when possible)
+  // 2) discover league chain to map seasons -> league_id
   const seasonToLeague = {}; // season -> league_id
   try {
     let mainLeague = null;
@@ -209,12 +252,11 @@ export async function load() {
     messages.push(`Error discovering league chain: ${err?.message ?? err}`);
   }
 
-  // 3) fetch matchups for 2025 via sleeper.getMatchupsForWeek and store in seasonMatchups['2025'] if not skipped
+  // 3) fetch matchups for 2025 via sleeper.getMatchupsForWeek
   messages.push(`Fetching matchups for current season 2025 from Sleeper for league ${BASE_LEAGUE_ID}`);
   for (let wk = 1; wk <= MAX_WEEKS; wk++) {
     try {
       const raw = await sleeper.getMatchupsForWeek(BASE_LEAGUE_ID, wk, { ttl: 60 * 5 }).catch(e => { throw e; }) || [];
-      // group by matchup
       const byMatch = {};
       for (let i = 0; i < raw.length; i++) {
         const e = raw[i];
@@ -232,7 +274,6 @@ export async function load() {
           const bPts = findBestScoreFromRow(b);
           const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
           const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
-          // try to resolve names via roster map later on the client; keep roster ids and points
           normalized.push({
             matchup_id: `${k}`,
             season: 2025,
@@ -270,7 +311,6 @@ export async function load() {
         }
       }
 
-      // check completeness (participant with 0 => skip), except when wk is final playoff week
       const incomplete = normalized.some(m => {
         if (m.teamA && m.teamB) return (Number(m.teamA.points) === 0 || Number(m.teamB.points) === 0);
         if (m.combinedParticipants) return m.combinedParticipants.some(p => Number(p.points) === 0);
@@ -291,12 +331,12 @@ export async function load() {
     }
   }
 
-  // 4) Now compute aggregated standings across seasons (regular vs playoff) using playoffStart per season if possible
-  const regularMap = {}; // key -> stats
+  // 4) compute aggregated standings across seasons (regular vs playoff)...
+  // (unchanged aggregation logic from previously supplied file)
+  const regularMap = {};
   const playoffMap = {};
   const allSeasons = Object.keys(seasonMatchups).sort();
 
-  // helper: get playoff start for season
   async function getPlayoffStartForSeason(season) {
     try {
       const leagueId = seasonToLeague[String(season)];
@@ -309,8 +349,7 @@ export async function load() {
     }
   }
 
-  // gather chronological list of games across seasons so we can compute streaks too (season asc, week asc)
-  const allGamesChrono = []; // { season, week, teamAKey, teamBKey, aPts, bPts, isPlayoff }
+  const allGamesChrono = [];
 
   for (const season of allSeasons) {
     const weeksObj = seasonMatchups[season] || {};
@@ -319,16 +358,13 @@ export async function load() {
     for (const wk of wkNums) {
       const arr = weeksObj[wk] || [];
       for (const m of arr) {
-        // handle normalized shapes where teamA/teamB / combinedParticipants may exist
         if (m.teamA && m.teamB) {
           const aPts = safeNum(m.teamA.points ?? findBestScoreFromRow(m.teamA));
           const bPts = safeNum(m.teamB.points ?? findBestScoreFromRow(m.teamB));
-          // only count games that have numeric scores (non-null)
           if (Number.isNaN(aPts) || Number.isNaN(bPts)) continue;
           const aKey = teamIdentityKey(m.teamA) || `season${season}-wk${wk}-a-${m.matchup_id}`;
           const bKey = teamIdentityKey(m.teamB) || `season${season}-wk${wk}-b-${m.matchup_id}`;
 
-          // ensure maps initially
           if (!regularMap[aKey]) regularMap[aKey] = { team: m.teamA.name || null, owner_name: m.teamA.ownerName || null, rosterId: m.teamA.rosterId || null, avatar: m.teamA.avatar || null, wins: 0, losses: 0, pf: 0, pa: 0, results: [] };
           if (!regularMap[bKey]) regularMap[bKey] = { team: m.teamB.name || null, owner_name: m.teamB.ownerName || null, rosterId: m.teamB.rosterId || null, avatar: m.teamB.avatar || null, wins: 0, losses: 0, pf: 0, pa: 0, results: [] };
           if (!playoffMap[aKey]) playoffMap[aKey] = { team: m.teamA.name || null, owner_name: m.teamA.ownerName || null, rosterId: m.teamA.rosterId || null, avatar: m.teamA.avatar || null, wins: 0, losses: 0, pf: 0, pa: 0, results: [] };
@@ -336,7 +372,6 @@ export async function load() {
 
           const isPlayoff = wk >= playoffStart;
 
-          // accumulate PF/PA
           if (isPlayoff) {
             playoffMap[aKey].pf += aPts; playoffMap[aKey].pa += bPts;
             playoffMap[bKey].pf += bPts; playoffMap[bKey].pa += aPts;
@@ -345,7 +380,6 @@ export async function load() {
             regularMap[bKey].pf += bPts; regularMap[bKey].pa += aPts;
           }
 
-          // wins/losses & results
           if (aPts > bPts) {
             if (isPlayoff) { playoffMap[aKey].wins++; playoffMap[bKey].losses++; playoffMap[aKey].results.push('W'); playoffMap[bKey].results.push('L'); }
             else { regularMap[aKey].wins++; regularMap[bKey].losses++; regularMap[aKey].results.push('W'); regularMap[bKey].results.push('L'); }
@@ -353,19 +387,15 @@ export async function load() {
             if (isPlayoff) { playoffMap[bKey].wins++; playoffMap[aKey].losses++; playoffMap[bKey].results.push('W'); playoffMap[aKey].results.push('L'); }
             else { regularMap[bKey].wins++; regularMap[aKey].losses++; regularMap[bKey].results.push('W'); regularMap[aKey].results.push('L'); }
           } else {
-            // tie -> push 'T' but don't count as win or loss
             if (isPlayoff) { playoffMap[aKey].results.push('T'); playoffMap[bKey].results.push('T'); }
             else { regularMap[aKey].results.push('T'); regularMap[bKey].results.push('T'); }
           }
 
-          // store chronological game for streak computation
           allGamesChrono.push({ season: Number(season), week: wk, aKey, bKey, aPts, bPts, isPlayoff });
 
         } else if (m.combinedParticipants && Array.isArray(m.combinedParticipants)) {
-          // skip multi-team for win/loss tally (or treat as multiple records — choose skip for simplicity)
           continue;
         } else if (m.teamA && !m.teamB) {
-          // bye or single participant; skip wins/losses but include PF/PA if desired (here we treat as PF only)
           const aPts = safeNum(m.teamA.points ?? findBestScoreFromRow(m.teamA));
           const aKey = teamIdentityKey(m.teamA) || `season${season}-wk${wk}-a-${m.matchup_id}`;
           if (!regularMap[aKey]) regularMap[aKey] = { team: m.teamA.name || null, owner_name: m.teamA.ownerName || null, rosterId: m.teamA.rosterId || null, avatar: m.teamA.avatar || null, wins: 0, losses: 0, pf: 0, pa: 0, results: [] };
@@ -381,7 +411,6 @@ export async function load() {
     }
   }
 
-  // compute streaks (maxWinStreak, maxLoseStreak) per map by using their results arrays
   function finalizeMap(map) {
     const out = [];
     for (const [k, v] of Object.entries(map)) {
@@ -408,25 +437,19 @@ export async function load() {
   });
 
   const playoffAllTime = finalizeMap(playoffMap).sort((a,b) => {
-    // sort by wins desc, then pf
     if (b.wins !== a.wins) return b.wins - a.wins;
     return (b.pf || 0) - (a.pf || 0);
   });
 
-  // originalRecords: attempt to preserve Bellooshio & cholybevv by scanning early2023.json if present
+  // attempt to parse early2023.json for originalRecords if present (best-effort)
   let originalRecords = {};
   try {
-    // check for early2023.json in static folder
     try {
       const eurl = new URL('../../../static/early2023.json', import.meta.url);
       const txt = await readFile(eurl, 'utf8');
       const early = JSON.parse(txt);
-      // Attempt to compute original owner record totals for Bellooshio and cholybevv by scanning matchups (best-effort)
       const ownersToPreserve = ['bellooshio', 'cholybevv'];
-      for (const o of ownersToPreserve) {
-        originalRecords[o] = null;
-      }
-      // naive scan of early data: sum up wins/losses/points for ownerName keys if present
+      for (const o of ownersToPreserve) originalRecords[o] = null;
       for (const [seasonKey, seasonVal] of Object.entries(early)) {
         for (const [wk, arr] of Object.entries(seasonVal || {})) {
           for (const m of (arr || [])) {
@@ -455,20 +478,18 @@ export async function load() {
         }
       }
     } catch (e) {
-      // early2023.json not present or parse failed — ignore
+      // early2023 not present — that's fine
     }
   } catch (err) {
     // ignore
   }
 
-  // create clickable links list for override files found
   const overridesLinks = Object.entries(files).map(([season, meta]) => ({
     season,
     file: meta.file,
     url: `/season_matchups/${meta.file}`
   }));
 
-  // quick table checks (placeholders)
   const tableChecks = {
     regularAllTime: regularAllTime.length ? 'OK' : 'No data',
     playoffAllTime: playoffAllTime.length ? 'OK' : 'No data'
