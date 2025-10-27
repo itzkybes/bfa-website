@@ -1,99 +1,127 @@
 <script>
-  // Simplified Records page: show import summary, links to season JSON files,
-  // and two aggregated tables: Regular All-time and Playoff All-time.
-  // IMPORTANT: do NOT use `let` here per request; assign from incoming data.
   export let data;
 
-  // helpers
+  // Helpers
   function avatarOrPlaceholder(url, name, size = 56) {
     if (url) return url;
-    const letter = name ? name[0] : 'T';
+    const letter = name ? String(name)[0] : 'T';
     return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
   }
+
   function fmt2(v) {
     return Number(v ?? 0).toFixed(2);
   }
-
-  // Data from server
-  const importSummary = (data && data.importSummary) ? data.importSummary : {};
-  const overrideFiles = (data && data.overrideFiles) ? data.overrideFiles : [];
-  const regularAllTime = (data && data.regularAllTime) ? data.regularAllTime : [];
-  const playoffAllTime = (data && data.playoffAllTime) ? data.playoffAllTime : [];
-  const messages = (data && data.messages) ? data.messages : [];
 </script>
 
 <style>
-  :global(body) { color-scheme: dark; }
-  .page { max-width: 1100px; margin: 1rem auto; padding: 0 1rem; }
-  .card { background:#06111a; border-radius:10px; padding:12px; margin-bottom:1rem; border:1px solid rgba(255,255,255,0.03); }
-  .tbl { width:100%; border-collapse:collapse; }
-  thead th { text-align:left; color:#98a3af; font-size:0.85rem; padding:8px; }
-  tbody td { padding:10px; border-top:1px solid rgba(255,255,255,0.02); color:#e6eef8; }
+  /* keep previous styling minimal; adopt your existing site styles as needed */
+  .page { max-width: 1100px; margin: 1.25rem auto; padding: 0 1rem; }
+  .card { background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border-radius: 10px; padding: 14px; margin-bottom: 1rem; border:1px solid rgba(255,255,255,0.03); }
+  .tbl { width:100%; border-collapse: collapse; }
+  thead th { text-align:left; padding: 8px; color:#9ca3af; font-size: 0.85rem; text-transform:uppercase; }
+  tbody td { padding: 10px; border-top:1px solid rgba(255,255,255,0.03); color:#e6eef8; }
   .col-numeric { text-align:right; font-variant-numeric: tabular-nums; }
-  a.link { color: #9aa8ff; text-decoration:underline; }
-  .msg { color: #9aa8aa; font-size:0.9rem; white-space:pre-wrap; }
+  .small-muted { color:#9ca3af; font-size:0.9rem; }
+  .link { color: #7dd3fc; text-decoration: underline; cursor: pointer; }
 </style>
 
 <div class="page">
   <h1>All-time Records — import & standings</h1>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0;">Import summary</h3>
-    {#if overrideFiles.length}
-      <div style="margin-bottom:8px;">
-        <strong>Loaded override files:</strong>
-        <ul>
-          {#each overrideFiles as f}
-            <li>Season {f.season}: <a class="link" href={f.url} target="_blank" rel="noopener">{f.filename}</a></li>
-          {/each}
-        </ul>
-      </div>
-    {:else}
-      <div style="margin-bottom:8px;">No override files discovered.</div>
-    {/if}
-
-    {#if Object.keys(importSummary).length}
-      <div style="margin-top:6px;">
-        <strong>Summary (weeks / matchups):</strong>
-        <table class="tbl" style="margin-top:8px;">
-          <thead><tr><th>Season</th><th class="col-numeric">Weeks</th><th class="col-numeric">Matchups</th></tr></thead>
-          <tbody>
-            {#each Object.entries(importSummary) as [season, info]}
-              <tr>
-                <td>{season}</td>
-                <td class="col-numeric">{info.weeks}</td>
-                <td class="col-numeric">{info.matchups}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
-  </div>
-
-  <div class="card">
-    <h3 style="margin:0 0 8px 0;">Server messages</h3>
-    <div class="msg">
-      {#if messages && messages.length}
-        {#each messages as m, i}
-          {i+1}. {m}
-          {#if i < messages.length - 1}
-            <br/>
-          {/if}
+    <h3>Import summary</h3>
+    {#if data.overridesLinks && data.overridesLinks.length}
+      <div class="small-muted">Imported override files — click to download/open</div>
+      <ul>
+        {#each data.overridesLinks as l}
+          <li><a class="link" href={l.url} target="_blank" rel="noreferrer noopener">{l.file} — season {l.season}</a></li>
         {/each}
-      {:else}
-        No messages.
-      {/if}
+      </ul>
+    {:else}
+      <div class="small-muted">No override files discovered.</div>
+    {/if}
+
+    <div style="margin-top: 1rem;">
+      <strong>Summary (weeks / matchups):</strong>
+      <table class="tbl" style="margin-top:.5rem;">
+        <thead>
+          <tr><th>Season</th><th class="col-numeric">Weeks</th><th class="col-numeric">Matchups</th></tr>
+        </thead>
+        <tbody>
+          {#each Object.keys(data.importSummary || {}).sort() as s}
+            <tr>
+              <td>{s}</td>
+              <td class="col-numeric">{data.importSummary[s].weeks}</td>
+              <td class="col-numeric">{data.importSummary[s].matchups}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0;">All-time Regular Season (aggregated)</h3>
-    {#if regularAllTime && regularAllTime.length}
-      <table class="tbl" role="table" aria-label="All-time regular season standings">
+    <h3>Server messages</h3>
+    {#if data.messages && data.messages.length}
+      <ol style="margin:0 0 0 1.1rem;">
+        {#each data.messages as m, i}
+          <li class="small-muted">{m}</li>
+        {/each}
+      </ol>
+    {:else}
+      <div class="small-muted">No messages</div>
+    {/if}
+  </div>
+
+  <div class="card">
+    <h3>All-time Regular Season (aggregated)</h3>
+    {#if data.regularAllTime && data.regularAllTime.length}
+      <table class="tbl">
         <thead>
           <tr>
-            <th>Team / Owner</th>
+            <th>Team</th>
+            <th class="col-numeric">W</th>
+            <th class="col-numeric">L</th>
+            <th class="col-numeric">Longest W-Str</th>
+            <th class="col-numeric">Longest L-Str</th>
+            <th class="col-numeric">PF</th>
+            <th class="col-numeric">PA</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each data.regularAllTime as r}
+            <tr>
+              <td>
+                <div style="display:flex; gap:.6rem; align-items:center;">
+                  <img class="avatar" src={avatarOrPlaceholder(r.avatar, r.team)} alt={r.team} style="width:56px;height:56px;border-radius:8px;object-fit:cover;" />
+                  <div>
+                    <div style="font-weight:700;">{r.team}</div>
+                    {#if r.owner_name}<div class="small-muted">{r.owner_name}</div>{/if}
+                  </div>
+                </div>
+              </td>
+              <td class="col-numeric">{r.wins}</td>
+              <td class="col-numeric">{r.losses}</td>
+              <td class="col-numeric">{r.maxWinStreak ?? r.maxWinStreak ?? r.maxWinStr ?? r.maxWinStreak}</td>
+              <td class="col-numeric">{r.maxLoseStreak ?? r.maxLoseStreak ?? r.maxLoseStr ?? r.maxLoseStreak}</td>
+              <td class="col-numeric">{fmt2(r.pf)}</td>
+              <td class="col-numeric">{fmt2(r.pa)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {:else}
+      <div class="small-muted">No regular-season standings available.</div>
+    {/if}
+  </div>
+
+  <div class="card">
+    <h3>All-time Playoffs (aggregated)</h3>
+    {#if data.playoffAllTime && data.playoffAllTime.length}
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Team</th>
             <th class="col-numeric">W</th>
             <th class="col-numeric">L</th>
             <th class="col-numeric">PF</th>
@@ -101,14 +129,14 @@
           </tr>
         </thead>
         <tbody>
-          {#each regularAllTime as r}
+          {#each data.playoffAllTime as r}
             <tr>
               <td>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <img src={avatarOrPlaceholder(null, r.team)} alt={r.team} width="40" height="40" style="border-radius:8px;" />
+                <div style="display:flex; gap:.6rem; align-items:center;">
+                  <img class="avatar" src={avatarOrPlaceholder(r.avatar, r.team)} alt={r.team} style="width:56px;height:56px;border-radius:8px;object-fit:cover;" />
                   <div>
-                    <div style="font-weight:700">{r.team}</div>
-                    <div style="color:#9aa8aa; font-size:.88rem;">{r.owner_name}</div>
+                    <div style="font-weight:700;">{r.team}</div>
+                    {#if r.owner_name}<div class="small-muted">{r.owner_name}</div>{/if}
                   </div>
                 </div>
               </td>
@@ -121,45 +149,46 @@
         </tbody>
       </table>
     {:else}
-      <div>No regular-season standings available.</div>
+      <div class="small-muted">No playoff standings available.</div>
     {/if}
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0;">All-time Playoffs (aggregated)</h3>
-    {#if playoffAllTime && playoffAllTime.length}
-      <table class="tbl" role="table" aria-label="All-time playoff standings">
-        <thead>
-          <tr>
-            <th>Team / Owner</th>
-            <th class="col-numeric">Play W</th>
-            <th class="col-numeric">Play L</th>
-            <th class="col-numeric">PF</th>
-            <th class="col-numeric">PA</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each playoffAllTime as p}
-            <tr>
-              <td>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <img src={avatarOrPlaceholder(null, p.team)} alt={p.team} width="40" height="40" style="border-radius:8px;" />
-                  <div>
-                    <div style="font-weight:700">{p.team}</div>
-                    <div style="color:#9aa8aa; font-size:.88rem;">{p.owner_name}</div>
-                  </div>
-                </div>
-              </td>
-              <td class="col-numeric">{p.playoffWins}</td>
-              <td class="col-numeric">{p.playoffLosses}</td>
-              <td class="col-numeric">{fmt2(p.pf)}</td>
-              <td class="col-numeric">{fmt2(p.pa)}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <h3>Ownership note / preserved records</h3>
+    <div class="small-muted">Original owners preserved (best-effort from early2023.json)</div>
+
+    {#if data.originalRecords && (data.originalRecords.bellooshio || data.originalRecords.cholybevv)}
+      {#if data.originalRecords.bellooshio}
+        <div style="margin-top:.6rem; display:flex; gap:.75rem;">
+          <img src={avatarOrPlaceholder(data.originalRecords.bellooshio.avatar, data.originalRecords.bellooshio.team)} alt="bellooshio" style="width:56px;height:56px;border-radius:8px;" />
+          <div>
+            <div style="font-weight:700">Bellooshio</div>
+            <div class="small-muted">
+              {#if data.originalRecords.bellooshio.team}Team: {data.originalRecords.bellooshio.team} • {/if}
+              Regular: <strong>{data.originalRecords.bellooshio.regWins}</strong>-<strong>{data.originalRecords.bellooshio.regLosses}</strong> (PF {fmt2(data.originalRecords.bellooshio.regPF)}, PA {fmt2(data.originalRecords.bellooshio.regPA)})<br/>
+              Playoffs: <strong>{data.originalRecords.bellooshio.playoffWins}</strong>-<strong>{data.originalRecords.bellooshio.playoffLosses}</strong> (PF {fmt2(data.originalRecords.bellooshio.playoffPF)}, PA {fmt2(data.originalRecords.bellooshio.playoffPA)})<br/>
+              Championships: <strong>{data.originalRecords.bellooshio.championships}</strong>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      {#if data.originalRecords.cholybevv}
+        <div style="margin-top:.6rem; display:flex; gap:.75rem;">
+          <img src={avatarOrPlaceholder(data.originalRecords.cholybevv.avatar, data.originalRecords.cholybevv.team)} alt="cholybevv" style="width:56px;height:56px;border-radius:8px;" />
+          <div>
+            <div style="font-weight:700">cholybevv</div>
+            <div class="small-muted">
+              {#if data.originalRecords.cholybevv.team}Team: {data.originalRecords.cholybevv.team} • {/if}
+              Regular: <strong>{data.originalRecords.cholybevv.regWins}</strong>-<strong>{data.originalRecords.cholybevv.regLosses}</strong> (PF {fmt2(data.originalRecords.cholybevv.regPF)}, PA {fmt2(data.originalRecords.cholybevv.regPA)})<br/>
+              Playoffs: <strong>{data.originalRecords.cholybevv.playoffWins}</strong>-<strong>{data.originalRecords.cholybevv.playoffLosses}</strong> (PF {fmt2(data.originalRecords.cholybevv.playoffPF)}, PA {fmt2(data.originalRecords.cholybevv.playoffPA)})<br/>
+              Championships: <strong>{data.originalRecords.cholybevv.championships}</strong>
+            </div>
+          </div>
+        </div>
+      {/if}
     {:else}
-      <div>No playoff standings available.</div>
+      <div class="small-muted">No preserved original owner records found.</div>
     {/if}
   </div>
 </div>
