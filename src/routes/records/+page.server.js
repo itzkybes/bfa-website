@@ -29,56 +29,148 @@ function safeNum(v) {
 }
 
 //
-// Robust loader for static/season_matchups — try multiple candidate directories because
-// runtime/build layout (Vercel / SvelteKit output) can differ from local repo layout.
-// Returns an object: { [season]: { file, path, json } }
+// Robust loader for static/season_matchups — tries per-season file paths first,
+// then falls back to reading any JSON files in candidate directories.
 //
 async function readAllSeasonMatchupFiles(messages = []) {
   const out = {};
 
-  // Candidate directories to try (in order).
-  // process.cwd() is the best general approach in serverless; import.meta.url works in many dev cases.
-  const candidateDirs = [];
+  // seasons we care about (you can extend)
+  const candidateSeasons = ['2022','2023','2024'];
 
+  // candidate directories to consider (in order)
+  const candidateDirs = [
+    path.join(process.cwd(), 'static', 'season_matchups'),
+    path.join(process.cwd(), 'static', 'season-matchups'),
+    path.join(process.cwd(), 'static', 'season_matchups'), // duplicate kept intentionally
+    path.join(process.cwd(), 'static'),
+    path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season_matchups'),
+    path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season-matchups')
+  ];
+
+  // also try import.meta.url based possibilities (useful for local dev)
   try {
-    candidateDirs.push(path.join(process.cwd(), 'static', 'season_matchups'));
-    candidateDirs.push(path.join(process.cwd(), 'static', 'season-matchups'));
-    candidateDirs.push(path.join(process.cwd(), 'static', 'season-matchups')); // alternate
-    // in some deploys static is placed in build/server/static...
-    candidateDirs.push(path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season_matchups'));
-    candidateDirs.push(path.join(process.cwd(), 'svelte-kit', 'output', 'server', 'static', 'season-matchups'));
+    candidateDirs.push(new URL('../../../static/season_matchups', import.meta.url).pathname);
+    candidateDirs.push(new URL('../../../static/season-matchups', import.meta.url).pathname);
+    candidateDirs.push(new URL('../../../static', import.meta.url).pathname);
   } catch (e) {
     // ignore
   }
 
-  // Also try import.meta.url relative paths (useful in local dev)
-  try {
-    const rel1 = new URL('../../../static/season_matchups', import.meta.url).pathname;
-    const rel2 = new URL('../../../static/season-matchups', import.meta.url).pathname;
-    candidateDirs.push(rel1);
-    candidateDirs.push(rel2);
-  } catch (e) {
-    // ignore
-  }
-
-  // Deduplicate candidateDirs
-  const seen = new Set();
-  const uniq = [];
-  for (const d of candidateDirs) {
-    if (!d) continue;
-    if (!seen.has(d)) { uniq.push(d); seen.add(d); }
-  }
-
-  let foundDir = null;
-  for (const dir of uniq) {
+  // helper to try reading a single file path
+  async function tryReadFileAt(p, seasonKey) {
     try {
-      // use access to check directory exists
+      await access(p);
+    } catch (e) {
+      return null;
+    }
+    try {
+      const txt = await readFile(p, 'utf8');
+      const parsed = JSON.parse(txt);
+      messages.push(`Loaded override file for season=${seasonKey} from ${p}`);
+      return { file: path.basename(p), path: p, json: parsed };
+    } catch (err) {
+      messages.push(`Failed to read/parse file ${p}: ${err?.message ?? err}`);
+      return null;
+    }
+  }
+
+  // First — attempt direct file reads for each season using several filename variants & directory candidates
+  for (const season of candidateSeasons) {
+    // possible filename patterns
+    const filenames = [
+      `${season}.json`,
+      `season_${season}.json`,
+      `${season}_matchups.json`,
+      `season-${season}.json`,
+      `${season}-matchups.json`
+    ];
+
+    let foundForSeason = null;
+
+    // Try each candidate directory + filename
+    for (const dir of candidateDirs) {
+      if (!dir) continue;
+      for (const fname of filenames) {
+        const p = path.join(dir, fname);
+        const res = await tryReadFileAt(p, season);
+        if (res) { foundForSeason = res; break; }
+      }
+      if (foundForSeason) break;
+    }
+
+    // Also try a couple of repo-root-friendly direct file paths (in case static files are at root)
+    if (!foundForSeason) {
+      const extraCandidates = [
+        path.join(process.cwd(), 'static', `${season}.json`),
+        path.join(process.cwd(), `${season}.json`),
+        path.join(process.cwd(), 'static', 'season_matchups', `${season}.json`)
+      ];
+      for (const p of extraCandidates) {
+        const res = await tryReadFileAt(p, season);
+        if (res) { foundForSeason = res; break; }
+      }
+    }
+
+    // Also try import.meta.url direct file references
+    if (!foundForSeason) {
+      try {
+        const rel = new URL(`../../../static/season_matchups/${season}.json`, import.meta.url).pathname;
+        const res = await tryReadFileAt(rel, season);
+        if (res) foundForSeason = res;
+      } catch (e) { /* ignore */ }
+    }
+
+    if (foundForSeason) out[season] = foundForSeason;
+  }
+
+  // If we already loaded per-season files, return them (also still try to load any other JSONs in found directories)
+  // But if none loaded, fallback to scanning candidate directories for any JSON files
+  const loadedSeasons = Object.keys(out);
+  if (loadedSeasons.length > 0) {
+    // also attempt to read other .json files in the same directories to collect extras
+    for (const dir of candidateDirs) {
+      try {
+        await access(dir);
+      } catch (e) {
+        continue;
+      }
+      try {
+        const files = await readdir(dir);
+        for (const f of files) {
+          if (!f.toLowerCase().endsWith('.json')) continue;
+          // skip seasons we already loaded
+          if (loadedSeasons.includes(f.replace(/\.json$/i, ''))) continue;
+          const full = path.join(dir, f);
+          try {
+            const txt = await readFile(full, 'utf8');
+            const parsed = JSON.parse(txt);
+            const m = f.match(/(20\d{2})/);
+            const seasonKey = m ? m[1] : f.replace(/\.json$/i, '');
+            if (!out[seasonKey]) {
+              out[seasonKey] = { file: f, path: full, json: parsed };
+              messages.push(`Also loaded override file for season=${seasonKey} from ${full}`);
+            }
+          } catch (err) {
+            messages.push(`Failed to read/parse ${full}: ${err?.message ?? err}`);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    return out;
+  }
+
+  // If we reached here, no per-season files were found — try to find a directory and read any jsons inside
+  let foundDir = null;
+  for (const dir of candidateDirs) {
+    try {
       await access(dir);
-      // if directory is accessible, use it
       foundDir = dir;
       messages.push(`Found override directory: ${dir}`);
       break;
-    } catch (errAccess) {
+    } catch (err) {
       messages.push(`No override dir found in candidate: ${dir}`);
       continue;
     }
@@ -103,7 +195,6 @@ async function readAllSeasonMatchupFiles(messages = []) {
     try {
       const txt = await readFile(full, 'utf8');
       const parsed = JSON.parse(txt);
-      // guess season key from filename like 2023.json or season_2023.json
       const m = f.match(/(20\d{2})/);
       const seasonKey = m ? m[1] : f.replace(/\.json$/i, '');
       out[seasonKey] = { file: f, path: full, json: parsed };
@@ -116,6 +207,7 @@ async function readAllSeasonMatchupFiles(messages = []) {
   return out;
 }
 
+// helpers used later in load()
 function normalizeSeasonJson(payload) {
   const weeks = {};
   if (!payload) return weeks;
@@ -181,7 +273,7 @@ export async function load() {
   const seasonMatchups = {}; // season -> week -> [matchups]
   const importSummary = {};
 
-  // 1) read override files
+  // 1) read override files (direct-season-file first, directory fallback)
   const files = await readAllSeasonMatchupFiles(messages);
 
   // normalize into seasonMatchups
@@ -331,8 +423,7 @@ export async function load() {
     }
   }
 
-  // 4) compute aggregated standings across seasons (regular vs playoff)...
-  // (unchanged aggregation logic from previously supplied file)
+  // 4) compute aggregated standings across seasons (regular vs playoff)
   const regularMap = {};
   const playoffMap = {};
   const allSeasons = Object.keys(seasonMatchups).sort();
