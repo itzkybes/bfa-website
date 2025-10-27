@@ -53,18 +53,18 @@ export async function load({ fetch, url }) {
   async function tryReadDiskJSON(relPathFromStatic) {
     try {
       // compute path relative to /static in source tree
-      const fileUrl = new URL(`../../../static/${relPathFromStatic.replace(/^\//, '')}`, import.meta.url);
+      const fileUrl = new URL(`../../../${relPathFromStatic.replace(/^\//, '')}`, import.meta.url);
       const txt = await fs.readFile(fileUrl, 'utf8');
       try {
         const parsed = JSON.parse(txt);
-        messages.push(`Loaded JSON from disk static/${relPathFromStatic}`);
+        messages.push(`Loaded JSON from disk ${relPathFromStatic}`);
         return parsed;
       } catch (e) {
-        messages.push(`Failed parsing disk JSON static/${relPathFromStatic}: ${e?.message ?? e}`);
+        messages.push(`Failed parsing disk JSON ${relPathFromStatic}: ${e?.message ?? e}`);
         return null;
       }
     } catch (e) {
-      messages.push(`No disk file static/${relPathFromStatic}: ${e?.message ?? e}`);
+      messages.push(`No disk file ${relPathFromStatic}: ${e?.message ?? e}`);
       return null;
     }
   }
