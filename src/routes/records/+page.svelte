@@ -1,5 +1,5 @@
 <script>
-  // Standings page (regular / playoff split), formatted like Records page.
+  // Standings page (regular / playoff split), aggregated across seasons.
   export let data;
 
   // debug panel state
@@ -69,7 +69,7 @@
     seasonForm && seasonForm.submit && seasonForm.submit();
   }
 
-  // Build playoff display: champion(s) first, then others sorted by wins -> pf
+  // Build playoff display for selected season (kept for reference)
   $: playoffDisplay = (() => {
     if (!selectedSeasonResult) return [];
     const raw = (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length)
@@ -94,9 +94,127 @@
     return [...champs, ...others];
   })();
 
-  // --- NEW: JSON links from server (optional)
-  // server may set data.jsonLinks = [{ title: 'season_matchups/2022.json', url: 'https://...' }, ...]
+  // --- JSON links from server (optional)
   $: jsonLinks = (data && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
+
+  // -------------------------
+  // Aggregation across seasons
+  // -------------------------
+  function aggregateStandingsList(list, map) {
+    if (!list || !Array.isArray(list)) return;
+    for (const row of list) {
+      if (!row) continue;
+      // choose a stable key: use rosterId when present, else owner_id, else team_name (lowercased)
+      let key = row.rosterId ?? row.roster_id ?? row.owner_id ?? null;
+      if (!key) {
+        key = (row.team_name ? ('team:' + String(row.team_name).toLowerCase()) : null);
+      } else {
+        key = String(key);
+      }
+      if (!key) continue;
+
+      if (!map[key]) {
+        map[key] = {
+          rosterId: row.rosterId ?? row.roster_id ?? null,
+          team_name: row.team_name ?? null,
+          owner_name: row.owner_name ?? null,
+          avatar: row.avatar ?? null,
+          wins: 0,
+          losses: 0,
+          ties: 0,
+          pf: 0,
+          pa: 0,
+          maxWinStreak: 0,
+          maxLoseStreak: 0,
+          seasonsCount: 0,
+          championCount: 0
+        };
+      }
+
+      const dest = map[key];
+      dest.wins += Number(row.wins || 0);
+      dest.losses += Number(row.losses || 0);
+      dest.ties += Number(row.ties || 0);
+      dest.pf += Number(row.pf || 0);
+      dest.pa += Number(row.pa || 0);
+
+      // keep latest non-null display fields if present
+      if (row.team_name) dest.team_name = row.team_name;
+      if (row.owner_name) dest.owner_name = row.owner_name;
+      if (row.avatar) dest.avatar = row.avatar;
+
+      // max streaks (take the maximum observed)
+      dest.maxWinStreak = Math.max(dest.maxWinStreak || 0, Number(row.maxWinStreak || 0));
+      dest.maxLoseStreak = Math.max(dest.maxLoseStreak || 0, Number(row.maxLoseStreak || 0));
+
+      // champion
+      if (row.champion === true) dest.championCount = (dest.championCount || 0) + 1;
+
+      dest.seasonsCount = (dest.seasonsCount || 0) + 1;
+    }
+  }
+
+  // aggregated regular / playoff maps -> arrays
+  $: {
+    const regMap = {};
+    const poMap = {};
+    if (seasonsResults && Array.isArray(seasonsResults)) {
+      for (const sr of seasonsResults) {
+        // regular standings can be in sr.regularStandings or sr.regular or sr.standings
+        const regular = sr.regularStandings ?? sr.regular ?? sr.standings ?? [];
+        aggregateStandingsList(regular, regMap);
+
+        // playoff standings can be in sr.playoffStandings or sr.playoffs or sr.standings (fall back carefully)
+        const playoff = sr.playoffStandings ?? sr.playoffs ?? sr.standings ?? [];
+        // It's possible sr.standings is same as regular; to avoid double counting, only use sr.playoffStandings if present,
+        // otherwise if sr.playoffStandings absent but sr.standings present and there are distinct playoff entries (we can't reliably detect),
+        // we'll still include sr.standings in playoffs only when playoffStandings is present.
+        if (sr.playoffStandings && sr.playoffStandings.length) {
+          aggregateStandingsList(sr.playoffStandings, poMap);
+        } else if (sr.playoffs && sr.playoffs.length) {
+          aggregateStandingsList(sr.playoffs, poMap);
+        } else if (sr.playoffStandings == null && sr.playoffs == null && sr.standings && sr.standings.length && !sr.regularStandings) {
+          // edge-case: some seasons may put all in standings; treat as playoff only if no regularStandings present
+          aggregateStandingsList(sr.standings, poMap);
+        }
+      }
+    }
+
+    // convert to arrays and sort
+    aggregatedRegular = Object.keys(regMap).map(k => {
+      const r = regMap[k];
+      // round PF/PA to 2 decimals
+      r.pf = Math.round((r.pf || 0) * 100) / 100;
+      r.pa = Math.round((r.pa || 0) * 100) / 100;
+      r.champion = (r.championCount || 0) > 0;
+      return r;
+    });
+
+    aggregatedPlayoff = Object.keys(poMap).map(k => {
+      const r = poMap[k];
+      r.pf = Math.round((r.pf || 0) * 100) / 100;
+      r.pa = Math.round((r.pa || 0) * 100) / 100;
+      r.champion = (r.championCount || 0) > 0;
+      return r;
+    });
+
+    // sorting: wins desc, then pf desc
+    aggregatedRegular.sort((a,b) => {
+      const wa = Number(a.wins || 0), wb = Number(b.wins || 0);
+      if (wb !== wa) return wb - wa;
+      return (b.pf || 0) - (a.pf || 0);
+    });
+
+    aggregatedPlayoff.sort((a,b) => {
+      const wa = Number(a.wins || 0), wb = Number(b.wins || 0);
+      if (wb !== wa) return wb - wa;
+      return (b.pf || 0) - (a.pf || 0);
+    });
+  }
+
+  // reactive arrays to be used inside template
+  let aggregatedRegular = [];
+  let aggregatedPlayoff = [];
 </script>
 
 <style>
@@ -282,12 +400,11 @@
           <div>{i + 1}. {m}</div>
         {/each}
 
-        <!-- NEW: render any JSON links provided by the server -->
+        <!-- JSON links -->
         {#if jsonLinks && jsonLinks.length}
           <div style="margin-top:.5rem; font-weight:700; color:inherit">Loaded JSON files:</div>
           <div class="json-links" aria-live="polite">
             {#each jsonLinks as jl}
-              <!-- jl expected shape: { title, url } or a raw string url -->
               {#if typeof jl === 'string'}
                 <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
               {:else}
@@ -300,7 +417,7 @@
     </div>
   {/if}
 
-  <h1>Standings</h1>
+  <h1>Standings (Aggregated)</h1>
 
   <div class="controls-row">
     <div class="controls" aria-hidden="false">
@@ -314,23 +431,27 @@
       </form>
     </div>
 
-    {#if selectedSeasonResult}
-      <div class="small-muted">Showing: <strong style="color:inherit">{selectedSeasonResult.leagueName ?? `Season ${selectedSeasonResult.season ?? selectedSeasonResult.leagueId}`}</strong></div>
-    {/if}
+    <div class="small-muted">
+      Aggregated seasons: <strong style="color:inherit">{seasonsResults.length}</strong>
+      {#if selectedSeasonResult}
+        • Showing selected: <strong style="color:inherit">{selectedSeasonResult.leagueName ?? `Season ${selectedSeasonResult.season ?? selectedSeasonResult.leagueId}`}</strong>
+      {/if}
+    </div>
   </div>
 
+  <!-- Aggregated Regular Season -->
   <div class="card" aria-labelledby="regular-title" style="margin-bottom:1rem;">
     <div class="card-header">
       <div>
-        <div id="regular-title" class="section-title">Regular Season</div>
-        <div class="section-sub">Weeks 1 → playoff start - 1</div>
+        <div id="regular-title" class="section-title">Regular Season (Aggregated)</div>
+        <div class="section-sub">Combined across available seasons</div>
       </div>
       <div class="small-muted">Sorted by Wins → PF</div>
     </div>
 
-    {#if selectedSeasonResult && selectedSeasonResult.regularStandings && selectedSeasonResult.regularStandings.length}
-      <div class="table-wrap" role="region" aria-label="Regular season standings table scrollable">
-        <table class="tbl" role="table" aria-label="Regular season standings">
+    {#if aggregatedRegular && aggregatedRegular.length}
+      <div class="table-wrap" role="region" aria-label="Aggregated regular season standings table scrollable">
+        <table class="tbl" role="table" aria-label="Aggregated regular season standings">
           <thead>
             <tr>
               <th>#</th>
@@ -344,16 +465,16 @@
             </tr>
           </thead>
           <tbody>
-            {#each selectedSeasonResult.regularStandings as row, idx}
+            {#each aggregatedRegular as row, idx}
               <tr>
                 <td class="rank">{idx + 1}</td>
                 <td>
                   <div class="team-row">
                     <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                     <div>
-                      <div class="team-name">{row.team_name}</div>
+                      <div class="team-name">{row.team_name}{#if row.championCount > 0}<span class="trophies" title="Champion seasons"> 🏆×{row.championCount}</span>{/if}</div>
                       {#if row.owner_name}
-                        <div class="owner">{row.owner_name}</div>
+                        <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
                       {/if}
                     </div>
                   </div>
@@ -374,19 +495,19 @@
     {/if}
   </div>
 
+  <!-- Aggregated Playoffs -->
   <div class="card" aria-labelledby="playoff-title">
     <div class="card-header">
       <div>
-        <div id="playoff-title" class="section-title">Playoffs</div>
-        <div class="section-sub">Playoff window only</div>
+        <div id="playoff-title" class="section-title">Playoffs (Aggregated)</div>
+        <div class="section-sub">Combined playoff window across available seasons</div>
       </div>
-      <div class="small-muted">Champion(s) pinned to top</div>
+      <div class="small-muted">Champion seasons pinned to top where applicable</div>
     </div>
 
-    {#if selectedSeasonResult && ( (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length) || (selectedSeasonResult.standings && selectedSeasonResult.standings.length) )}
-      <!-- wrap playoff table as well so users can horizontally scroll to PF/PA on mobile -->
-      <div class="table-wrap" role="region" aria-label="Playoff standings table scrollable">
-        <table class="tbl" role="table" aria-label="Playoff standings">
+    {#if aggregatedPlayoff && aggregatedPlayoff.length}
+      <div class="table-wrap" role="region" aria-label="Aggregated playoff standings table scrollable">
+        <table class="tbl" role="table" aria-label="Aggregated playoff standings">
           <thead>
             <tr>
               <th>Team / Owner</th>
@@ -397,7 +518,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each playoffDisplay as row}
+            {#each aggregatedPlayoff as row}
               <tr aria-current={row.champion === true ? 'true' : undefined}>
                 <td>
                   <div class="team-row">
@@ -405,12 +526,12 @@
                     <div>
                       <div class="team-name">
                         <span>{row.team_name}</span>
-                        {#if row.champion === true}
-                          <span class="trophies" title="Champion">🏆</span>
+                        {#if row.championCount > 0}
+                          <span class="trophies" title="Champion seasons">🏆×{row.championCount}</span>
                         {/if}
                       </div>
                       {#if row.owner_name}
-                        <div class="owner">{row.owner_name}</div>
+                        <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
                       {/if}
                     </div>
                   </div>
