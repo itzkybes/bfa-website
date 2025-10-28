@@ -56,11 +56,6 @@ async function tryLoadEarly2023(origin) {
       }
     } catch (e) {}
   }
-  try {
-    const fileUrl = new URL('../../../static/early2023.json', import.meta.url);
-    const txt = await readFile(fileUrl, 'utf8');
-    return JSON.parse(txt);
-  } catch (e) { return null; }
 }
 
 async function tryLoadSeasonMatchups(years, origin) {
@@ -79,14 +74,6 @@ async function tryLoadSeasonMatchups(years, origin) {
             jsonLinks.push(url);
           } catch (e) { loaded = null; }
         }
-      } catch (e) { loaded = null; }
-    }
-    if (!loaded) {
-      try {
-        const fileUrl = new URL(`../../../static/season_matchups/${String(y)}.json`, import.meta.url);
-        const txt = await readFile(fileUrl, 'utf8');
-        loaded = JSON.parse(txt);
-        jsonLinks.push(`/season_matchups/${String(y)}.json`);
       } catch (e) { loaded = null; }
     }
     if (loaded) resultMap[String(y)] = loaded;
