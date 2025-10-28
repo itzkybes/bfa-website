@@ -93,6 +93,10 @@
 
     return [...champs, ...others];
   })();
+
+  // --- NEW: JSON links from server (optional)
+  // server may set data.jsonLinks = [{ title: 'season_matchups/2022.json', url: 'https://...' }, ...]
+  $: jsonLinks = (data && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
 </script>
 
 <style>
@@ -243,6 +247,11 @@
     color: #e6eef8;
   }
 
+  /* JSON links list in debug panel */
+  .json-links { margin-top: 0.5rem; display:flex; flex-direction:column; gap:6px; }
+  .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
+  .json-links a:hover { text-decoration: underline; }
+
   /* Responsive adjustments */
   @media (max-width: 1000px) {
     .tbl { min-width: 720px; }
@@ -272,6 +281,21 @@
         {#each data.messages as m, i}
           <div>{i + 1}. {m}</div>
         {/each}
+
+        <!-- NEW: render any JSON links provided by the server -->
+        {#if jsonLinks && jsonLinks.length}
+          <div style="margin-top:.5rem; font-weight:700; color:inherit">Loaded JSON files:</div>
+          <div class="json-links" aria-live="polite">
+            {#each jsonLinks as jl}
+              <!-- jl expected shape: { title, url } or a raw string url -->
+              {#if typeof jl === 'string'}
+                <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
+              {:else}
+                <a href={jl.url} target="_blank" rel="noopener noreferrer">{jl.title ?? jl.url}</a>
+              {/if}
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
