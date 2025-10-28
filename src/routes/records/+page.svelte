@@ -1,5 +1,5 @@
 <script>
-  // Standings page (regular / playoff split), aggregated across seasons.
+  // Aggregated Standings page — no season selector, just aggregate all seasonsResults.
   export let data;
 
   // debug panel state
@@ -14,87 +14,10 @@
     return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
   }
 
-  // seasons list from server
-  const seasons = (data && data.seasons && Array.isArray(data.seasons)) ? data.seasons : [];
-
-  // Determine latest season year (only include seasons with numeric season)
-  const numericSeasons = seasons.filter(s => s.season != null);
-  const latestSeasonDefault = numericSeasons.length
-    ? String(numericSeasons[numericSeasons.length - 1].season)
-    : (seasons.length ? String(seasons[seasons.length - 1].league_id) : 'all');
-
-  // default selected season: prefer server's selectedSeason if it matches an available season,
-  // otherwise default to the latest season year
-  let selectedSeasonId = (() => {
-    const ds = data && data.selectedSeason ? String(data.selectedSeason) : null;
-    if (ds) {
-      const matches = seasons.some(s => (s.season != null && String(s.season) === ds) || String(s.league_id) === ds);
-      if (matches) return ds;
-    }
-    return latestSeasonDefault;
-  })();
-
-  // reactive seasonsResults / selectedSeasonResult
+  // raw seasonsResults from server
   $: seasonsResults = (data && data.seasonsResults && Array.isArray(data.seasonsResults)) ? data.seasonsResults : [];
 
-  $: selectedSeasonResult = (() => {
-    if (!seasonsResults || seasonsResults.length === 0) return null;
-    if (!selectedSeasonId || selectedSeasonId === 'all') {
-      if (seasons && seasons.length) {
-        const last = seasons[seasons.length - 1];
-        return seasonsResults.find(r => String(r.leagueId) === String(last.league_id)) || seasonsResults[seasonsResults.length - 1];
-      }
-      return seasonsResults[seasonsResults.length - 1];
-    } else {
-      // prefer matching by season value (year), then leagueId
-      let found = seasonsResults.find(r => r.season != null && String(r.season) === String(selectedSeasonId));
-      if (found) return found;
-      found = seasonsResults.find(r => String(r.leagueId) === String(selectedSeasonId));
-      if (found) return found;
-      // fallback
-      return seasonsResults[0];
-    }
-  })();
-
-  function seasonLabel(s) {
-    if (!s) return 'Unknown';
-    if (s.season != null) return String(s.season);
-    if (s.name) return s.name;
-    return s.league_id || 'Unknown';
-  }
-
-  // submit form when user changes season
-  let seasonForm;
-  function submitForm() {
-    seasonForm && seasonForm.submit && seasonForm.submit();
-  }
-
-  // Build playoff display for selected season (kept for reference)
-  $: playoffDisplay = (() => {
-    if (!selectedSeasonResult) return [];
-    const raw = (selectedSeasonResult.playoffStandings && selectedSeasonResult.playoffStandings.length)
-      ? selectedSeasonResult.playoffStandings.slice()
-      : (selectedSeasonResult.standings && selectedSeasonResult.standings.length ? selectedSeasonResult.standings.slice() : []);
-
-    if (!raw || raw.length === 0) return [];
-
-    const champs = raw.filter(r => r.champion === true);
-    const others = raw.filter(r => r.champion !== true);
-
-    // sort champions by pf desc (if multiple)
-    champs.sort((a,b) => (b.pf || 0) - (a.pf || 0));
-
-    // sort others by wins desc then pf desc
-    others.sort((a,b) => {
-      const wa = Number(a.wins || 0), wb = Number(b.wins || 0);
-      if (wb !== wa) return wb - wa;
-      return (b.pf || 0) - (a.pf || 0);
-    });
-
-    return [...champs, ...others];
-  })();
-
-  // --- JSON links from server (optional)
+  // optional json links surfaced by server loader (if present)
   $: jsonLinks = (data && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
 
   // -------------------------
@@ -104,7 +27,7 @@
     if (!list || !Array.isArray(list)) return;
     for (const row of list) {
       if (!row) continue;
-      // choose a stable key: use rosterId when present, else owner_id, else team_name (lowercased)
+      // choose a stable key: prefer rosterId, then owner_id, then team_name
       let key = row.rosterId ?? row.roster_id ?? row.owner_id ?? null;
       if (!key) {
         key = (row.team_name ? ('team:' + String(row.team_name).toLowerCase()) : null);
@@ -138,7 +61,7 @@
       dest.pf += Number(row.pf || 0);
       dest.pa += Number(row.pa || 0);
 
-      // keep latest non-null display fields if present
+      // keep latest display fields if present
       if (row.team_name) dest.team_name = row.team_name;
       if (row.owner_name) dest.owner_name = row.owner_name;
       if (row.avatar) dest.avatar = row.avatar;
@@ -164,26 +87,20 @@
         const regular = sr.regularStandings ?? sr.regular ?? sr.standings ?? [];
         aggregateStandingsList(regular, regMap);
 
-        // playoff standings can be in sr.playoffStandings or sr.playoffs or sr.standings (fall back carefully)
-        const playoff = sr.playoffStandings ?? sr.playoffs ?? sr.standings ?? [];
-        // It's possible sr.standings is same as regular; to avoid double counting, only use sr.playoffStandings if present,
-        // otherwise if sr.playoffStandings absent but sr.standings present and there are distinct playoff entries (we can't reliably detect),
-        // we'll still include sr.standings in playoffs only when playoffStandings is present.
+        // playoff standings: prefer explicit playoffStandings, fallback cautiously
         if (sr.playoffStandings && sr.playoffStandings.length) {
           aggregateStandingsList(sr.playoffStandings, poMap);
         } else if (sr.playoffs && sr.playoffs.length) {
           aggregateStandingsList(sr.playoffs, poMap);
-        } else if (sr.playoffStandings == null && sr.playoffs == null && sr.standings && sr.standings.length && !sr.regularStandings) {
-          // edge-case: some seasons may put all in standings; treat as playoff only if no regularStandings present
+        } else if (!sr.regularStandings && sr.standings && sr.standings.length) {
+          // edge-case: treat `standings` as playoff data only if no explicit regularStandings present
           aggregateStandingsList(sr.standings, poMap);
         }
       }
     }
 
-    // convert to arrays and sort
     aggregatedRegular = Object.keys(regMap).map(k => {
       const r = regMap[k];
-      // round PF/PA to 2 decimals
       r.pf = Math.round((r.pf || 0) * 100) / 100;
       r.pa = Math.round((r.pa || 0) * 100) / 100;
       r.champion = (r.championCount || 0) > 0;
@@ -333,28 +250,10 @@
   .trophies { margin-left:.4rem; font-size:0.98rem; }
   .small-muted { color: var(--muted); font-size: .88rem; }
 
-  .controls {
-    display:flex;
-    gap:.75rem;
-    align-items:center;
-  }
-
-  /* Matchups-style select to match site-wide UI */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: var(--text);
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
+  /* JSON links list in debug panel */
+  .json-links { margin-top: 0.5rem; display:flex; flex-direction:column; gap:6px; }
+  .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
+  .json-links a:hover { text-decoration: underline; }
 
   /* Rank column */
   .rank {
@@ -365,22 +264,15 @@
     color: #e6eef8;
   }
 
-  /* JSON links list in debug panel */
-  .json-links { margin-top: 0.5rem; display:flex; flex-direction:column; gap:6px; }
-  .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
-  .json-links a:hover { text-decoration: underline; }
-
   /* Responsive adjustments */
   @media (max-width: 1000px) {
     .tbl { min-width: 720px; }
   }
 
   @media (max-width: 900px) {
-    .select { min-width: 100%; width:100%; }
     .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
     .team-name { font-size: .95rem; }
-    /* allow full horizontal scroll on small screens */
     .table-wrap { overflow:auto; }
   }
 
@@ -420,23 +312,8 @@
   <h1>Standings (Aggregated)</h1>
 
   <div class="controls-row">
-    <div class="controls" aria-hidden="false">
-      <form method="get" bind:this={seasonForm} style="display:flex; gap:.5rem; align-items:center;">
-        <label for="season-select" class="small-muted" aria-hidden="true">Season</label>
-        <select id="season-select" name="season" class="select" bind:value={selectedSeasonId} on:change={submitForm}>
-          {#each seasons.filter(s => s.season != null) as s}
-            <option value={s.season}>{seasonLabel(s)}</option>
-          {/each}
-        </select>
-      </form>
-    </div>
-
-    <div class="small-muted">
-      Aggregated seasons: <strong style="color:inherit">{seasonsResults.length}</strong>
-      {#if selectedSeasonResult}
-        • Showing selected: <strong style="color:inherit">{selectedSeasonResult.leagueName ?? `Season ${selectedSeasonResult.season ?? selectedSeasonResult.leagueId}`}</strong>
-      {/if}
-    </div>
+    <div class="small-muted">Aggregated seasons: <strong style="color:inherit">{seasonsResults.length}</strong></div>
+    <div></div>
   </div>
 
   <!-- Aggregated Regular Season -->
@@ -472,7 +349,12 @@
                   <div class="team-row">
                     <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                     <div>
-                      <div class="team-name">{row.team_name}{#if row.championCount > 0}<span class="trophies" title="Champion seasons"> 🏆×{row.championCount}</span>{/if}</div>
+                      <div class="team-name">
+                        {row.team_name}
+                        {#if row.championCount > 0}
+                          <span class="trophies" title="Champion seasons"> 🏆×{row.championCount}</span>
+                        {/if}
+                      </div>
                       {#if row.owner_name}
                         <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
                       {/if}
