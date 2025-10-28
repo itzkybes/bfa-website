@@ -83,6 +83,37 @@ async function tryLoadEarly2023(origin) {
   }
 }
 
+// NEW: try to load season_matchups/<season>.json via origin fetch then disk fallback
+async function tryLoadSeasonMatchups(season, origin) {
+  if (!season) return null;
+  // try fetch from origin if available
+  if (origin && typeof origin === 'string') {
+    try {
+      const url = origin.replace(/\/$/, '') + `/season_matchups/${season}.json`;
+      const res = await fetch(url, { method: 'GET' });
+      if (res && res.ok) {
+        const txt = await res.text();
+        try {
+          return JSON.parse(txt);
+        } catch (e) {
+          // invalid remote json, fall through to disk fallback
+        }
+      }
+    } catch (e) {
+      // ignore and try disk
+    }
+  }
+
+  // disk fallback: relative path to static folder
+  try {
+    const fileUrl = new URL(`../../../static/season_matchups/${season}.json`, import.meta.url);
+    const txt = await readFile(fileUrl, 'utf8');
+    return JSON.parse(txt);
+  } catch (e) {
+    return null;
+  }
+}
+
 // robust participant points extractor — prefers starters-only values if present
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
@@ -310,21 +341,89 @@ export async function load(event) {
         if (String(leagueSeason) === '2023') {
           earlyData = await tryLoadEarly2023(url?.origin || null);
           if (!earlyData) messages.push('early2023.json not available for 2023; will use API values.');
+          else messages.push('early2023.json loaded for 2023 (override weeks 1-3).');
         }
       } catch (err) {
         earlyData = null;
         messages.push('Error loading early2023.json: ' + (err?.message ?? String(err)));
       }
 
+      // NEW: Try to load season_matchups/<season>.json for 2022/2023/2024 and use it instead of API for that season
+      let seasonMatchups = null;
+      try {
+        if (leagueSeason && ['2022','2023','2024'].includes(String(leagueSeason))) {
+          seasonMatchups = await tryLoadSeasonMatchups(String(leagueSeason), url?.origin || null);
+          if (seasonMatchups) {
+            messages.push(`Loaded static season_matchups/${leagueSeason}.json and will use it for matchup data for season ${leagueSeason}.`);
+            // ensure it's an object keyed by week (strings) -> array
+            if (typeof seasonMatchups !== 'object' || Array.isArray(seasonMatchups) === true) {
+              messages.push(`season_matchups/${leagueSeason}.json loaded but unexpected shape; will fall back to API.`);
+              seasonMatchups = null;
+            }
+          } else {
+            messages.push(`season_matchups/${leagueSeason}.json not available; will use API for season ${leagueSeason}.`);
+          }
+        }
+      } catch (err) {
+        seasonMatchups = null;
+        messages.push('Error loading season_matchups for ' + leagueSeason + ': ' + (err?.message ?? String(err)));
+      }
+
       // weeks loop
       for (let week = 1; week <= MAX_WEEKS; week++) {
         let matchups = null;
-        try {
-          matchups = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 }) || [];
-        } catch (errWeek) {
-          messages.push('Error fetching matchups for league ' + leagueId + ' week ' + week + ' — ' + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
-          continue;
+
+        // If static seasonMatchups is present and has entries for this week, use them (transform into the expected "entry" shapes)
+        if (seasonMatchups && seasonMatchups[String(week)] && Array.isArray(seasonMatchups[String(week)])) {
+          try {
+            const arr = seasonMatchups[String(week)];
+            const transformed = [];
+            for (const m of arr) {
+              // m is a matchup object from static JSON (example provided)
+              // teamA -> entryA, teamB -> entryB (if present). We put points on 'points' so computeParticipantPoints() falls back to it.
+              if (m.teamA) {
+                const ridA = (m.teamA.rosterId ?? m.teamA.roster_id ?? m.teamA.roster) != null ? String(m.teamA.rosterId ?? m.teamA.roster_id ?? m.teamA.roster) : null;
+                const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.teamA?.pts ?? 0);
+                const entryA = {
+                  matchup_id: m.matchup_id ?? m.matchupId ?? null,
+                  week: week,
+                  roster_id: ridA,
+                  points: ptsA,
+                  // carry metadata so we can inject into rosterMap if roster not found
+                  __team_name: m.teamA.name ?? null,
+                  __owner_name: m.teamA.ownerName ?? null
+                };
+                transformed.push(entryA);
+              }
+              if (m.teamB) {
+                const ridB = (m.teamB.rosterId ?? m.teamB.roster_id ?? m.teamB.roster) != null ? String(m.teamB.rosterId ?? m.teamB.roster_id ?? m.teamB.roster) : null;
+                const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? m.teamB?.pts ?? 0);
+                const entryB = {
+                  matchup_id: m.matchup_id ?? m.matchupId ?? null,
+                  week: week,
+                  roster_id: ridB,
+                  points: ptsB,
+                  __team_name: m.teamB.name ?? null,
+                  __owner_name: m.teamB.ownerName ?? null
+                };
+                transformed.push(entryB);
+              }
+            }
+            matchups = transformed;
+          } catch (e) {
+            messages.push(`Error transforming static matchups for week ${week} season ${leagueSeason}: ${e?.message ?? String(e)}`);
+            matchups = null;
+          }
+        } else {
+          // fallback to API for non-static seasons or missing weeks
+          try {
+            matchups = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 }) || [];
+          } catch (errWeek) {
+            messages.push('Error fetching matchups for league ' + leagueId + ' week ' + week + ' — ' + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
+            continue;
+          }
         }
+
         if (!matchups || !matchups.length) continue;
 
         const isRegularWeek = (week >= 1 && week < playoffStart);
@@ -365,6 +464,29 @@ export async function load(event) {
         const byMatch = {};
         for (let mi = 0; mi < matchups.length; mi++) {
           const entry = matchups[mi];
+          // If this entry came from static season JSON we included __team_name / __owner_name
+          // If rosterMap doesn't have metadata for this roster, inject it so buildStandings can show the correct name.
+          const possibleRid = entry.roster_id ?? entry.rosterId ?? entry.owner_id ?? entry.ownerId ?? null;
+          const pidStrMeta = possibleRid != null ? String(possibleRid) : null;
+          if (pidStrMeta) {
+            if (!rosterMap[pidStrMeta]) {
+              // inject minimal meta from static file entries (if present)
+              const tname = entry.__team_name ?? entry.team_name ?? null;
+              const oname = entry.__owner_name ?? entry.owner_name ?? null;
+              if (tname || oname) {
+                rosterMap[pidStrMeta] = rosterMap[pidStrMeta] || {
+                  team_name: tname || null,
+                  owner_name: oname || null,
+                  team_avatar: null,
+                  owner_avatar: null,
+                  owner_username: null,
+                  owner_id: null,
+                  roster_raw: null
+                };
+              }
+            }
+          }
+
           const mid = entry.matchup_id ?? entry.matchupId ?? entry.matchup ?? null;
           const wk = entry.week ?? entry.w ?? week;
           const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
@@ -386,6 +508,11 @@ export async function load(event) {
             paByRoster[keyRid] = paByRoster[keyRid] || 0;
             resultsByRoster[keyRid] = resultsByRoster[keyRid] || [];
             statsByRoster[keyRid] = statsByRoster[keyRid] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+
+            // ensure roster metadata is present if the entry carried it
+            if ((only.__team_name || only.__owner_name) && (!rosterMap[String(ridOnly)])) {
+              rosterMap[String(ridOnly)] = rosterMap[String(ridOnly)] || { team_name: only.__team_name || null, owner_name: only.__owner_name || null, team_avatar: null, owner_avatar: null, owner_username: null, owner_id: null, roster_raw: null };
+            }
 
             // determine points — prefer early override if available
             let ptsOnly = null;
@@ -414,6 +541,12 @@ export async function load(event) {
             const pidStr = String(pid);
             // compute ppts - but allow early overrides
             let ppts = null;
+
+            // If static entry included __team_name/__owner_name and rosterMap lacks metadata, inject it
+            if ((en.__team_name || en.__owner_name) && !rosterMap[pidStr]) {
+              rosterMap[pidStr] = rosterMap[pidStr] || { team_name: en.__team_name || null, owner_name: en.__owner_name || null, team_avatar: null, owner_avatar: null, owner_username: null, owner_id: null, roster_raw: null };
+            }
+
             if (earlyWeekMap) {
               try {
                 const meta = rosterMap[pidStr] || {};
@@ -429,10 +562,11 @@ export async function load(event) {
               ppts = computeParticipantPoints(en);
             }
 
-            participants.push({ rosterId: String(pid), points: ppts });
+            participants.push({ rosterId: String(pid), points: ppts, __entry: en });
             paByRoster[String(pid)] = paByRoster[String(pid)] || 0;
             resultsByRoster[String(pid)] = resultsByRoster[String(pid)] || [];
             statsByRoster[String(pid)] = statsByRoster[String(pid)] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+            // if rosterMap lacks metadata, ensure it was injected above; statsByRoster will show roster via buildStandings fallback
             statsByRoster[String(pid)].pf += ppts;
           }
 
