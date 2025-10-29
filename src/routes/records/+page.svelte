@@ -19,7 +19,7 @@
   $: ownershipNotes = (data && data.ownershipNotes && Array.isArray(data.ownershipNotes)) ? data.ownershipNotes : [];
 
   // H2H map from server
-  // shape: { "k1|k2": { team1Key, team2Key, team1Display, team2Display, wins1, wins2, ties, pf1, pf2, meetings } }
+  // shape: { "k1|k2": { team1Key, team2Key, team1Display, team2Display, wins1, wins2, ties, pf1, pf2, meetings, team1Avatar, team2Avatar } }
   $: h2hMap = (data && data.h2h && typeof data.h2h === 'object') ? data.h2h : {};
 
   // Build a canonical map of key -> display label using aggregatedRegular rows first
@@ -30,6 +30,7 @@
     return null;
   }
 
+  // build key -> label map
   $: keyLabelMap = (() => {
     const m = {};
     for (const r of aggregatedRegular) {
@@ -50,6 +51,33 @@
     }
     return m;
   })();
+
+  // Build avatar map from aggregated rows and h2h payload (if available)
+  $: avatarMap = (() => {
+    const am = {};
+    for (const r of aggregatedRegular) {
+      const k = makeKeyFromRow(r);
+      if (!k) continue;
+      if (r.avatar) am[k] = r.avatar;
+    }
+    for (const r of aggregatedPlayoff) {
+      const k = makeKeyFromRow(r);
+      if (!k) continue;
+      if (r.avatar && !am[k]) am[k] = r.avatar;
+    }
+    for (const mk of Object.keys(h2hMap || {})) {
+      const rec = h2hMap[mk];
+      if (!rec) continue;
+      if (rec.team1Key && rec.team1Avatar) am[rec.team1Key] = am[rec.team1Key] || rec.team1Avatar;
+      if (rec.team2Key && rec.team2Avatar) am[rec.team2Key] = am[rec.team2Key] || rec.team2Avatar;
+    }
+    return am;
+  })();
+
+  function getAvatarForKey(k) {
+    if (!k) return avatarOrPlaceholder(null, null);
+    return avatarMap[k] ? avatarMap[k] : avatarOrPlaceholder(null, keyLabelMap[k] || k);
+  }
 
   // Sorted keys for selectors / table rows
   $: teamKeys = (() => {
@@ -222,10 +250,11 @@
     transform: translateZ(0);
   }
 
+  /* make team and owner text more legible */
   .team-row { display:flex; align-items:center; gap:0.75rem; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
-  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
-  .owner { color: var(--muted); font-size:.9rem; margin-top:2px; }
+  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; font-size:1.02rem; line-height:1.05; }
+  .owner { color: var(--text); font-size:.95rem; margin-top:2px; opacity:0.95; }
 
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
 
@@ -259,7 +288,7 @@
   @media (max-width: 900px) {
     .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
-    .team-name { font-size: .95rem; }
+    .team-name { font-size: .98rem; }
   }
 
   @media (max-width: 520px) {
@@ -274,6 +303,16 @@
     text-decoration: underline;
     margin-top: .25rem;
     word-break:break-all;
+  }
+
+  /* H2H small avatar */
+  .h2h-avatar {
+    width:40px;
+    height:40px;
+    border-radius:8px;
+    object-fit:cover;
+    flex-shrink:0;
+    background:#071018;
   }
 </style>
 
@@ -351,7 +390,7 @@
                         {/if}
                       </div>
                       {#if row.owner_name}
-                        <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
+                        <div class="owner">{row.owner_name}</div>
                       {/if}
                     </div>
                   </div>
@@ -407,7 +446,7 @@
                         {/if}
                       </div>
                       {#if row.owner_name}
-                        <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
+                        <div class="owner">{row.owner_name}</div>
                       {/if}
                     </div>
                   </div>
@@ -433,7 +472,7 @@
         <div id="h2h-title" class="section-title">Head-to-Head</div>
         <div class="section-sub">Select a team to view aggregated H2H vs all opponents</div>
       </div>
-      <div class="small-muted">Row = selected team vs Column = opponent</div>
+      <div class="small-muted">Selected team vs opponents</div>
     </div>
 
     <div style="display:flex; gap:.75rem; align-items:center; margin-bottom:.6rem;">
@@ -464,9 +503,7 @@
               <tr>
                 <td style="text-align:left;">
                   <div class="team-row">
-                    <div style="min-width:36px; width:36px; height:36px; border-radius:8px; background:#071018; display:flex; align-items:center; justify-content:center; font-weight:700;">
-                      {orow.label ? orow.label[0] : 'T'}
-                    </div>
+                    <img class="h2h-avatar" src={getAvatarForKey(orow.key)} alt={orow.label} />
                     <div>
                       <div class="team-name">{orow.label}</div>
                     </div>
