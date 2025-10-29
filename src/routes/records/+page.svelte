@@ -1,87 +1,327 @@
 <script>
+  // Standings page (aggregated regular / playoff)
   export let data;
 
-  const messages = data?.messages ?? [];
-  const outputs = data?.outputs ?? [];
+  // debug panel state
+  let showDebug = true;
 
-  // copy helper for a pre block
-  function copyJSON(jsonStr) {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(jsonStr).then(() => {
-        // small visual feedback could be added; keep simple
-        alert('JSON copied to clipboard — paste into GitHub file.');
-      }).catch(err => {
-        alert('Copy failed: ' + String(err));
-      });
-    } else {
-      // fallback: open a prompt with the text so user can copy manually
-      window.prompt('Copy the JSON below (Ctrl+C / Cmd+C):', jsonStr);
-    }
+  function dismissDebug() { showDebug = false; }
+
+  // helper
+  function avatarOrPlaceholder(url, name) {
+    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
   }
+
+  // aggregated lists from server
+  $: aggregatedRegular = (data && data.aggregatedRegular && Array.isArray(data.aggregatedRegular)) ? data.aggregatedRegular : [];
+  $: aggregatedPlayoff = (data && data.aggregatedPlayoff && Array.isArray(data.aggregatedPlayoff)) ? data.aggregatedPlayoff : [];
+
+  // debug messages and json links
+  $: debugMessages = (data && data.messages && Array.isArray(data.messages)) ? data.messages : [];
+  $: jsonLinks = (data && data.jsonLinks && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
+
+  // ownership notes from server (e.g. remapping owners)
+  $: ownershipNotes = (data && data.ownershipNotes && Array.isArray(data.ownershipNotes)) ? data.ownershipNotes : [];
 </script>
 
 <style>
-  :global(body) { background:#07101a; color:#e6eef8; font-family: Inter, system-ui, sans-serif; }
-  .page { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
-  .card { background: #071025; border:1px solid rgba(255,255,255,0.03); border-radius:10px; padding:1rem; margin-bottom:1rem; }
-  .muted { color: #9ca3af; font-size:0.95rem; }
-  pre.jsonblob { background:#031220; padding:12px; border-radius:6px; overflow:auto; max-height:520px; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
-  .btn {
-    background: linear-gradient(180deg, rgba(99,102,241,0.14), rgba(99,102,241,0.06));
-    border: 1px solid rgba(99,102,241,0.16);
-    padding: .45rem .65rem;
-    border-radius: 8px;
-    color: #e6eef8;
-    font-weight:600;
-    cursor:pointer;
+  :global(body) {
+    --bg: #0b1220;
+    --card: #071025;
+    --muted: #9ca3af;
+    --accent: rgba(99,102,241,0.08);
+    --text: #e6eef8;
+    color-scheme: dark;
   }
-  .year-block { margin-top: .8rem; }
+
+  .page {
+    max-width: 1100px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
+
+  h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+  }
+
+  .debug {
+    margin-bottom: 1rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .ownership-note {
+    background: rgba(99,102,241,0.04);
+    border: 1px solid rgba(99,102,241,0.08);
+    padding: 10px 12px;
+    margin: 8px 0 14px 0;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    overflow: hidden;
+  }
+
+  .card-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .section-title {
+    font-size:1.05rem;
+    font-weight:700;
+    margin:0;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: .9rem;
+  }
+
+  /* Table styling */
+  .table-wrap {
+    width:100%;
+    overflow:auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: .5rem;
+  }
+
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    overflow: hidden;
+    border-radius: 8px;
+    min-width: 740px;
+    table-layout: fixed; /* keep columns aligned */
+  }
+
+  thead th {
+    text-align:left;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.004));
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: #e6eef8;
+    vertical-align: middle;
+    overflow: hidden;
+  }
+
+  tbody tr:nth-child(odd) {
+    background: rgba(255,255,255,0.005);
+  }
+
+  tbody tr:hover {
+    background: rgba(99,102,241,0.06);
+    transform: translateZ(0);
+  }
+
+  .team-row { display:flex; align-items:center; gap:0.75rem; }
+  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
+  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
+  .owner { color: var(--muted); font-size:.9rem; margin-top:2px; }
+
+  .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
+
+  .trophies { margin-left:.4rem; font-size:0.98rem; }
+  .small-muted { color: var(--muted); font-size: .88rem; }
+
+  .rank {
+    width:48px;
+    text-align:right;
+    font-weight:700;
+    padding-right:12px;
+    color: #e6eef8;
+  }
+
+  @media (max-width: 900px) {
+    .avatar { width:44px; height:44px; }
+    thead th, tbody td { padding: 8px; }
+    .team-name { font-size: .95rem; }
+  }
+
+  @media (max-width: 520px) {
+    .avatar { width:40px; height:40px; }
+    thead th, tbody td { padding: 6px 8px; }
+    .team-name { font-size: .98rem; }
+  }
+
+  .json-links a {
+    display:block;
+    color: var(--muted);
+    text-decoration: underline;
+    margin-top: .25rem;
+    word-break:break-all;
+  }
 </style>
 
 <div class="page">
-  <h1>Generate season_matchups JSON (display-only)</h1>
+  {#if debugMessages && debugMessages.length}
+    <div class="debug">
+      <strong>Debug</strong>
+      <div style="margin-top:.35rem;">
+        {#each debugMessages as m, i}
+          <div>{i + 1}. {m}</div>
+        {/each}
 
-  <div class="card">
-    <div class="muted">This page fetches matchups & roster metadata from Sleeper and produces JSON payloads mirroring <code>/season_matchups/&lt;year&gt;.json</code>. Files are NOT written — the JSON is shown below for you to copy into GitHub.</div>
-    <div class="muted" style="margin-top:.5rem;">Max weeks used for fetching: <strong>23</strong></div>
+        {#if jsonLinks && jsonLinks.length}
+          <div style="margin-top:.5rem; font-weight:700; color:inherit">Loaded JSON files:</div>
+          <div class="json-links" aria-live="polite">
+            {#each jsonLinks as jl}
+              <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
+  <h1>Standings (Aggregated)</h1>
+
+  {#if ownershipNotes && ownershipNotes.length}
+    <div class="ownership-note" role="note" aria-live="polite">
+      {#each ownershipNotes as on}
+        <div>{on}</div>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="small-muted" style="margin-bottom:.6rem;">
+    Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong>
   </div>
 
-  <div class="card">
-    <h3>Messages</h3>
-    {#if messages && messages.length}
-      <ul>
-        {#each messages as m}
-          <li class="muted">{m}</li>
-        {/each}
-      </ul>
+  <div class="card" aria-labelledby="regular-title" style="margin-bottom:1rem;">
+    <div class="card-header">
+      <div>
+        <div id="regular-title" class="section-title">Regular Season (Aggregated)</div>
+        <div class="section-sub">Combined across available seasons</div>
+      </div>
+      <div class="small-muted">Sorted by Wins → PF</div>
+    </div>
+
+    {#if aggregatedRegular && aggregatedRegular.length}
+      <div class="table-wrap" role="region" aria-label="Aggregated regular season standings table scrollable">
+        <table class="tbl" role="table" aria-label="Aggregated regular season standings">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team / Owner</th>
+              <th class="col-numeric">W</th>
+              <th class="col-numeric">L</th>
+              <th class="col-numeric">Longest W-Str</th>
+              <th class="col-numeric">Longest L-Str</th>
+              <th class="col-numeric">PF</th>
+              <th class="col-numeric">PA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each aggregatedRegular as row, idx}
+              <tr>
+                <td class="rank">{idx + 1}</td>
+                <td>
+                  <div class="team-row">
+                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                    <div>
+                      <div class="team-name">
+                        {row.team_name}
+                        {#if row.championCount && row.championCount > 0}
+                          <span class="trophies" title="Champion seasons"> 🏆×{row.championCount}</span>
+                        {/if}
+                      </div>
+                      {#if row.owner_name}
+                        <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
+                      {/if}
+                    </div>
+                  </div>
+                </td>
+                <td class="col-numeric">{row.wins}</td>
+                <td class="col-numeric">{row.losses}</td>
+                <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '')}</td>
+                <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '')}</td>
+                <td class="col-numeric">{row.pf}</td>
+                <td class="col-numeric">{row.pa}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {:else}
-      <div class="muted">No messages.</div>
+      <div class="small-muted" style="padding:.5rem 0;">No regular season results to show.</div>
     {/if}
   </div>
 
-  {#if outputs && outputs.length}
-    {#each outputs as out}
-      <div class="card year-block">
-        <div class="row">
-          <div>
-            <h2 style="margin:.2rem 0;">Season JSON — {out.year}</h2>
-            <div class="muted">Playoff week start (discovered): {out.meta.playoff_week_start ?? '15'}</div>
-            <div class="muted" style="margin-top:.3rem;">Weeks produced: {Object.keys(out.weeks).length}</div>
-          </div>
-          <div>
-            <button class="btn" on:click={() => copyJSON(JSON.stringify(out.weeks, null, 2))}>Copy JSON</button>
-          </div>
-        </div>
-
-        <div style="margin-top:.6rem;">
-          <div class="muted" style="margin-bottom:.4rem;">Preview (expandable):</div>
-          <pre class="jsonblob">{JSON.stringify(out.weeks, null, 2)}</pre>
-        </div>
+  <div class="card" aria-labelledby="playoff-title">
+    <div class="card-header">
+      <div>
+        <div id="playoff-title" class="section-title">Playoffs (Aggregated)</div>
+        <div class="section-sub">Combined playoff window across available seasons</div>
       </div>
-    {/each}
-  {:else}
-    <div class="card">
+      <div class="small-muted">Champion seasons pinned to top where applicable</div>
+    </div>
+
+    {#if aggregatedPlayoff && aggregatedPlayoff.length}
+      <div class="table-wrap" role="region" aria-label="Aggregated playoff standings table scrollable">
+        <table class="tbl" role="table" aria-label="Aggregated playoff standings">
+          <thead>
+            <tr>
+              <th>Team / Owner</th>
+              <th class="col-numeric">W</th>
+              <th class="col-numeric">L</th>
+              <th class="col-numeric">PF</th>
+              <th class="col-numeric">PA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each aggregatedPlayoff as row}
+              <tr aria-current={row.champion === true ? 'true' : undefined}>
+                <td>
+                  <div class="team-row">
+                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                    <div>
+                      <div class="team-name">
+                        <span>{row.team_name}</span>
+                        {#if row.championCount && row.championCount > 0}
+                          <span class="trophies" title="Champion seasons">🏆×{row.championCount}</span>
+                        {/if}
+                      </div>
+                      {#if row.owner_name}
+                        <div class="owner">{row.owner_name} <span class="small-muted">· {row.seasonsCount} seasons</span></div>
+                      {/if}
+                    </div>
+                  </div>
+                </td>
+                <td class="col-numeric">{row.wins}</td>
+                <td class="col-numeric">{row.losses}</td>
+                <td class="col-numeric">{row.pf}</td>
+                <td class="col-numeric">{row.pa}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <div class="small-muted" style="padding:.5rem 0;">No playoff results to show.</div>
+    {/if}
+  </div>
+</div>
       <div class="muted">No outputs produced.</div>
     </div>
   {/if}
