@@ -59,7 +59,6 @@
       const rec = h2hMap[mk];
       if (!rec) continue;
       if (rec.team1Key) {
-        // try to derive team_name / owner_name from provided fields
         setIfMissing(rec.team1Key, rec.team1Display || rec.team1Name || null, rec.team1Owner || rec.team1OwnerName || null, rec.team1Avatar || null);
       }
       if (rec.team2Key) {
@@ -285,24 +284,26 @@
     transform: translateZ(0);
   }
 
-  /* compact rank and row styling */
+  /* compact row styling, team name single-line */
   .team-row { display:flex; align-items:center; gap:0.75rem; }
   .avatar { width:48px; height:48px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
-  .team-name { display:block; font-weight:700; font-size:1rem; line-height:1.05; margin-bottom: 3px; }
-  .owner { color: var(--muted); font-size:.9rem; margin-top:0; }
+  .team-name {
+    display:block;
+    font-weight:700;
+    font-size:1rem;
+    line-height:1.05;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 68px); /* leave room for avatar & padding */
+  }
+  .owner { color: var(--muted); font-size:.9rem; margin-top:0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 68px); }
 
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
 
   .trophies { margin-left:.4rem; font-size:0.98rem; }
   .small-muted { color: var(--muted); font-size: .88rem; }
-
-  .rank {
-    width:36px;
-    text-align:right;
-    font-weight:700;
-    padding-right:12px;
-    color: #e6eef8;
-  }
 
   .select {
     padding:.55rem .7rem;
@@ -323,13 +324,15 @@
   @media (max-width: 900px) {
     .avatar { width:40px; height:40px; }
     thead th, tbody td { padding: 8px; }
-    .team-name { font-size: .98rem; }
+    .team-name { font-size: .98rem; max-width: calc(100% - 60px); }
+    .owner { max-width: calc(100% - 60px); }
   }
 
   @media (max-width: 520px) {
     .avatar { width:36px; height:36px; }
     thead th, tbody td { padding: 6px 8px; }
-    .team-name { font-size: .98rem; }
+    .team-name { font-size: .98rem; max-width: calc(100% - 56px); }
+    .owner { max-width: calc(100% - 56px); }
   }
 
   .json-links a {
@@ -400,7 +403,6 @@
         <table class="tbl" role="table" aria-label="Aggregated regular season standings">
           <thead>
             <tr>
-              <th>#</th>
               <th>Team / Owner</th>
               <th class="col-numeric">W</th>
               <th class="col-numeric">L</th>
@@ -411,13 +413,12 @@
             </tr>
           </thead>
           <tbody>
-            {#each aggregatedRegular as row, idx}
+            {#each aggregatedRegular as row}
               <tr>
-                <td class="rank">{idx + 1}</td>
                 <td>
                   <div class="team-row">
                     <img class="avatar" src={getAvatarForKey(makeKeyFromRow(row), row.team_name)} alt={row.team_name} />
-                    <div>
+                    <div style="min-width:0;">
                       <div class="team-name">{row.team_name}
                         {#if row.championCount && row.championCount > 0}
                           <span class="trophies" title="Champion seasons"> 🏆×{row.championCount}</span>
@@ -472,7 +473,7 @@
                 <td>
                   <div class="team-row">
                     <img class="avatar" src={getAvatarForKey(makeKeyFromRow(row), row.team_name)} alt={row.team_name} />
-                    <div>
+                    <div style="min-width:0;">
                       <div class="team-name">
                         <span>{row.team_name}</span>
                         {#if row.championCount && row.championCount > 0}
@@ -538,7 +539,7 @@
                 <td style="text-align:left;">
                   <div class="team-row">
                     <img class="h2h-avatar" src={orow.avatar} alt={orow.team_name} />
-                    <div>
+                    <div style="min-width:0;">
                       <div class="team-name">{orow.team_name}</div>
                       {#if orow.owner_name}
                         <div class="owner">{orow.owner_name}</div>
