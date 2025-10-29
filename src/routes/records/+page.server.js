@@ -271,30 +271,22 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15)
 }
 
 // ---------- helper to detect explicit zero scores in next-week matchups ----------
-// returns true if any matchup item in the array contains an explicit numeric 0
 function nextWeekContainsExplicitZero(matchupsArr) {
   if (!Array.isArray(matchupsArr) || matchupsArr.length === 0) return false;
 
-  const scoreKeys = ['teamAScore','teamBScore','teamA?.score','teamB?.score','points','points_for','pts','score'];
   for (const m of matchupsArr) {
-    // season JSON style: direct teamAScore/teamBScore
     if (Object.prototype.hasOwnProperty.call(m, 'teamAScore') && Number(m.teamAScore) === 0) return true;
     if (Object.prototype.hasOwnProperty.call(m, 'teamBScore') && Number(m.teamBScore) === 0) return true;
 
-    // season JSON nested teamA/teamB with explicit values
     if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'score') && Number(m.teamA.score) === 0) return true;
     if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'score') && Number(m.teamB.score) === 0) return true;
     if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'points') && Number(m.teamA.points) === 0) return true;
     if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'points') && Number(m.teamB.points) === 0) return true;
 
-    // API-style participant object with explicit numeric score/points fields
     if (Object.prototype.hasOwnProperty.call(m, 'points') && Number(m.points) === 0) return true;
     if (Object.prototype.hasOwnProperty.call(m, 'points_for') && Number(m.points_for) === 0) return true;
     if (Object.prototype.hasOwnProperty.call(m, 'pts') && Number(m.pts) === 0) return true;
     if (Object.prototype.hasOwnProperty.call(m, 'score') && Number(m.score) === 0) return true;
-
-    // If m contains nested players or starters objects, we avoid treating absence of data as zero.
-    // Only explicit numeric zero fields above are considered.
   }
   return false;
 }
@@ -310,6 +302,17 @@ export async function load(event) {
   const incomingSeasonParam = url.searchParams.get('season') || null;
   const messages = [];
   const prevChain = [];
+
+  // Ownership remapping: combine Bellooshio & cholybevv into JakePratt
+  const OWNER_REPARENT = {
+    'bellooshio': 'jakepratt',
+    'cholybevv': 'jakepratt'
+  };
+  // canonical display names for mapped owners
+  const OWNER_DISPLAY = {
+    'jakepratt': 'JakePratt'
+  };
+  const ownershipNotes = [];
 
   // Load season_matchups JSONs (server-side). We'll process them into per-year standings.
   let seasonMatchupsMap = {};
@@ -454,7 +457,7 @@ export async function load(event) {
     return { usernameToRoster, ownerNameToRoster, teamNameToRoster };
   }
 
-  // 1) First: process any season_matchups JSON *as their own seasons* (so years not in Sleeper chain still show up)
+  // 1) First: process any season_matchups JSON *as their own seasons*
   for (const yearKey of Object.keys(seasonMatchupsMap)) {
     try {
       const matchupsByWeek = seasonMatchupsMap[yearKey];
@@ -541,8 +544,8 @@ export async function load(event) {
             if (!statsByRoster[ridOnly].roster) statsByRoster[ridOnly].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
             else statsByRoster[ridOnly].roster.metadata = { team_name: statsByRoster[ridOnly].roster.metadata?.team_name || a.name || null, owner_name: statsByRoster[ridOnly].roster.metadata?.owner_name || a.ownerName || null };
           }
-        } // end matchups loop
-      } // end week loop for JSON
+        }
+      }
 
       const regularStandings = buildStandingsFromMaps(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular, {});
       const playoffStandings = buildStandingsFromMaps(statsByRosterPlayoff, resultsByRosterPlayoff, paByRosterPlayoff, {});
@@ -663,7 +666,6 @@ export async function load(event) {
             if (isFromSeasonJSON) {
               nextMatchups = seasonMatchupsForLeague[String(week + 1)] || [];
             } else {
-              // fetch next week's matchups from API (best-effort; don't hard-fail if this throws)
               try {
                 nextMatchups = await sleeper.getMatchupsForWeek(leagueId, week + 1, { ttl: 60 * 5 }) || [];
               } catch (e) {
@@ -674,9 +676,7 @@ export async function load(event) {
               // it's the in-progress (current) week — skip using this week
               continue;
             }
-          } catch (e) {
-            // swallow detection errors — if detection fails, proceed with processing the week
-          }
+          } catch (e) {}
         }
 
         const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
@@ -903,8 +903,18 @@ export async function load(event) {
     for (const row of list) {
       if (!row) continue;
 
+      // owner remapping logic (combine Bellooshio + cholybevv into JakePratt)
+      let ownerLow = row.owner_name ? String(row.owner_name).toLowerCase() : null;
+      if (ownerLow && OWNER_REPARENT[ownerLow]) {
+        const mapped = OWNER_REPARENT[ownerLow]; // e.g. 'jakepratt'
+        // overwrite ownerLow so the aggregated key is the mapped owner
+        ownerLow = mapped;
+        // ensure row.owner_name becomes the canonical display name if available
+        row.owner_name = OWNER_DISPLAY[mapped] || mapped;
+      }
+
       let key = null;
-      if (row.owner_name) key = 'owner:' + String(row.owner_name).toLowerCase();
+      if (ownerLow) key = 'owner:' + String(ownerLow).toLowerCase();
       else if (row.owner_id) key = 'ownerid:' + String(row.owner_id);
       else if (row.rosterId) key = 'roster:' + String(row.rosterId);
       else if (row.team_name) key = 'team:' + String(row.team_name).toLowerCase();
@@ -954,6 +964,24 @@ export async function load(event) {
     aggregateStandingsList(playoffs, poMap);
   }
 
+  // If any remapping occurred, add a note to ownershipNotes and messages
+  // Detect by checking whether any of the repartnered keys are present in regMap/poMap
+  const repartneredOwners = Object.keys(OWNER_REPARENT).map(k => OWNER_REPARENT[k]);
+  const uniqueRepartnered = [...new Set(repartneredOwners)];
+  let repartnerApplied = false;
+  for (const mapped of uniqueRepartnered) {
+    const key = 'owner:' + String(mapped).toLowerCase();
+    if (regMap[key] || poMap[key]) {
+      repartnerApplied = true;
+      break;
+    }
+  }
+  if (repartnerApplied) {
+    const note = 'Owners Bellooshio and cholybevv have been combined into JakePratt for aggregation.';
+    ownershipNotes.push(note);
+    messages.push(note);
+  }
+
   const aggregatedRegular = Object.keys(regMap).map(k => {
     const r = regMap[k];
     r.pf = Math.round((r.pf || 0) * 100) / 100;
@@ -989,6 +1017,7 @@ export async function load(event) {
     aggregatedRegular,
     aggregatedPlayoff,
     jsonLinks,
+    ownershipNotes,
     error: finalError,
     messages,
     prevChain
