@@ -322,7 +322,3 @@
     {/if}
   </div>
 </div>
-      <div class="muted">No outputs produced.</div>
-    </div>
-  {/if}
-</div>
