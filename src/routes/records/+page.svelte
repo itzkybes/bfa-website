@@ -19,6 +19,9 @@
   // debug messages and json links
   $: debugMessages = (data && data.messages && Array.isArray(data.messages)) ? data.messages : [];
   $: jsonLinks = (data && data.jsonLinks && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
+
+  // ownership notes from server (e.g. remapping owners)
+  $: ownershipNotes = (data && data.ownershipNotes && Array.isArray(data.ownershipNotes)) ? data.ownershipNotes : [];
 </script>
 
 <style>
@@ -44,6 +47,16 @@
 
   .debug {
     margin-bottom: 1rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .ownership-note {
+    background: rgba(99,102,241,0.04);
+    border: 1px solid rgba(99,102,241,0.08);
+    padding: 10px 12px;
+    margin: 8px 0 14px 0;
+    border-radius: 8px;
     color: var(--muted);
     font-size: 0.95rem;
   }
@@ -182,6 +195,15 @@
   {/if}
 
   <h1>Standings (Aggregated)</h1>
+
+  {#if ownershipNotes && ownershipNotes.length}
+    <div class="ownership-note" role="note" aria-live="polite">
+      {#each ownershipNotes as on}
+        <div>{on}</div>
+      {/each}
+    </div>
+  {/if}
+
   <div class="small-muted" style="margin-bottom:.6rem;">
     Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong>
   </div>
