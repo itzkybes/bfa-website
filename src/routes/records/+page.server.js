@@ -1,12 +1,11 @@
 // src/routes/admin/generate-season-json/+page.server.js
-// Generate season_matchups/<year>.json files by fetching matchups and rosters from Sleeper
+// Generate season_matchups JSON payloads (display-only).
+// Fetches matchups and roster info from Sleeper for discovered seasons.
 // Includes starter ids and starter points for each team in each matchup.
+// NOTE: Does NOT write files to disk — payloads are returned in the response so you can copy them.
 
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
-import { mkdir, writeFile } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import path from 'path';
 
 let cache;
 try {
@@ -26,35 +25,29 @@ const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process
   ? process.env.BASE_LEAGUE_ID
   : '1219816671624048640';
 
-// <- CHANGED: default MAX_WEEKS fallback is now 23
+// MAX_WEEKS default is 23
 const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 23;
 
-// safe numeric conversion
 function safeNum(v) {
   const n = Number(v);
   return isNaN(n) ? 0 : n;
 }
 
-// attempt to extract starters array (ids) from participant object
+// try to extract starters array (ids) from participant object
 function extractStarters(part) {
   if (!part) return null;
-  if (Array.isArray(part.starters) && part.starters.length) return part.starters.map(s => String(s));
-  // sometimes starters appear as 'starters_points_list' or other forms are not starter ids — ignore
-  if (Array.isArray(part.starter_points) && part.starter_points.length && Array.isArray(part.starters)) {
-    return part.starters.map(s => String(s));
+  if (Array.isArray(part.starters) && part.starters.length) {
+    // if items are objects with id-like fields, normalize to string ids
+    return part.starters.map(s => (typeof s === 'object' ? (s.player_id ?? s.playerId ?? s.id ?? s) : s)).map(String);
   }
-  // sometimes starters are objects (unlikely in sleeper matchups) but try:
-  if (Array.isArray(part.starters) && part.starters.length && typeof part.starters[0] === 'object') {
-    // try to pick id field if present
-    return part.starters.map(s => (s.player_id ?? s.playerId ?? s.id ?? s).toString());
-  }
+
+  // some payloads provide 'starters' as array-of-objects or in alternative fields: ignore if not useful
   return null;
 }
 
-// attempt to extract starter points array
+// try to extract starters points
 function extractStarterPoints(part) {
   if (!part) return null;
-  // common array-key forms for starters points
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints', 'starters_points_list'];
   for (const k of arrayKeys) {
     if (Array.isArray(part[k]) && part[k].length) {
@@ -62,7 +55,6 @@ function extractStarterPoints(part) {
     }
   }
 
-  // if we have player_points mapping and starters list, map them
   if (part.player_points && typeof part.player_points === 'object' && Array.isArray(part.starters) && part.starters.length) {
     const out = [];
     for (const st of part.starters) {
@@ -72,8 +64,8 @@ function extractStarterPoints(part) {
     return out;
   }
 
-  // some APIs return starters as array of objects with points field
   if (Array.isArray(part.starters) && part.starters.length && typeof part.starters[0] === 'object') {
+    // starters array contains objects with points fields
     const out = [];
     for (const obj of part.starters) {
       out.push(Math.round(safeNum(obj.points ?? obj.p) * 100) / 100);
@@ -81,48 +73,30 @@ function extractStarterPoints(part) {
     return out;
   }
 
-  // fallback: if there is a single numeric 'points' or 'pts' field, treat it as total (not starters)
   return null;
 }
 
-// compute total from starters_points if present, else fallback to points fields
 function computeTotalFromParticipant(part) {
+  // prefer starters_points if present
   const sp = extractStarterPoints(part);
   if (Array.isArray(sp) && sp.length) {
     return Math.round(sp.reduce((s, x) => s + safeNum(x), 0) * 100) / 100;
   }
-  // fallback fields
-  const fallback = safeNum(part.points ?? part.points_for ?? part.pts ?? part.score ?? part.total ?? 0);
+  // fallback numeric fields
+  const fallback = safeNum(part.points ?? part.points_for ?? part.pts ?? part.score ?? 0);
   return Math.round(fallback * 100) / 100;
 }
 
-// write JSON to static/season_matchups/<year>.json if possible
-async function tryWriteJson(year, obj) {
-  try {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    // static/season_matchups relative to project
-    const dirPath = path.join(__dirname, '../../../static/season_matchups');
-    await mkdir(dirPath, { recursive: true });
-    const filePath = path.join(dirPath, `${year}.json`);
-    await writeFile(filePath, JSON.stringify(obj, null, 2), 'utf8');
-    return { ok: true, path: filePath };
-  } catch (e) {
-    return { ok: false, error: e && e.message ? e.message : String(e) };
-  }
-}
-
 export async function load(event) {
-  // set cache headers
+  // Cache headers for page
   event.setHeaders({
     'cache-control': 's-maxage=60, stale-while-revalidate=300'
   });
 
   const messages = [];
   const outputs = [];
-  const jsonLinks = [];
 
-  // Build seasons chain (same approach)
+  // build seasons chain from BASE_LEAGUE_ID
   let seasons = [];
   try {
     let mainLeague = null;
@@ -166,7 +140,7 @@ export async function load(event) {
     messages.push('Error while building seasons chain: ' + (err && err.message ? err.message : String(err)));
   }
 
-  // dedupe & sort seasons by season numeric if available
+  // dedupe & sort seasons by numeric season if possible
   const byId = {};
   for (const s of seasons) {
     byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
@@ -179,75 +153,67 @@ export async function load(event) {
     return Number(a.season) - Number(b.season);
   });
 
-  // choose years to process: numeric seasons discovered -> use those years; else fallback
+  // Decide which years to produce: prefer numeric seasons discovered, fallback to a sensible default
   const discoveredYears = seasons.filter(s => s.season != null).map(s => String(s.season));
   const YEARS = discoveredYears.length ? discoveredYears : ['2022', '2023', '2024'];
 
-  // For each year, we will attempt to fetch matchups for weeks 1..MAX_WEEKS and roster map
   for (const year of YEARS) {
-    const result = { meta: { year }, weeks: {} };
+    const payload = {}; // weeks => array of normalized matchups
+    const meta = { year };
 
-    // Try to find a league object with that season (we looked up seasons earlier)
-    // We'll attempt to find one league from the 'seasons' list that matches this season value
+    // Attempt to find a league for this season
     const matching = seasons.find(s => String(s.season) === String(year) || String(s.league_id) === String(year));
     const leagueId = matching ? matching.league_id : null;
 
-    // If we have a leagueId, try to fetch roster map and settings
-    let rosterMap = {};
+    // Determine playoff_week_start (default 15)
     let playoff_week_start = 15;
+    let rosterMap = {};
     if (leagueId) {
+      try {
+        const lm = await sleeper.getLeague(leagueId, { ttl: 60 * 5 });
+        if (lm && lm.settings && lm.settings.playoff_week_start) {
+          playoff_week_start = Number(lm.settings.playoff_week_start) || 15;
+        }
+      } catch (e) {
+        // ignore
+      }
       try {
         rosterMap = (await sleeper.getRosterMapWithOwners(leagueId, { ttl: 60 * 5 })) || {};
       } catch (e) {
         messages.push(`Failed to fetch roster map for league ${leagueId} (season ${year}) — ${e?.message ?? e}`);
         rosterMap = {};
       }
-      try {
-        const meta = await sleeper.getLeague(leagueId, { ttl: 60 * 5 });
-        if (meta && meta.settings && meta.settings.playoff_week_start) playoff_week_start = Number(meta.settings.playoff_week_start);
-      } catch (e) {
-        // ignore
-      }
     }
 
-    result.meta.playoff_week_start = playoff_week_start;
+    meta.playoff_week_start = playoff_week_start;
 
-    // weeks loop
+    // For each week 1..MAX_WEEKS fetch and normalize matchups
     for (let week = 1; week <= MAX_WEEKS; week++) {
       try {
-        // fetch matchups for leagueId if available, otherwise skip (we can't fetch global season matchups without a league id)
-        let matchups = [];
-        if (leagueId) {
-          matchups = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 }) || [];
-        } else {
-          // If no leagueId found, we won't be able to fetch from sleeper — leave empty
-          matchups = [];
-        }
+        // if no leagueId we can't fetch from Sleeper
+        if (!leagueId) continue;
 
-        if (!matchups || !matchups.length) {
-          // nothing for this week
-          continue;
-        }
+        const matchups = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 }) || [];
+        if (!matchups || !matchups.length) continue;
 
-        // group by matchup id (if present) and build normalized objects
+        // group by matchup id (or auto key if none)
         const byMatch = {};
         for (let i = 0; i < matchups.length; i++) {
           const entry = matchups[i];
           const mid = entry.matchup_id ?? entry.matchupId ?? entry.matchup ?? null;
           const key = mid != null ? String(mid) : `auto-${week}-${i}`;
-          if (!byMatch[key]) byMatch[key] = [];
-          byMatch[key].push(entry);
+          if (!byMatch[key]) byMatch[key] = { mid, entries: [] };
+          byMatch[key].entries.push(entry);
         }
 
-        // normalize groups into objects like your example (teamA/teamB)
         const normalized = [];
-        const groupKeys = Object.keys(byMatch);
-        for (const k of groupKeys) {
-          const group = byMatch[k];
-          // If group has 1 entry: single participant; if 2: head-to-head
-          if (group.length === 1) {
-            const e = group[0];
-            // build single participant object (teamA only)
+        for (const key of Object.keys(byMatch)) {
+          const { mid, entries } = byMatch[key];
+
+          if (!entries || entries.length === 0) continue;
+
+          if (entries.length === 1) {
+            const e = entries[0];
             const pid = e.roster_id ?? e.rosterId ?? e.owner_id ?? e.ownerId ?? null;
             const rosterMeta = pid && rosterMap[String(pid)] ? rosterMap[String(pid)] : null;
             const teamA = {
@@ -261,13 +227,14 @@ export async function load(event) {
             const teamAScore = computeTotalFromParticipant(e);
             normalized.push({
               matchup_id: mid,
+              week,
               teamA,
               teamAScore
             });
           } else {
-            // pick first two as A/B
-            const aRaw = group[0];
-            const bRaw = group[1];
+            // usually 2 participants; if more, we still treat first two as A/B
+            const aRaw = entries[0];
+            const bRaw = entries[1];
             const aPid = aRaw.roster_id ?? aRaw.rosterId ?? aRaw.owner_id ?? aRaw.ownerId ?? null;
             const bPid = bRaw.roster_id ?? bRaw.rosterId ?? bRaw.owner_id ?? bRaw.ownerId ?? null;
             const aMeta = aPid && rosterMap[String(aPid)] ? rosterMap[String(aPid)] : null;
@@ -295,18 +262,17 @@ export async function load(event) {
 
             normalized.push({
               matchup_id: mid,
+              week,
               teamA,
               teamB,
               teamAScore,
               teamBScore
             });
           }
-        } // end grouping
+        } // end byMatch loop
 
-        // attach to result.weeks[week] as array
         if (normalized.length) {
-          // preserve numeric-key style like your example: week number -> array of matchups
-          result.weeks[week] = normalized;
+          payload[week] = normalized;
         }
       } catch (wkErr) {
         messages.push(`Error fetching/processing week ${week} for season ${year}: ${wkErr?.message ?? wkErr}`);
@@ -314,22 +280,12 @@ export async function load(event) {
       }
     } // end weeks loop
 
-    // Try writing to static/season_matchups/<year>.json
-    const writeOutcome = await tryWriteJson(year, result.weeks);
-    if (writeOutcome.ok) {
-      messages.push(`Wrote season_matchups/${year}.json -> ${writeOutcome.path}`);
-      jsonLinks.push(`/season_matchups/${year}.json`);
-      outputs.push({ year, path: writeOutcome.path, weeks: Object.keys(result.weeks).length });
-    } else {
-      // cannot write — expose payload instead
-      messages.push(`Could not write season_matchups/${year}.json to disk: ${writeOutcome.error}. Returning JSON payload in response.`);
-      outputs.push({ year, path: null, weeks: Object.keys(result.weeks).length, payload: result.weeks });
-    }
+    outputs.push({ year, meta, weeks: payload });
   } // end YEARS
 
+  // Return messages and JSON payloads (no file writes)
   return {
     messages,
-    jsonLinks,
     outputs
   };
 }
