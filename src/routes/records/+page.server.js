@@ -180,8 +180,10 @@ function buildStandingsFromMaps(statsByRoster, resultsByRoster, paByRoster, rost
       pf: pfVal,
       pa: paVal,
       champion: false,
+      championCount: 0,
       maxWinStreak: streaks.maxW,
-      maxLoseStreak: streaks.maxL
+      maxLoseStreak: streaks.maxL,
+      seasonsCount: 0
     });
   }
 
@@ -191,83 +193,6 @@ function buildStandingsFromMaps(statsByRoster, resultsByRoster, paByRoster, rost
   });
 
   return standings;
-}
-
-// Build standings from season_matchups JSON for a single year
-function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15) {
-  // stats maps
-  const statsByRosterRegular = {}, resultsByRosterRegular = {}, paByRosterRegular = {};
-  const statsByRosterPlayoff = {}, resultsByRosterPlayoff = {}, paByRosterPlayoff = {};
-
-  for (let week = 1; week <= MAX_WEEKS; week++) {
-    const matchups = (matchupsByWeek && matchupsByWeek[String(week)]) ? matchupsByWeek[String(week)] : [];
-    if (!matchups || !matchups.length) continue;
-
-    const isRegularWeek = (week >= 1 && week < playoffStart);
-    const isPlayoffWeek = (week >= playoffStart && week <= (playoffStart + 2));
-    if (!isRegularWeek && !isPlayoffWeek) continue;
-
-    const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
-    const resultsByRoster = isPlayoffWeek ? resultsByRosterPlayoff : resultsByRosterRegular;
-    const paByRoster = isPlayoffWeek ? paByRosterPlayoff : paByRosterRegular;
-
-    for (const m of matchups) {
-      const a = m.teamA ?? null;
-      const b = m.teamB ?? null;
-
-      // both sides present (head-to-head)
-      if (a && b) {
-        const ridA = String(a.rosterId ?? a.roster_id ?? a.id ?? a.roster ?? a.ownerId ?? a.owner_id);
-        const ridB = String(b.rosterId ?? b.roster_id ?? b.id ?? b.roster ?? b.ownerId ?? b.owner_id);
-        const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.points ?? 0);
-        const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
-
-        paByRoster[ridA] = paByRoster[ridA] || 0;
-        paByRoster[ridB] = paByRoster[ridB] || 0;
-        resultsByRoster[ridA] = resultsByRoster[ridA] || [];
-        resultsByRoster[ridB] = resultsByRoster[ridB] || [];
-        statsByRoster[ridA] = statsByRoster[ridA] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        statsByRoster[ridB] = statsByRoster[ridB] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-
-        statsByRoster[ridA].pf += ptsA;
-        statsByRoster[ridB].pf += ptsB;
-
-        // opponents average (two-team)
-        const oppAvgA = ptsB;
-        const oppAvgB = ptsA;
-        paByRoster[ridA] += oppAvgA;
-        paByRoster[ridB] += oppAvgB;
-
-        if (ptsA > oppAvgA + 1e-9) { resultsByRoster[ridA].push('W'); statsByRoster[ridA].wins += 1; }
-        else if (ptsA < oppAvgA - 1e-9) { resultsByRoster[ridA].push('L'); statsByRoster[ridA].losses += 1; }
-        else { resultsByRoster[ridA].push('T'); statsByRoster[ridA].ties += 1; }
-
-        if (ptsB > oppAvgB + 1e-9) { resultsByRoster[ridB].push('W'); statsByRoster[ridB].wins += 1; }
-        else if (ptsB < oppAvgB - 1e-9) { resultsByRoster[ridB].push('L'); statsByRoster[ridB].losses += 1; }
-        else { resultsByRoster[ridB].push('T'); statsByRoster[ridB].ties += 1; }
-
-        // attach metadata
-        if (!statsByRoster[ridA].roster) statsByRoster[ridA].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
-        else statsByRoster[ridA].roster.metadata = { team_name: statsByRoster[ridA].roster.metadata?.team_name || a.name || null, owner_name: statsByRoster[ridA].roster.metadata?.owner_name || a.ownerName || null };
-
-        if (!statsByRoster[ridB].roster) statsByRoster[ridB].roster = { metadata: { team_name: b.name ?? null, owner_name: b.ownerName ?? null } };
-        else statsByRoster[ridB].roster.metadata = { team_name: statsByRoster[ridB].roster.metadata?.team_name || b.name || null, owner_name: statsByRoster[ridB].roster.metadata?.owner_name || b.ownerName || null };
-      } else if (a) {
-        const ridOnly = String(a.rosterId ?? a.roster_id ?? a.id ?? a.roster ?? a.ownerId ?? a.owner_id);
-        const ptsOnly = safeNum(m.teamAScore ?? m.teamA?.score ?? m.points ?? 0);
-        paByRoster[ridOnly] = paByRoster[ridOnly] || 0;
-        resultsByRoster[ridOnly] = resultsByRoster[ridOnly] || [];
-        statsByRoster[ridOnly] = statsByRoster[ridOnly] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        statsByRoster[ridOnly].pf += ptsOnly;
-        if (!statsByRoster[ridOnly].roster) statsByRoster[ridOnly].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
-        else statsByRoster[ridOnly].roster.metadata = { team_name: statsByRoster[ridOnly].roster.metadata?.team_name || a.name || null, owner_name: statsByRoster[ridOnly].roster.metadata?.owner_name || a.ownerName || null };
-      }
-    }
-  }
-
-  const regularStandings = buildStandingsFromMaps(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular, {});
-  const playoffStandings = buildStandingsFromMaps(statsByRosterPlayoff, resultsByRosterPlayoff, paByRosterPlayoff, {});
-  return { regularStandings, playoffStandings };
 }
 
 // ---------- helper to detect explicit zero scores in next-week matchups ----------
@@ -291,6 +216,30 @@ function nextWeekContainsExplicitZero(matchupsArr) {
   return false;
 }
 
+// normalize owner key for aggregation and H2H uses OWNER_REPARENT
+const OWNER_REPARENT = {
+  'bellooshio': 'jakepratt',
+  'cholybevv': 'jakepratt'
+};
+// canonical display names for mapped owners
+const OWNER_DISPLAY = {
+  'jakepratt': 'JakePratt'
+};
+
+// Helper to normalize owner key from an owner name or rosterId
+function normalizeOwnerKey({ ownerName, ownerUsername, rosterId }) {
+  let ownerLow = null;
+  if (ownerUsername) ownerLow = String(ownerUsername).toLowerCase();
+  else if (ownerName) ownerLow = String(ownerName).toLowerCase();
+
+  if (ownerLow && OWNER_REPARENT[ownerLow]) {
+    ownerLow = OWNER_REPARENT[ownerLow];
+  }
+  if (ownerLow) return { key: 'owner:' + ownerLow, display: OWNER_DISPLAY[ownerLow] || ownerLow };
+  if (rosterId != null) return { key: 'roster:' + String(rosterId), display: null };
+  return null;
+}
+
 export async function load(event) {
   // set CDN caching
   event.setHeaders({
@@ -303,15 +252,6 @@ export async function load(event) {
   const messages = [];
   const prevChain = [];
 
-  // Ownership remapping: combine Bellooshio & cholybevv into JakePratt
-  const OWNER_REPARENT = {
-    'bellooshio': 'jakepratt',
-    'cholybevv': 'jakepratt'
-  };
-  // canonical display names for mapped owners
-  const OWNER_DISPLAY = {
-    'jakepratt': 'JakePratt'
-  };
   const ownershipNotes = [];
 
   // Load season_matchups JSONs (server-side). We'll process them into per-year standings.
@@ -457,6 +397,45 @@ export async function load(event) {
     return { usernameToRoster, ownerNameToRoster, teamNameToRoster };
   }
 
+  // HEAD-TO-HEAD aggregator map: "keyA|keyB" (keys sorted lexicographically)
+  // Each value: { teamA: display, teamB: display, winsA, winsB, ties, pfA, pfB, meetings }
+  const h2hMap = {};
+
+  function recordH2H(ownerKeyA, ownerDisplayA, ownerKeyB, ownerDisplayB, ptsA, ptsB) {
+    if (!ownerKeyA || !ownerKeyB) return;
+    // stable ordering for the key
+    const kA = String(ownerKeyA), kB = String(ownerKeyB);
+    // keep order so we can return A vs B (we'll store consistently with lexicographic order but record oriented fields)
+    const [k1, k2] = kA < kB ? [kA, kB] : [kB, kA];
+    const swapped = (kA !== k1); // if true, original A is stored as "B" in the internal shape
+    const mapKey = k1 + '|' + k2;
+    if (!h2hMap[mapKey]) {
+      h2hMap[mapKey] = {
+        team1Key: k1,
+        team2Key: k2,
+        team1Display: k1 === kA ? (ownerDisplayA || ownerDisplayB || k1) : (ownerDisplayB || ownerDisplayA || k1),
+        team2Display: k2 === kB ? (ownerDisplayB || ownerDisplayA || k2) : (ownerDisplayA || ownerDisplayB || k2),
+        wins1: 0,
+        wins2: 0,
+        ties: 0,
+        pf1: 0,
+        pf2: 0,
+        meetings: 0
+      };
+    }
+    const rec = h2hMap[mapKey];
+    // map incoming A/B into internal 1/2 positions
+    const inAis1 = !swapped;
+    const pts1 = inAis1 ? safeNum(ptsA) : safeNum(ptsB);
+    const pts2 = inAis1 ? safeNum(ptsB) : safeNum(ptsA);
+    rec.pf1 += pts1;
+    rec.pf2 += pts2;
+    if (Math.abs(pts1 - pts2) < 1e-9) rec.ties += 1;
+    else if (pts1 > pts2) rec.wins1 += 1;
+    else rec.wins2 += 1;
+    rec.meetings += 1;
+  }
+
   // 1) First: process any season_matchups JSON *as their own seasons*
   for (const yearKey of Object.keys(seasonMatchupsMap)) {
     try {
@@ -534,6 +513,13 @@ export async function load(event) {
 
             if (!statsByRoster[ridB].roster) statsByRoster[ridB].roster = { metadata: { team_name: b.name ?? null, owner_name: b.ownerName ?? null } };
             else statsByRoster[ridB].roster.metadata = { team_name: statsByRoster[ridB].roster.metadata?.team_name || b.name || null, owner_name: statsByRoster[ridB].roster.metadata?.owner_name || b.ownerName || null };
+
+            // H2H: determine owner keys/displays from available fields (JSON often provides ownerName)
+            const ownerA = normalizeOwnerKey({ ownerName: a.ownerName ?? a.owner_name, rosterId: ridA });
+            const ownerB = normalizeOwnerKey({ ownerName: b.ownerName ?? b.owner_name, rosterId: ridB });
+            if (ownerA && ownerB) {
+              recordH2H(ownerA.key, ownerA.display || a.ownerName || a.name, ownerB.key, ownerB.display || b.ownerName || b.name, ptsA, ptsB);
+            }
           } else if (a) {
             const ridOnly = String(a.rosterId ?? a.roster_id ?? a.id ?? a.roster ?? a.ownerId ?? a.owner_id);
             const ptsOnly = safeNum(m.teamAScore ?? m.teamA?.score ?? m.points ?? 0);
@@ -728,6 +714,13 @@ export async function load(event) {
                 statsByRoster[ridB].roster.metadata.team_name = statsByRoster[ridB].roster.metadata.team_name || b.name || null;
                 statsByRoster[ridB].roster.metadata.owner_name = statsByRoster[ridB].roster.metadata.owner_name || b.ownerName || null;
               }
+
+              // H2H for JSON-provided participants
+              const ownerA = normalizeOwnerKey({ ownerName: a.ownerName ?? a.owner_name, rosterId: ridA });
+              const ownerB = normalizeOwnerKey({ ownerName: b.ownerName ?? b.owner_name, rosterId: ridB });
+              if (ownerA && ownerB) {
+                recordH2H(ownerA.key, ownerA.display || a.ownerName || a.name, ownerB.key, ownerB.display || b.ownerName || b.name, ptsA, ptsB);
+              }
             } else if (a) {
               const ridOnly = String(a.rosterId ?? a.roster_id ?? a.id ?? a.roster ?? a.ownerId ?? a.owner_id);
               const ptsOnly = safeNum(m.teamAScore ?? m.teamA?.score ?? m.points ?? 0);
@@ -820,7 +813,7 @@ export async function load(event) {
               } catch (e) { ppts = null; }
             }
             if (ppts == null) ppts = computeParticipantPoints(en);
-            participants.push({ rosterId: String(pid), points: ppts });
+            participants.push({ rosterId: String(pid), points: ppts, entry: en });
             paByRoster[String(pid)] = paByRoster[String(pid)] || 0;
             resultsByRoster[String(pid)] = resultsByRoster[String(pid)] || [];
             statsByRoster[String(pid)] = statsByRoster[String(pid)] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
@@ -845,6 +838,38 @@ export async function load(event) {
             else if (part.points < oppAvg - 1e-9) { resultsByRoster[part.rosterId].push('L'); statsByRoster[part.rosterId].losses += 1; }
             else { resultsByRoster[part.rosterId].push('T'); statsByRoster[part.rosterId].ties += 1; }
           }
+
+          // H2H for API participants: record pairwise A vs B for two-team matchups (or for each pair if more)
+          if (participants.length >= 2) {
+            for (let aidx = 0; aidx < participants.length; aidx++) {
+              for (let bidx = aidx + 1; bidx < participants.length; bidx++) {
+                const A = participants[aidx];
+                const B = participants[bidx];
+                const metaA = rosterMap[String(A.rosterId)] || {};
+                const metaB = rosterMap[String(B.rosterId)] || {};
+                const ownerA = normalizeOwnerKey({ ownerName: metaA.owner_name || metaA.owner_username, ownerUsername: metaA.owner_username, rosterId: A.rosterId });
+                const ownerB = normalizeOwnerKey({ ownerName: metaB.owner_name || metaB.owner_username, ownerUsername: metaB.owner_username, rosterId: B.rosterId });
+                const displayA = ownerA ? (ownerA.display || metaA.owner_name || metaA.owner_username || metaA.team_name) : (metaA.team_name || String(A.rosterId));
+                const displayB = ownerB ? (ownerB.display || metaB.owner_name || metaB.owner_username || metaB.team_name) : (metaB.team_name || String(B.rosterId));
+                if (ownerA && ownerB) {
+                  recordH2H(ownerA.key, displayA, ownerB.key, displayB, A.points, B.points);
+                } else if (ownerA && !ownerB) {
+                  // fallback map by roster IDs
+                  const keyA = ownerA ? ownerA.key : ('roster:' + String(A.rosterId));
+                  const keyB = 'roster:' + String(B.rosterId);
+                  recordH2H(keyA, displayA, keyB, displayB, A.points, B.points);
+                } else if (!ownerA && ownerB) {
+                  const keyA = 'roster:' + String(A.rosterId);
+                  const keyB = ownerB ? ownerB.key : ('roster:' + String(B.rosterId));
+                  recordH2H(keyA, displayA, keyB, displayB, A.points, B.points);
+                } else {
+                  const keyA = 'roster:' + String(A.rosterId);
+                  const keyB = 'roster:' + String(B.rosterId);
+                  recordH2H(keyA, 'Roster ' + keyA, keyB, 'Roster ' + keyB, A.points, B.points);
+                }
+              }
+            }
+          }
         }
       } // end weeks loop
 
@@ -865,6 +890,7 @@ export async function load(event) {
               const matchingRow = (playoffStandings || []).find(function(r) { return String(r.rosterId) === String(rosterId); });
               if (matchingRow) {
                 matchingRow.champion = true;
+                matchingRow.championCount = (matchingRow.championCount || 0) + 1;
                 messages.push('Hardcoded champion applied for season ' + seasonKey + ': owner "' + championOwner + '" -> roster ' + rosterId);
               } else {
                 messages.push('Hardcoded champion owner "' + championOwner + '" mapped to roster ' + rosterId + ' but roster not present in playoffStandings for season ' + seasonKey + '.');
@@ -949,7 +975,7 @@ export async function load(event) {
       if (row.avatar) dest.avatar = row.avatar;
       dest.maxWinStreak = Math.max(dest.maxWinStreak || 0, Number(row.maxWinStreak || 0));
       dest.maxLoseStreak = Math.max(dest.maxLoseStreak || 0, Number(row.maxLoseStreak || 0));
-      if (row.champion === true) dest.championCount = (dest.championCount || 0) + 1;
+      if (row.champion === true || Number(row.championCount || 0) > 0) dest.championCount = (dest.championCount || 0) + (Number(row.championCount || 0) || (row.champion === true ? 1 : 0));
       dest.seasonsCount = (dest.seasonsCount || 0) + 1;
     }
   }
@@ -965,7 +991,6 @@ export async function load(event) {
   }
 
   // If any remapping occurred, add a note to ownershipNotes and messages
-  // Detect by checking whether any of the repartnered keys are present in regMap/poMap
   const repartneredOwners = Object.keys(OWNER_REPARENT).map(k => OWNER_REPARENT[k]);
   const uniqueRepartnered = [...new Set(repartneredOwners)];
   let repartnerApplied = false;
@@ -1010,6 +1035,7 @@ export async function load(event) {
     return (b.pf || 0) - (a.pf || 0);
   });
 
+  // Return final payload including H2H map
   return {
     seasons,
     selectedSeason: selectedSeasonParam,
@@ -1020,6 +1046,7 @@ export async function load(event) {
     ownershipNotes,
     error: finalError,
     messages,
-    prevChain
+    prevChain,
+    h2h: h2hMap
   };
 }
