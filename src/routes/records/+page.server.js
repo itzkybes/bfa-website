@@ -270,6 +270,35 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15)
   return { regularStandings, playoffStandings };
 }
 
+// ---------- helper to detect explicit zero scores in next-week matchups ----------
+// returns true if any matchup item in the array contains an explicit numeric 0
+function nextWeekContainsExplicitZero(matchupsArr) {
+  if (!Array.isArray(matchupsArr) || matchupsArr.length === 0) return false;
+
+  const scoreKeys = ['teamAScore','teamBScore','teamA?.score','teamB?.score','points','points_for','pts','score'];
+  for (const m of matchupsArr) {
+    // season JSON style: direct teamAScore/teamBScore
+    if (Object.prototype.hasOwnProperty.call(m, 'teamAScore') && Number(m.teamAScore) === 0) return true;
+    if (Object.prototype.hasOwnProperty.call(m, 'teamBScore') && Number(m.teamBScore) === 0) return true;
+
+    // season JSON nested teamA/teamB with explicit values
+    if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'score') && Number(m.teamA.score) === 0) return true;
+    if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'score') && Number(m.teamB.score) === 0) return true;
+    if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'points') && Number(m.teamA.points) === 0) return true;
+    if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'points') && Number(m.teamB.points) === 0) return true;
+
+    // API-style participant object with explicit numeric score/points fields
+    if (Object.prototype.hasOwnProperty.call(m, 'points') && Number(m.points) === 0) return true;
+    if (Object.prototype.hasOwnProperty.call(m, 'points_for') && Number(m.points_for) === 0) return true;
+    if (Object.prototype.hasOwnProperty.call(m, 'pts') && Number(m.pts) === 0) return true;
+    if (Object.prototype.hasOwnProperty.call(m, 'score') && Number(m.score) === 0) return true;
+
+    // If m contains nested players or starters objects, we avoid treating absence of data as zero.
+    // Only explicit numeric zero fields above are considered.
+  }
+  return false;
+}
+
 export async function load(event) {
   // set CDN caching
   event.setHeaders({
@@ -436,14 +465,94 @@ export async function load(event) {
         : (matchupsByWeek._meta && typeof matchupsByWeek._meta.playoff_week_start === 'number') ? Number(matchupsByWeek._meta.playoff_week_start)
         : 15;
 
-      const built = buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStartFromJson);
+      // When building per-week for this JSON, we must avoid using the current in-progress week.
+      // Rule: for week W, if matchupsByWeek[W+1] exists and contains explicit numeric zero(s), treat W as current and skip it.
+      const statsByRosterRegular = {}, resultsByRosterRegular = {}, paByRosterRegular = {};
+      const statsByRosterPlayoff = {}, resultsByRosterPlayoff = {}, paByRosterPlayoff = {};
+
+      for (let week = 1; week <= MAX_WEEKS; week++) {
+        const matchups = matchupsByWeek[String(week)] || [];
+        if (!matchups || !matchups.length) continue;
+
+        const effectivePlayoffStart = playoffStartFromJson || 15;
+        const playoffEnd = effectivePlayoffStart + 2;
+        const isRegularWeek = (week >= 1 && week < effectivePlayoffStart);
+        const isPlayoffWeek = (week >= effectivePlayoffStart && week <= playoffEnd);
+        if (!isRegularWeek && !isPlayoffWeek) continue;
+
+        // DON'T apply "next-week-zero" check for final playoff week
+        if (week !== playoffEnd) {
+          const nextMatchups = matchupsByWeek[String(week + 1)];
+          if (nextMatchups && nextMatchups.length && nextWeekContainsExplicitZero(nextMatchups)) {
+            // detected in-progress (current) week — skip this week entirely
+            continue;
+          }
+        }
+
+        const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
+        const resultsByRoster = isPlayoffWeek ? resultsByRosterPlayoff : resultsByRosterRegular;
+        const paByRoster = isPlayoffWeek ? paByRosterPlayoff : paByRosterRegular;
+
+        for (const m of matchups) {
+          const a = m.teamA ?? null;
+          const b = m.teamB ?? null;
+
+          if (a && b) {
+            const ridA = String(a.rosterId ?? a.roster_id ?? a.id ?? a.roster ?? a.ownerId ?? a.owner_id);
+            const ridB = String(b.rosterId ?? b.roster_id ?? b.id ?? b.roster ?? b.ownerId ?? b.owner_id);
+            const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.points ?? 0);
+            const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
+
+            paByRoster[ridA] = paByRoster[ridA] || 0;
+            paByRoster[ridB] = paByRoster[ridB] || 0;
+            resultsByRoster[ridA] = resultsByRoster[ridA] || [];
+            resultsByRoster[ridB] = resultsByRoster[ridB] || [];
+            statsByRoster[ridA] = statsByRoster[ridA] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+            statsByRoster[ridB] = statsByRoster[ridB] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+
+            statsByRoster[ridA].pf += ptsA;
+            statsByRoster[ridB].pf += ptsB;
+
+            const oppAvgA = ptsB;
+            const oppAvgB = ptsA;
+            paByRoster[ridA] += oppAvgA;
+            paByRoster[ridB] += oppAvgB;
+
+            if (ptsA > oppAvgA + 1e-9) { resultsByRoster[ridA].push('W'); statsByRoster[ridA].wins += 1; }
+            else if (ptsA < oppAvgA - 1e-9) { resultsByRoster[ridA].push('L'); statsByRoster[ridA].losses += 1; }
+            else { resultsByRoster[ridA].push('T'); statsByRoster[ridA].ties += 1; }
+
+            if (ptsB > oppAvgB + 1e-9) { resultsByRoster[ridB].push('W'); statsByRoster[ridB].wins += 1; }
+            else if (ptsB < oppAvgB - 1e-9) { resultsByRoster[ridB].push('L'); statsByRoster[ridB].losses += 1; }
+            else { resultsByRoster[ridB].push('T'); statsByRoster[ridB].ties += 1; }
+
+            if (!statsByRoster[ridA].roster) statsByRoster[ridA].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
+            else statsByRoster[ridA].roster.metadata = { team_name: statsByRoster[ridA].roster.metadata?.team_name || a.name || null, owner_name: statsByRoster[ridA].roster.metadata?.owner_name || a.ownerName || null };
+
+            if (!statsByRoster[ridB].roster) statsByRoster[ridB].roster = { metadata: { team_name: b.name ?? null, owner_name: b.ownerName ?? null } };
+            else statsByRoster[ridB].roster.metadata = { team_name: statsByRoster[ridB].roster.metadata?.team_name || b.name || null, owner_name: statsByRoster[ridB].roster.metadata?.owner_name || b.ownerName || null };
+          } else if (a) {
+            const ridOnly = String(a.rosterId ?? a.roster_id ?? a.id ?? a.roster ?? a.ownerId ?? a.owner_id);
+            const ptsOnly = safeNum(m.teamAScore ?? m.teamA?.score ?? m.points ?? 0);
+            paByRoster[ridOnly] = paByRoster[ridOnly] || 0;
+            resultsByRoster[ridOnly] = resultsByRoster[ridOnly] || [];
+            statsByRoster[ridOnly] = statsByRoster[ridOnly] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+            statsByRoster[ridOnly].pf += ptsOnly;
+            if (!statsByRoster[ridOnly].roster) statsByRoster[ridOnly].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
+            else statsByRoster[ridOnly].roster.metadata = { team_name: statsByRoster[ridOnly].roster.metadata?.team_name || a.name || null, owner_name: statsByRoster[ridOnly].roster.metadata?.owner_name || a.ownerName || null };
+          }
+        } // end matchups loop
+      } // end week loop for JSON
+
+      const regularStandings = buildStandingsFromMaps(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular, {});
+      const playoffStandings = buildStandingsFromMaps(statsByRosterPlayoff, resultsByRosterPlayoff, paByRosterPlayoff, {});
       seasonsResults.push({
         leagueId: 'season_json_' + String(yearKey),
         season: String(yearKey),
         leagueName: 'Season ' + String(yearKey) + ' (JSON)',
         playoff_week_start: playoffStartFromJson,
-        regularStandings: built.regularStandings,
-        playoffStandings: built.playoffStandings,
+        regularStandings: regularStandings,
+        playoffStandings: playoffStandings,
         _fromJson: true
       });
       anyDataFound = true;
@@ -541,9 +650,34 @@ export async function load(event) {
         // compute effective playoffStart to use for this season:
         // priority: JSON per-season override -> leagueMeta.settings -> default 15
         const effectivePlayoffStart = seasonJsonPlayoffStart || (leagueMeta && leagueMeta.settings && Number(leagueMeta.settings.playoff_week_start)) || 15;
+        const effectivePlayoffEnd = effectivePlayoffStart + 2;
         const isRegularWeek = (week >= 1 && week < effectivePlayoffStart);
-        const isPlayoffWeek = (week >= effectivePlayoffStart && week <= (effectivePlayoffStart + 2));
+        const isPlayoffWeek = (week >= effectivePlayoffStart && week <= effectivePlayoffEnd);
         if (!isRegularWeek && !isPlayoffWeek) continue;
+
+        // --- NEW: detect current/in-progress week by inspecting next-week matchups for explicit zeros
+        // Do NOT apply this detection when the current week is the final playoff week
+        if (week !== effectivePlayoffEnd) {
+          try {
+            let nextMatchups = null;
+            if (isFromSeasonJSON) {
+              nextMatchups = seasonMatchupsForLeague[String(week + 1)] || [];
+            } else {
+              // fetch next week's matchups from API (best-effort; don't hard-fail if this throws)
+              try {
+                nextMatchups = await sleeper.getMatchupsForWeek(leagueId, week + 1, { ttl: 60 * 5 }) || [];
+              } catch (e) {
+                nextMatchups = null;
+              }
+            }
+            if (nextMatchups && nextMatchups.length && nextWeekContainsExplicitZero(nextMatchups)) {
+              // it's the in-progress (current) week — skip using this week
+              continue;
+            }
+          } catch (e) {
+            // swallow detection errors — if detection fails, proceed with processing the week
+          }
+        }
 
         const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
         const resultsByRoster = isPlayoffWeek ? resultsByRosterPlayoff : resultsByRosterRegular;
@@ -583,7 +717,6 @@ export async function load(event) {
               else if (ptsB < oppAvgB - 1e-9) { resultsByRoster[ridB].push('L'); statsByRoster[ridB].losses += 1; }
               else { resultsByRoster[ridB].push('T'); statsByRoster[ridB].ties += 1; }
 
-              // Attach metadata so buildStandingsFromMaps can get owner_name/team_name
               if (!statsByRoster[ridA].roster) statsByRoster[ridA].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
               else {
                 statsByRoster[ridA].roster.metadata.team_name = statsByRoster[ridA].roster.metadata.team_name || a.name || null;
@@ -712,7 +845,7 @@ export async function load(event) {
             else if (part.points < oppAvg - 1e-9) { resultsByRoster[part.rosterId].push('L'); statsByRoster[part.rosterId].losses += 1; }
             else { resultsByRoster[part.rosterId].push('T'); statsByRoster[part.rosterId].ties += 1; }
           }
-        } // end by-week processing
+        }
       } // end weeks loop
 
       const regularStandings = buildStandingsFromMaps(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular, rosterMap);
