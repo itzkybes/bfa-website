@@ -1,5 +1,5 @@
 <script>
-  // Standings page (aggregated regular / playoff + single-select H2H table)
+  // Standings page (aggregated regular / playoff + single-select H2H table + margin leaderboards)
   export let data;
 
   // helper
@@ -18,11 +18,14 @@
   // ownership notes from server (e.g. remapping owners)
   $: ownershipNotes = (data && data.ownershipNotes && Array.isArray(data.ownershipNotes)) ? data.ownershipNotes : [];
 
-  // H2H map from server
-  // shape: { "k1|k2": { team1Key, team2Key, team1Display, team2Display, wins1, wins2, ties, pf1, pf2, meetings, team1Avatar, team2Avatar } }
+  // H2H map from server (optional)
   $: h2hMap = (data && data.h2h && typeof data.h2h === 'object') ? data.h2h : {};
 
-  // Helper to generate canonical key for a row
+  // margins from server
+  $: topLargestMargins = (data && data.topLargestMargins && Array.isArray(data.topLargestMargins)) ? data.topLargestMargins : [];
+  $: topSmallestMargins = (data && data.topSmallestMargins && Array.isArray(data.topSmallestMargins)) ? data.topSmallestMargins : [];
+
+  // Helper to generate canonical key for a row (owner/team)
   function makeKeyFromRow(r) {
     const ownerName = r.owner_name ? String(r.owner_name).toLowerCase() : null;
     if (ownerName) return 'owner:' + ownerName;
@@ -30,53 +33,39 @@
     return null;
   }
 
-  // Build a rich keyMetaMap { key -> { team_name, owner_name, display } } using aggregated sources and h2hMap
+  // Build a simple keyMetaMap from aggregated rows & seasonsResults (to help H2H labels/avatars)
   $: keyMetaMap = (() => {
     const map = {};
-    function setIfMissing(k, team_name, owner_name, avatar) {
-      if (!k) return;
-      if (!map[k]) map[k] = { team_name: team_name || null, owner_name: owner_name || null, avatar: avatar || null };
-      else {
-        if (!map[k].team_name && team_name) map[k].team_name = team_name;
-        if (!map[k].owner_name && owner_name) map[k].owner_name = owner_name;
-        if (!map[k].avatar && avatar) map[k].avatar = avatar;
-      }
-    }
-
     for (const r of aggregatedRegular) {
+      if (!r) continue;
       const k = makeKeyFromRow(r);
       if (!k) continue;
-      setIfMissing(k, r.team_name || null, r.owner_name || null, r.avatar || null);
+      map[k] = map[k] || { team_name: r.team_name || null, owner_name: r.owner_name || null, avatar: r.avatar || null };
     }
     for (const r of aggregatedPlayoff) {
+      if (!r) continue;
       const k = makeKeyFromRow(r);
       if (!k) continue;
-      setIfMissing(k, r.team_name || null, r.owner_name || null, r.avatar || null);
+      map[k] = map[k] || { team_name: r.team_name || null, owner_name: r.owner_name || null, avatar: r.avatar || null };
     }
-
-    // h2hMap entries may include team1Display / team2Display or team1Avatar
+    // also include h2h map-derived keys (if present)
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
-      if (rec.team1Key) {
-        setIfMissing(rec.team1Key, rec.team1Display || rec.team1Name || null, rec.team1Owner || rec.team1OwnerName || null, rec.team1Avatar || null);
-      }
-      if (rec.team2Key) {
-        setIfMissing(rec.team2Key, rec.team2Display || rec.team2Name || null, rec.team2Owner || rec.team2OwnerName || null, rec.team2Avatar || null);
-      }
+      if (rec.team1Key) map[rec.team1Key] = map[rec.team1Key] || { team_name: rec.team1Display || rec.team1Name || null, owner_name: rec.team1Owner || rec.team1OwnerName || null, avatar: rec.team1Avatar || null };
+      if (rec.team2Key) map[rec.team2Key] = map[rec.team2Key] || { team_name: rec.team2Display || rec.team2Name || null, owner_name: rec.team2Owner || rec.team2OwnerName || null, avatar: rec.team2Avatar || null };
     }
-
     return map;
   })();
 
-  // Build avatarMap from keyMetaMap
+  // avatar map fallback
   $: avatarMap = (() => {
     const am = {};
     for (const k in keyMetaMap) {
       if (!Object.prototype.hasOwnProperty.call(keyMetaMap, k)) continue;
       if (keyMetaMap[k].avatar) am[k] = keyMetaMap[k].avatar;
     }
-    // fallback: also pull from h2hMap if available
+    // h2h fallback avatars
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
@@ -91,15 +80,15 @@
     return avatarMap[k] ? avatarMap[k] : avatarOrPlaceholder(null, fallbackName || null);
   }
 
-  // Build a label map for dropdown but text should be team name (if available) else owner name
+  // Build dropdown labels from keyMetaMap (team name preferred)
   $: dropdownLabelForKey = (() => {
     const d = {};
     for (const k in keyMetaMap) {
       if (!Object.prototype.hasOwnProperty.call(keyMetaMap, k)) continue;
-      const meta = keyMetaMap[k];
-      d[k] = meta.team_name || meta.owner_name || k;
+      const m = keyMetaMap[k];
+      d[k] = m.team_name || m.owner_name || k;
     }
-    // also include any keys present in h2hMap but missing from keyMetaMap
+    // allow h2hMap keys if not present
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
@@ -109,10 +98,9 @@
     return d;
   })();
 
-  // Sorted keys for selectors / table rows
   $: teamKeys = (() => {
     const ks = Object.keys(dropdownLabelForKey || {});
-    ks.sort((a, b) => {
+    ks.sort((a,b) => {
       const la = String(dropdownLabelForKey[a] || a).toLowerCase();
       const lb = String(dropdownLabelForKey[b] || b).toLowerCase();
       if (la < lb) return -1;
@@ -122,17 +110,16 @@
     return ks;
   })();
 
-  // selected team key for dropdown (default to first available)
+  // selected team for H2H (default first)
   let selectedTeamKey = null;
   $: if ((!selectedTeamKey || !teamKeys.includes(selectedTeamKey)) && teamKeys && teamKeys.length) {
     selectedTeamKey = teamKeys[0];
   }
 
-  // read oriented H2H for (aKey vs bKey) where result is oriented to aKey
+  // oriented h2h reader: expects h2hMap keyed by canonical "a|b" pair (or similar); returns oriented record
   function readH2H(aKey, bKey) {
     if (!aKey || !bKey) return null;
     if (aKey === bKey) return null;
-    // canonicalize pair ordering used when storing in h2hMap
     const mapKey = aKey < bKey ? (aKey + '|' + bKey) : (bKey + '|' + aKey);
     const rec = h2hMap[mapKey];
     if (!rec) return null;
@@ -146,31 +133,29 @@
     return { winsA, winsB, pfA: Math.round(pfA * 100) / 100, pfB: Math.round(pfB * 100) / 100, ties, meetings };
   }
 
-  // Build opponent rows for the selectedTeamKey
   $: opponentRows = (() => {
     if (!selectedTeamKey || !teamKeys) return [];
-    const opps = [];
+    const out = [];
     for (const k of teamKeys) {
       if (k === selectedTeamKey) continue;
       const rec = readH2H(selectedTeamKey, k);
       const meta = keyMetaMap[k] || {};
-      opps.push({
+      out.push({
         key: k,
         team_name: meta.team_name || dropdownLabelForKey[k] || k,
         owner_name: meta.owner_name || '',
-        avatar: getAvatarForKey(k, meta.team_name || dropdownLabelForKey[k]),
-        record: rec // may be null if no data
+        avatar: avatarMap[k] || avatarOrPlaceholder(null, meta.team_name || dropdownLabelForKey[k]),
+        record: rec
       });
     }
-    // sort opponents by team name label
-    opps.sort((a, b) => {
+    out.sort((a,b) => {
       const la = String(a.team_name || a.key).toLowerCase();
       const lb = String(b.team_name || b.key).toLowerCase();
       if (la < lb) return -1;
       if (la > lb) return 1;
       return 0;
     });
-    return opps;
+    return out;
   })();
 </script>
 
@@ -245,15 +230,14 @@
     margin-top: .5rem;
   }
 
-  /* let the table size naturally based on content */
   .tbl {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.95rem;
     overflow: hidden;
     border-radius: 8px;
-    table-layout: auto; /* allow columns to size to content */
-    min-width: 0; /* remove forced min width */
+    table-layout: auto;
+    min-width: 0;
   }
 
   thead th {
@@ -285,11 +269,9 @@
     transform: translateZ(0);
   }
 
-  /* compact row styling, team name allowed to wrap and show fully */
   .team-row { display:flex; align-items:flex-start; gap:0.75rem; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
 
-  /* team name and owner allow wrapping and will take the available space */
   .team-name {
     display:block;
     font-weight:700;
@@ -302,7 +284,6 @@
   }
   .owner { color: var(--muted); font-size:.95rem; margin-top:0; white-space: normal; overflow: visible; }
 
-  /* numeric columns stay tight and don't wrap */
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; width:1%; }
 
   .trophies { margin-left:.4rem; font-size:0.98rem; }
@@ -346,7 +327,6 @@
     word-break:break-all;
   }
 
-  /* H2H small avatar */
   .h2h-avatar {
     width:40px;
     height:40px;
@@ -530,7 +510,6 @@
               <th>Opponent</th>
               <th class="col-numeric">W</th>
               <th class="col-numeric">L</th>
-              <th class="col-numeric">T</th>
               <th class="col-numeric">PF (for)</th>
               <th class="col-numeric">PF (against)</th>
               <th class="col-numeric">Meetings</th>
@@ -553,12 +532,10 @@
                 {#if orow.record}
                   <td class="col-numeric">{orow.record.winsA}</td>
                   <td class="col-numeric">{orow.record.winsB}</td>
-                  <td class="col-numeric">{orow.record.ties}</td>
                   <td class="col-numeric">{orow.record.pfA}</td>
                   <td class="col-numeric">{orow.record.pfB}</td>
                   <td class="col-numeric">{orow.record.meetings}</td>
                 {:else}
-                  <td class="col-numeric">0</td>
                   <td class="col-numeric">0</td>
                   <td class="col-numeric">0</td>
                   <td class="col-numeric">0</td>
@@ -571,6 +548,126 @@
         </table>
       {:else}
         <div class="small-muted">No head-to-head data available.</div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Top margins: largest -->
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-header">
+      <div>
+        <div class="section-title">Top 10 — Largest Margin of Victory</div>
+        <div class="section-sub">Year and week shown for each matchup</div>
+      </div>
+      <div class="small-muted">Sorted by margin (descending)</div>
+    </div>
+
+    <div class="table-wrap">
+      {#if topLargestMargins && topLargestMargins.length}
+        <table class="tbl" role="table" aria-label="Largest margins table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Margin</th>
+              <th>Season</th>
+              <th>Week</th>
+              <th>Team A</th>
+              <th class="col-numeric">Score</th>
+              <th>Team B</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each topLargestMargins as m}
+              <tr>
+                <td class="col-numeric">{m.rank}</td>
+                <td class="col-numeric">{m.margin}</td>
+                <td class="col-numeric">{m.season}</td>
+                <td class="col-numeric">{m.week}</td>
+                <td>
+                  <div class="team-row">
+                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
+                    <div>
+                      <div class="team-name">{m.teamA}</div>
+                      {#if m.ownerA}<div class="owner">{m.ownerA}</div>{/if}
+                    </div>
+                  </div>
+                </td>
+                <td class="col-numeric">{m.pfA} - {m.pfB}</td>
+                <td>
+                  <div class="team-row">
+                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
+                    <div>
+                      <div class="team-name">{m.teamB}</div>
+                      {#if m.ownerB}<div class="owner">{m.ownerB}</div>{/if}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <div class="small-muted">No margin data available. (Server must provide topLargestMargins.)</div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Top margins: smallest -->
+  <div class="card" style="margin-top:1rem;">
+    <div class="card-header">
+      <div>
+        <div class="section-title">Top 10 — Smallest Margin of Victory</div>
+        <div class="section-sub">Tightest winning margins (non-zero)</div>
+      </div>
+      <div class="small-muted">Sorted by margin (ascending)</div>
+    </div>
+
+    <div class="table-wrap">
+      {#if topSmallestMargins && topSmallestMargins.length}
+        <table class="tbl" role="table" aria-label="Smallest margins table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Margin</th>
+              <th>Season</th>
+              <th>Week</th>
+              <th>Team A</th>
+              <th class="col-numeric">Score</th>
+              <th>Team B</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each topSmallestMargins as m}
+              <tr>
+                <td class="col-numeric">{m.rank}</td>
+                <td class="col-numeric">{m.margin}</td>
+                <td class="col-numeric">{m.season}</td>
+                <td class="col-numeric">{m.week}</td>
+                <td>
+                  <div class="team-row">
+                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
+                    <div>
+                      <div class="team-name">{m.teamA}</div>
+                      {#if m.ownerA}<div class="owner">{m.ownerA}</div>{/if}
+                    </div>
+                  </div>
+                </td>
+                <td class="col-numeric">{m.pfA} - {m.pfB}</td>
+                <td>
+                  <div class="team-row">
+                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
+                    <div>
+                      <div class="team-name">{m.teamB}</div>
+                      {#if m.ownerB}<div class="owner">{m.ownerB}</div>{/if}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <div class="small-muted">No margin data available. (Server must provide topSmallestMargins.)</div>
       {/if}
     </div>
   </div>
