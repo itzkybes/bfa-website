@@ -1,16 +1,163 @@
 <script>
+  // Standings page (aggregated regular / playoff)
   export let data;
+
+  // debug panel state
   let showDebug = true;
+
   function dismissDebug() { showDebug = false; }
-  function avatarOrPlaceholder(url, name) { return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`; }
-  $: aggregatedRegular = (data && Array.isArray(data.aggregatedRegular)) ? data.aggregatedRegular : [];
-  $: aggregatedPlayoff = (data && Array.isArray(data.aggregatedPlayoff)) ? data.aggregatedPlayoff : [];
-  $: jsonLinks = (data && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
-  $: debugMessages = (data && Array.isArray(data.messages)) ? data.messages : [];
+
+  // helper
+  function avatarOrPlaceholder(url, name) {
+    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
+  }
+
+  // aggregated lists from server
+  $: aggregatedRegular = (data && data.aggregatedRegular && Array.isArray(data.aggregatedRegular)) ? data.aggregatedRegular : [];
+  $: aggregatedPlayoff = (data && data.aggregatedPlayoff && Array.isArray(data.aggregatedPlayoff)) ? data.aggregatedPlayoff : [];
+
+  // debug messages and json links
+  $: debugMessages = (data && data.messages && Array.isArray(data.messages)) ? data.messages : [];
+  $: jsonLinks = (data && data.jsonLinks && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
 </script>
 
 <style>
-/* same styles as before */
+  :global(body) {
+    --bg: #0b1220;
+    --card: #071025;
+    --muted: #9ca3af;
+    --accent: rgba(99,102,241,0.08);
+    --text: #e6eef8;
+    color-scheme: dark;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
+
+  h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+  }
+
+  .debug {
+    margin-bottom: 1rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    overflow: hidden;
+  }
+
+  .card-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .section-title {
+    font-size:1.05rem;
+    font-weight:700;
+    margin:0;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: .9rem;
+  }
+
+  /* Table styling */
+  .table-wrap {
+    width:100%;
+    overflow:auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: .5rem;
+  }
+
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    overflow: hidden;
+    border-radius: 8px;
+    min-width: 740px;
+    table-layout: fixed; /* keep columns aligned */
+  }
+
+  thead th {
+    text-align:left;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.004));
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: #e6eef8;
+    vertical-align: middle;
+    overflow: hidden;
+  }
+
+  tbody tr:nth-child(odd) {
+    background: rgba(255,255,255,0.005);
+  }
+
+  tbody tr:hover {
+    background: rgba(99,102,241,0.06);
+    transform: translateZ(0);
+  }
+
+  .team-row { display:flex; align-items:center; gap:0.75rem; }
+  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
+  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
+  .owner { color: var(--muted); font-size:.9rem; margin-top:2px; }
+
+  .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
+
+  .trophies { margin-left:.4rem; font-size:0.98rem; }
+  .small-muted { color: var(--muted); font-size: .88rem; }
+
+  .rank {
+    width:48px;
+    text-align:right;
+    font-weight:700;
+    padding-right:12px;
+    color: #e6eef8;
+  }
+
+  @media (max-width: 900px) {
+    .avatar { width:44px; height:44px; }
+    thead th, tbody td { padding: 8px; }
+    .team-name { font-size: .95rem; }
+  }
+
+  @media (max-width: 520px) {
+    .avatar { width:40px; height:40px; }
+    thead th, tbody td { padding: 6px 8px; }
+    .team-name { font-size: .98rem; }
+  }
+
+  .json-links a {
+    display:block;
+    color: var(--muted);
+    text-decoration: underline;
+    margin-top: .25rem;
+    word-break:break-all;
+  }
 </style>
 
 <div class="page">
@@ -35,10 +182,8 @@
   {/if}
 
   <h1>Standings (Aggregated)</h1>
-
-  <div class="controls-row">
-    <div class="small-muted">Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong></div>
-    <div></div>
+  <div class="small-muted" style="margin-bottom:.6rem;">
+    Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong>
   </div>
 
   <div class="card" aria-labelledby="regular-title" style="margin-bottom:1rem;">
