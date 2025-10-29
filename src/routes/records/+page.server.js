@@ -28,6 +28,10 @@ const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process
 // MAX_WEEKS default is 23
 const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 23;
 
+// NEW: top-level default playoff week start (can be overridden per-league)
+// You can set PLAYOFF_WEEK_START in your environment to change the default.
+const PLAYOFF_WEEK_START = Number(process.env.PLAYOFF_WEEK_START) || 15;
+
 function safeNum(v) {
   const n = Number(v);
   return isNaN(n) ? 0 : n;
@@ -165,14 +169,14 @@ export async function load(event) {
     const matching = seasons.find(s => String(s.season) === String(year) || String(s.league_id) === String(year));
     const leagueId = matching ? matching.league_id : null;
 
-    // Determine playoff_week_start (default 15)
-    let playoff_week_start = 15;
+    // Determine playoff_week_start (use top-level PLAYOFF_WEEK_START as default)
+    let playoff_week_start = PLAYOFF_WEEK_START;
     let rosterMap = {};
     if (leagueId) {
       try {
         const lm = await sleeper.getLeague(leagueId, { ttl: 60 * 5 });
         if (lm && lm.settings && lm.settings.playoff_week_start) {
-          playoff_week_start = Number(lm.settings.playoff_week_start) || 15;
+          playoff_week_start = Number(lm.settings.playoff_week_start) || PLAYOFF_WEEK_START;
         }
       } catch (e) {
         // ignore
