@@ -1,5 +1,5 @@
 <script>
-  // Standings page (aggregated regular / playoff + H2H matrix)
+  // Standings page (aggregated regular / playoff + single-select H2H table)
   export let data;
 
   // helper
@@ -23,7 +23,6 @@
   $: h2hMap = (data && data.h2h && typeof data.h2h === 'object') ? data.h2h : {};
 
   // Build a canonical map of key -> display label using aggregatedRegular rows first
-  // Key construction logic: owner:ownername (lowercased) if owner_name present, otherwise roster:<id>
   function makeKeyFromRow(r) {
     const ownerName = r.owner_name ? String(r.owner_name).toLowerCase() : null;
     if (ownerName) return 'owner:' + ownerName;
@@ -31,22 +30,18 @@
     return null;
   }
 
-  // Build keyLabelMap (reactive)
   $: keyLabelMap = (() => {
     const m = {};
-    // from aggregatedRegular
     for (const r of aggregatedRegular) {
       const k = makeKeyFromRow(r);
       if (!k) continue;
       m[k] = r.owner_name || r.team_name || m[k] || k;
     }
-    // from aggregatedPlayoff (in case some only in playoffs)
     for (const r of aggregatedPlayoff) {
       const k = makeKeyFromRow(r);
       if (!k) continue;
       m[k] = m[k] || r.owner_name || r.team_name || k;
     }
-    // from h2hMap payload (team1/team2 displays)
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
@@ -56,7 +51,7 @@
     return m;
   })();
 
-  // Build sorted list of keys for matrix (stable sorted by label)
+  // Sorted keys for selectors / table rows
   $: teamKeys = (() => {
     const ks = Object.keys(keyLabelMap || {});
     ks.sort((a, b) => {
@@ -69,11 +64,16 @@
     return ks;
   })();
 
-  // Helper to read H2H record for pair (aKey, bKey) oriented to aKey vs bKey
+  // selected team key for dropdown (default to first available)
+  let selectedTeamKey = null;
+  $: if ((!selectedTeamKey || !teamKeys.includes(selectedTeamKey)) && teamKeys && teamKeys.length) {
+    selectedTeamKey = teamKeys[0];
+  }
+
+  // read oriented H2H for (aKey vs bKey) where result is oriented to aKey
   function readH2H(aKey, bKey) {
     if (!aKey || !bKey) return null;
     if (aKey === bKey) return null;
-    // normalize ordering for lookup key (we store pair in sorted order)
     const mapKey = aKey < bKey ? (aKey + '|' + bKey) : (bKey + '|' + aKey);
     const rec = h2hMap[mapKey];
     if (!rec) return null;
@@ -87,25 +87,28 @@
     return { winsA, winsB, pfA: Math.round(pfA * 100) / 100, pfB: Math.round(pfB * 100) / 100, ties, meetings };
   }
 
-  // Precompute matrix rows so template doesn't evaluate functions inline or use unsupported {#let}
-  $: matrixRows = (() => {
-    if (!teamKeys || !teamKeys.length) return [];
-    const rows = [];
-    for (let r = 0; r < teamKeys.length; r++) {
-      const rk = teamKeys[r];
-      const row = { key: rk, label: keyLabelMap[rk], cells: [] };
-      for (let c = 0; c < teamKeys.length; c++) {
-        const ck = teamKeys[c];
-        if (rk === ck) {
-          row.cells.push(null); // marker for diagonal / same team
-        } else {
-          const rec = readH2H(rk, ck);
-          row.cells.push(rec); // may be null if no h2h data
-        }
-      }
-      rows.push(row);
+  // Build opponent rows for the selectedTeamKey
+  $: opponentRows = (() => {
+    if (!selectedTeamKey || !teamKeys) return [];
+    const opps = [];
+    for (const k of teamKeys) {
+      if (k === selectedTeamKey) continue;
+      const rec = readH2H(selectedTeamKey, k);
+      opps.push({
+        key: k,
+        label: keyLabelMap[k] || k,
+        record: rec // may be null if no data
+      });
     }
-    return rows;
+    // sort opponents by label
+    opps.sort((a, b) => {
+      const la = String(a.label || a.key).toLowerCase();
+      const lb = String(b.label || b.key).toLowerCase();
+      if (la < lb) return -1;
+      if (la > lb) return 1;
+      return 0;
+    });
+    return opps;
   })();
 </script>
 
@@ -120,7 +123,7 @@
   }
 
   .page {
-    max-width: 1200px;
+    max-width: 1100px;
     margin: 1.5rem auto;
     padding: 0 1rem;
   }
@@ -214,6 +217,11 @@
     background: rgba(255,255,255,0.005);
   }
 
+  tbody tr:hover {
+    background: rgba(99,102,241,0.06);
+    transform: translateZ(0);
+  }
+
   .team-row { display:flex; align-items:center; gap:0.75rem; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
   .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; }
@@ -232,47 +240,40 @@
     color: #e6eef8;
   }
 
-  /* H2H matrix styles */
-  .h2h-matrix {
-    width:100%;
-    border-collapse: collapse;
-    margin-top: 0.6rem;
-    min-width: 700px;
+  .select {
+    padding:.6rem .8rem;
+    border-radius:8px;
+    background: #07101a;
+    color: var(--text);
+    border: 1px solid rgba(99,102,241,0.25);
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
+    min-width: 260px;
+    font-weight: 600;
+    outline: none;
   }
-  .h2h-matrix th, .h2h-matrix td {
-    border: 1px solid rgba(255,255,255,0.03);
-    padding: 8px;
-    text-align: center;
-    vertical-align: middle;
-    min-width: 110px;
-  }
-  .h2h-matrix th {
-    background: rgba(255,255,255,0.01);
-    color: var(--muted);
-    font-weight:700;
-    font-size: 0.85rem;
-  }
-  .h2h-cell {
-    font-weight:600;
-  }
-  .h2h-sub {
-    color: var(--muted);
-    font-size: .82rem;
-    margin-top: 4px;
+  .select:focus {
+    border-color: rgba(99,102,241,0.6);
+    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
   }
 
   @media (max-width: 900px) {
     .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
     .team-name { font-size: .95rem; }
-    .h2h-matrix th, .h2h-matrix td { min-width: 84px; padding:6px; }
   }
 
   @media (max-width: 520px) {
     .avatar { width:40px; height:40px; }
     thead th, tbody td { padding: 6px 8px; }
     .team-name { font-size: .98rem; }
-    .h2h-matrix th, .h2h-matrix td { min-width: 64px; padding:4px; font-size: .78rem; }
+  }
+
+  .json-links a {
+    display:block;
+    color: var(--muted);
+    text-decoration: underline;
+    margin-top: .25rem;
+    word-break:break-all;
   }
 </style>
 
@@ -298,6 +299,14 @@
   {/if}
 
   <h1>Standings (Aggregated)</h1>
+
+  {#if ownershipNotes && ownershipNotes.length}
+    <div class="ownership-note" role="note" aria-live="polite">
+      {#each ownershipNotes as on}
+        <div>{on}</div>
+      {/each}
+    </div>
+  {/if}
 
   <div class="small-muted" style="margin-bottom:.6rem;">
     Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong>
@@ -417,43 +426,67 @@
     {/if}
   </div>
 
-  <!-- Head-to-Head matrix -->
+  <!-- Head-to-Head single-select table -->
   <div class="card" aria-labelledby="h2h-title" style="margin-top:1rem;">
     <div class="card-header">
       <div>
-        <div id="h2h-title" class="section-title">Head-to-Head Matrix</div>
-        <div class="section-sub">Aggregated head-to-head results for all teams</div>
+        <div id="h2h-title" class="section-title">Head-to-Head</div>
+        <div class="section-sub">Select a team to view aggregated H2H vs all opponents</div>
       </div>
-      <div class="small-muted">Rows × Columns — each cell is Row vs Column</div>
+      <div class="small-muted">Row = selected team vs Column = opponent</div>
     </div>
 
-    <div class="table-wrap" role="region" aria-label="Head to Head matrix" style="margin-top:.5rem;">
-      {#if matrixRows && matrixRows.length}
-        <table class="h2h-matrix" role="table" aria-label="Head to Head matrix">
+    <div style="display:flex; gap:.75rem; align-items:center; margin-bottom:.6rem;">
+      <label for="h2h-select" class="small-muted" aria-hidden="true">Team</label>
+      <select id="h2h-select" class="select" bind:value={selectedTeamKey}>
+        {#each teamKeys as tk}
+          <option value={tk}>{keyLabelMap[tk]}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="table-wrap" role="region" aria-label="Head to head table" style="margin-top:.5rem;">
+      {#if selectedTeamKey && opponentRows && opponentRows.length}
+        <table class="tbl" role="table" aria-label="Head to head table">
           <thead>
             <tr>
-              <th></th>
-              {#each teamKeys as ck}
-                <th title={keyLabelMap[ck]}>{keyLabelMap[ck]}</th>
-              {/each}
+              <th>Opponent</th>
+              <th class="col-numeric">W</th>
+              <th class="col-numeric">L</th>
+              <th class="col-numeric">T</th>
+              <th class="col-numeric">PF (for)</th>
+              <th class="col-numeric">PF (against)</th>
+              <th class="col-numeric">Meetings</th>
             </tr>
           </thead>
           <tbody>
-            {#each matrixRows as row}
+            {#each opponentRows as orow}
               <tr>
-                <th style="text-align:left; font-weight:700; padding-left:10px;">{row.label}</th>
-                {#each row.cells as cell}
-                  {#if cell === null}
-                    <td style="background: rgba(255,255,255,0.01);"></td>
-                  {:else if cell}
-                    <td>
-                      <div class="h2h-cell">{cell.winsA}–{cell.winsB}</div>
-                      <div class="h2h-sub">PF {cell.pfA}–{cell.pfB} · M:{cell.meetings}{cell.ties ? ` · T:${cell.ties}` : ''}</div>
-                    </td>
-                  {:else}
-                    <td class="small-muted">—</td>
-                  {/if}
-                {/each}
+                <td style="text-align:left;">
+                  <div class="team-row">
+                    <div style="min-width:36px; width:36px; height:36px; border-radius:8px; background:#071018; display:flex; align-items:center; justify-content:center; font-weight:700;">
+                      {orow.label ? orow.label[0] : 'T'}
+                    </div>
+                    <div>
+                      <div class="team-name">{orow.label}</div>
+                    </div>
+                  </div>
+                </td>
+                {#if orow.record}
+                  <td class="col-numeric">{orow.record.winsA}</td>
+                  <td class="col-numeric">{orow.record.winsB}</td>
+                  <td class="col-numeric">{orow.record.ties}</td>
+                  <td class="col-numeric">{orow.record.pfA}</td>
+                  <td class="col-numeric">{orow.record.pfB}</td>
+                  <td class="col-numeric">{orow.record.meetings}</td>
+                {:else}
+                  <td class="col-numeric">0</td>
+                  <td class="col-numeric">0</td>
+                  <td class="col-numeric">0</td>
+                  <td class="col-numeric">0</td>
+                  <td class="col-numeric">0</td>
+                  <td class="col-numeric">0</td>
+                {/if}
               </tr>
             {/each}
           </tbody>
