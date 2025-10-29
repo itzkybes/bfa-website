@@ -22,7 +22,7 @@
   // shape: { "k1|k2": { team1Key, team2Key, team1Display, team2Display, wins1, wins2, ties, pf1, pf2, meetings, team1Avatar, team2Avatar } }
   $: h2hMap = (data && data.h2h && typeof data.h2h === 'object') ? data.h2h : {};
 
-  // Build a canonical map of key -> display label using aggregatedRegular rows first
+  // Helper to generate canonical key for a row
   function makeKeyFromRow(r) {
     const ownerName = r.owner_name ? String(r.owner_name).toLowerCase() : null;
     if (ownerName) return 'owner:' + ownerName;
@@ -30,41 +30,54 @@
     return null;
   }
 
-  // build key -> label map
-  $: keyLabelMap = (() => {
-    const m = {};
+  // Build a rich keyMetaMap { key -> { team_name, owner_name, display } } using aggregated sources and h2hMap
+  $: keyMetaMap = (() => {
+    const map = {};
+    function setIfMissing(k, team_name, owner_name, avatar) {
+      if (!k) return;
+      if (!map[k]) map[k] = { team_name: team_name || null, owner_name: owner_name || null, avatar: avatar || null };
+      else {
+        if (!map[k].team_name && team_name) map[k].team_name = team_name;
+        if (!map[k].owner_name && owner_name) map[k].owner_name = owner_name;
+        if (!map[k].avatar && avatar) map[k].avatar = avatar;
+      }
+    }
+
     for (const r of aggregatedRegular) {
       const k = makeKeyFromRow(r);
       if (!k) continue;
-      m[k] = r.owner_name || r.team_name || m[k] || k;
+      setIfMissing(k, r.team_name || null, r.owner_name || null, r.avatar || null);
     }
     for (const r of aggregatedPlayoff) {
       const k = makeKeyFromRow(r);
       if (!k) continue;
-      m[k] = m[k] || r.owner_name || r.team_name || k;
+      setIfMissing(k, r.team_name || null, r.owner_name || null, r.avatar || null);
     }
+
+    // h2hMap entries may include team1Display / team2Display or team1Avatar
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
-      if (rec.team1Key) m[rec.team1Key] = m[rec.team1Key] || rec.team1Display || rec.team1Key;
-      if (rec.team2Key) m[rec.team2Key] = m[rec.team2Key] || rec.team2Display || rec.team2Key;
+      if (rec.team1Key) {
+        // try to derive team_name / owner_name from provided fields
+        setIfMissing(rec.team1Key, rec.team1Display || rec.team1Name || null, rec.team1Owner || rec.team1OwnerName || null, rec.team1Avatar || null);
+      }
+      if (rec.team2Key) {
+        setIfMissing(rec.team2Key, rec.team2Display || rec.team2Name || null, rec.team2Owner || rec.team2OwnerName || null, rec.team2Avatar || null);
+      }
     }
-    return m;
+
+    return map;
   })();
 
-  // Build avatar map from aggregated rows and h2h payload (if available)
+  // Build avatarMap from keyMetaMap
   $: avatarMap = (() => {
     const am = {};
-    for (const r of aggregatedRegular) {
-      const k = makeKeyFromRow(r);
-      if (!k) continue;
-      if (r.avatar) am[k] = r.avatar;
+    for (const k in keyMetaMap) {
+      if (!Object.prototype.hasOwnProperty.call(keyMetaMap, k)) continue;
+      if (keyMetaMap[k].avatar) am[k] = keyMetaMap[k].avatar;
     }
-    for (const r of aggregatedPlayoff) {
-      const k = makeKeyFromRow(r);
-      if (!k) continue;
-      if (r.avatar && !am[k]) am[k] = r.avatar;
-    }
+    // fallback: also pull from h2hMap if available
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
@@ -74,17 +87,35 @@
     return am;
   })();
 
-  function getAvatarForKey(k) {
-    if (!k) return avatarOrPlaceholder(null, null);
-    return avatarMap[k] ? avatarMap[k] : avatarOrPlaceholder(null, keyLabelMap[k] || k);
+  function getAvatarForKey(k, fallbackName) {
+    if (!k) return avatarOrPlaceholder(null, fallbackName || null);
+    return avatarMap[k] ? avatarMap[k] : avatarOrPlaceholder(null, fallbackName || null);
   }
+
+  // Build a label map for dropdown but text should be team name (if available) else owner name
+  $: dropdownLabelForKey = (() => {
+    const d = {};
+    for (const k in keyMetaMap) {
+      if (!Object.prototype.hasOwnProperty.call(keyMetaMap, k)) continue;
+      const meta = keyMetaMap[k];
+      d[k] = meta.team_name || meta.owner_name || k;
+    }
+    // also include any keys present in h2hMap but missing from keyMetaMap
+    for (const mk of Object.keys(h2hMap || {})) {
+      const rec = h2hMap[mk];
+      if (!rec) continue;
+      if (rec.team1Key && !d[rec.team1Key]) d[rec.team1Key] = rec.team1Display || rec.team1Name || rec.team1Key;
+      if (rec.team2Key && !d[rec.team2Key]) d[rec.team2Key] = rec.team2Display || rec.team2Name || rec.team2Key;
+    }
+    return d;
+  })();
 
   // Sorted keys for selectors / table rows
   $: teamKeys = (() => {
-    const ks = Object.keys(keyLabelMap || {});
+    const ks = Object.keys(dropdownLabelForKey || {});
     ks.sort((a, b) => {
-      const la = String(keyLabelMap[a] || a).toLowerCase();
-      const lb = String(keyLabelMap[b] || b).toLowerCase();
+      const la = String(dropdownLabelForKey[a] || a).toLowerCase();
+      const lb = String(dropdownLabelForKey[b] || b).toLowerCase();
       if (la < lb) return -1;
       if (la > lb) return 1;
       return 0;
@@ -102,6 +133,7 @@
   function readH2H(aKey, bKey) {
     if (!aKey || !bKey) return null;
     if (aKey === bKey) return null;
+    // canonicalize pair ordering used when storing in h2hMap
     const mapKey = aKey < bKey ? (aKey + '|' + bKey) : (bKey + '|' + aKey);
     const rec = h2hMap[mapKey];
     if (!rec) return null;
@@ -122,16 +154,19 @@
     for (const k of teamKeys) {
       if (k === selectedTeamKey) continue;
       const rec = readH2H(selectedTeamKey, k);
+      const meta = keyMetaMap[k] || {};
       opps.push({
         key: k,
-        label: keyLabelMap[k] || k,
+        team_name: meta.team_name || dropdownLabelForKey[k] || k,
+        owner_name: meta.owner_name || '',
+        avatar: getAvatarForKey(k, meta.team_name || dropdownLabelForKey[k]),
         record: rec // may be null if no data
       });
     }
-    // sort opponents by label
+    // sort opponents by team name label
     opps.sort((a, b) => {
-      const la = String(a.label || a.key).toLowerCase();
-      const lb = String(b.label || b.key).toLowerCase();
+      const la = String(a.team_name || a.key).toLowerCase();
+      const lb = String(b.team_name || b.key).toLowerCase();
       if (la < lb) return -1;
       if (la > lb) return 1;
       return 0;
@@ -250,11 +285,11 @@
     transform: translateZ(0);
   }
 
-  /* make team and owner text more legible */
+  /* compact rank and row styling */
   .team-row { display:flex; align-items:center; gap:0.75rem; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
-  .team-name { font-weight:700; display:flex; align-items:center; gap:.5rem; font-size:1.02rem; line-height:1.05; }
-  .owner { color: var(--text); font-size:.95rem; margin-top:2px; opacity:0.95; }
+  .avatar { width:48px; height:48px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
+  .team-name { display:block; font-weight:700; font-size:1rem; line-height:1.05; margin-bottom: 3px; }
+  .owner { color: var(--muted); font-size:.9rem; margin-top:0; }
 
   .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
 
@@ -262,7 +297,7 @@
   .small-muted { color: var(--muted); font-size: .88rem; }
 
   .rank {
-    width:48px;
+    width:36px;
     text-align:right;
     font-weight:700;
     padding-right:12px;
@@ -270,7 +305,7 @@
   }
 
   .select {
-    padding:.6rem .8rem;
+    padding:.55rem .7rem;
     border-radius:8px;
     background: #07101a;
     color: var(--text);
@@ -286,13 +321,13 @@
   }
 
   @media (max-width: 900px) {
-    .avatar { width:44px; height:44px; }
+    .avatar { width:40px; height:40px; }
     thead th, tbody td { padding: 8px; }
     .team-name { font-size: .98rem; }
   }
 
   @media (max-width: 520px) {
-    .avatar { width:40px; height:40px; }
+    .avatar { width:36px; height:36px; }
     thead th, tbody td { padding: 6px 8px; }
     .team-name { font-size: .98rem; }
   }
@@ -381,10 +416,9 @@
                 <td class="rank">{idx + 1}</td>
                 <td>
                   <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                    <img class="avatar" src={getAvatarForKey(makeKeyFromRow(row), row.team_name)} alt={row.team_name} />
                     <div>
-                      <div class="team-name">
-                        {row.team_name}
+                      <div class="team-name">{row.team_name}
                         {#if row.championCount && row.championCount > 0}
                           <span class="trophies" title="Champion seasons"> 🏆×{row.championCount}</span>
                         {/if}
@@ -437,7 +471,7 @@
               <tr aria-current={row.champion === true ? 'true' : undefined}>
                 <td>
                   <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                    <img class="avatar" src={getAvatarForKey(makeKeyFromRow(row), row.team_name)} alt={row.team_name} />
                     <div>
                       <div class="team-name">
                         <span>{row.team_name}</span>
@@ -479,7 +513,7 @@
       <label for="h2h-select" class="small-muted" aria-hidden="true">Team</label>
       <select id="h2h-select" class="select" bind:value={selectedTeamKey}>
         {#each teamKeys as tk}
-          <option value={tk}>{keyLabelMap[tk]}</option>
+          <option value={tk}>{dropdownLabelForKey[tk]}</option>
         {/each}
       </select>
     </div>
@@ -503,9 +537,12 @@
               <tr>
                 <td style="text-align:left;">
                   <div class="team-row">
-                    <img class="h2h-avatar" src={getAvatarForKey(orow.key)} alt={orow.label} />
+                    <img class="h2h-avatar" src={orow.avatar} alt={orow.team_name} />
                     <div>
-                      <div class="team-name">{orow.label}</div>
+                      <div class="team-name">{orow.team_name}</div>
+                      {#if orow.owner_name}
+                        <div class="owner">{orow.owner_name}</div>
+                      {/if}
                     </div>
                   </div>
                 </td>
