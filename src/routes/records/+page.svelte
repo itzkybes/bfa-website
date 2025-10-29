@@ -31,6 +31,7 @@
     return null;
   }
 
+  // Build keyLabelMap (reactive)
   $: keyLabelMap = (() => {
     const m = {};
     // from aggregatedRegular
@@ -72,6 +73,7 @@
   function readH2H(aKey, bKey) {
     if (!aKey || !bKey) return null;
     if (aKey === bKey) return null;
+    // normalize ordering for lookup key (we store pair in sorted order)
     const mapKey = aKey < bKey ? (aKey + '|' + bKey) : (bKey + '|' + aKey);
     const rec = h2hMap[mapKey];
     if (!rec) return null;
@@ -84,6 +86,27 @@
     const meetings = Number(rec.meetings || 0);
     return { winsA, winsB, pfA: Math.round(pfA * 100) / 100, pfB: Math.round(pfB * 100) / 100, ties, meetings };
   }
+
+  // Precompute matrix rows so template doesn't evaluate functions inline or use unsupported {#let}
+  $: matrixRows = (() => {
+    if (!teamKeys || !teamKeys.length) return [];
+    const rows = [];
+    for (let r = 0; r < teamKeys.length; r++) {
+      const rk = teamKeys[r];
+      const row = { key: rk, label: keyLabelMap[rk], cells: [] };
+      for (let c = 0; c < teamKeys.length; c++) {
+        const ck = teamKeys[c];
+        if (rk === ck) {
+          row.cells.push(null); // marker for diagonal / same team
+        } else {
+          const rec = readH2H(rk, ck);
+          row.cells.push(rec); // may be null if no h2h data
+        }
+      }
+      rows.push(row);
+    }
+    return rows;
+  })();
 </script>
 
 <style>
@@ -405,7 +428,7 @@
     </div>
 
     <div class="table-wrap" role="region" aria-label="Head to Head matrix" style="margin-top:.5rem;">
-      {#if teamKeys && teamKeys.length}
+      {#if matrixRows && matrixRows.length}
         <table class="h2h-matrix" role="table" aria-label="Head to Head matrix">
           <thead>
             <tr>
@@ -416,23 +439,19 @@
             </tr>
           </thead>
           <tbody>
-            {#each teamKeys as rk}
+            {#each matrixRows as row}
               <tr>
-                <th style="text-align:left; font-weight:700; padding-left:10px;">{keyLabelMap[rk]}</th>
-                {#each teamKeys as ck}
-                  {#if rk === ck}
+                <th style="text-align:left; font-weight:700; padding-left:10px;">{row.label}</th>
+                {#each row.cells as cell}
+                  {#if cell === null}
                     <td style="background: rgba(255,255,255,0.01);"></td>
+                  {:else if cell}
+                    <td>
+                      <div class="h2h-cell">{cell.winsA}–{cell.winsB}</div>
+                      <div class="h2h-sub">PF {cell.pfA}–{cell.pfB} · M:{cell.meetings}{cell.ties ? ` · T:${cell.ties}` : ''}</div>
+                    </td>
                   {:else}
-                    {#let rec = readH2H(rk, ck)}
-                      {#if rec}
-                        <td>
-                          <div class="h2h-cell">{rec.winsA}–{rec.winsB}</div>
-                          <div class="h2h-sub">PF {rec.pfA}–{rec.pfB} · M:{rec.meetings}{rec.ties ? ` · T:${rec.ties}` : ''}</div>
-                        </td>
-                      {:else}
-                        <td class="small-muted">—</td>
-                      {/if}
-                    {/let}
+                    <td class="small-muted">—</td>
                   {/if}
                 {/each}
               </tr>
