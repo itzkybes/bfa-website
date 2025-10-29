@@ -430,18 +430,24 @@ export async function load(event) {
     try {
       const matchupsByWeek = seasonMatchupsMap[yearKey];
       if (!matchupsByWeek) continue;
-      const playoffStart = 15; // reasonable default for legacy JSONs; adjust if you have per-year metadata
-      const built = buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart);
+
+      // grab playoff_week_start from JSON if present (support top-level or _meta)
+      const playoffStartFromJson = (typeof matchupsByWeek.playoff_week_start === 'number') ? Number(matchupsByWeek.playoff_week_start)
+        : (matchupsByWeek._meta && typeof matchupsByWeek._meta.playoff_week_start === 'number') ? Number(matchupsByWeek._meta.playoff_week_start)
+        : 15;
+
+      const built = buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStartFromJson);
       seasonsResults.push({
         leagueId: 'season_json_' + String(yearKey),
         season: String(yearKey),
         leagueName: 'Season ' + String(yearKey) + ' (JSON)',
+        playoff_week_start: playoffStartFromJson,
         regularStandings: built.regularStandings,
         playoffStandings: built.playoffStandings,
         _fromJson: true
       });
       anyDataFound = true;
-      messages.push('Processed season_matchups JSON for year ' + String(yearKey) + '.');
+      messages.push('Processed season_matchups JSON for year ' + String(yearKey) + ' (playoff_week_start=' + playoffStartFromJson + ').');
     } catch (e) {
       messages.push('Error processing season_matchups JSON for year ' + yearKey + ' — ' + (e?.message ?? String(e)));
     }
@@ -504,7 +510,14 @@ export async function load(event) {
 
       // If we have season_matchups JSON for this leagueSeason, prefer it for week data (but keep API fallback)
       const seasonMatchupsForLeague = (leagueSeason && seasonMatchupsMap[String(leagueSeason)]) ? seasonMatchupsMap[String(leagueSeason)] : null;
-      if (seasonMatchupsForLeague) messages.push(`Using season_matchups JSON for season ${String(leagueSeason)} (server).`);
+      let seasonJsonPlayoffStart = null;
+      if (seasonMatchupsForLeague) {
+        // check JSON for a playoff_week_start override
+        seasonJsonPlayoffStart = (typeof seasonMatchupsForLeague.playoff_week_start === 'number') ? Number(seasonMatchupsForLeague.playoff_week_start)
+          : (seasonMatchupsForLeague._meta && typeof seasonMatchupsForLeague._meta.playoff_week_start === 'number') ? Number(seasonMatchupsForLeague._meta.playoff_week_start)
+          : null;
+        messages.push(`Using season_matchups JSON for season ${String(leagueSeason)}${seasonJsonPlayoffStart ? ' (playoff_week_start=' + seasonJsonPlayoffStart + ')' : ''}.`);
+      }
 
       // weeks loop
       for (let week = 1; week <= MAX_WEEKS; week++) {
@@ -525,8 +538,11 @@ export async function load(event) {
 
         if (!matchups || !matchups.length) continue;
 
-        const isRegularWeek = (week >= 1 && week < playoffStart);
-        const isPlayoffWeek = (week >= playoffStart && week <= playoffEnd);
+        // compute effective playoffStart to use for this season:
+        // priority: JSON per-season override -> leagueMeta.settings -> default 15
+        const effectivePlayoffStart = seasonJsonPlayoffStart || (leagueMeta && leagueMeta.settings && Number(leagueMeta.settings.playoff_week_start)) || 15;
+        const isRegularWeek = (week >= 1 && week < effectivePlayoffStart);
+        const isPlayoffWeek = (week >= effectivePlayoffStart && week <= (effectivePlayoffStart + 2));
         if (!isRegularWeek && !isPlayoffWeek) continue;
 
         const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
