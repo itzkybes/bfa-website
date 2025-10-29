@@ -1,5 +1,5 @@
 <script>
-  // Standings page (aggregated regular / playoff)
+  // Standings page (aggregated regular / playoff + H2H)
   export let data;
 
   // debug panel state
@@ -22,6 +22,59 @@
 
   // ownership notes from server (e.g. remapping owners)
   $: ownershipNotes = (data && data.ownershipNotes && Array.isArray(data.ownershipNotes)) ? data.ownershipNotes : [];
+
+  // H2H map from server
+  $: h2hMap = (data && data.h2h && typeof data.h2h === 'object') ? data.h2h : {};
+
+  // Build options list for dropdowns (use aggregatedRegular to get the canonical list)
+  $: teamOptions = aggregatedRegular.map(r => {
+    // key: prefer owner key if present; aggregated map used server-side keys (owner:, roster:)
+    // The server does not return the original map key; however aggregatedRegular rows come from regMap values.
+    // We will construct a key from owner_name (lowercased) when present, otherwise roster:rosterId
+    const ownerName = r.owner_name ? String(r.owner_name).toLowerCase() : null;
+    const key = ownerName ? ('owner:' + ownerName) : (r.rosterId ? ('roster:' + r.rosterId) : null);
+    return { key, label: (r.owner_name ? r.owner_name : r.team_name), team_name: r.team_name, avatar: r.avatar, seasonsCount: r.seasonsCount, raw: r };
+  });
+
+  // dropdown selections for head-to-head
+  let selectedA = null;
+  let selectedB = null;
+
+  // computed H2H record for the selected pair
+  $: selectedH2H = null;
+  $: {
+    if (selectedA && selectedB && selectedA !== selectedB) {
+      const keyA = selectedA;
+      const keyB = selectedB;
+      // server stores pairs lexicographically as "k1|k2"
+      const mapKey = (keyA < keyB) ? (keyA + '|' + keyB) : (keyB + '|' + keyA);
+      const rec = h2hMap[mapKey];
+      if (rec) {
+        // map rec back to "A vs B" orientation so UI shows A's wins etc.
+        const aIs1 = (rec.team1Key === keyA);
+        selectedH2H = {
+          meetings: rec.meetings,
+          a: {
+            key: keyA,
+            label: (aIs1 ? rec.team1Display : rec.team2Display),
+            wins: aIs1 ? rec.wins1 : rec.wins2,
+            pf: aIs1 ? Math.round(rec.pf1 * 100) / 100 : Math.round(rec.pf2 * 100) / 100
+          },
+          b: {
+            key: keyB,
+            label: (aIs1 ? rec.team2Display : rec.team1Display),
+            wins: aIs1 ? rec.wins2 : rec.wins1,
+            pf: aIs1 ? Math.round(rec.pf2 * 100) / 100 : Math.round(rec.pf1 * 100) / 100
+          },
+          ties: rec.ties
+        };
+      } else {
+        selectedH2H = { meetings: 0, a: { key: keyA, label: null, wins: 0, pf: 0 }, b: { key: keyB, label: null, wins: 0, pf: 0 }, ties: 0 };
+      }
+    } else {
+      selectedH2H = null;
+    }
+  }
 </script>
 
 <style>
@@ -152,16 +205,28 @@
     color: #e6eef8;
   }
 
+  .select {
+    background: var(--card);
+    color: var(--text);
+    padding: .5rem .6rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.04);
+    font-weight:600;
+    min-width:240px;
+  }
+
   @media (max-width: 900px) {
     .avatar { width:44px; height:44px; }
     thead th, tbody td { padding: 8px; }
     .team-name { font-size: .95rem; }
+    .select { min-width: 180px; }
   }
 
   @media (max-width: 520px) {
     .avatar { width:40px; height:40px; }
     thead th, tbody td { padding: 6px 8px; }
     .team-name { font-size: .98rem; }
+    .select { min-width: 140px; }
   }
 
   .json-links a {
@@ -171,6 +236,10 @@
     margin-top: .25rem;
     word-break:break-all;
   }
+
+  .h2h-grid { display:flex; gap:1rem; align-items:center; margin-top:.6rem; flex-wrap:wrap; }
+  .h2h-box { flex: 1 1 300px; }
+  .h2h-result { margin-top:.6rem; padding:10px; border-radius:8px; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02); color:var(--text); }
 </style>
 
 <div class="page">
@@ -195,14 +264,6 @@
   {/if}
 
   <h1>Standings (Aggregated)</h1>
-
-  {#if ownershipNotes && ownershipNotes.length}
-    <div class="ownership-note" role="note" aria-live="polite">
-      {#each ownershipNotes as on}
-        <div>{on}</div>
-      {/each}
-    </div>
-  {/if}
 
   <div class="small-muted" style="margin-bottom:.6rem;">
     Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong>
@@ -268,7 +329,7 @@
     {/if}
   </div>
 
-  <div class="card" aria-labelledby="playoff-title">
+  <div class="card" aria-labelledby="playoff-title" style="margin-bottom:1rem;">
     <div class="card-header">
       <div>
         <div id="playoff-title" class="section-title">Playoffs (Aggregated)</div>
@@ -321,4 +382,71 @@
       <div class="small-muted" style="padding:.5rem 0;">No playoff results to show.</div>
     {/if}
   </div>
+
+  <!-- Head-to-Head section -->
+  <div class="card" aria-labelledby="h2h-title" style="margin-top:1rem;">
+    <div class="card-header">
+      <div>
+        <div id="h2h-title" class="section-title">Head-to-Head</div>
+        <div class="section-sub">Select two teams to view aggregated H2H results</div>
+      </div>
+      <div class="small-muted">Aggregated across loaded seasons</div>
+    </div>
+
+    <div class="h2h-grid">
+      <div class="h2h-box">
+        <label class="small-muted">Team A</label>
+        <select class="select" bind:value={selectedA}>
+          <option value={null}>— select team A —</option>
+          {#each teamOptions as opt}
+            {#if opt.key}
+              <option value={opt.key}>{opt.label}{opt.seasonsCount ? ` · ${opt.seasonsCount} seasons` : ''}</option>
+            {/if}
+          {/each}
+        </select>
+      </div>
+      <div class="h2h-box">
+        <label class="small-muted">Team B</label>
+        <select class="select" bind:value={selectedB}>
+          <option value={null}>— select team B —</option>
+          {#each teamOptions as opt}
+            {#if opt.key}
+              <option value={opt.key}>{opt.label}{opt.seasonsCount ? ` · ${opt.seasonsCount} seasons` : ''}</option>
+            {/if}
+          {/each}
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:.8rem;">
+      {#if selectedH2H}
+        <div class="h2h-result" role="region" aria-live="polite">
+          <div style="display:flex; align-items:center; gap:1rem;">
+            <div style="flex:1;">
+              <div style="font-weight:700;">{selectedH2H.a.label || selectedH2H.a.key}</div>
+              <div class="small-muted">Wins: {selectedH2H.a.wins} · PF: {selectedH2H.a.pf}</div>
+            </div>
+            <div style="text-align:center; min-width:120px;">
+              <div style="font-weight:700; font-size:1.05rem;">Meetings: {selectedH2H.meetings}</div>
+              <div class="small-muted">Ties: {selectedH2H.ties}</div>
+            </div>
+            <div style="flex:1; text-align:right;">
+              <div style="font-weight:700;">{selectedH2H.b.label || selectedH2H.b.key}</div>
+              <div class="small-muted">Wins: {selectedH2H.b.wins} · PF: {selectedH2H.b.pf}</div>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <div class="small-muted">Choose two distinct teams to see head-to-head results.</div>
+      {/if}
+    </div>
+  </div>
+
+  {#if ownershipNotes && ownershipNotes.length}
+    <div style="margin-top:1rem;" role="note" aria-live="polite">
+      {#each ownershipNotes as on}
+        <div class="ownership-note">{on}</div>
+      {/each}
+    </div>
+  {/if}
 </div>
