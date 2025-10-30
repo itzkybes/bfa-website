@@ -1,21 +1,20 @@
 <script>
   export let data;
 
-  // dropdown & display state
-  $: seasons = (data && data.seasons) ? data.seasons : [];
-  $: honors = (data && data.honors) ? data.honors : [];
-  $: jsonLinks = (data && data.jsonLinks) ? data.jsonLinks : [];
-  $: messages = (data && data.messages) ? data.messages : [];
+  // seasons / honors loaded from server
+  $: seasons = (data && Array.isArray(data.seasons)) ? data.seasons : [];
+  $: honors = (data && Array.isArray(data.honors)) ? data.honors : [];
+  $: jsonLinks = (data && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
+  $: messages = (data && Array.isArray(data.messages)) ? data.messages : [];
 
-  // default selected season to newest if available
+  // default selected season to newest available (last in list)
   let selectedSeason = '';
   $: if ((!selectedSeason || selectedSeason === '') && seasons && seasons.length) selectedSeason = seasons[seasons.length - 1].season;
 
   function avatarOrPlaceholder(url, name) {
-    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
+    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'C')}`;
   }
 
-  // find honor object for selected season
   $: selectedHonor = honors.find(h => String(h.season) === String(selectedSeason)) || null;
 </script>
 
@@ -104,12 +103,12 @@
       <div style="margin-top:8px;">
         <div class="honor-row">
           <div style="min-width:56px;">
-            <img class="avatar" src={avatarOrPlaceholder(null, selectedHonor.champion ? selectedHonor.champion.team_name : 'C')} alt="Champion" />
+            <img class="avatar" src={avatarOrPlaceholder(selectedHonor.champion?.avatar ?? null, selectedHonor.champion?.team_name)} alt="Champion" />
           </div>
           <div>
             <div class="honor-title">Champion</div>
             {#if selectedHonor.champion}
-              <div class="honor-sub">{selectedHonor.champion.team_name}{#if selectedHonor.champion.owner_name} — <span class="small-muted">{selectedHonor.champion.owner_name}</span>{/if}</div>
+              <div class="honor-sub">{selectedHonor.champion.team_name} {#if selectedHonor.champion.owner_name}— <span class="small-muted">{selectedHonor.champion.owner_name}</span>{/if}</div>
             {:else}
               <div class="honor-sub small-muted">No champion data available</div>
             {/if}
