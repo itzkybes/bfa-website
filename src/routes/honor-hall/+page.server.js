@@ -17,15 +17,18 @@ try {
 const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
 const sleeper = createSleeperClient({ cache: cache, concurrency: SLEEPER_CONCURRENCY });
 
+const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process.env.BASE_LEAGUE_ID)
+  ? process.env.BASE_LEAGUE_ID
+  : '1219816671624048640';
 const SEASON_MATCHUP_YEARS = [2022, 2023, 2024]; // extend as needed
-const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 23; // user requested max weeks 23
+const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 23; // per your request
 
 function safeNum(v) {
   const n = Number(v);
   return isNaN(n) ? 0 : n;
 }
 
-// compute participant points (robust)
+// robust participant points extractor — prefers starters-only values if present
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
 
@@ -116,12 +119,9 @@ async function tryLoadSeasonMatchups(years, origin) {
   return { map, jsonLinks };
 }
 
-// Build standings from season JSON (simplified — used to determine a playoff winner)
-function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15) {
-  const statsByRosterPlayoff = {};
-  const resultsByRosterPlayoff = {};
-  const paByRosterPlayoff = {};
-
+// Build simple playoff standings from a matchupsByWeek object (used to determine champion)
+function buildPlayoffStandingsFromMatchups(matchupsByWeek, playoffStart = 15) {
+  const statsByRoster = {}, resultsByRoster = {}, paByRoster = {};
   for (let week = 1; week <= MAX_WEEKS; week++) {
     const matchups = (matchupsByWeek && matchupsByWeek[String(week)]) ? matchupsByWeek[String(week)] : [];
     if (!matchups || !matchups.length) continue;
@@ -131,12 +131,11 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15)
     const isPlayoffWeek = (week >= effectivePlayoffStart && week <= playoffEnd);
     if (!isPlayoffWeek) continue;
 
-    // do not apply next-week-zero check for final playoff week
+    // do not apply "next-week-zero" check for the final playoff week
     if (week !== playoffEnd) {
       const nextMatchups = matchupsByWeek[String(week + 1)];
       if (nextMatchups && nextMatchups.length && nextWeekContainsExplicitZero(nextMatchups)) {
-        // skip current in-progress week
-        continue;
+        continue; // skip in-progress week
       }
     }
 
@@ -149,45 +148,43 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15)
         const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.points ?? 0);
         const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
 
-        paByRosterPlayoff[ridA] = paByRosterPlayoff[ridA] || 0;
-        paByRosterPlayoff[ridB] = paByRosterPlayoff[ridB] || 0;
-        resultsByRosterPlayoff[ridA] = resultsByRosterPlayoff[ridA] || [];
-        resultsByRosterPlayoff[ridB] = resultsByRosterPlayoff[ridB] || [];
-        statsByRosterPlayoff[ridA] = statsByRosterPlayoff[ridA] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-        statsByRosterPlayoff[ridB] = statsByRosterPlayoff[ridB] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+        paByRoster[ridA] = paByRoster[ridA] || 0;
+        paByRoster[ridB] = paByRoster[ridB] || 0;
+        resultsByRoster[ridA] = resultsByRoster[ridA] || [];
+        resultsByRoster[ridB] = resultsByRoster[ridB] || [];
+        statsByRoster[ridA] = statsByRoster[ridA] || { wins:0, losses:0, ties:0, pf:0, roster: null };
+        statsByRoster[ridB] = statsByRoster[ridB] || { wins:0, losses:0, ties:0, pf:0, roster: null };
 
-        statsByRosterPlayoff[ridA].pf += ptsA;
-        statsByRosterPlayoff[ridB].pf += ptsB;
+        statsByRoster[ridA].pf += ptsA;
+        statsByRoster[ridB].pf += ptsB;
 
         const oppAvgA = ptsB;
         const oppAvgB = ptsA;
-        paByRosterPlayoff[ridA] += oppAvgA;
-        paByRosterPlayoff[ridB] += oppAvgB;
+        paByRoster[ridA] += oppAvgA;
+        paByRoster[ridB] += oppAvgB;
 
-        if (ptsA > oppAvgA + 1e-9) { resultsByRosterPlayoff[ridA].push('W'); statsByRosterPlayoff[ridA].wins += 1; }
-        else if (ptsA < oppAvgA - 1e-9) { resultsByRosterPlayoff[ridA].push('L'); statsByRosterPlayoff[ridA].losses += 1; }
-        else { resultsByRosterPlayoff[ridA].push('T'); statsByRosterPlayoff[ridA].ties += 1; }
+        if (ptsA > oppAvgA + 1e-9) { resultsByRoster[ridA].push('W'); statsByRoster[ridA].wins += 1; }
+        else if (ptsA < oppAvgA - 1e-9) { resultsByRoster[ridA].push('L'); statsByRoster[ridA].losses += 1; }
+        else { resultsByRoster[ridA].push('T'); statsByRoster[ridA].ties += 1; }
 
-        if (ptsB > oppAvgB + 1e-9) { resultsByRosterPlayoff[ridB].push('W'); statsByRosterPlayoff[ridB].wins += 1; }
-        else if (ptsB < oppAvgB - 1e-9) { resultsByRosterPlayoff[ridB].push('L'); statsByRosterPlayoff[ridB].losses += 1; }
-        else { resultsByRosterPlayoff[ridB].push('T'); statsByRosterPlayoff[ridB].ties += 1; }
+        if (ptsB > oppAvgB + 1e-9) { resultsByRoster[ridB].push('W'); statsByRoster[ridB].wins += 1; }
+        else if (ptsB < oppAvgB - 1e-9) { resultsByRoster[ridB].push('L'); statsByRoster[ridB].losses += 1; }
+        else { resultsByRoster[ridB].push('T'); statsByRoster[ridB].ties += 1; }
 
-        if (!statsByRosterPlayoff[ridA].roster) statsByRosterPlayoff[ridA].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
-        else statsByRosterPlayoff[ridA].roster.metadata = { team_name: statsByRosterPlayoff[ridA].roster.metadata?.team_name || a.name || null, owner_name: statsByRosterPlayoff[ridA].roster.metadata?.owner_name || a.ownerName || null };
+        if (!statsByRoster[ridA].roster) statsByRoster[ridA].roster = { metadata: { team_name: a.name ?? null, owner_name: a.ownerName ?? null } };
+        else statsByRoster[ridA].roster.metadata = { team_name: statsByRoster[ridA].roster.metadata?.team_name || a.name || null, owner_name: statsByRoster[ridA].roster.metadata?.owner_name || a.ownerName || null };
 
-        if (!statsByRosterPlayoff[ridB].roster) statsByRosterPlayoff[ridB].roster = { metadata: { team_name: b.name ?? null, owner_name: b.ownerName ?? null } };
-        else statsByRosterPlayoff[ridB].roster.metadata = { team_name: statsByRosterPlayoff[ridB].roster.metadata?.team_name || b.name || null, owner_name: statsByRosterPlayoff[ridB].roster.metadata?.owner_name || b.ownerName || null };
+        if (!statsByRoster[ridB].roster) statsByRoster[ridB].roster = { metadata: { team_name: b.name ?? null, owner_name: b.ownerName ?? null } };
+        else statsByRoster[ridB].roster.metadata = { team_name: statsByRoster[ridB].roster.metadata?.team_name || b.name || null, owner_name: statsByRoster[ridB].roster.metadata?.owner_name || b.ownerName || null };
       }
     }
   }
 
-  // convert to array and sort by wins -> pf
-  const out = [];
-  const keys = Object.keys(statsByRosterPlayoff);
-  for (const k of keys) {
-    const s = statsByRosterPlayoff[k];
+  const arr = [];
+  for (const k of Object.keys(statsByRoster)) {
+    const s = statsByRoster[k];
     const meta = s.roster && s.roster.metadata ? s.roster.metadata : {};
-    out.push({
+    arr.push({
       rosterId: k,
       team_name: meta.team_name || ('Roster ' + k),
       owner_name: meta.owner_name || null,
@@ -195,15 +192,15 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15)
       pf: Math.round((s.pf || 0) * 100) / 100
     });
   }
-  out.sort((a,b) => {
+
+  arr.sort((a,b) => {
     if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
     return (b.pf || 0) - (a.pf || 0);
   });
-  return out;
+  return arr;
 }
 
 export async function load(event) {
-  // set CDN caching
   event.setHeaders({
     'cache-control': 's-maxage=120, stale-while-revalidate=300'
   });
@@ -213,58 +210,194 @@ export async function load(event) {
   let seasonMatchupsMap = {};
   let jsonLinks = [];
 
+  // 1) load JSONs first
   try {
     const loaded = await tryLoadSeasonMatchups(SEASON_MATCHUP_YEARS, origin);
     seasonMatchupsMap = loaded.map || {};
     jsonLinks = loaded.jsonLinks || [];
-    messages.push('Loaded season JSONs: ' + Object.keys(seasonMatchupsMap).join(', '));
+    if (Object.keys(seasonMatchupsMap).length) messages.push('Loaded season JSONs: ' + Object.keys(seasonMatchupsMap).join(', '));
+    else messages.push('No season JSONs found for configured years.');
   } catch (e) {
-    messages.push('Error loading season JSONs: ' + (e?.message ?? String(e)));
+    messages.push('Error loading JSONs: ' + (e?.message ?? String(e)));
     seasonMatchupsMap = {};
   }
 
-  // Build honors array from JSON content. Prefer explicit _meta.honor_hall entries when present.
-  const honors = []; // each: { season, source: 'json', champion: { team_name, owner_name }, hallEntries: [...] }
+  // 2) build seasons chain from base league (same approach as standings page)
+  const seasons = [];
+  try {
+    let mainLeague = null;
+    try {
+      mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
+    } catch (e) {
+      messages.push('Failed fetching base league — ' + (e?.message ?? String(e)));
+    }
 
+    if (mainLeague) {
+      seasons.push({ league_id: String(mainLeague.league_id || BASE_LEAGUE_ID), season: mainLeague.season || null, name: mainLeague.name || null });
+      let currPrev = mainLeague.previous_league_id ? String(mainLeague.previous_league_id) : null;
+      let steps = 0;
+      while (currPrev && steps < 50) {
+        steps++;
+        try {
+          const prevLeague = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
+          if (!prevLeague) break;
+          seasons.push({ league_id: String(prevLeague.league_id || currPrev), season: prevLeague.season || null, name: prevLeague.name || null });
+          if (prevLeague.previous_league_id) currPrev = String(prevLeague.previous_league_id);
+          else currPrev = null;
+        } catch (err) {
+          messages.push('Error fetching previous_league_id: ' + currPrev + ' — ' + (err?.message ?? String(err)));
+          break;
+        }
+      }
+    }
+  } catch (err) {
+    messages.push('Error building seasons chain: ' + (err?.message ?? String(err)));
+  }
+
+  // dedupe & sort seasons by season year (ascending)
+  const byId = {};
+  for (const s of seasons) {
+    byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
+  }
+  const dedupedSeasons = [];
+  for (const k in byId) if (Object.prototype.hasOwnProperty.call(byId, k)) dedupedSeasons.push(byId[k]);
+  dedupedSeasons.sort((a,b) => {
+    if (a.season == null && b.season == null) return 0;
+    if (a.season == null) return 1;
+    if (b.season == null) return -1;
+    const na = Number(a.season), nb = Number(b.season);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
+  });
+
+  // 3) assemble honors[] by iterating over known season JSONs AND league seasons (compute from API when JSON absent)
+  const honors = [];
+
+  // helper to fetch matchups for a league into a matchupsByWeek map (only used when JSON absent)
+  async function fetchMatchupsByLeague(leagueId) {
+    const map = {};
+    for (let week = 1; week <= MAX_WEEKS; week++) {
+      try {
+        const m = await sleeper.getMatchupsForWeek(leagueId, week, { ttl: 60 * 5 });
+        if (m && m.length) map[String(week)] = m;
+      } catch (e) {
+        // swallow per-week errors but note
+        messages.push(`Error fetching matchups for league ${leagueId} week ${week}: ${e?.message ?? String(e)}`);
+      }
+    }
+    return map;
+  }
+
+  // 3a) process JSON seasons (guaranteed data source)
   for (const y of Object.keys(seasonMatchupsMap)) {
     try {
       const json = seasonMatchupsMap[y];
       const meta = (json && json._meta) ? json._meta : {};
-      const playoffStart = (typeof json.playoff_week_start === 'number') ? Number(json.playoff_week_start)
-                          : (meta && typeof meta.playoff_week_start === 'number') ? Number(meta.playoff_week_start)
-                          : 15;
+      const playoffStartFromJson = (typeof json.playoff_week_start === 'number') ? Number(json.playoff_week_start)
+        : (meta && typeof meta.playoff_week_start === 'number') ? Number(meta.playoff_week_start) : 15;
 
-      // explicit hall entries
-      const explicitHall = meta.honor_hall || meta.hall_of_fame || meta.honors || null;
-
-      // champion: prefer explicit in meta, else compute from playoffs
+      // prefer explicit champion in _meta, else compute from playoffs
       let champion = null;
       if (meta && meta.champion) {
-        champion = meta.champion; // allow object or simple string
+        champion = meta.champion;
       } else {
-        // compute playoff standings and take top as champion if available
-        const playoffStandings = buildStandingsFromSeasonMatchupsJson(json, playoffStart);
+        const playoffStandings = buildPlayoffStandingsFromMatchups(json, playoffStartFromJson);
         if (playoffStandings && playoffStandings.length) {
           champion = { team_name: playoffStandings[0].team_name, owner_name: playoffStandings[0].owner_name };
         }
       }
 
+      const explicitHall = meta.honor_hall || meta.hall_of_fame || meta.honors || [];
       honors.push({
         season: String(y),
         source: 'json',
         champion,
         hallEntries: Array.isArray(explicitHall) ? explicitHall : []
       });
+      messages.push(`Processed season JSON ${y} (playoff_week_start=${playoffStartFromJson})`);
     } catch (e) {
-      messages.push('Error processing season ' + y + ' — ' + (e?.message ?? String(e)));
+      messages.push('Error processing season JSON ' + y + ': ' + (e?.message ?? String(e)));
     }
   }
 
-  // Provide a sorted seasons list for dropdown (by year ascending)
-  const seasons = Object.keys(seasonMatchupsMap).map(k => ({ season: String(k) })).sort((a,b) => Number(a.season) - Number(b.season));
+  // 3b) for league seasons discovered via API but not covered by season JSONs, fetch matchups via API and compute champion
+  for (const s of dedupedSeasons) {
+    const seasonKey = s.season != null ? String(s.season) : null;
+    // skip if we already included this season via JSON
+    if (seasonKey && Object.prototype.hasOwnProperty.call(seasonMatchupsMap, seasonKey)) continue;
+
+    // attempt to compute champion from API matchups for this league
+    try {
+      const leagueId = String(s.league_id);
+      // fetch rosterMap (for avatar/team_name enrichment when possible)
+      let rosterMap = {};
+      try {
+        rosterMap = await sleeper.getRosterMapWithOwners(leagueId, { ttl: 60 * 5 }) || {};
+      } catch (e) {
+        rosterMap = {};
+        messages.push('Could not fetch rosterMap for league ' + leagueId + ': ' + (e?.message ?? String(e)));
+      }
+
+      // determine playoff_start from league settings if available
+      let playoffStart = 15;
+      try {
+        const leagueMeta = await sleeper.getLeague(leagueId, { ttl: 60 * 5 });
+        if (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) {
+          playoffStart = Number(leagueMeta.settings.playoff_week_start) || 15;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // fetch matchups by week
+      const matchupsByWeek = await fetchMatchupsByLeague(leagueId);
+
+      // compute playoff standings and pick champion
+      const playoffStandings = buildPlayoffStandingsFromMatchups(matchupsByWeek, playoffStart);
+      let champion = null;
+      if (playoffStandings && playoffStandings.length) {
+        // try to enrich team_name and owner_name from rosterMap if possible
+        const top = playoffStandings[0];
+        const rosterMeta = rosterMap && (rosterMap[String(top.rosterId)] || rosterMap[String(top.rosterId).toString()]) ? rosterMap[String(top.rosterId)] : null;
+        if (rosterMeta) {
+          champion = { team_name: rosterMeta.team_name || top.team_name, owner_name: rosterMeta.owner_name || top.owner_name, avatar: rosterMeta.team_avatar || rosterMeta.owner_avatar || null };
+        } else {
+          champion = { team_name: top.team_name, owner_name: top.owner_name };
+        }
+      }
+
+      honors.push({
+        season: seasonKey || ('league_' + leagueId),
+        source: 'api',
+        champion,
+        hallEntries: []
+      });
+      messages.push(`Computed champion from API for season ${seasonKey || leagueId}`);
+    } catch (e) {
+      messages.push('Error computing champion for league season ' + (s.season || s.league_id) + ': ' + (e?.message ?? String(e)));
+    }
+  }
+
+  // sort honors by season ascending (string numeric)
+  honors.sort((a,b) => {
+    const na = Number(a.season);
+    const nb = Number(b.season);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a.season).localeCompare(String(b.season));
+  });
+
+  // prepare seasons array for dropdown (use seasons known via JSON first, then API seasons as fallback)
+  const seasonList = [];
+  const jsonYears = Object.keys(seasonMatchupsMap).map(k => String(k));
+  for (const y of jsonYears) seasonList.push({ season: String(y) });
+
+  for (const s of dedupedSeasons) {
+    const seasonKey = s.season != null ? String(s.season) : null;
+    if (seasonKey && !jsonYears.includes(seasonKey)) seasonList.push({ season: seasonKey });
+  }
 
   return {
-    seasons,
+    seasons: seasonList,
     honors,
     jsonLinks,
     messages
