@@ -1,280 +1,153 @@
-<!-- src/routes/honor-hall/+page.svelte -->
 <script>
   export let data;
 
-  // seasons list and selection
-  const seasons = data?.seasons ?? [];
-  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
+  // dropdown & display state
+  $: seasons = (data && data.seasons) ? data.seasons : [];
+  $: honors = (data && data.honors) ? data.honors : [];
+  $: jsonLinks = (data && data.jsonLinks) ? data.jsonLinks : [];
+  $: messages = (data && data.messages) ? data.messages : [];
 
-  // finalStandingsBySeason mapping returned by server
-  const finalStandingsBySeason = data?.finalStandingsBySeason ?? {};
-  // top-level fallbacks
-  const finalStandingsFallback = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
+  // default selected season to newest if available
+  let selectedSeason = '';
+  $: if ((!selectedSeason || selectedSeason === '') && seasons && seasons.length) selectedSeason = seasons[seasons.length - 1].season;
 
-  // pick the season result
-  $: selectedSeasonKey = String(selectedSeason);
-  $: selectedSeasonResult = finalStandingsBySeason[selectedSeasonKey] ?? { finalStandings: finalStandingsFallback, debug: data?.debug ?? [] };
-  $: finalStandings = Array.isArray(selectedSeasonResult.finalStandings) ? selectedSeasonResult.finalStandings : [];
-  $: debugLines = Array.isArray(selectedSeasonResult.debug) ? selectedSeasonResult.debug : [];
-
-
-
-  // helper to build player headshot URL (NFL fallback, then NBA)
-  function playerHeadshot(playerId, size = 56) {
-    if (!playerId) return '';
-    // use NBA player headshots (Sleeper CDN)
-    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+  function avatarOrPlaceholder(url, name) {
+    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
   }
 
-  // also expose MVPs from top-level (computed for the selected league/season by server)
-  const finalsMvp = data?.finalsMvp ?? null;
-  const overallMvp = data?.overallMvp ?? null;
-
-  // computed champion/biggest loser from finalStandings
-  $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
-  $: biggestLoser = finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
-
-  // messages & other
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
-
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else form?.submit();
-  }
-
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
-  }
-
-  function placeEmoji(rank) {
-    if (rank === 1) return '🏆';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return '';
-  }
-
-  // Filter debug lines: remove seed reassignment traces
-  function filteredDebug(lines) {
-    if (!Array.isArray(lines)) return [];
-    return lines.filter(l => {
-      if (!l) return false;
-      const s = String(l);
-      if (s.startsWith('Assign place')) return false;
-      if (s.startsWith('Fallback assign')) return false;
-      if (s.includes('Assign place ')) return false;
-      if (s.includes('Fallback assign')) return false;
-      // keep everything else
-      return true;
-    });
-  }
-
-  $: visibleDebug = filteredDebug(debugLines);
+  // find honor object for selected season
+  $: selectedHonor = honors.find(h => String(h.season) === String(selectedSeason)) || null;
 </script>
 
 <style>
-  /* Keep host page background but use light text so header/nav remains visible on dark backgrounds */
-  :global(body) { color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-
-  /* Container centers content */
-  .container {
-    max-width: 1180px;
-    margin: 24px auto;
-    padding: 20px;
-    display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: 20px;
-    align-items: start;
+  :global(body) {
+    --bg: #0b1220;
+    --card: #071025;
+    --muted: #9ca3af;
+    --accent: rgba(99,102,241,0.08);
+    --text: #e6eef8;
+    color-scheme: dark;
   }
 
-  .header { grid-column: 1 / span 2; display:flex; justify-content:space-between; align-items:center; gap:12px; }
-  h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
-  .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
+  .page {
+    max-width: 980px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
 
-  /* translucent dark cards (no bright white) */
-  .main, .side {
-    background: rgba(6,8,12,0.65);
-    border-radius: 12px;
-    padding: 16px;
+  h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+  }
+
+  .debug { color: var(--muted); font-size: 0.95rem; margin-bottom: .75rem; }
+
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
     border: 1px solid rgba(255,255,255,0.04);
-    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
-    backdrop-filter: blur(6px);
-    color: inherit;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+    overflow: hidden;
   }
 
-  /* filters */
-  .filters { display:flex; align-items:center; gap:.75rem; }
-  .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
-  select.season-select {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    color: #e6eef8;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-weight: 700;
-    min-width:140px;
-    box-shadow: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
+  .card-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-bottom: 0.5rem;
   }
-  .select-wrap { position: relative; display:inline-block; }
-  .select-wrap::after {
-    content: "▾";
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: #9aa3ad;
-    font-size: 0.9rem;
-  }
-  select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
 
-  /* debug box */
-  .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
-  .debug ul { margin:0; padding-left:18px; }
+  .section-title { font-size:1.05rem; font-weight:700; margin:0; }
+  .section-sub { color: var(--muted); font-size: .9rem; }
 
-  /* final standings list */
-  .standings-list { list-style:none; margin:0; padding:0; }
-  .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); }
-  .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#e6eef8; justify-content:flex-start; }
-  .player { display:flex; align-items:center; gap:12px; min-width:0; }
-  .avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(255,255,255,0.04); }
-  .teamName { font-weight:800; color:#e6eef8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
-  .teamMeta { color: #9aa3ad; font-size:.9rem; margin-top:4px; }
-  .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; min-width:56px; text-align:right; }
+  .h-controls { display:flex; align-items:center; gap:12px; }
+  .team-select { padding:8px 10px; border-radius:8px; background:#06101a; color:var(--text); border:1px solid rgba(255,255,255,0.04); }
 
-  .outcome-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-  .outcome-name { font-weight:700; color:#e6eef8; }
-  .small { color:#9aa3ad; font-size:.9rem; }
+  .honor-row { display:flex; align-items:center; gap:12px; margin:10px 0; }
+  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; display:block; flex-shrink:0; }
+  .honor-title { font-weight:700; }
+  .honor-sub { color: var(--muted); font-size:0.92rem; }
 
-  .no-debug { color:#9aa3ad; }
-
-  @media (max-width: 980px) {
-    .container { grid-template-columns: 1fr; padding:12px; }
-    .side { order: 2; }
-  }
+  .json-links a { display:block; color:var(--muted); text-decoration:underline; margin-top:.25rem; word-break:break-all; }
 </style>
 
-<div class="container">
-  <div class="header">
-    <div>
-      <h1>Honors Hall</h1>
-      <div class="subtitle">Final placements computed from playoff results — season {selectedSeason}</div>
-    </div>
+<div class="page">
+  <h1>Honor Hall</h1>
 
-    <form id="filters" method="get" class="filters" aria-hidden="false">
-      <label class="season-label" for="season">Season</label>
-      <div class="select-wrap">
-        <select id="season" name="season" class="season-select" on:change={submitFilters}>
-          {#if seasons && seasons.length}
-            {#each seasons as s}
-              <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-                {s.season ?? s.name ?? s.league_id}
-              </option>
-            {/each}
-          {:else}
-            <option value={selectedSeason}>{selectedSeason}</option>
-          {/if}
+  {#if messages && messages.length}
+    <div class="debug" aria-live="polite">
+      {#each messages as m, i}
+        <div>{i + 1}. {m}</div>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+      <div>
+        <div class="section-title">Season</div>
+        <div class="section-sub">Choose a season to view honors</div>
+      </div>
+      <div class="h-controls">
+        <label for="season-select" class="small-muted">Season</label>
+        <select id="season-select" class="team-select" bind:value={selectedSeason}>
+          {#each seasons as s}
+            <option value={s.season}>Season {s.season}</option>
+          {/each}
         </select>
       </div>
-    </form>
-  </div>
-
-  <div class="main">
-    <div class="debug" aria-live="polite">
-      <ul>
-        {#if visibleDebug && visibleDebug.length}
-          {#each visibleDebug as d}
-            <li>{@html d.replace(/</g,'&lt;')}</li>
-          {/each}
-        {:else}
-          <li>No debug trace available.</li>
-        {/if}
-      </ul>
     </div>
 
-    <h3 style="margin:0 0 12px 0">Final Standings</h3>
-    <ul class="standings-list" role="list" aria-label="Final standings">
-      {#if finalStandings && finalStandings.length}
-        {#each finalStandings as row (row.rosterId)}
-          <li class="stand-row" role="listitem">
-            <div class="rank" aria-hidden="true">
-              <span>{row.rank}</span>
-              <span>{placeEmoji(row.rank)}</span>
-            </div>
+    {#if selectedHonor}
+      <div style="margin-top:8px;">
+        <div class="honor-row">
+          <div style="min-width:56px;">
+            <img class="avatar" src={avatarOrPlaceholder(null, selectedHonor.champion ? selectedHonor.champion.team_name : 'C')} alt="Champion" />
+          </div>
+          <div>
+            <div class="honor-title">Champion</div>
+            {#if selectedHonor.champion}
+              <div class="honor-sub">{selectedHonor.champion.team_name}{#if selectedHonor.champion.owner_name} — <span class="small-muted">{selectedHonor.champion.owner_name}</span>{/if}</div>
+            {:else}
+              <div class="honor-sub small-muted">No champion data available</div>
+            {/if}
+          </div>
+        </div>
 
-            <div class="player" style="min-width:0;">
-              <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
-              <div style="min-width:0;">
-                <div class="teamName">{row.team_name}</div>
-                <div class="teamMeta">
-                  {#if row.owner_name}
-                    {row.owner_name}
-                  {:else}
-                    {`Roster ${row.rosterId}`}
-                  {/if}
+        {#if selectedHonor.hallEntries && selectedHonor.hallEntries.length}
+          <div style="margin-top:14px;">
+            <div class="section-sub" style="margin-bottom:8px;">Hall entries</div>
+            {#each selectedHonor.hallEntries as he}
+              <div class="honor-row">
+                <div style="min-width:56px;">
+                  <img class="avatar" src={avatarOrPlaceholder(he.avatar || null, he.name || he.person || 'H')} alt={he.name || he.person || 'Hall'} />
+                </div>
+                <div>
+                  <div class="honor-title">{he.name || he.person || he.title || 'Unknown'}</div>
+                  <div class="honor-sub">{he.note || he.description || ''}</div>
                 </div>
               </div>
-            </div>
-
-            <div class="seedCol">Seed #{row.seed ?? '—'}</div>
-          </li>
-        {/each}
-      {:else}
-        <li class="no-debug">No final standings available.</li>
-      {/if}
-    </ul>
+            {/each}
+          </div>
+        {:else}
+          <div style="margin-top:12px;" class="small-muted">No explicit hall entries found in JSON for this season.</div>
+        {/if}
+      </div>
+    {:else}
+      <div class="small-muted" style="padding:.5rem 0;">No data for selected season.</div>
+    {/if}
   </div>
 
-  <aside class="side" aria-labelledby="outcomes-title">
-    <h3 id="outcomes-title" style="margin-top:0">Season outcomes</h3>
-
-    {#if champion}
-      <div class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt="champion avatar" style="width:64px;height:64px">
-        <div>
-          <div class="outcome-name">Champion <span style="margin-left:6px">🏆</span></div>
-          <div class="small">{champion.team_name} • {champion.owner_name ?? `Roster ${champion.rosterId}`} • Seed #{champion.seed}</div>
-        </div>
+  {#if jsonLinks && jsonLinks.length}
+    <div class="card" style="margin-top:1rem;">
+      <div class="section-sub">Loaded JSON files</div>
+      <div style="margin-top:8px;">
+        {#each jsonLinks as jl}
+          <div class="json-links"><a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a></div>
+        {/each}
       </div>
-    {/if}
-
-    {#if biggestLoser}
-      <div style="margin-top:8px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:64px;height:64px">
-        <div>
-          <div class="outcome-name">Biggest loser <span style="margin-left:6px">😵‍💫</span></div>
-          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Seed #{biggestLoser.seed}</div>
-        </div>
-      </div>
-    {/if}
-
-    {#if finalsMvp}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar || finalsMvp.roster_meta?.owner_avatar, finalsMvp.roster_meta?.team_name)} alt="finals mvp avatar" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Finals MVP</div>
-          <div class="small">Player {finalsMvp.playerId} • {finalsMvp.points} pts • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}</div>
-        </div>
-      </div>
-    {/if}
-
-    {#if overallMvp}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar || overallMvp.roster_meta?.owner_avatar, overallMvp.roster_meta?.team_name)} alt="overall mvp avatar" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Overall MVP</div>
-          <div class="small">Player {overallMvp.playerId} • {overallMvp.points} pts • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId}`}</div>
-        </div>
-      </div>
-    {/if}
-
-    <div style="margin-top:12px; color:#9aa3ad; font-size:.9rem">
-      Final standings are derived from server-scrubbed matchups and the bracket simulation logic. The debug trace above shows the decisions used to construct the bracket (matchups & tiebreaks).
     </div>
-  </aside>
+  {/if}
 </div>
