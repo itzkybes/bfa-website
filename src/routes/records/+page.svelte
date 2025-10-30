@@ -243,7 +243,6 @@
                     <img class="avatar" src={avatarOrPlaceholder(r.opponentAvatar, r.opponentDisplay)} alt={r.opponentDisplay} />
                     <div class="team-cell">
                       <div class="team-name">{r.opponentDisplay}</div>
-                      <!-- owner/extra info if available (owner same as display often) -->
                     </div>
                   </div>
                 </td>
