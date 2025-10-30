@@ -214,6 +214,50 @@ function nextWeekContainsExplicitZero(matchupsArr) {
   return false;
 }
 
+// canonicalization helper for H2H keys / avatar / display
+function canonicalFromParticipant(obj, rosterMap) {
+  // return { key, teamName, ownerName, avatar }
+  if (!obj || typeof obj !== 'object') return null;
+
+  // prefer roster id if present
+  const rid = obj.rosterId ?? obj.roster_id ?? obj.id ?? obj.roster ?? obj.ownerId ?? obj.owner_id ?? null;
+  // owner name fields
+  const ownerName = obj.ownerName ?? obj.owner_name ?? obj.owner ?? obj.owner_username ?? null;
+  const teamName = obj.name ?? obj.team_name ?? obj.team ?? null;
+
+  // if rosterMap provided and rid found, prefer its metadata (and avatar)
+  if (rid != null && rosterMap && rosterMap[String(rid)]) {
+    const meta = rosterMap[String(rid)];
+    const key = meta.owner_username ? ('owner:' + String(meta.owner_username).toLowerCase()) : ('roster:' + String(rid));
+    const avatar = meta.team_avatar || meta.owner_avatar || null;
+    return { key, teamName: meta.team_name || teamName || null, ownerName: meta.owner_name || ownerName || null, avatar };
+  }
+
+  // fallback to owner-based key if we have owner name (lowercased)
+  if (ownerName && typeof ownerName === 'string') {
+    const key = 'owner:' + String(ownerName).toLowerCase();
+    // avatar may be on object (teamAvatar, avatar)
+    const avatar = obj.teamAvatar ?? obj.team_avatar ?? obj.ownerAvatar ?? obj.owner_avatar ?? obj.avatar ?? null;
+    return { key, teamName: teamName || null, ownerName: ownerName || null, avatar };
+  }
+
+  // fallback to roster:id key if we have an id
+  if (rid != null) {
+    const key = 'roster:' + String(rid);
+    const avatar = obj.teamAvatar ?? obj.team_avatar ?? obj.ownerAvatar ?? obj.owner_avatar ?? obj.avatar ?? null;
+    return { key, teamName: teamName || null, ownerName: ownerName || null, avatar };
+  }
+
+  // last resort: use team name as key (lowercased)
+  if (teamName && typeof teamName === 'string') {
+    const key = 'team:' + String(teamName).toLowerCase();
+    const avatar = obj.teamAvatar ?? obj.team_avatar ?? obj.avatar ?? null;
+    return { key, teamName: teamName, ownerName: ownerName, avatar };
+  }
+
+  return null;
+}
+
 export async function load(event) {
   // set CDN caching
   event.setHeaders({
@@ -382,6 +426,77 @@ export async function load(event) {
 
   // We'll collect match-level margin candidates while processing both JSONs and API matchups
   const marginCandidates = [];
+  // H2H records map (pairKey -> aggregated record)
+  const h2hRecords = {};
+
+  // helper to update h2h record given two canonical participants and points
+  function updateH2H(aCanon, bCanon, ptsA, ptsB, season, week) {
+    if (!aCanon || !bCanon) return;
+    const keyA = aCanon.key;
+    const keyB = bCanon.key;
+    if (!keyA || !keyB) return;
+    // apply owner reparent mapping to keys (if owner mapped)
+    let ka = keyA;
+    let kb = keyB;
+
+    // if owner keys and mapped, replace
+    if (ka.startsWith('owner:')) {
+      const o = ka.slice(6);
+      if (OWNER_REPARENT[o]) ka = 'owner:' + OWNER_REPARENT[o];
+    }
+    if (kb.startsWith('owner:')) {
+      const o2 = kb.slice(6);
+      if (OWNER_REPARENT[o2]) kb = 'owner:' + OWNER_REPARENT[o2];
+    }
+
+    // keep deterministic ordering
+    const ordered = ka < kb ? [ka, kb] : [kb, ka];
+    const pairKey = ordered[0] + '|' + ordered[1];
+    const isAis1 = (ka === ordered[0]); // whether A maps to team1 in stored record
+
+    if (!h2hRecords[pairKey]) {
+      h2hRecords[pairKey] = {
+        team1Key: ordered[0],
+        team2Key: ordered[1],
+        team1Name: (isAis1 ? (aCanon.teamName || aCanon.ownerName) : (bCanon.teamName || bCanon.ownerName)) || null,
+        team2Name: (isAis1 ? (bCanon.teamName || bCanon.ownerName) : (aCanon.teamName || aCanon.ownerName)) || null,
+        team1Owner: (isAis1 ? aCanon.ownerName : bCanon.ownerName) || null,
+        team2Owner: (isAis1 ? bCanon.ownerName : aCanon.ownerName) || null,
+        team1Avatar: (isAis1 ? aCanon.avatar : bCanon.avatar) || null,
+        team2Avatar: (isAis1 ? bCanon.avatar : aCanon.avatar) || null,
+        wins1: 0,
+        wins2: 0,
+        pf1: 0,
+        pf2: 0,
+        ties: 0,
+        meetings: 0
+      };
+    }
+
+    const rec = h2hRecords[pairKey];
+    // points must be oriented to stored ordering
+    let pf1 = isAis1 ? ptsA : ptsB;
+    let pf2 = isAis1 ? ptsB : ptsA;
+    rec.pf1 += Number(pf1 || 0);
+    rec.pf2 += Number(pf2 || 0);
+    rec.meetings = (rec.meetings || 0) + 1;
+    if (Math.abs((ptsA || 0) - (ptsB || 0)) < 1e-9) {
+      rec.ties = (rec.ties || 0) + 1;
+    } else if ((ptsA || 0) > (ptsB || 0)) {
+      if (isAis1) rec.wins1 = (rec.wins1 || 0) + 1;
+      else rec.wins2 = (rec.wins2 || 0) + 1;
+    } else {
+      if (isAis1) rec.wins2 = (rec.wins2 || 0) + 1;
+      else rec.wins1 = (rec.wins1 || 0) + 1;
+    }
+    // Optionally update names/avatars if null
+    if (!rec.team1Name) rec.team1Name = (isAis1 ? aCanon.teamName : bCanon.teamName) || null;
+    if (!rec.team2Name) rec.team2Name = (isAis1 ? bCanon.teamName : aCanon.teamName) || null;
+    if (!rec.team1Avatar) rec.team1Avatar = (isAis1 ? aCanon.avatar : bCanon.avatar) || null;
+    if (!rec.team2Avatar) rec.team2Avatar = (isAis1 ? bCanon.avatar : aCanon.avatar) || null;
+    if (!rec.team1Owner) rec.team1Owner = (isAis1 ? aCanon.ownerName : bCanon.ownerName) || null;
+    if (!rec.team2Owner) rec.team2Owner = (isAis1 ? bCanon.ownerName : aCanon.ownerName) || null;
+  }
 
   // 1) First: process any season_matchups JSON *as their own seasons*
   for (const yearKey of Object.keys(seasonMatchupsMap)) {
@@ -432,9 +547,11 @@ export async function load(event) {
             const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.points ?? 0);
             const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
 
-            // record margin candidate for this matchup
+            // record margin candidate for this matchup, include avatars if present
             try {
               const margin = Math.abs(ptsA - ptsB);
+              const avatarA = a.avatar ?? a.teamAvatar ?? a.team_avatar ?? null;
+              const avatarB = b.avatar ?? b.teamAvatar ?? b.team_avatar ?? null;
               marginCandidates.push({
                 margin: margin,
                 season: String(yearKey),
@@ -444,8 +561,17 @@ export async function load(event) {
                 teamB: b.name ?? null,
                 ownerB: b.ownerName ?? null,
                 pfA: ptsA,
-                pfB: ptsB
+                pfB: ptsB,
+                avatarA: avatarA,
+                avatarB: avatarB
               });
+            } catch (e) {}
+
+            // update H2H from these JSON-style participants (no rosterMap available here)
+            try {
+              const aCanon = canonicalFromParticipant(a, null);
+              const bCanon = canonicalFromParticipant(b, null);
+              updateH2H(aCanon, bCanon, ptsA, ptsB, yearKey, week);
             } catch (e) {}
 
             paByRoster[ridA] = paByRoster[ridA] || 0;
@@ -636,9 +762,11 @@ export async function load(event) {
               const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0);
               const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
 
-              // record margin candidate
+              // record margin candidate with avatar if present
               try {
                 const margin = Math.abs(ptsA - ptsB);
+                const avatarA = a.avatar ?? a.teamAvatar ?? a.team_avatar ?? null;
+                const avatarB = b.avatar ?? b.teamAvatar ?? b.team_avatar ?? null;
                 marginCandidates.push({
                   margin: margin,
                   season: leagueSeason || String(leagueId),
@@ -648,8 +776,17 @@ export async function load(event) {
                   teamB: b.name ?? null,
                   ownerB: b.ownerName ?? null,
                   pfA: ptsA,
-                  pfB: ptsB
+                  pfB: ptsB,
+                  avatarA,
+                  avatarB
                 });
+              } catch (e) {}
+
+              // update H2H with JSON participants
+              try {
+                const aCanon = canonicalFromParticipant(a, rosterMap);
+                const bCanon = canonicalFromParticipant(b, rosterMap);
+                updateH2H(aCanon, bCanon, ptsA, ptsB, leagueSeason, week);
               } catch (e) {}
 
               paByRoster[ridA] = paByRoster[ridA] || 0;
@@ -778,7 +915,7 @@ export async function load(event) {
               } catch (e) { ppts = null; }
             }
             if (ppts == null) ppts = computeParticipantPoints(en);
-            participants.push({ rosterId: String(pid), points: ppts });
+            participants.push({ rosterId: String(pid), points: ppts, rawEntry: en });
             paByRoster[String(pid)] = paByRoster[String(pid)] || 0;
             resultsByRoster[String(pid)] = resultsByRoster[String(pid)] || [];
             statsByRoster[String(pid)] = statsByRoster[String(pid)] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
@@ -788,11 +925,10 @@ export async function load(event) {
           // If this matchup has at least two participants, compute margin between first two (commonly 1v1)
           if (participants.length >= 2) {
             try {
-              // we'll take the absolute difference of the first non-self pair — typical 1v1 has exactly 2 participants
               const p0 = participants[0];
               const p1 = participants[1];
               const margin = Math.abs((p0.points || 0) - (p1.points || 0));
-              // attempt to resolve team names/owners from rosterMap if available
+              // attempt to resolve team names/owners/avatars from rosterMap if available
               const meta0 = rosterMap && rosterMap[p0.rosterId] ? rosterMap[p0.rosterId] : {};
               const meta1 = rosterMap && rosterMap[p1.rosterId] ? rosterMap[p1.rosterId] : {};
               marginCandidates.push({
@@ -804,8 +940,21 @@ export async function load(event) {
                 teamB: meta1.team_name || null,
                 ownerB: meta1.owner_name || null,
                 pfA: p0.points || 0,
-                pfB: p1.points || 0
+                pfB: p1.points || 0,
+                avatarA: meta0.team_avatar || meta0.owner_avatar || null,
+                avatarB: meta1.team_avatar || meta1.owner_avatar || null
               });
+            } catch (e) {}
+          }
+
+          // Update H2H for multi-entry matchups (pairwise between first two participants)
+          if (participants.length >= 2) {
+            try {
+              const p0 = participants[0];
+              const p1 = participants[1];
+              const aCanon = canonicalFromParticipant({ rosterId: p0.rosterId, name: rosterMap[p0.rosterId]?.team_name, ownerName: rosterMap[p0.rosterId]?.owner_name, avatar: rosterMap[p0.rosterId]?.team_avatar || rosterMap[p0.rosterId]?.owner_avatar }, rosterMap);
+              const bCanon = canonicalFromParticipant({ rosterId: p1.rosterId, name: rosterMap[p1.rosterId]?.team_name, ownerName: rosterMap[p1.rosterId]?.owner_name, avatar: rosterMap[p1.rosterId]?.team_avatar || rosterMap[p1.rosterId]?.owner_avatar }, rosterMap);
+              updateH2H(aCanon, bCanon, p0.points, p1.points, leagueSeason, week);
             } catch (e) {}
           }
 
@@ -1005,7 +1154,9 @@ export async function load(event) {
     teamB: x.teamB || null,
     ownerB: x.ownerB || null,
     pfA: Math.round((x.pfA || 0) * 100) / 100,
-    pfB: Math.round((x.pfB || 0) * 100) / 100
+    pfB: Math.round((x.pfB || 0) * 100) / 100,
+    avatarA: x.avatarA || null,
+    avatarB: x.avatarB || null
   }));
 
   // smallest > 0
@@ -1020,8 +1171,22 @@ export async function load(event) {
     teamB: x.teamB || null,
     ownerB: x.ownerB || null,
     pfA: Math.round((x.pfA || 0) * 100) / 100,
-    pfB: Math.round((x.pfB || 0) * 100) / 100
+    pfB: Math.round((x.pfB || 0) * 100) / 100,
+    avatarA: x.avatarA || null,
+    avatarB: x.avatarB || null
   }));
+
+  // attach the h2hRecords map directly (server returns aggregated H2H)
+  // ensure pf & wins fields are normalized numbers
+  for (const k in h2hRecords) {
+    if (!Object.prototype.hasOwnProperty.call(h2hRecords, k)) continue;
+    h2hRecords[k].wins1 = Number(h2hRecords[k].wins1 || 0);
+    h2hRecords[k].wins2 = Number(h2hRecords[k].wins2 || 0);
+    h2hRecords[k].pf1 = Math.round((h2hRecords[k].pf1 || 0) * 100) / 100;
+    h2hRecords[k].pf2 = Math.round((h2hRecords[k].pf2 || 0) * 100) / 100;
+    h2hRecords[k].ties = Number(h2hRecords[k].ties || 0);
+    h2hRecords[k].meetings = Number(h2hRecords[k].meetings || 0);
+  }
 
   return {
     seasons,
@@ -1036,6 +1201,7 @@ export async function load(event) {
     prevChain,
     // new fields
     topLargestMargins,
-    topSmallestMargins
+    topSmallestMargins,
+    h2h: h2hRecords
   };
 }
