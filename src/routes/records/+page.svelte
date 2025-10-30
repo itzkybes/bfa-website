@@ -36,6 +36,7 @@
   // Build a simple keyMetaMap from aggregated rows & seasonsResults (to help H2H labels/avatars)
   $: keyMetaMap = (() => {
     const map = {};
+    // from aggregated regular & playoff
     for (const r of aggregatedRegular) {
       if (!r) continue;
       const k = makeKeyFromRow(r);
@@ -48,7 +49,7 @@
       if (!k) continue;
       map[k] = map[k] || { team_name: r.team_name || null, owner_name: r.owner_name || null, avatar: r.avatar || null };
     }
-    // also include h2h map-derived keys (if present)
+    // include h2h map-derived keys (if present)
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
@@ -116,7 +117,7 @@
     selectedTeamKey = teamKeys[0];
   }
 
-  // oriented h2h reader: expects h2hMap keyed by canonical "a|b" pair (or similar); returns oriented record
+  // read oriented h2h
   function readH2H(aKey, bKey) {
     if (!aKey || !bKey) return null;
     if (aKey === bKey) return null;
@@ -133,21 +134,66 @@
     return { winsA, winsB, pfA: Math.round(pfA * 100) / 100, pfB: Math.round(pfB * 100) / 100, ties, meetings };
   }
 
+  // Group keys by display label and pick a single canonical key per label (prefer keys that appear in h2hMap or have avatars)
+  $: labelPreferredKey = (() => {
+    const groups = {};
+    for (const k of teamKeys) {
+      const label = dropdownLabelForKey[k] || k;
+      groups[label] = groups[label] || [];
+      groups[label].push(k);
+    }
+    const chosen = {};
+    for (const label in groups) {
+      const arr = groups[label];
+      // prefer any key that participates in h2hMap (as team1Key or team2Key)
+      let pick = null;
+      for (const kk of arr) {
+        for (const mk of Object.keys(h2hMap || {})) {
+          const rec = h2hMap[mk];
+          if (!rec) continue;
+          if (rec.team1Key === kk || rec.team2Key === kk) { pick = kk; break; }
+        }
+        if (pick) break;
+      }
+      // else prefer key that has avatar
+      if (!pick) {
+        pick = arr.find(k2 => avatarMap[k2]) || arr[0];
+      }
+      chosen[label] = pick;
+    }
+    return chosen;
+  })();
+
+  // Build opponentRows using labelPreferredKey to avoid duplicates
   $: opponentRows = (() => {
     if (!selectedTeamKey || !teamKeys) return [];
     const out = [];
-    for (const k of teamKeys) {
-      if (k === selectedTeamKey) continue;
-      const rec = readH2H(selectedTeamKey, k);
-      const meta = keyMetaMap[k] || {};
+    // build map from key->label for quick reverse lookup
+    const keyToLabel = {};
+    for (const label in labelPreferredKey) {
+      const key = labelPreferredKey[label];
+      keyToLabel[key] = label;
+    }
+
+    for (const label in labelPreferredKey) {
+      const key = labelPreferredKey[label];
+      if (!key) continue;
+      if (key === selectedTeamKey) continue;
+      // compute record oriented for selectedTeamKey vs this key
+      const rec = readH2H(selectedTeamKey, key);
+      const meta = keyMetaMap[key] || {};
+      // prefer avatarMap, then meta avatar, then placeholder
+      const avatar = avatarMap[key] || meta.avatar || avatarOrPlaceholder(null, meta.team_name || dropdownLabelForKey[key]);
       out.push({
-        key: k,
-        team_name: meta.team_name || dropdownLabelForKey[k] || k,
+        key,
+        team_name: meta.team_name || dropdownLabelForKey[key] || key,
         owner_name: meta.owner_name || '',
-        avatar: avatarMap[k] || avatarOrPlaceholder(null, meta.team_name || dropdownLabelForKey[k]),
+        avatar,
         record: rec
       });
     }
+
+    // sort by team_name
     out.sort((a,b) => {
       const la = String(a.team_name || a.key).toLowerCase();
       const lb = String(b.team_name || b.key).toLowerCase();
@@ -585,7 +631,7 @@
                 <td class="col-numeric">{m.week}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={m.avatarA ? m.avatarA : avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
+                    <img class="h2h-avatar" src={m.avatarA ? m.avatarA : (/* try to find avatar by team name */ (Object.values(keyMetaMap).find(km=>km.team_name===m.teamA)?.avatar) ) || avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
                     <div>
                       <div class="team-name">{m.teamA}</div>
                       {#if m.ownerA}<div class="owner">{m.ownerA}</div>{/if}
@@ -595,7 +641,7 @@
                 <td class="col-numeric">{m.pfA} - {m.pfB}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={m.avatarB ? m.avatarB : avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
+                    <img class="h2h-avatar" src={m.avatarB ? m.avatarB : (Object.values(keyMetaMap).find(km=>km.team_name===m.teamB)?.avatar) || avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
                     <div>
                       <div class="team-name">{m.teamB}</div>
                       {#if m.ownerB}<div class="owner">{m.ownerB}</div>{/if}
@@ -645,7 +691,7 @@
                 <td class="col-numeric">{m.week}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={m.avatarA ? m.avatarA : avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
+                    <img class="h2h-avatar" src={m.avatarA ? m.avatarA : (Object.values(keyMetaMap).find(km=>km.team_name===m.teamA)?.avatar) || avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
                     <div>
                       <div class="team-name">{m.teamA}</div>
                       {#if m.ownerA}<div class="owner">{m.ownerA}</div>{/if}
@@ -655,7 +701,7 @@
                 <td class="col-numeric">{m.pfA} - {m.pfB}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={m.avatarB ? m.avatarB : avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
+                    <img class="h2h-avatar" src={m.avatarB ? m.avatarB : (Object.values(keyMetaMap).find(km=>km.team_name===m.teamB)?.avatar) || avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
                     <div>
                       <div class="team-name">{m.teamB}</div>
                       {#if m.ownerB}<div class="owner">{m.ownerB}</div>{/if}
