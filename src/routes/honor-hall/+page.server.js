@@ -1,5 +1,5 @@
 // src/routes/honor-hall/+page.server.js
-// Honor Hall loader + bracket simulation (updated losers-bracket logic)
+// Honor Hall loader + bracket simulation (dynamic playoff structure inference)
 
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
@@ -456,64 +456,119 @@ export async function load(event) {
   const trace = [];
   trace.push(`Loaded rosters (${Object.keys(rosterMap).length})`);
 
-  function seedToRoster(seed) {
-    const rid = placementToRoster[seed] ?? null;
-    const meta = rid ? rosterMap[rid] : null;
-    return { rosterId: rid, name: meta?.team_name ?? meta?.owner_name ?? ('Roster ' + rid) };
+  // -------------------------
+  // Dynamic bracket inference:
+  //  - determine playoff participants from matchupsRows
+  //  - determine first playoff week with two-team matches and compute winners-bracket size = matches*2
+  //  - assign winners-bracket seeds = top N placements
+  //  - remaining playoff participants go to losers/race
+  // -------------------------
+  const playoffParticipantsSet = new Set();
+  for (const r of matchupsRows) {
+    if (r.participantsCount === 2) {
+      if (r.teamA && r.teamA.rosterId) playoffParticipantsSet.add(String(r.teamA.rosterId));
+      if (r.teamB && r.teamB.rosterId) playoffParticipantsSet.add(String(r.teamB.rosterId));
+    } else if (r.participantsCount === 1) {
+      if (r.teamA && r.teamA.rosterId) playoffParticipantsSet.add(String(r.teamA.rosterId));
+    } else if (r.combinedParticipants && Array.isArray(r.combinedParticipants)) {
+      for (const p of r.combinedParticipants) if (p.rosterId) playoffParticipantsSet.add(String(p.rosterId));
+    }
   }
+  const playoffParticipants = Array.from(playoffParticipantsSet);
 
+  // find first playoff week that contains 2-team matchups (prefer actual "round 1")
+  const playoffWeeksPresent = [...new Set(matchupsRows.map(r => Number(r.week)).filter(n => !isNaN(n)).sort((a,b) => a-b))];
+  const firstPlayoffWeek = playoffWeeksPresent.length ? playoffWeeksPresent[0] : playoffStart;
+
+  const matchesInFirstWeek = matchupsRows.filter(r => Number(r.week) === Number(firstPlayoffWeek) && r.participantsCount === 2);
+  let winnersBracketSize = (matchesInFirstWeek.length * 2) || 8; // fallback to 8 if we can't infer
+  // ensure winnersBracketSize does not exceed total participants
+  if (winnersBracketSize > playoffParticipants.length) winnersBracketSize = playoffParticipants.length;
+
+  // Build winnersSeeds from placement order (1..N)
   const winnersSeeds = [];
   const losersSeeds = [];
-  for (let s = 1; s <= 14; s++) {
+  for (let s = 1; s <= winnersBracketSize; s++) {
+    const rid = placementToRoster[s] ?? null;
+    if (rid) winnersSeeds.push({ seed: s, rosterId: rid });
+  }
+  // Collect remaining playoff participants (ordered by placement)
+  const remainingSeeds = [];
+  for (let s = winnersBracketSize + 1; s <= (Object.keys(placementToRoster).length || 100); s++) {
     const rid = placementToRoster[s] ?? null;
     if (!rid) continue;
-    if (s <= 8) winnersSeeds.push({ seed: s, rosterId: rid });
-    else losersSeeds.push({ seed: s, rosterId: rid });
+    if (playoffParticipantsSet.size && !playoffParticipantsSet.has(String(rid))) continue; // only include teams that show up in playoffs
+    remainingSeeds.push({ seed: s, rosterId: rid });
   }
+  // if no remainingSeeds but there are playoff participants not in winnersSeeds, include them
+  for (const pid of playoffParticipants) {
+    if (!winnersSeeds.find(w => String(w.rosterId) === String(pid)) && !remainingSeeds.find(x => String(x.rosterId) === String(pid))) {
+      const s = placementMap[pid] ?? null;
+      remainingSeeds.push({ seed: s ?? 999, rosterId: pid });
+    }
+  }
+  // losersSeeds are the remaining seeds
+  for (const rs of remainingSeeds) losersSeeds.push(rs);
 
-  function runMatch(seedA, seedB, label, preferredWeeks = [playoffStart, playoffStart+1, playoffStart+2]) {
+  trace.push(`Detected playoff participants: ${playoffParticipants.length} (winners bracket size inferred ${winnersBracketSize}, first playoff week ${firstPlayoffWeek})`);
+
+  // Utility: run a pair and decide winner using matchupsRows (preferring actual matchup)
+  function runMatch(seedA, seedB, label, preferredWeeks = playoffWeeksPresent.length ? playoffWeeksPresent : [playoffStart, playoffStart+1, playoffStart+2]) {
+    if (!seedA || !seedB) {
+      const winner = seedA?.rosterId || seedB?.rosterId || null;
+      const loser = (winner === seedA?.rosterId) ? seedB?.rosterId : seedA?.rosterId;
+      trace.push(`${label} ${seedA?.seed ?? '?'}v${seedB?.seed ?? '?'} -> ${placementMap[winner] ?? winner} (missing)`);
+      return { winner, loser, row: null, reason: 'missing' };
+    }
     const a = seedA.rosterId, b = seedB.rosterId;
     const matchRow = findMatchForPair(a, b, preferredWeeks);
     const decision = decideWinnerFromMatch(matchRow, a, b);
     if (!decision) {
       const winner = Number(seedA.seed) <= Number(seedB.seed) ? seedA.rosterId : seedB.rosterId;
-      const loser = winner === seedA.rosterId ? seedB.rosterId : seedA.rosterId;
-      trace.push(`${label} ${seedA.seed}v${seedB.seed} -> ${ placementMap[winner] ?? winner } (fallback-no-match)`);
+      const loser = (winner === seedA.rosterId) ? seedB.rosterId : seedA.rosterId;
+      trace.push(`${label} ${seedA.seed}v${seedB.seed} -> ${placementMap[winner] ?? winner} (fallback-no-match)`);
       return { winner, loser, row: matchRow, reason: 'fallback-no-match' };
     }
     const winner = decision.winner;
     const loser = decision.loser;
-    const wSeed = placementMap[winner] ?? winner;
-    trace.push(`${label} ${seedA.seed}v${seedB.seed} -> ${ wSeed } (${decision.reason})`);
+    trace.push(`${label} ${seedA.seed}v${seedB.seed} -> ${ placementMap[winner] ?? winner } (${decision.reason})`);
     return { winner, loser, row: matchRow, reason: decision.reason };
   }
 
   // -------------------------
-  // Winners bracket
+  // Winners bracket (round 1): pair seed i vs seed N-i+1
   // -------------------------
-  const wR1Pairs = [
-    [1,8],[2,7],[3,6],[4,5]
-  ].map(([s1,s2]) => ({ a: {seed: s1, rosterId: placementToRoster[s1]}, b: {seed: s2, rosterId: placementToRoster[s2]} }));
+  const wR1Pairs = [];
+  const half = Math.floor(winnersSeeds.length / 2);
+  for (let i = 0; i < half; i++) {
+    const a = winnersSeeds[i];
+    const b = winnersSeeds[winnersSeeds.length - 1 - i];
+    wR1Pairs.push({ a, b });
+  }
 
   const wR1Results = [];
   for (const p of wR1Pairs) {
-    if (!p.a.rosterId || !p.b.rosterId) {
-      trace.push(`W1 ${p.a.seed}v${p.b.seed} -> missing-roster`);
-      wR1Results.push({ winner: p.a.rosterId || p.b.rosterId, loser: p.a.rosterId ? p.b.rosterId : p.a.rosterId, reason: 'missing-roster' });
+    if (!p.a?.rosterId || !p.b?.rosterId) {
+      trace.push(`W1 ${p.a?.seed ?? '?'}v${p.b?.seed ?? '?'} -> missing-roster`);
+      wR1Results.push({ winner: p.a?.rosterId || p.b?.rosterId, loser: p.a?.rosterId ? p.b?.rosterId : p.a?.rosterId, reason: 'missing-roster' });
       continue;
     }
     const res = runMatch(p.a, p.b, `W1`);
     wR1Results.push(res);
   }
 
-  const wR1Winners = wR1Results.map((r, idx) => ({ seed: placementMap[r.winner] ?? null, rosterId: r.winner, loserSeed: placementMap[r.loser] ?? null, loserId: r.loser }));
-  const wR1Losers = wR1Results.map((r, idx) => ({ seed: placementMap[r.loser] ?? null, rosterId: r.loser, winnerSeed: placementMap[r.winner] ?? null, winnerId: r.winner }));
+  const wR1Winners = wR1Results.map((r) => ({ seed: placementMap[r.winner] ?? null, rosterId: r.winner, loserSeed: placementMap[r.loser] ?? null, loserId: r.loser }));
+  const wR1Losers = wR1Results.map((r) => ({ seed: placementMap[r.loser] ?? null, rosterId: r.loser, winnerSeed: placementMap[r.winner] ?? null, winnerId: r.winner }));
 
   wR1Winners.sort((a,b) => (a.seed || 999) - (b.seed || 999));
-  const wSemiPairs = [
-    [ wR1Winners[0], wR1Winners[wR1Winners.length-1] ],
-    [ wR1Winners[1], wR1Winners[wR1Winners.length-2] ]
-  ];
+  // semis: pair lowest-seed winner with highest-seed winner, etc.
+  const wSemiPairs = [];
+  if (wR1Winners.length >= 2) {
+    wSemiPairs.push([ wR1Winners[0], wR1Winners[wR1Winners.length-1] ]);
+    if (wR1Winners.length >= 4) {
+      wSemiPairs.push([ wR1Winners[1], wR1Winners[wR1Winners.length-2] ]);
+    }
+  }
 
   const wSemiResults = [];
   for (const pair of wSemiPairs) {
@@ -526,39 +581,47 @@ export async function load(event) {
     wSemiResults.push(res);
   }
 
-  const finalRes = (wSemiResults.length >= 2) ? runMatch({seed: placementMap[wSemiResults[0].winner], rosterId: wSemiResults[0].winner}, {seed: placementMap[wSemiResults[1].winner], rosterId: wSemiResults[1].winner}, `Final`) : null;
+  const finalRes = (wSemiResults.length >= 2) ? runMatch({seed: placementMap[wSemiResults[0].winner], rosterId: wSemiResults[0].winner}, {seed: placementMap[wSemiResults[1].winner], rosterId: wSemiResults[1].winner}, `Final`) : (wSemiResults.length === 1 ? wSemiResults[0] : null);
   const thirdRes = (wSemiResults.length >= 2) ? runMatch({seed: placementMap[wSemiResults[0].loser], rosterId: wSemiResults[0].loser}, {seed: placementMap[wSemiResults[1].loser], rosterId: wSemiResults[1].loser}, `3rd`) : null;
 
-  // Consolation from R1 losers
+  // Consolation from R1 losers (pair losers similar to winners: lowest vs highest)
   wR1Losers.sort((a,b) => (a.seed || 999) - (b.seed || 999));
-  const cR1Pairs = [
-    [wR1Losers[0], wR1Losers[wR1Losers.length-1]],
-    [wR1Losers[1], wR1Losers[wR1Losers.length-2]]
-  ];
+  const cR1Pairs = [];
+  if (wR1Losers.length >= 2) {
+    cR1Pairs.push([wR1Losers[0], wR1Losers[wR1Losers.length-1]]);
+    if (wR1Losers.length >= 4) cR1Pairs.push([wR1Losers[1], wR1Losers[wR1Losers.length-2]]);
+  }
   const cR1Results = [];
   for (const pair of cR1Pairs) {
     if (!pair[0] || !pair[1] || !pair[0].rosterId || !pair[1].rosterId) {
       trace.push(`Consolation R1 missing -> skipping`);
-      cR1Results.push({ winner: pair[0]?.rosterId || pair[1]?.rosterId, loser: pair[1]?.rosterId || pair[0]?.rosterId, reason:'missing' });
+      cR1Results.push({ winner: pair[0]?.rosterId || pair[1]?.rosterId, loser: pair[0]?.rosterId ? pair[1]?.rosterId : pair[0]?.rosterId, reason:'missing' });
       continue;
     }
     const res = runMatch({seed: pair[0].seed, rosterId: pair[0].rosterId}, {seed: pair[1].seed, rosterId: pair[1].rosterId}, `Consolation R1`);
     cR1Results.push(res);
   }
 
-  const fifthRes = (cR1Results.length >= 2) ? runMatch({seed: placementMap[cR1Results[0].winner], rosterId: cR1Results[0].winner}, {seed: placementMap[cR1Results[1].winner], rosterId: cR1Results[1].winner}, `5th`) : null;
+  const fifthRes = (cR1Results.length >= 2) ? runMatch({seed: placementMap[cR1Results[0].winner], rosterId: cR1Results[0].winner}, {seed: placementMap[cR1Results[1].winner], rosterId: cR1Results[1].winner}, `5th`) : (cR1Results.length === 1 ? cR1Results[0] : null);
   const seventhRes = (cR1Results.length >= 2) ? runMatch({seed: placementMap[cR1Results[0].loser], rosterId: cR1Results[0].loser}, {seed: placementMap[cR1Results[1].loser], rosterId: cR1Results[1].loser}, `7th`) : null;
 
   // -------------------------
-  // Losers bracket (corrected)
+  // Losers bracket (initial "losers race"): pair remaining seeds (those not in winners bracket)
+  // We'll pair them similarly: first v last among losersSeeds, second v second-last
   // -------------------------
-  // initial LRace pairs: 9v12, 10v11 (13 & 14 byes)
-  const lPairsSeedNums = [[9,12],[10,11]];
-  const lR1Results = [];
-  // map seed -> roster object for losers race
+  const lPairsSeedNums = [];
   const lBySeed = {};
   for (const s of losersSeeds) lBySeed[s.seed] = s;
+  // build pairs from losersSeeds array
+  const losersArr = [...losersSeeds].sort((a,b) => (a.seed || 999) - (b.seed || 999));
+  const lHalf = Math.floor(losersArr.length/2);
+  for (let i = 0; i < lHalf; i++) {
+    const left = losersArr[i];
+    const right = losersArr[losersArr.length - 1 - i];
+    lPairsSeedNums.push([ left.seed, right.seed ]);
+  }
 
+  const lR1Results = [];
   for (const [s1,s2] of lPairsSeedNums) {
     const objA = lBySeed[s1] || {seed:s1, rosterId: placementToRoster[s1]};
     const objB = lBySeed[s2] || {seed:s2, rosterId: placementToRoster[s2]};
@@ -573,24 +636,21 @@ export async function load(event) {
 
   // winners of initial LRace will play for 9th
   const lWinners = lR1Results.map(r => ({ rosterId: r.winner, seed: placementMap[r.winner] ?? null }));
-  // losers of initial LRace go to LRaceSemi and play the byes 13/14
   const lLosers = lR1Results.map(r => ({ rosterId: r.loser, seed: placementMap[r.loser] ?? null }));
 
-  // byes
-  const bye13 = { seed: 13, rosterId: placementToRoster[13] ?? null };
-  const bye14 = { seed: 14, rosterId: placementToRoster[14] ?? null };
-
-  // pair losers with byes: map lower-seed loser to higher bye (14), higher-seed loser to lower bye (13)
-  lLosers.sort((a,b) => (a.seed || 999) - (b.seed || 999)); // ascending
+  // byes: try to detect if higher seeds had byes (13/14 etc) - include them as seeds if present
+  const byeCandidates = [];
+  for (let s = 1; s <= Object.keys(placementToRoster).length; s++) {
+    if (!winnersSeeds.find(w => w.seed === s) && !losersSeeds.find(l => l.seed === s)) {
+      const rid = placementToRoster[s];
+      if (rid && playoffParticipantsSet.has(String(rid))) byeCandidates.push({ seed: s, rosterId: rid });
+    }
+  }
+  // map losers with byes for next stage
+  lLosers.sort((a,b) => (a.seed || 999) - (b.seed || 999));
   const lrSemiPairs = [];
-  if (lLosers.length >= 1) {
-    const loserA = lLosers[0];
-    lrSemiPairs.push([ loserA, bye14 ]);
-  }
-  if (lLosers.length >= 2) {
-    const loserB = lLosers[1];
-    lrSemiPairs.push([ loserB, bye13 ]);
-  }
+  if (lLosers.length >= 1 && byeCandidates.length >= 1) lrSemiPairs.push([ lLosers[0], byeCandidates[ byeCandidates.length - 1 ] ]);
+  if (lLosers.length >= 2 && byeCandidates.length >= 2) lrSemiPairs.push([ lLosers[1], byeCandidates[ byeCandidates.length - 2 ] ]);
 
   const lSemiResults = [];
   for (const pair of lrSemiPairs) {
@@ -610,7 +670,6 @@ export async function load(event) {
   if (lWinners.length >= 2) {
     lFinalRes = runMatch({seed: lWinners[0].seed, rosterId: lWinners[0].rosterId}, {seed: lWinners[1].seed, rosterId: lWinners[1].rosterId}, `9th`);
   } else if (lWinners.length === 1) {
-    // only one winner (rare) -> they take 9th
     lFinalRes = { winner: lWinners[0].rosterId, loser: null, reason: 'auto' };
     trace.push(`9th auto -> ${placementMap[lWinners[0].rosterId] ?? lWinners[0].rosterId} (single-winner)`);
   }
@@ -618,7 +677,6 @@ export async function load(event) {
   // 11th: winners of LRaceSemi play
   let l11Res = null, l13Res = null;
   if (lSemiResults.length >= 2) {
-    // winners of semis -> play for 11th
     const semiWinners = lSemiResults.map(r => ({ rosterId: r.winner, seed: placementMap[r.winner] ?? null }));
     const semiLosers = lSemiResults.map(r => ({ rosterId: r.loser, seed: placementMap[r.loser] ?? null }));
 
@@ -629,7 +687,6 @@ export async function load(event) {
       trace.push(`11th auto -> ${placementMap[semiWinners[0].rosterId] ?? semiWinners[0].rosterId} (single-semi-winner)`);
     }
 
-    // losers of semis -> play for 13th
     if (semiLosers.length >= 2) {
       l13Res = runMatch({seed: semiLosers[0].seed, rosterId: semiLosers[0].rosterId}, {seed: semiLosers[1].seed, rosterId: semiLosers[1].rosterId}, `13th`);
     } else if (semiLosers.length === 1) {
@@ -637,7 +694,6 @@ export async function load(event) {
       trace.push(`13th auto -> ${placementMap[semiLosers[0].rosterId] ?? semiLosers[0].rosterId} (single-semi-loser)`);
     }
   } else if (lSemiResults.length === 1) {
-    // only one semi result -> the winner gets 11th and loser gets 13th maybe (fallback)
     l11Res = { winner: lSemiResults[0].winner, loser: null, reason: 'only-semi' };
     l13Res = { winner: lSemiResults[0].loser, loser: null, reason: 'only-semi' };
     trace.push(`LRaceSemi single -> 11th ${placementMap[lSemiResults[0].winner] ?? lSemiResults[0].winner} , 13th ${placementMap[lSemiResults[0].loser] ?? lSemiResults[0].loser}`);
@@ -729,8 +785,7 @@ export async function load(event) {
   const champion = finalStandings[0] ?? null;
   const biggestLoser = finalStandings[finalStandings.length - 1] ?? null;
 
-
-  // compute MVPs using sleeper client helpers
+  // compute MVPs using sleeper client helpers (try/catch non-fatal)
   let finalsMvp = null;
   let overallMvp = null;
   try {
@@ -755,10 +810,8 @@ export async function load(event) {
       overallMvp.roster_meta = rosterMap[String(overallMvp.topRosterId)];
     }
   } catch (e) {
-    // non-fatal, attach nothing
+    // non-fatal
   }
-
-
 
   return {
     seasons,
@@ -769,6 +822,8 @@ export async function load(event) {
     matchupsRows,
     regularStandings,
     finalStandings,
+    champion,
+    biggestLoser,
     debug: trace,
     messages,
     prevChain,
