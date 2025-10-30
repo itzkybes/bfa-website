@@ -7,25 +7,20 @@
   const seasons = data?.seasons ?? [];
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
-  // finalStandings returned by server for the selected season (server returns top-level finalStandings already)
-  const finalStandings = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
+  // final standings payloads (server provides finalStandingsBySeason? fallback to finalStandings)
+  const finalStandingsFallback = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
 
-  // debug trace returned from server
-  const debugLines = Array.isArray(data?.debug) ? data.debug : [];
+  // Use server-provided champion / biggestLoser (do not derive client-side)
+  $: champion = data?.champion ?? null;
+  $: biggestLoser = data?.biggestLoser ?? null;
 
-  // champion / biggestLoser now come from top-level payload (server-side)
-  const champion = data?.champion ?? (finalStandings && finalStandings.length ? finalStandings[0] : null);
-  const biggestLoser = data?.biggestLoser ?? (finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null);
-
-  // MVPs (may be null)
+  // MVP objects from server
   let finalsMvp = data?.finalsMvp ?? null;
   let overallMvp = data?.overallMvp ?? null;
 
-  // helper to build player headshot URL (NBA fallback)
-  function playerHeadshot(playerId, size = 56) {
-    if (!playerId) return '';
-    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
-  }
+  // debug lines from server
+  const debugLines = Array.isArray(data?.debug) ? data.debug : [];
+  const messages = Array.isArray(data?.messages) ? data.messages : [];
 
   // format points to a single decimal place safely
   function formatPts(v) {
@@ -34,7 +29,6 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // submit filters (season selector)
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form?.requestSubmit) form.requestSubmit();
@@ -54,56 +48,84 @@
     return '';
   }
 
-  // Filter debug lines: remove seed reassignment traces (keep useful traces)
-  function filteredDebug(lines) {
-    if (!Array.isArray(lines)) return [];
-    return lines.filter(l => {
-      if (!l) return false;
-      const s = String(l);
-      if (s.startsWith('Assign place')) return false;
-      if (s.startsWith('Fallback assign')) return false;
-      if (s.includes('Assign place ')) return false;
-      if (s.includes('Fallback assign')) return false;
-      return true;
-    });
+  // MVP player resolution cache
+  let playerCache = {};
+
+  // attempt to resolve a single playerId -> { full_name, headshotUrl }
+  async function resolvePlayer(playerId) {
+    if (!playerId) return null;
+    if (playerCache[playerId]) return playerCache[playerId];
+
+    // attempt direct player endpoint (best-effort). Graceful fallback on any error.
+    const candidate = { playerId, full_name: null, headshotUrl: null };
+    try {
+      // try direct lookup endpoint (may or may not exist depending on environment)
+      const url = `https://api.sleeper.app/v1/players/nba/${playerId}`;
+      const res = await fetch(url);
+      if (res && res.ok) {
+        const body = await res.json();
+        // common shapes: { full_name, player_id, ... } or nested structures — handle mostly full_name
+        candidate.full_name = body.full_name ?? body.name ?? body.player_name ?? null;
+        // Sleeper CDN headshot pattern:
+        candidate.headshotUrl = `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+        playerCache[playerId] = candidate;
+        return candidate;
+      }
+    } catch (e) {
+      // ignore and try fallback below
+    }
+
+    // fallback: try batch endpoint (may be large — but try minimal fetch)
+    try {
+      const url2 = `https://api.sleeper.app/v1/players/nba`;
+      const res2 = await fetch(url2);
+      if (res2 && res2.ok) {
+        const body2 = await res2.json();
+        // body2 sometimes returns a map keyed by playerId
+        if (body2 && typeof body2 === 'object') {
+          const info = body2[playerId] || Object.values(body2).find(p => (p.player_id === playerId || p.playerId === playerId));
+          if (info) {
+            candidate.full_name = info.full_name ?? info.name ?? info.player_name ?? null;
+            candidate.headshotUrl = `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+            playerCache[playerId] = candidate;
+            return candidate;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // final fallback: no remote data available
+    candidate.full_name = null;
+    candidate.headshotUrl = null;
+    playerCache[playerId] = candidate;
+    return candidate;
   }
 
-  $: visibleDebug = filteredDebug(debugLines);
-
-  // Attempt to resolve player names for MVPs client-side (optional enhancement).
-  // We'll try to fetch player metadata if the MVP object contains a playerId
-  // Note: network call is optional and non-fatal.
-  let resolvedFinalsPlayer = null;
-  let resolvedOverallPlayer = null;
-
+  // On mount: attempt to resolve MVP player IDs (non-blocking)
   onMount(async () => {
     try {
-      if (finalsMvp && (finalsMvp.playerId || finalsMvp.player)) {
-        const pid = finalsMvp.playerId ?? finalsMvp.player;
-        try {
-          const res = await fetch(`https://api.sleeper.app/v1/players/nba/${encodeURIComponent(pid)}`);
-          if (res.ok) {
-            resolvedFinalsPlayer = await res.json();
-          }
-        } catch (e) {
-          // ignore
+      if (finalsMvp && (finalsMvp.playerId || finalsMvp.player_id)) {
+        const pid = finalsMvp.playerId ?? finalsMvp.player_id;
+        const got = await resolvePlayer(pid);
+        if (got) {
+          finalsMvp._resolvedName = finalsMvp._resolvedName || (got.full_name ?? finalsMvp.playerName ?? finalsMvp.playerObj?.full_name);
+          finalsMvp._resolvedHeadshot = finalsMvp._resolvedHeadshot || (got.headshotUrl ?? null);
         }
       }
-    } catch (e) {}
-
-    try {
-      if (overallMvp && (overallMvp.playerId || overallMvp.player || overallMvp.topPlayerId)) {
-        const pid = overallMvp.playerId ?? overallMvp.player ?? overallMvp.topPlayerId;
-        try {
-          const res = await fetch(`https://api.sleeper.app/v1/players/nba/${encodeURIComponent(pid)}`);
-          if (res.ok) {
-            resolvedOverallPlayer = await res.json();
-          }
-        } catch (e) {
-          // ignore
+      if (overallMvp && (overallMvp.playerId || overallMvp.player_id || overallMvp.topPlayerId)) {
+        const pid = overallMvp.playerId ?? overallMvp.player_id ?? overallMvp.topPlayerId;
+        const got2 = await resolvePlayer(pid);
+        if (got2) {
+          overallMvp._resolvedName = overallMvp._resolvedName || (got2.full_name ?? overallMvp.playerName ?? overallMvp.playerObj?.full_name);
+          overallMvp._resolvedHeadshot = overallMvp._resolvedHeadshot || (got2.headshotUrl ?? null);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // non-fatal
+      console.warn('MVP resolve failed', e);
+    }
   });
 </script>
 
@@ -189,7 +211,7 @@
 <div class="container">
   <div class="header">
     <div>
-      <h1>Honor Hall</h1>
+      <h1>Honors Hall</h1>
       <div class="subtitle">Final placements computed from playoff results — season {selectedSeason}</div>
     </div>
 
@@ -214,8 +236,8 @@
   <div class="main">
     <div class="debug" aria-live="polite">
       <ul>
-        {#if visibleDebug && visibleDebug.length}
-          {#each visibleDebug as d}
+        {#if debugLines && debugLines.length}
+          {#each debugLines as d}
             <li>{@html d.replace(/</g,'&lt;')}</li>
           {/each}
         {:else}
@@ -226,8 +248,8 @@
 
     <h3 style="margin:0 0 12px 0">Final Standings</h3>
     <ul class="standings-list" role="list" aria-label="Final standings">
-      {#if finalStandings && finalStandings.length}
-        {#each finalStandings as row (row.rosterId)}
+      {#if Array.isArray(data.finalStandings) && data.finalStandings.length}
+        {#each data.finalStandings as row (row.rosterId)}
           <li class="stand-row" role="listitem">
             <div class="rank" aria-hidden="true">
               <span>{row.rank}</span>
@@ -237,7 +259,7 @@
             <div class="player" style="min-width:0;">
               <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
               <div style="min-width:0;">
-                <div class="teamName">{row.team_name}</div>
+                <div class="teamName" title={row.team_name}>{row.team_name}</div>
                 <div class="teamMeta">
                   {#if row.owner_name}
                     {row.owner_name}
@@ -272,10 +294,10 @@
 
     {#if biggestLoser}
       <div style="margin-top:8px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="last place avatar" style="width:64px;height:64px">
+        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:64px;height:64px">
         <div>
-          <div class="outcome-name">Last Place</div>
-          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Rank: {biggestLoser.rank}</div>
+          <div class="outcome-name">Biggest loser <span style="margin-left:6px">😵‍💫</span></div>
+          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Seed #{biggestLoser.seed}</div>
         </div>
       </div>
     {/if}
@@ -284,7 +306,7 @@
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
+          src={finalsMvp._resolvedHeadshot || `https://sleepercdn.com/content/nba/players/${finalsMvp.playerId ?? finalsMvp.player_id}.jpg` || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
           alt="finals mvp avatar"
           style="width:56px;height:56px"
           on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName); }}
@@ -292,18 +314,10 @@
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">
-            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId ?? finalsMvp.player}`}
+            {finalsMvp._resolvedName ?? finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId ?? finalsMvp.player_id}`}
             • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
             • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}
           </div>
-        </div>
-      </div>
-    {:else}
-      <div style="margin-top:12px" class="outcome-row">
-        <div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.02)"></div>
-        <div>
-          <div class="outcome-name">Finals MVP</div>
-          <div class="small">No player-level data found for the championship matchup.</div>
         </div>
       </div>
     {/if}
@@ -312,7 +326,7 @@
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
+          src={overallMvp._resolvedHeadshot || `https://sleepercdn.com/content/nba/players/${overallMvp.playerId ?? overallMvp.player_id ?? overallMvp.topPlayerId}.jpg` || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
           alt="overall mvp avatar"
           style="width:56px;height:56px"
           on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName); }}
@@ -320,18 +334,10 @@
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">
-            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId}`}
+            {overallMvp._resolvedName ?? overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId}`}
             • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
             • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId}`}
           </div>
-        </div>
-      </div>
-    {:else}
-      <div style="margin-top:12px" class="outcome-row">
-        <div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.02)"></div>
-        <div>
-          <div class="outcome-name">Overall MVP</div>
-          <div class="small">No player-level data available to compute overall MVP.</div>
         </div>
       </div>
     {/if}
