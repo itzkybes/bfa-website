@@ -202,7 +202,7 @@ function nextWeekContainsExplicitZero(matchupsArr) {
     if (Object.prototype.hasOwnProperty.call(m, 'teamBScore') && Number(m.teamBScore) === 0) return true;
 
     if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'score') && Number(m.teamA.score) === 0) return true;
-    if (m.teamB && Object.prototype.hasOwnProperty.call(m, 'score') && Number(m.teamB.score) === 0) return true;
+    if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'score') && Number(m.teamB.score) === 0) return true;
     if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'points') && Number(m.teamA.points) === 0) return true;
     if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'points') && Number(m.teamB.points) === 0) return true;
 
@@ -256,6 +256,22 @@ function canonicalFromParticipant(obj, rosterMap) {
   }
 
   return null;
+}
+
+// ---- roster map caching + ensure helper (will attempt a fresh fetch if force=true) ----
+const rosterMapsCache = {}; // leagueId -> rosterMap
+async function ensureRosterMap(leagueId, force = false) {
+  if (!leagueId) return {};
+  if (!force && rosterMapsCache[leagueId]) return rosterMapsCache[leagueId];
+  try {
+    // try to fetch roster map with owners (use small ttl for caching inside sleeper client)
+    const rm = await sleeper.getRosterMapWithOwners(leagueId, { ttl: 60 * 5 }) || {};
+    rosterMapsCache[leagueId] = rm;
+    return rm;
+  } catch (e) {
+    // return whatever we had
+    return rosterMapsCache[leagueId] || {};
+  }
 }
 
 export async function load(event) {
@@ -547,34 +563,6 @@ export async function load(event) {
             const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? m.points ?? 0);
             const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
 
-            // record margin candidate for this matchup, include avatars when present
-            try {
-              const margin = Math.abs(ptsA - ptsB);
-              // prefer explicit avatar fields on entries, else fallback to any nested avatar fields
-              const avatarA = a.avatar ?? a.teamAvatar ?? a.team_avatar ?? a.ownerAvatar ?? a.owner_avatar ?? null;
-              const avatarB = b.avatar ?? b.teamAvatar ?? b.team_avatar ?? b.ownerAvatar ?? b.owner_avatar ?? null;
-              marginCandidates.push({
-                margin: margin,
-                season: String(yearKey),
-                week: Number(week),
-                teamA: a.name ?? null,
-                ownerA: a.ownerName ?? null,
-                teamB: b.name ?? null,
-                ownerB: b.ownerName ?? null,
-                pfA: ptsA,
-                pfB: ptsB,
-                avatarA: avatarA,
-                avatarB: avatarB
-              });
-            } catch (e) {}
-
-            // update H2H from these JSON-style participants (no rosterMap available here)
-            try {
-              const aCanon = canonicalFromParticipant(a, null);
-              const bCanon = canonicalFromParticipant(b, null);
-              updateH2H(aCanon, bCanon, ptsA, ptsB, yearKey, week);
-            } catch (e) {}
-
             paByRoster[ridA] = paByRoster[ridA] || 0;
             paByRoster[ridB] = paByRoster[ridB] || 0;
             resultsByRoster[ridA] = resultsByRoster[ridA] || [];
@@ -648,6 +636,8 @@ export async function load(event) {
       let rosterMap = {};
       try {
         rosterMap = await sleeper.getRosterMapWithOwners(leagueId, { ttl: 60 * 5 }) || {};
+        // cache it
+        rosterMapsCache[leagueId] = rosterMap;
       } catch (e) {
         rosterMap = {};
       }
@@ -845,143 +835,165 @@ export async function load(event) {
             }
           }
 
-          // ----- fallback API processing (unchanged from original logic) -----
+          // continue to next week (we already processed JSON)
+          continue;
         }
 
-        if (!isFromSeasonJSON) {
-          const byMatch = {};
-          for (let mi = 0; mi < matchups.length; mi++) {
-            const entry = matchups[mi];
-            const mid = entry.matchup_id ?? entry.matchupId ?? entry.matchup ?? null;
-            const wk = entry.week ?? entry.w ?? week;
-            const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
-            if (!byMatch[key]) byMatch[key] = [];
-            byMatch[key].push(entry);
-          }
+        // ----- fallback API processing (unchanged from original logic) -----
+        const byMatch = {};
+        for (let mi = 0; mi < matchups.length; mi++) {
+          const entry = matchups[mi];
+          const mid = entry.matchup_id ?? entry.matchupId ?? entry.matchup ?? null;
+          const wk = entry.week ?? entry.w ?? week;
+          const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
+          if (!byMatch[key]) byMatch[key] = [];
+          byMatch[key].push(entry);
+        }
 
-          const mids = Object.keys(byMatch);
-          for (let mii = 0; mii < mids.length; mii++) {
-            const mid = mids[mii];
-            const entries = byMatch[mid];
-            if (!entries || entries.length === 0) continue;
+        const mids = Object.keys(byMatch);
+        for (let mii = 0; mii < mids.length; mii++) {
+          const mid = mids[mii];
+          const entries = byMatch[mid];
+          if (!entries || entries.length === 0) continue;
 
-            if (entries.length === 1) {
-              const only = entries[0];
-              const ridOnly = only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId;
-              const keyRid = String(ridOnly);
-              paByRoster[keyRid] = paByRoster[keyRid] || 0;
-              resultsByRoster[keyRid] = resultsByRoster[keyRid] || [];
-              statsByRoster[keyRid] = statsByRoster[keyRid] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+          if (entries.length === 1) {
+            const only = entries[0];
+            const ridOnly = only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId;
+            const keyRid = String(ridOnly);
+            paByRoster[keyRid] = paByRoster[keyRid] || 0;
+            resultsByRoster[keyRid] = resultsByRoster[keyRid] || [];
+            statsByRoster[keyRid] = statsByRoster[keyRid] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
 
-              let ptsOnly = null;
-              try {
-                // earlyData override handling (only for 2023 early weeks)
-                if (earlyData) {
-                  const meta = rosterMap[String(ridOnly)] || {};
-                  const ownerLow = (meta.owner_name || meta.owner_username) ? String((meta.owner_name || meta.owner_username)).toLowerCase() : null;
-                  const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
-                  if (ownerLow && earlyData['2023'] && earlyData['2023'][String(week)]) {
-                    const arr = earlyData['2023'][String(week)];
-                    const found = (arr || []).find(e => (e.teamA && e.teamA.ownerName && String(e.teamA.ownerName).toLowerCase() === ownerLow) || (e.teamB && e.teamB.ownerName && String(e.teamB.ownerName).toLowerCase() === ownerLow) || (e.teamA && e.teamA.name && String(e.teamA.name).toLowerCase() === teamLow) || (e.teamB && e.teamB.name && String(e.teamB.name).toLowerCase() === teamLow));
-                    if (found) {
-                      if (found.teamA && found.teamA.ownerName && String(found.teamA.ownerName).toLowerCase() === ownerLow) ptsOnly = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
-                      else if (found.teamB && found.teamB.ownerName && String(found.teamB.ownerName).toLowerCase() === ownerLow) ptsOnly = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
-                      else if (found.teamA && found.teamA.name && String(found.teamA.name).toLowerCase() === teamLow) ptsOnly = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
-                      else if (found.teamB && found.teamB.name && String(found.teamB.name).toLowerCase() === teamLow) ptsOnly = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
-                    }
+            let ptsOnly = null;
+            try {
+              // earlyData override handling (only for 2023 early weeks)
+              if (earlyData) {
+                const meta = rosterMap[String(ridOnly)] || {};
+                const ownerLow = (meta.owner_name || meta.owner_username) ? String((meta.owner_name || meta.owner_username)).toLowerCase() : null;
+                const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
+                if (ownerLow && earlyData['2023'] && earlyData['2023'][String(week)]) {
+                  const arr = earlyData['2023'][String(week)];
+                  const found = (arr || []).find(e => (e.teamA && e.teamA.ownerName && String(e.teamA.ownerName).toLowerCase() === ownerLow) || (e.teamB && e.teamB.ownerName && String(e.teamB.ownerName).toLowerCase() === ownerLow) || (e.teamA && e.teamA.name && String(e.teamA.name).toLowerCase() === teamLow) || (e.teamB && e.teamB.name && String(e.teamB.name).toLowerCase() === teamLow));
+                  if (found) {
+                    if (found.teamA && found.teamA.ownerName && String(found.teamA.ownerName).toLowerCase() === ownerLow) ptsOnly = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
+                    else if (found.teamB && found.teamB.ownerName && String(found.teamB.ownerName).toLowerCase() === ownerLow) ptsOnly = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
+                    else if (found.teamA && found.teamA.name && String(found.teamA.name).toLowerCase() === teamLow) ptsOnly = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
+                    else if (found.teamB && found.teamB.name && String(found.teamB.name).toLowerCase() === teamLow) ptsOnly = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
                   }
                 }
-              } catch (e) { ptsOnly = null; }
-              if (ptsOnly == null) ptsOnly = computeParticipantPoints(only);
-              statsByRoster[keyRid].pf += ptsOnly;
-              continue;
-            }
+              }
+            } catch (e) { ptsOnly = null; }
+            if (ptsOnly == null) ptsOnly = computeParticipantPoints(only);
+            statsByRoster[keyRid].pf += ptsOnly;
+            continue;
+          }
 
-            const participants = [];
-            for (let e = 0; e < entries.length; e++) {
-              const en = entries[e];
-              const pid = en.roster_id ?? en.rosterId ?? en.owner_id ?? en.ownerId;
-              const pidStr = String(pid);
-              let ppts = null;
-              if (earlyData) {
-                try {
-                  const meta = rosterMap[pidStr] || {};
-                  const ownerLow = (meta.owner_name || meta.owner_username) ? String((meta.owner_name || meta.owner_username)).toLowerCase() : null;
-                  const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
-                  if (ownerLow && earlyData['2023'] && earlyData['2023'][String(week)]) {
-                    const arr = earlyData['2023'][String(week)];
-                    const found = (arr || []).find(e2 => (e2.teamA && e2.teamA.ownerName && String(e2.teamA.ownerName).toLowerCase() === ownerLow) || (e2.teamB && e2.teamB.ownerName && String(e2.teamB.ownerName).toLowerCase() === ownerLow) || (e2.teamA && e2.teamA.name && String(e2.teamA.name).toLowerCase() === teamLow) || (e2.teamB && e2.teamB.name && String(e2.teamB.name).toLowerCase() === teamLow));
-                    if (found) {
-                      if (found.teamA && found.teamA.ownerName && String(found.teamA.ownerName).toLowerCase() === ownerLow) ppts = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
-                      else if (found.teamB && found.teamB.ownerName && String(found.teamB.ownerName).toLowerCase() === ownerLow) ppts = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
-                      else if (found.teamA && found.teamA.name && String(found.teamA.name).toLowerCase() === teamLow) ppts = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
-                      else if (found.teamB && found.teamB.name && String(found.teamB.name).toLowerCase() === teamLow) ppts = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
-                    }
+          const participants = [];
+          for (let e = 0; e < entries.length; e++) {
+            const en = entries[e];
+            const pid = en.roster_id ?? en.rosterId ?? en.owner_id ?? en.ownerId;
+            const pidStr = String(pid);
+            let ppts = null;
+            if (earlyData) {
+              try {
+                const meta = rosterMap[pidStr] || {};
+                const ownerLow = (meta.owner_name || meta.owner_username) ? String((meta.owner_name || meta.owner_username)).toLowerCase() : null;
+                const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
+                if (ownerLow && earlyData['2023'] && earlyData['2023'][String(week)]) {
+                  const arr = earlyData['2023'][String(week)];
+                  const found = (arr || []).find(e2 => (e2.teamA && e2.teamA.ownerName && String(e2.teamA.ownerName).toLowerCase() === ownerLow) || (e2.teamB && e2.teamB.ownerName && String(e2.teamB.ownerName).toLowerCase() === ownerLow) || (e2.teamA && e2.teamA.name && String(e2.teamA.name).toLowerCase() === teamLow) || (e2.teamB && e2.teamB.name && String(e2.teamB.name).toLowerCase() === teamLow));
+                  if (found) {
+                    if (found.teamA && found.teamA.ownerName && String(found.teamA.ownerName).toLowerCase() === ownerLow) ppts = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
+                    else if (found.teamB && found.teamB.ownerName && String(found.teamB.ownerName).toLowerCase() === ownerLow) ppts = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
+                    else if (found.teamA && found.teamA.name && String(found.teamA.name).toLowerCase() === teamLow) ppts = safeNum(found.teamAScore ?? found.teamA?.score ?? found.teamA?.points ?? 0);
+                    else if (found.teamB && found.teamB.name && String(found.teamB.name).toLowerCase() === teamLow) ppts = safeNum(found.teamBScore ?? found.teamB?.score ?? found.teamB?.points ?? 0);
                   }
-                } catch (e) { ppts = null; }
-              }
-              if (ppts == null) ppts = computeParticipantPoints(en);
-              participants.push({ rosterId: String(pid), points: ppts, rawEntry: en });
-              paByRoster[String(pid)] = paByRoster[String(pid)] || 0;
-              resultsByRoster[String(pid)] = resultsByRoster[String(pid)] || [];
-              statsByRoster[String(pid)] = statsByRoster[String(pid)] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-              statsByRoster[String(pid)].pf += ppts;
+                }
+              } catch (e) { ppts = null; }
             }
+            if (ppts == null) ppts = computeParticipantPoints(en);
+            participants.push({ rosterId: String(pid), points: ppts, rawEntry: en });
+            paByRoster[String(pid)] = paByRoster[String(pid)] || 0;
+            resultsByRoster[String(pid)] = resultsByRoster[String(pid)] || [];
+            statsByRoster[String(pid)] = statsByRoster[String(pid)] || { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
+            statsByRoster[String(pid)].pf += ppts;
+          }
 
-            // If this matchup has at least two participants, compute margin between first two (commonly 1v1)
-            if (participants.length >= 2) {
-              try {
-                const p0 = participants[0];
-                const p1 = participants[1];
-                const margin = Math.abs((p0.points || 0) - (p1.points || 0));
-                // attempt to resolve team names/owners/avatars from rosterMap if available
-                const meta0 = rosterMap && rosterMap[p0.rosterId] ? rosterMap[p0.rosterId] : {};
-                const meta1 = rosterMap && rosterMap[p1.rosterId] ? rosterMap[p1.rosterId] : {};
-                marginCandidates.push({
-                  margin: margin,
-                  season: leagueSeason || String(leagueId),
-                  week: Number(week),
-                  teamA: meta0.team_name || null,
-                  ownerA: meta0.owner_name || null,
-                  teamB: meta1.team_name || null,
-                  ownerB: meta1.owner_name || null,
-                  pfA: p0.points || 0,
-                  pfB: p1.points || 0,
-                  avatarA: meta0.team_avatar || meta0.owner_avatar || null,
-                  avatarB: meta1.team_avatar || meta1.owner_avatar || null
-                });
-              } catch (e) {}
-            }
+          // If this matchup has at least two participants, compute margin between first two (commonly 1v1)
+          if (participants.length >= 2) {
+            try {
+              const p0 = participants[0];
+              const p1 = participants[1];
+              const margin = Math.abs((p0.points || 0) - (p1.points || 0));
+              // attempt to resolve team names/owners/avatars from rosterMap if available
+              let meta0 = rosterMap && rosterMap[p0.rosterId] ? rosterMap[p0.rosterId] : {};
+              let meta1 = rosterMap && rosterMap[p1.rosterId] ? rosterMap[p1.rosterId] : {};
 
-            // Update H2H for multi-entry matchups (pairwise between first two participants)
-            if (participants.length >= 2) {
-              try {
-                const p0 = participants[0];
-                const p1 = participants[1];
-                const aCanon = canonicalFromParticipant({ rosterId: p0.rosterId, name: rosterMap[p0.rosterId]?.team_name, ownerName: rosterMap[p0.rosterId]?.owner_name, avatar: rosterMap[p0.rosterId]?.team_avatar || rosterMap[p0.rosterId]?.owner_avatar }, rosterMap);
-                const bCanon = canonicalFromParticipant({ rosterId: p1.rosterId, name: rosterMap[p1.rosterId]?.team_name, ownerName: rosterMap[p1.rosterId]?.owner_name, avatar: rosterMap[p1.rosterId]?.team_avatar || rosterMap[p1.rosterId]?.owner_avatar }, rosterMap);
-                updateH2H(aCanon, bCanon, p0.points, p1.points, leagueSeason, week);
-              } catch (e) {}
-            }
+              // If avatar missing, try a forced refresh from Sleeper for this league to pick up team_avatar/owner_avatar
+              if ((!meta0 || (!meta0.team_avatar && !meta0.owner_avatar)) || (!meta1 || (!meta1.team_avatar && !meta1.owner_avatar))) {
+                try {
+                  const fresh = await ensureRosterMap(leagueId, true);
+                  if (fresh && fresh[p0.rosterId]) meta0 = fresh[p0.rosterId];
+                  if (fresh && fresh[p1.rosterId]) meta1 = fresh[p1.rosterId];
+                } catch (e) {
+                  // ignore refresh errors
+                }
+              }
 
-            for (let pi = 0; pi < participants.length; pi++) {
-              const part = participants[pi];
-              const opponents = [];
-              for (let oi = 0; oi < participants.length; oi++) {
-                if (oi === pi) continue;
-                opponents.push(participants[oi]);
+              marginCandidates.push({
+                margin: margin,
+                season: leagueSeason || String(leagueId),
+                week: Number(week),
+                teamA: meta0.team_name || null,
+                ownerA: meta0.owner_name || null,
+                teamB: meta1.team_name || null,
+                ownerB: meta1.owner_name || null,
+                pfA: p0.points || 0,
+                pfB: p1.points || 0,
+                avatarA: meta0.team_avatar || meta0.owner_avatar || null,
+                avatarB: meta1.team_avatar || meta1.owner_avatar || null
+              });
+            } catch (e) {}
+          }
+
+          // Update H2H for multi-entry matchups (pairwise between first two participants)
+          if (participants.length >= 2) {
+            try {
+              const p0 = participants[0];
+              const p1 = participants[1];
+              // try to ensure avatars from rosterMap, refresh if needed
+              let meta0 = rosterMap && rosterMap[p0.rosterId] ? rosterMap[p0.rosterId] : {};
+              let meta1 = rosterMap && rosterMap[p1.rosterId] ? rosterMap[p1.rosterId] : {};
+              if ((!meta0 || (!meta0.team_avatar && !meta0.owner_avatar)) || (!meta1 || (!meta1.team_avatar && !meta1.owner_avatar))) {
+                try {
+                  const fresh = await ensureRosterMap(leagueId, true);
+                  if (fresh && fresh[p0.rosterId]) meta0 = fresh[p0.rosterId];
+                  if (fresh && fresh[p1.rosterId]) meta1 = fresh[p1.rosterId];
+                } catch (e) {}
               }
-              let oppAvg = 0;
-              if (opponents.length) {
-                for (let oa = 0; oa < opponents.length; oa++) oppAvg += opponents[oa].points;
-                oppAvg = oppAvg / opponents.length;
-              }
-              paByRoster[part.rosterId] = paByRoster[part.rosterId] || 0;
-              paByRoster[part.rosterId] += oppAvg;
-              if (part.points > oppAvg + 1e-9) { resultsByRoster[part.rosterId].push('W'); statsByRoster[part.rosterId].wins += 1; }
-              else if (part.points < oppAvg - 1e-9) { resultsByRoster[part.rosterId].push('L'); statsByRoster[part.rosterId].losses += 1; }
-              else { resultsByRoster[part.rosterId].push('T'); statsByRoster[part.rosterId].ties += 1; }
+              const aCanon = canonicalFromParticipant({ rosterId: p0.rosterId, name: meta0.team_name, ownerName: meta0.owner_name, avatar: meta0.team_avatar || meta0.owner_avatar }, rosterMap);
+              const bCanon = canonicalFromParticipant({ rosterId: p1.rosterId, name: meta1.team_name, ownerName: meta1.owner_name, avatar: meta1.team_avatar || meta1.owner_avatar }, rosterMap);
+              updateH2H(aCanon, bCanon, p0.points, p1.points, leagueSeason, week);
+            } catch (e) {}
+          }
+
+          for (let pi = 0; pi < participants.length; pi++) {
+            const part = participants[pi];
+            const opponents = [];
+            for (let oi = 0; oi < participants.length; oi++) {
+              if (oi === pi) continue;
+              opponents.push(participants[oi]);
             }
+            let oppAvg = 0;
+            if (opponents.length) {
+              for (let oa = 0; oa < opponents.length; oa++) oppAvg += opponents[oa].points;
+              oppAvg = oppAvg / opponents.length;
+            }
+            paByRoster[part.rosterId] = paByRoster[part.rosterId] || 0;
+            paByRoster[part.rosterId] += oppAvg;
+            if (part.points > oppAvg + 1e-9) { resultsByRoster[part.rosterId].push('W'); statsByRoster[part.rosterId].wins += 1; }
+            else if (part.points < oppAvg - 1e-9) { resultsByRoster[part.rosterId].push('L'); statsByRoster[part.rosterId].losses += 1; }
+            else { resultsByRoster[part.rosterId].push('T'); statsByRoster[part.rosterId].ties += 1; }
           }
         }
       } // end weeks loop
