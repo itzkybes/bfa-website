@@ -1287,14 +1287,25 @@ export async function load(event) {
 
       // if we have a lookup avatar/team/display for this opponent, apply if missing
       if (opp && avatarLookup[opp]) r.opponentAvatar = r.opponentAvatar || avatarLookup[opp];
-      if (opp && ownerTeamLookup[opp]) r.opponentTeam = r.opponentTeam || ownerTeamLookup[opp];
-      if (opp && ownerDisplayLookup[opp]) r.opponentDisplay = r.opponentDisplay || ownerDisplayLookup[opp];
 
-      // if still missing team but we have display, use display as team
-      if (!r.opponentTeam && r.opponentDisplay) r.opponentTeam = r.opponentDisplay;
+      // PREFERRED FIX: prefer the most recent team name (ownerTeamLookup) for display, then fallback to ownerDisplayLookup.
+      if (opp) {
+        const teamNameLatest = ownerTeamLookup[opp] || ownerDisplayLookup[opp] || null;
+        const ownerDisplayLatest = ownerDisplayLookup[opp] || null;
 
-      // ensure if opponent is remapped to jakepratt we show canonical display
-      if (opp && OWNER_DISPLAY[opp]) r.opponentDisplay = OWNER_DISPLAY[opp];
+        if (teamNameLatest) {
+          // Use latest team name for the line above; owner display (username) goes beneath
+          r.opponentTeam = teamNameLatest;
+          // opponentDisplay should be owner/username (so owner name appears under the team name)
+          r.opponentDisplay = ownerDisplayLatest || r.opponentDisplay || null;
+        } else {
+          // fallback to previously discovered values
+          r.opponentTeam = r.opponentTeam || r.opponentDisplay || null;
+        }
+      } else {
+        // no opponent key: make sure we have something reasonable
+        r.opponentTeam = r.opponentTeam || r.opponentDisplay || 'Opponent';
+      }
     }
   }
 
