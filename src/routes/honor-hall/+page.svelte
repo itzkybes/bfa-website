@@ -1,53 +1,32 @@
 <!-- src/routes/honor-hall/+page.svelte -->
 <script>
+  import { onMount } from 'svelte';
   export let data;
 
   // seasons list and selection
   const seasons = data?.seasons ?? [];
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
-  // finalStandingsBySeason mapping returned by server (not used in this iteration)
-  const finalStandingsFallback = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
+  // payload returned by server
+  const matchupsRows = data?.matchupsRows ?? [];
+  const finalStandings = data?.finalStandings ?? [];
+  const regularStandings = data?.regularStandings ?? [];
+  const debug = data?.debug ?? [];
+  const messages = data?.messages ?? [];
+  const seasonJsonLoaded = !!data?.seasonJsonLoaded;
+  const seasonJsonPathsTried = data?.seasonJsonPathsTried ?? [];
+  const winnersBracketSize = Number(data?.winnersBracketSize ?? 8);
 
-  // messages & debug
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
-  const debugLines = Array.isArray(data?.debug) ? data.debug : [];
+  // champion / biggestLoser are provided top-level by server now
+  let champion = data?.champion ?? null;
+  let biggestLoser = data?.biggestLoser ?? null;
 
-  // use top-level champion/biggestLoser returned by server
-  const champion = data?.champion ?? null;
-  const biggestLoser = data?.biggestLoser ?? null;
+  // MVP objects
+  let finalsMvp = data?.finalsMvp ?? null;
+  let overallMvp = data?.overallMvp ?? null;
 
-  // MVPs from server
-  const finalsMvp = data?.finalsMvp ?? null;
-  const overallMvp = data?.overallMvp ?? null;
-
-  // Players endpoint helper (client-side attempt to resolve player names / images if needed)
-  async function fetchPlayerInfoBulk(ids) {
-    if (!ids || !ids.length) return {};
-    try {
-      const unique = [...new Set(ids.filter(Boolean))];
-      const q = unique.join(',');
-      const res = await fetch(`/api/players?ids=${encodeURIComponent(q)}`); // you can implement a proxy endpoint if needed
-      if (!res.ok) return {};
-      const json = await res.json();
-      return json || {};
-    } catch (e) {
-      return {};
-    }
-  }
-
-  // helper to build player headshot URL (NBA)
-  function playerHeadshot(playerId, size = 56) {
-    if (!playerId) return '';
-    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
-  }
-
-  // format points to a single decimal place safely
-  function formatPts(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    return (Math.round(n * 10) / 10).toFixed(1);
-  }
+  // resolved player info (from /api/players)
+  let resolvedPlayers = {}; // id -> { full_name, headshot, ... }
 
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
@@ -61,28 +40,66 @@
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
 
-  function placeEmoji(rank) {
-    if (rank === 1) return '🏆';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return '';
+  function formatPts(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return '—';
+    return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // Filter debug lines: remove seed reassignment traces
-  function filteredDebug(lines) {
-    if (!Array.isArray(lines)) return [];
-    return lines.filter(l => {
-      if (!l) return false;
-      const s = String(l);
-      if (s.startsWith('Assign place')) return false;
-      if (s.startsWith('Fallback assign')) return false;
-      if (s.includes('Assign place ')) return false;
-      if (s.includes('Fallback assign')) return false;
-      return true;
-    });
+  // call /api/players to resolve player ids in finalsMvp/overallMvp
+  async function resolveMVPPlayers() {
+    try {
+      const ids = new Set();
+      if (finalsMvp?.playerId) ids.add(String(finalsMvp.playerId));
+      if (overallMvp?.playerId) ids.add(String(overallMvp.playerId));
+      if (overallMvp?.topPlayerId) ids.add(String(overallMvp.topPlayerId));
+      // Also support some older shapes
+      if (finalsMvp?.player_id) ids.add(String(finalsMvp.player_id));
+      if (overallMvp?.player_id) ids.add(String(overallMvp.player_id));
+
+      const idList = Array.from(ids).filter(Boolean);
+      if (!idList.length) return;
+
+      const res = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: idList })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        resolvedPlayers = { ...resolvedPlayers, ...json };
+      } else {
+        console.warn('Failed to fetch player info', await res.text());
+      }
+    } catch (e) {
+      console.warn('resolveMVPPlayers error', e);
+    }
   }
 
-  $: visibleDebug = filteredDebug(debugLines);
+  onMount(() => {
+    resolveMVPPlayers();
+  });
+
+  // helpers to pick display name and avatar for MVP objects
+  function playerDisplayName(obj) {
+    if (!obj) return null;
+    // possible shapes: { playerId, playerName, playerObj, topPlayerId, player_id }
+    const pid = obj.playerId ?? obj.player_id ?? obj.topPlayerId ?? obj.top_player_id ?? null;
+    if (pid && resolvedPlayers[pid] && resolvedPlayers[pid]?.full_name) return resolvedPlayers[pid].full_name;
+    if (obj.playerName) return obj.playerName;
+    if (obj.playerObj?.full_name) return obj.playerObj.full_name;
+    return pid ? `Player ${pid}` : null;
+  }
+
+  function playerDisplayHeadshot(obj) {
+    if (!obj) return null;
+    const pid = obj.playerId ?? obj.player_id ?? obj.topPlayerId ?? obj.top_player_id ?? null;
+    if (pid && resolvedPlayers[pid] && resolvedPlayers[pid].headshot) return resolvedPlayers[pid].headshot;
+    // fall back to roster owner avatar if provided by server
+    if (obj.roster_meta?.owner_avatar) return obj.roster_meta.owner_avatar;
+    if (obj.roster_meta?.team_avatar) return obj.roster_meta.team_avatar;
+    return null;
+  }
 </script>
 
 <style>
@@ -97,7 +114,6 @@
     gap: 20px;
     align-items: start;
   }
-
   .header { grid-column: 1 / span 2; display:flex; justify-content:space-between; align-items:center; gap:12px; }
   h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
   .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
@@ -192,9 +208,13 @@
   <div class="main">
     <div class="debug" aria-live="polite">
       <ul>
-        {#if visibleDebug && visibleDebug.length}
-          {#each visibleDebug as d}
-            <li>{@html d.replace(/</g,'&lt;')}</li>
+        {#if messages && messages.length}
+          {#each messages as m}
+            <li>{@html (String(m).replace(/</g,'&lt;'))}</li>
+          {/each}
+        {:else if debug && debug.length}
+          {#each debug as d}
+            <li>{@html (String(d).replace(/</g,'&lt;'))}</li>
           {/each}
         {:else}
           <li>No debug trace available.</li>
@@ -204,12 +224,11 @@
 
     <h3 style="margin:0 0 12px 0">Final Standings</h3>
     <ul class="standings-list" role="list" aria-label="Final standings">
-      {#if finalStandingsFallback && finalStandingsFallback.length}
-        {#each finalStandingsFallback as row (row.rosterId)}
+      {#if finalStandings && finalStandings.length}
+        {#each finalStandings as row (row.rosterId)}
           <li class="stand-row" role="listitem">
             <div class="rank" aria-hidden="true">
               <span>{row.rank}</span>
-              <span>{placeEmoji(row.rank)}</span>
             </div>
 
             <div class="player" style="min-width:0;">
@@ -240,7 +259,7 @@
 
     {#if champion}
       <div class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt="champion avatar" style="width:64px;height:64px">
+        <img class="avatar" src={avatarOrPlaceholder(champion.avatar ?? champion.roster_meta?.team_avatar, champion.team_name)} alt="champion avatar" style="width:64px;height:64px">
         <div>
           <div class="outcome-name">Champion <span style="margin-left:6px">🏆</span></div>
           <div class="small">{champion.team_name} • {champion.owner_name ?? `Roster ${champion.rosterId}`} • Seed #{champion.seed}</div>
@@ -250,7 +269,7 @@
 
     {#if biggestLoser}
       <div style="margin-top:8px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:64px;height:64px">
+        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar ?? biggestLoser.roster_meta?.team_avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:64px;height:64px">
         <div>
           <div class="outcome-name">Last Place <span style="margin-left:6px">😵‍💫</span></div>
           <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Rank: {biggestLoser.rank}</div>
@@ -262,23 +281,25 @@
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
+          src={playerDisplayHeadshot(finalsMvp) || avatarOrPlaceholder(finalsMvp?.roster_meta?.owner_avatar, playerDisplayName(finalsMvp))}
           alt="finals mvp avatar"
           style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName); }}
+          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp?.roster_meta?.owner_avatar, playerDisplayName(finalsMvp)); }}
         />
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">
-            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId}`}
-            • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
-            • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}
+            {playerDisplayName(finalsMvp) ?? `Player ${finalsMvp.playerId ?? finalsMvp.player_id}`}
+            {#if finalsMvp.points} • {formatPts(finalsMvp.points)} pts{/if}
+            {#if finalsMvp.roster_meta}
+              • {finalsMvp.roster_meta.owner_name ?? finalsMvp.roster_meta.team_name}
+            {/if}
           </div>
         </div>
       </div>
     {:else}
       <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(null, 'MVP')} alt="finals mvp avatar" style="width:56px;height:56px">
+        <div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.02)"></div>
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">No player-level data found for the championship matchup.</div>
@@ -290,23 +311,25 @@
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
+          src={playerDisplayHeadshot(overallMvp) || avatarOrPlaceholder(overallMvp?.roster_meta?.owner_avatar, playerDisplayName(overallMvp))}
           alt="overall mvp avatar"
           style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName); }}
+          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp?.roster_meta?.owner_avatar, playerDisplayName(overallMvp)); }}
         />
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">
-            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId}`}
-            • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
-            • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId}`}
+            {playerDisplayName(overallMvp) ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId ?? overallMvp.player_id}`}
+            {#if overallMvp.points} • {formatPts(overallMvp.points)} pts{/if}
+            {#if overallMvp.topRosterId || overallMvp.roster_meta}
+              • {overallMvp.roster_meta?.owner_name ?? overallMvp.roster_meta?.team_name ?? `Roster ${overallMvp.topRosterId ?? overallMvp.rosterId}`}
+            {/if}
           </div>
         </div>
       </div>
     {:else}
       <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(null, 'MVP')} alt="overall mvp avatar" style="width:56px;height:56px">
+        <div style="width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,0.02)"></div>
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">No player-level data available to compute overall MVP.</div>
@@ -315,7 +338,11 @@
     {/if}
 
     <div style="margin-top:12px; color:#9aa3ad; font-size:.9rem">
-      Final standings are derived from server-scrubbed matchups and the bracket simulation logic. The debug trace above shows the decisions used to construct the bracket (matchups & tiebreaks).
+      Final standings are derived from server-scrubbed matchups and bracket simulation logic.
+      <div style="margin-top:8px; font-size:.85rem; color:#80909a">
+        Playoff weeks processed: {data?.playoffStart} → {data?.playoffEnd} ({matchupsRows.length} matchup rows)
+        <div>JSON loaded: {seasonJsonLoaded ? 'yes' : 'no'} {#if seasonJsonPathsTried.length} — tried: {seasonJsonPathsTried.join(', ')}{/if}</div>
+      </div>
     </div>
   </aside>
 </div>
