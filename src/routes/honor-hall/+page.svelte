@@ -1,32 +1,25 @@
 <!-- src/routes/honor-hall/+page.svelte -->
 <script>
-  import { onMount } from 'svelte';
   export let data;
 
-  // seasons list and selection
   const seasons = data?.seasons ?? [];
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
-  // payload returned by server
   const matchupsRows = data?.matchupsRows ?? [];
   const finalStandings = data?.finalStandings ?? [];
   const regularStandings = data?.regularStandings ?? [];
   const debug = data?.debug ?? [];
   const messages = data?.messages ?? [];
-  const seasonJsonLoaded = !!data?.seasonJsonLoaded;
+  const jsonLinks = data?.jsonLinks ?? [];
+  const seasonJsonLoaded = data?.seasonJsonLoaded ?? false;
   const seasonJsonPathsTried = data?.seasonJsonPathsTried ?? [];
-  const winnersBracketSize = Number(data?.winnersBracketSize ?? 8);
 
-  // champion / biggestLoser are provided top-level by server now
-  let champion = data?.champion ?? null;
-  let biggestLoser = data?.biggestLoser ?? null;
-
-  // MVP objects
-  let finalsMvp = data?.finalsMvp ?? null;
-  let overallMvp = data?.overallMvp ?? null;
-
-  // resolved player info (from /api/players)
-  let resolvedPlayers = {}; // id -> { full_name, headshot, ... }
+  // top-level provided by server
+  const champion = data?.champion ?? null;
+  const biggestLoser = data?.biggestLoser ?? null;
+  const finalsMvp = data?.finalsMvp ?? null;
+  const overallMvp = data?.overallMvp ?? null;
+  const winnersBracketSize = Number(data?.winnersBracketSize ?? data?.winnersBracketSize ?? 8);
 
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
@@ -46,59 +39,13 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // call /api/players to resolve player ids in finalsMvp/overallMvp
-  async function resolveMVPPlayers() {
-    try {
-      const ids = new Set();
-      if (finalsMvp?.playerId) ids.add(String(finalsMvp.playerId));
-      if (overallMvp?.playerId) ids.add(String(overallMvp.playerId));
-      if (overallMvp?.topPlayerId) ids.add(String(overallMvp.topPlayerId));
-      // Also support some older shapes
-      if (finalsMvp?.player_id) ids.add(String(finalsMvp.player_id));
-      if (overallMvp?.player_id) ids.add(String(overallMvp.player_id));
-
-      const idList = Array.from(ids).filter(Boolean);
-      if (!idList.length) return;
-
-      const res = await fetch('/api/players', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids: idList })
-      });
-      if (res.ok) {
-        const json = await res.json();
-        resolvedPlayers = { ...resolvedPlayers, ...json };
-      } else {
-        console.warn('Failed to fetch player info', await res.text());
-      }
-    } catch (e) {
-      console.warn('resolveMVPPlayers error', e);
-    }
+  function playerDisplayName(mvp) {
+    if (!mvp) return null;
+    return mvp.player_meta?.full_name ?? mvp.playerName ?? mvp.playerObj?.full_name ?? mvp.topPlayerName ?? null;
   }
-
-  onMount(() => {
-    resolveMVPPlayers();
-  });
-
-  // helpers to pick display name and avatar for MVP objects
-  function playerDisplayName(obj) {
-    if (!obj) return null;
-    // possible shapes: { playerId, playerName, playerObj, topPlayerId, player_id }
-    const pid = obj.playerId ?? obj.player_id ?? obj.topPlayerId ?? obj.top_player_id ?? null;
-    if (pid && resolvedPlayers[pid] && resolvedPlayers[pid]?.full_name) return resolvedPlayers[pid].full_name;
-    if (obj.playerName) return obj.playerName;
-    if (obj.playerObj?.full_name) return obj.playerObj.full_name;
-    return pid ? `Player ${pid}` : null;
-  }
-
-  function playerDisplayHeadshot(obj) {
-    if (!obj) return null;
-    const pid = obj.playerId ?? obj.player_id ?? obj.topPlayerId ?? obj.top_player_id ?? null;
-    if (pid && resolvedPlayers[pid] && resolvedPlayers[pid].headshot) return resolvedPlayers[pid].headshot;
-    // fall back to roster owner avatar if provided by server
-    if (obj.roster_meta?.owner_avatar) return obj.roster_meta.owner_avatar;
-    if (obj.roster_meta?.team_avatar) return obj.roster_meta.team_avatar;
-    return null;
+  function playerDisplayHeadshot(mvp) {
+    if (!mvp) return null;
+    return mvp.player_meta?.headshot ?? mvp.roster_meta?.team_avatar ?? mvp.roster_meta?.owner_avatar ?? null;
   }
 </script>
 
@@ -342,6 +289,14 @@
       <div style="margin-top:8px; font-size:.85rem; color:#80909a">
         Playoff weeks processed: {data?.playoffStart} → {data?.playoffEnd} ({matchupsRows.length} matchup rows)
         <div>JSON loaded: {seasonJsonLoaded ? 'yes' : 'no'} {#if seasonJsonPathsTried.length} — tried: {seasonJsonPathsTried.join(', ')}{/if}</div>
+        {#if jsonLinks && jsonLinks.length}
+          <div style="margin-top:6px;">Loaded JSON files:</div>
+          <ul style="margin:6px 0 0 18px; color:#9aa3ad;">
+            {#each jsonLinks as jl}
+              <li>{@html jl}</li>
+            {/each}
+          </ul>
+        {/if}
       </div>
     </div>
   </aside>
