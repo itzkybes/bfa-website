@@ -24,13 +24,7 @@
     if (!playerId) return '';
     // use NBA player headshots (Sleeper CDN)
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
-  }
-
-  // format points to a single decimal place safely
-  function formatPts(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    return (Math.round(n * 10) / 10).toFixed(1);
+  }.jpg`;
   }
 
   // also expose MVPs from top-level (computed for the selected league/season by server)
@@ -262,40 +256,20 @@
 
     {#if finalsMvp}
       <div style="margin-top:12px" class="outcome-row">
-        <img
-          class="avatar"
-          src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
-          alt="finals mvp avatar"
-          style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName); }}
-        />
+        <img class="avatar" src={avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar || finalsMvp.roster_meta?.owner_avatar, finalsMvp.roster_meta?.team_name)} alt="finals mvp avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Finals MVP</div>
-          <div class="small">
-            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId}`}
-            • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
-            • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}
-          </div>
+          <div class="small">Player {finalsMvp.playerId} • {finalsMvp.points} pts • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}</div>
         </div>
       </div>
     {/if}
 
     {#if overallMvp}
       <div style="margin-top:12px" class="outcome-row">
-        <img
-          class="avatar"
-          src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
-          alt="overall mvp avatar"
-          style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName); }}
-        />
+        <img class="avatar" src={avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar || overallMvp.roster_meta?.owner_avatar, overallMvp.roster_meta?.team_name)} alt="overall mvp avatar" style="width:56px;height:56px">
         <div>
           <div class="outcome-name">Overall MVP</div>
-          <div class="small">
-            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId}`}
-            • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
-            • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId}`}
-          </div>
+          <div class="small">Player {overallMvp.playerId} • {overallMvp.points} pts • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId}`}</div>
         </div>
       </div>
     {/if}
