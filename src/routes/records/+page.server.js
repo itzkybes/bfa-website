@@ -204,7 +204,7 @@ function nextWeekContainsExplicitZero(matchupsArr) {
     if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'score') && Number(m.teamA.score) === 0) return true;
     if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'score') && Number(m.teamB.score) === 0) return true;
     if (m.teamA && Object.prototype.hasOwnProperty.call(m.teamA, 'points') && Number(m.teamA.points) === 0) return true;
-    if (m.teamB && Object.prototype.hasOwnProperty.call(m, 'points') && Number(m.teamB.points) === 0) return true;
+    if (m.teamB && Object.prototype.hasOwnProperty.call(m.teamB, 'points') && Number(m.teamB.points) === 0) return true;
 
     if (Object.prototype.hasOwnProperty.call(m, 'points') && Number(m.points) === 0) return true;
     if (Object.prototype.hasOwnProperty.call(m, 'points_for') && Number(m.points_for) === 0) return true;
@@ -692,63 +692,6 @@ export async function load(event) {
               const ptsA = safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0);
               const ptsB = safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0);
 
-              // H2H candidates
-              const ownerAKey = (a.ownerName ? String(a.ownerName).toLowerCase() : (a.owner_username ? String(a.owner_username).toLowerCase() : null)) || 'roster:' + ridA;
-              const ownerBKey = (b.ownerName ? String(b.ownerName).toLowerCase() : (b.owner_username ? String(b.owner_username).toLowerCase() : null)) || 'roster:' + ridB;
-              const ownerADisplay = a.ownerName ?? a.owner_username ?? null;
-              const ownerBDisplay = b.ownerName ?? b.owner_username ?? null;
-              const aTeamName = a.name ?? null;
-              const bTeamName = b.name ?? null;
-              const avatarA = a.avatar ?? a.team_avatar ?? null;
-              const avatarB = b.avatar ?? b.team_avatar ?? null;
-
-              globalH2HCandidates.push({
-                ownerKey: ownerAKey,
-                ownerDisplay: ownerADisplay,
-                ownerAvatar: avatarA,
-                ownerTeam: aTeamName,
-                opponentKey: ownerBKey,
-                opponentDisplay: ownerBDisplay,
-                opponentAvatar: avatarB,
-                opponentTeam: bTeamName,
-                season: leagueSeason || String(m.season ?? week ? week : week),
-                week,
-                ownerScore: ptsA,
-                opponentScore: ptsB
-              });
-
-              globalH2HCandidates.push({
-                ownerKey: ownerBKey,
-                ownerDisplay: ownerBDisplay,
-                ownerAvatar: avatarB,
-                ownerTeam: bTeamName,
-                opponentKey: ownerAKey,
-                opponentDisplay: ownerADisplay,
-                opponentAvatar: avatarA,
-                opponentTeam: aTeamName,
-                season: leagueSeason || String(m.season ?? week ? week : week),
-                week,
-                ownerScore: ptsB,
-                opponentScore: ptsA
-              });
-
-              // margins
-              const margin = Math.abs(ptsA - ptsB);
-              globalMargins.push({
-                season: leagueSeason || String(m.season ?? week ? week : week),
-                week,
-                margin,
-                teamAName: aTeamName || ownerADisplay || ('Roster ' + ridA),
-                teamBName: bTeamName || ownerBDisplay || ('Roster ' + ridB),
-                ownerA: ownerADisplay || ownerAKey,
-                ownerB: ownerBDisplay || ownerBKey,
-                avatarA: avatarA,
-                avatarB: avatarB,
-                scoreA: ptsA,
-                scoreB: ptsB,
-                source: leagueId
-              });
-
               paByRoster[ridA] = paByRoster[ridA] || 0;
               paByRoster[ridB] = paByRoster[ridB] || 0;
               resultsByRoster[ridA] = resultsByRoster[ridA] || [];
@@ -1029,7 +972,8 @@ export async function load(event) {
         season: leagueSeason,
         leagueName: leagueName,
         regularStandings: regularStandings,
-        playoffStandings: playoffStandings
+        playoffStandings: playoffStandings,
+        rosterMap // keep the rosterMap so other post-processing can use it if needed
       });
     } catch (err) {
       messages.push('Error processing league ' + leagueId + ' — ' + (err && err.message ? err.message : String(err)));
@@ -1204,6 +1148,8 @@ export async function load(event) {
         if (meta.team_avatar || meta.avatar) avatarLookup[low] = avatarLookup[low] || (meta.team_avatar || meta.avatar);
         if (meta.owner_name || meta.owner_username) ownerDisplayLookup[low] = ownerDisplayLookup[low] || (meta.owner_name || meta.owner_username);
         if (meta.team_name) ownerTeamLookup[low] = ownerTeamLookup[low] || meta.team_name;
+      } else if (ownerKey && ownerKey.indexOf('ownerid:') === 0) {
+        // ignore numeric owner ids for this lookup
       }
     }
   }
@@ -1324,15 +1270,49 @@ export async function load(event) {
     h2hRecords[ownerKey] = arr;
   }
 
-  // Build h2hOwners list for dropdown with team names where available
+  // ---------- NEW: Ensure H2H rows use most recent team name & avatar, and apply owner remapping ----------
+  // Use avatarLookup / ownerTeamLookup / ownerDisplayLookup to fill missing opponent fields.
+  // Keys in avatarLookup are lower-case owner usernames (no 'owner:' prefix).
+  for (const ownerKey of Object.keys(h2hRecords)) {
+    const rows = h2hRecords[ownerKey];
+    for (const r of rows) {
+      // attempt to get canonical opponent key (lowercase)
+      let opp = null;
+      if (r.opponentKey) {
+        opp = String(r.opponentKey).toLowerCase();
+        if (OWNER_REPARENT[opp]) opp = OWNER_REPARENT[opp]; // remap Bellooshio/cholybevv -> jakepratt
+      } else {
+        opp = null;
+      }
+
+      // if we have a lookup avatar/team/display for this opponent, apply if missing
+      if (opp && avatarLookup[opp]) r.opponentAvatar = r.opponentAvatar || avatarLookup[opp];
+      if (opp && ownerTeamLookup[opp]) r.opponentTeam = r.opponentTeam || ownerTeamLookup[opp];
+      if (opp && ownerDisplayLookup[opp]) r.opponentDisplay = r.opponentDisplay || ownerDisplayLookup[opp];
+
+      // if still missing team but we have display, use display as team
+      if (!r.opponentTeam && r.opponentDisplay) r.opponentTeam = r.opponentDisplay;
+
+      // ensure if opponent is remapped to jakepratt we show canonical display
+      if (opp && OWNER_DISPLAY[opp]) r.opponentDisplay = OWNER_DISPLAY[opp];
+    }
+  }
+
+  // Build h2hOwners list for dropdown with team names where available (and include avatar if known)
   const h2hOwners = Array.from(ownersSet).map(k => {
-    const display = ownerDisplayLookup[k] || (k && String(k).toLowerCase()) || k;
-    const team = ownerTeamLookup[k] || null;
+    const key = String(k).toLowerCase();
+    const display = ownerDisplayLookup[key] || key;
+    const team = ownerTeamLookup[key] || null;
+    const avatar = avatarLookup[key] || null;
+    // if this owner maps from Bellooshio/cholybevv, show jakepratt display if available
+    const remapped = OWNER_REPARENT[key] ? OWNER_REPARENT[key] : key;
+    const label = team ? String(team) : display;
     return {
-      key: k,
-      display,
+      key: remapped,
+      display: OWNER_DISPLAY[remapped] || display,
       team,
-      label: team ? String(team) : display
+      avatar,
+      label
     };
   }).sort((a,b) => String(a.label || '').localeCompare(String(b.label || '')));
 
@@ -1340,11 +1320,9 @@ export async function load(event) {
   // Apply owner remapping for avatars: if Bellooshio or cholybevv map to jakepratt, prefer jakepratt avatar
   for (const m of globalMargins) {
     if (!m) continue;
-    // apply remap to avatar if needed (owner strings maybe owner usernames)
     const ownerAKey = (m.ownerA && String(m.ownerA).toLowerCase()) || null;
     const ownerBKey = (m.ownerB && String(m.ownerB).toLowerCase()) || null;
     if (ownerAKey && OWNER_REPARENT[ownerAKey]) {
-      // use avatarLookup for jakepratt if available
       const mapped = OWNER_REPARENT[ownerAKey];
       if (avatarLookup[mapped]) m.avatarA = avatarLookup[mapped];
     }
@@ -1352,7 +1330,6 @@ export async function load(event) {
       const mapped = OWNER_REPARENT[ownerBKey];
       if (avatarLookup[mapped]) m.avatarB = avatarLookup[mapped];
     }
-    // fallback to avatarLookup by owner display if available
     const lowA = (m.ownerA ? String(m.ownerA).toLowerCase() : null);
     const lowB = (m.ownerB ? String(m.ownerB).toLowerCase() : null);
     if (lowA && !m.avatarA && avatarLookup[lowA]) m.avatarA = avatarLookup[lowA];
@@ -1379,7 +1356,6 @@ export async function load(event) {
   });
 
   const marginsSortedAsc = globalMargins.slice().filter(x => x && typeof x.margin === 'number' && x.margin >= 0).sort((a,b) => a.margin - b.margin);
-// filter out zero-margin if you want smallest non-zero; user asked for smallest margin of victory -> likely smallest non-zero margins
   const marginsNonZero = marginsSortedAsc.filter(m => m.margin > 0);
   const marginsSmallest = marginsNonZero.slice(0, 10).map((m, idx) => {
     return {
