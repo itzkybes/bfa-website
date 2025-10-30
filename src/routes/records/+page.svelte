@@ -52,8 +52,8 @@
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
-      if (rec.team1Key) map[rec.team1Key] = map[rec.team1Key] || { team_name: rec.team1Display || rec.team1Name || null, owner_name: rec.team1Owner || rec.team1OwnerName || null, avatar: rec.team1Avatar || null };
-      if (rec.team2Key) map[rec.team2Key] = map[rec.team2Key] || { team_name: rec.team2Display || rec.team2Name || null, owner_name: rec.team2Owner || rec.team2OwnerName || null, avatar: rec.team2Avatar || null };
+      if (rec.team1Key) map[rec.team1Key] = map[rec.team1Key] || { team_name: rec.team1Name || null, owner_name: rec.team1Owner || null, avatar: rec.team1Avatar || null };
+      if (rec.team2Key) map[rec.team2Key] = map[rec.team2Key] || { team_name: rec.team2Name || null, owner_name: rec.team2Owner || null, avatar: rec.team2Avatar || null };
     }
     return map;
   })();
@@ -92,8 +92,8 @@
     for (const mk of Object.keys(h2hMap || {})) {
       const rec = h2hMap[mk];
       if (!rec) continue;
-      if (rec.team1Key && !d[rec.team1Key]) d[rec.team1Key] = rec.team1Display || rec.team1Name || rec.team1Key;
-      if (rec.team2Key && !d[rec.team2Key]) d[rec.team2Key] = rec.team2Display || rec.team2Name || rec.team2Key;
+      if (rec.team1Key && !d[rec.team1Key]) d[rec.team1Key] = rec.team1Name || rec.team1Owner || rec.team1Key;
+      if (rec.team2Key && !d[rec.team2Key]) d[rec.team2Key] = rec.team2Name || rec.team2Owner || rec.team2Key;
     }
     return d;
   })();
@@ -111,7 +111,7 @@
   })();
 
   // selected team for H2H (default first)
-  let selectedTeamKey = null;
+  export let selectedTeamKey = null;
   $: if ((!selectedTeamKey || !teamKeys.includes(selectedTeamKey)) && teamKeys && teamKeys.length) {
     selectedTeamKey = teamKeys[0];
   }
@@ -585,7 +585,7 @@
                 <td class="col-numeric">{m.week}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
+                    <img class="h2h-avatar" src={m.avatarA ? m.avatarA : avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
                     <div>
                       <div class="team-name">{m.teamA}</div>
                       {#if m.ownerA}<div class="owner">{m.ownerA}</div>{/if}
@@ -595,7 +595,7 @@
                 <td class="col-numeric">{m.pfA} - {m.pfB}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
+                    <img class="h2h-avatar" src={m.avatarB ? m.avatarB : avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
                     <div>
                       <div class="team-name">{m.teamB}</div>
                       {#if m.ownerB}<div class="owner">{m.ownerB}</div>{/if}
@@ -645,7 +645,7 @@
                 <td class="col-numeric">{m.week}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
+                    <img class="h2h-avatar" src={m.avatarA ? m.avatarA : avatarOrPlaceholder(null, m.teamA)} alt={m.teamA} />
                     <div>
                       <div class="team-name">{m.teamA}</div>
                       {#if m.ownerA}<div class="owner">{m.ownerA}</div>{/if}
@@ -655,7 +655,7 @@
                 <td class="col-numeric">{m.pfA} - {m.pfB}</td>
                 <td>
                   <div class="team-row">
-                    <img class="h2h-avatar" src={avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
+                    <img class="h2h-avatar" src={m.avatarB ? m.avatarB : avatarOrPlaceholder(null, m.teamB)} alt={m.teamB} />
                     <div>
                       <div class="team-name">{m.teamB}</div>
                       {#if m.ownerB}<div class="owner">{m.ownerB}</div>{/if}
