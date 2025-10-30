@@ -240,7 +240,7 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15,
         if (!statsByRoster[ridB].roster) statsByRoster[ridB].roster = { metadata: { team_name: b.name ?? null, owner_name: b.ownerName ?? null } };
         else statsByRoster[ridB].roster.metadata = { team_name: statsByRoster[ridB].roster.metadata?.team_name || b.name || null, owner_name: statsByRoster[ridB].roster.metadata?.owner_name || b.ownerName || null };
 
-        // margin candidates for top lists
+        // margin candidates
         if (marginCandidatesHolder) {
           const margin = Math.abs(ptsA - ptsB);
           const avatarA = a.teamAvatar ?? a.team_avatar ?? a.ownerAvatar ?? a.owner_avatar ?? a.avatar ?? null;
@@ -261,13 +261,13 @@ function buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStart = 15,
           });
         }
 
-        // head-to-head candidate: record both sides (we'll aggregate per-owner later)
+        // h2h: use h2hHolder which may be an array with a '.reparentMap' set by caller
         if (h2hHolder) {
           try {
             const ownerALow = (a.ownerName ?? a.owner_name ?? a.owner_username ?? null) ? String((a.ownerName ?? a.owner_name ?? a.owner_username)).toLowerCase() : null;
             const ownerBLow = (b.ownerName ?? b.owner_name ?? b.owner_username ?? null) ? String((b.ownerName ?? b.owner_name ?? b.owner_username)).toLowerCase() : null;
-            const ownerAKey = ownerALow && (ownerALow in h2hHolder.reparentMap) ? h2hHolder.reparentMap[ownerALow] : ownerALow;
-            const ownerBKey = ownerBLow && (ownerBLow in h2hHolder.reparentMap) ? h2hHolder.reparentMap[ownerBLow] : ownerBLow;
+            const ownerAKey = ownerALow && (h2hHolder.reparentMap && ownerALow in h2hHolder.reparentMap) ? h2hHolder.reparentMap[ownerALow] : ownerALow;
+            const ownerBKey = ownerBLow && (h2hHolder.reparentMap && ownerBLow in h2hHolder.reparentMap) ? h2hHolder.reparentMap[ownerBLow] : ownerBLow;
             const resA = (ptsA > ptsB) ? 'W' : (ptsA < ptsB ? 'L' : 'T');
             const resB = (ptsB > ptsA) ? 'W' : (ptsB < ptsA ? 'L' : 'T');
 
@@ -456,15 +456,13 @@ export async function load(event) {
 
   // holders for margins & h2h candidates
   const marginCandidates = [];
-  const h2hCandidates = []; // flat list of matchup rows (ownerKeyA, ownerKeyB, resultA, pfA, etc.)
+  const h2hCandidates = [];
+  // IMPORTANT: make the reparent map available to helpers that expect it (fixes JSON-path collection)
+  h2hCandidates.reparentMap = Object.assign({}, OWNER_REPARENT);
+
   const rosterMapsByLeague = {}; // for avatar lookups
 
-  // We will pass a small object to JSON-processing helper so it can remap owners during collection
-  const h2hHolderForJSON = [];
-  h2hHolderForJSON.reparentMap = Object.assign({}, OWNER_REPARENT);
-  // (we use h2hHolderForJSON just for the .reparentMap above in the JSON helper)
-
-  // 1) process JSON seasons
+  // 1) process JSON seasons (pass h2hCandidates which has reparentMap attached)
   for (const yearKey of Object.keys(seasonMatchupsMap)) {
     try {
       const matchupsByWeek = seasonMatchupsMap[yearKey];
@@ -474,7 +472,7 @@ export async function load(event) {
         : (matchupsByWeek._meta && typeof matchupsByWeek._meta.playoff_week_start === 'number') ? Number(matchupsByWeek._meta.playoff_week_start)
         : 15;
 
-      // we'll call helper to get standings and collect margin/h2h via passing arrays
+      // pass same marginCandidates & h2hCandidates (h2hCandidates has .reparentMap)
       const { regularStandings, playoffStandings } = buildStandingsFromSeasonMatchupsJson(matchupsByWeek, playoffStartFromJson, marginCandidates, h2hCandidates, String(yearKey));
 
       seasonsResults.push({
@@ -653,7 +651,7 @@ export async function load(event) {
                 });
               } catch (e) {}
 
-              // h2h candidate
+              // h2h candidate (we're pushing into h2hCandidates which has .reparentMap)
               try {
                 const ownerALow = (a.ownerName ?? a.owner_name ?? a.owner_username ?? null) ? String((a.ownerName ?? a.owner_name ?? a.owner_username)).toLowerCase() : null;
                 const ownerBLow = (b.ownerName ?? b.owner_name ?? b.owner_username ?? null) ? String((b.ownerName ?? b.owner_name ?? b.owner_username)).toLowerCase() : null;
@@ -698,7 +696,7 @@ export async function load(event) {
           continue;
         }
 
-        // fallback API processing
+        // fallback API processing (unchanged from earlier logic)
         const byMatch = {};
         for (let mi = 0; mi < matchups.length; mi++) {
           const entry = matchups[mi];
@@ -904,7 +902,6 @@ export async function load(event) {
   if (!anyDataFound && messages.length === 0) messages.push('No data found for requested seasons.');
   const finalError = !anyDataFound ? 'No roster/matchup data found for requested seasons. Details: ' + (messages.length ? messages.join(' | ') : 'no details') : null;
 
-  // aggregation helper (unchanged)
   function aggregateStandingsList(list, map) {
     if (!list || !Array.isArray(list)) return;
     for (const row of list) {
@@ -1022,7 +1019,6 @@ export async function load(event) {
       if (meta.team_name) avatarLookup[String(meta.team_name).toLowerCase()] = avatar;
     }
   }
-  // ensure reparent avatars map to mapped owner
   for (const origOwnerLower of Object.keys(OWNER_REPARENT)) {
     const mapped = OWNER_REPARENT[origOwnerLower];
     if (!mapped) continue;
@@ -1030,7 +1026,7 @@ export async function load(event) {
     if (mappedAvatar) avatarLookup[String(origOwnerLower).toLowerCase()] = mappedAvatar;
   }
 
-  // fill avatars for margins (as before)
+  // fill avatars for margins
   const sanitized = (marginCandidates || []).filter(m => m && typeof m.margin === 'number' && !isNaN(m.margin));
   for (const c of sanitized) {
     if ((!c.avatarA || c.avatarA === null) && c.ownerA) {
@@ -1091,8 +1087,6 @@ export async function load(event) {
   }));
 
   // ------------------ H2H aggregation ------------------
-  // Build per-owner map of opponents aggregated across all h2hCandidates
-  // key used for owners in aggregation: 'owner:' + ownerLow OR fallback 'roster:<id>'
   const h2hMap = {};
   function ownerKeyToDisplay(k) {
     if (!k) return k;
@@ -1105,7 +1099,6 @@ export async function load(event) {
     return String(k);
   }
 
-  // helper to normalize owner key (apply reparent if needed)
   function normalizeOwnerLow(ownerLow) {
     if (!ownerLow) return null;
     const low = String(ownerLow).toLowerCase();
@@ -1117,7 +1110,6 @@ export async function load(event) {
     try {
       const aKeyRaw = c.aKey;
       const bKeyRaw = c.bKey;
-      // ensure keys are normalized: if they look like 'ownerusername' or 'roster:xxx'
       const aIsRoster = String(aKeyRaw).startsWith('roster:');
       const bIsRoster = String(bKeyRaw).startsWith('roster:');
       const ownerAKey = aIsRoster ? String(aKeyRaw) : normalizeOwnerLow(aKeyRaw);
@@ -1125,7 +1117,6 @@ export async function load(event) {
 
       if (!ownerAKey || !ownerBKey) continue;
 
-      // function to init nested map
       function ensureEntry(mainKey, oppKey, meta) {
         if (!h2hMap[mainKey]) h2hMap[mainKey] = {};
         if (!h2hMap[mainKey][oppKey]) {
@@ -1149,7 +1140,6 @@ export async function load(event) {
         return h2hMap[mainKey][oppKey];
       }
 
-      // record for A vs B
       const recA = ensureEntry(ownerAKey, ownerBKey, c);
       recA.games += 1;
       if (c.resultA === 'W') recA.wins += 1;
@@ -1161,19 +1151,15 @@ export async function load(event) {
       recA.lastWeek = c.week || recA.lastWeek;
       if (c.avatarA) recA.ownerAvatar = recA.ownerAvatar || c.avatarA;
       if (c.avatarB) recA.opponentAvatar = recA.opponentAvatar || c.avatarB;
-      if ((!recA.ownerAvatar || !recA.opponentAvatar) && rosterMapsByLeague) {
-        // try avatar lookup by owner display strings
-        if (!recA.ownerAvatar && c.aOwner) {
-          const lowA = String(c.aOwner).toLowerCase();
-          if (avatarLookup[lowA]) recA.ownerAvatar = avatarLookup[lowA];
-        }
-        if (!recA.opponentAvatar && c.bOwner) {
-          const lowB = String(c.bOwner).toLowerCase();
-          if (avatarLookup[lowB]) recA.opponentAvatar = avatarLookup[lowB];
-        }
+      if ((!recA.ownerAvatar || !recA.opponentAvatar) && c.aOwner) {
+        const lowA = String(c.aOwner).toLowerCase();
+        if (avatarLookup[lowA]) recA.ownerAvatar = avatarLookup[lowA];
+      }
+      if ((!recA.ownerAvatar || !recA.opponentAvatar) && c.bOwner) {
+        const lowB = String(c.bOwner).toLowerCase();
+        if (avatarLookup[lowB]) recA.opponentAvatar = avatarLookup[lowB];
       }
 
-      // record for B vs A (mirror)
       const recB = ensureEntry(ownerBKey, ownerAKey, c);
       recB.games += 1;
       if (c.resultB === 'W') recB.wins += 1;
@@ -1185,30 +1171,25 @@ export async function load(event) {
       recB.lastWeek = c.week || recB.lastWeek;
       if (c.avatarB) recB.ownerAvatar = recB.ownerAvatar || c.avatarB;
       if (c.avatarA) recB.opponentAvatar = recB.opponentAvatar || c.avatarA;
-      if ((!recB.ownerAvatar || !recB.opponentAvatar) && rosterMapsByLeague) {
-        if (!recB.ownerAvatar && c.bOwner) {
-          const lowB = String(c.bOwner).toLowerCase();
-          if (avatarLookup[lowB]) recB.ownerAvatar = avatarLookup[lowB];
-        }
-        if (!recB.opponentAvatar && c.aOwner) {
-          const lowA = String(c.aOwner).toLowerCase();
-          if (avatarLookup[lowA]) recB.opponentAvatar = avatarLookup[lowA];
-        }
+      if ((!recB.ownerAvatar || !recB.opponentAvatar) && c.bOwner) {
+        const lowB = String(c.bOwner).toLowerCase();
+        if (avatarLookup[lowB]) recB.ownerAvatar = avatarLookup[lowB];
+      }
+      if ((!recB.ownerAvatar || !recB.opponentAvatar) && c.aOwner) {
+        const lowA = String(c.aOwner).toLowerCase();
+        if (avatarLookup[lowA]) recB.opponentAvatar = avatarLookup[lowA];
       }
     } catch (e) { /* continue */ }
   }
 
-  // Post-process h2hMap -> lists and ensure avatars exist via avatarLookup fallback
   const h2hRecords = {};
   const h2hOwnersSet = new Set();
   for (const ownerKey of Object.keys(h2hMap)) {
     const opps = [];
     for (const oppKey of Object.keys(h2hMap[ownerKey])) {
       const r = h2hMap[ownerKey][oppKey];
-      // round pf/pa
       r.pf = Math.round((r.pf || 0) * 100) / 100;
       r.pa = Math.round((r.pa || 0) * 100) / 100;
-      // avatar fallback using avatarLookup by display names
       if (!r.ownerAvatar && r.ownerDisplay) {
         const low = String(r.ownerDisplay).toLowerCase();
         if (avatarLookup[low]) r.ownerAvatar = avatarLookup[low];
@@ -1220,7 +1201,6 @@ export async function load(event) {
       opps.push(r);
       h2hOwnersSet.add(ownerKey);
     }
-    // sort opponents by games desc then wins desc
     opps.sort((a,b) => {
       if ((b.games || 0) !== (a.games || 0)) return (b.games || 0) - (a.games || 0);
       if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
@@ -1229,7 +1209,6 @@ export async function load(event) {
     h2hRecords[ownerKey] = opps;
   }
 
-  // owners list for dropdown (display team names where possible)
   const h2hOwners = Array.from(h2hOwnersSet).map(k => {
     return {
       key: k,
