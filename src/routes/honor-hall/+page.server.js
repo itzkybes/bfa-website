@@ -4,9 +4,9 @@
 // - Computes overall & finals MVPs from starters + starters_points for historical seasons
 // - For computed MVPs (JSON or helper), resolves player info server-side (playerName, playerObj)
 // - Falls back to Sleeper API for current season
+// Note: Node-only modules (fs/path) are imported dynamically inside tryLoadSeasonJson
+// to avoid them being accidentally bundled into client code.
 
-import fs from 'fs/promises';
-import path from 'path';
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
@@ -52,13 +52,21 @@ function computeStreaks(resultsArray) {
   return { maxW, maxL };
 }
 
-async function tryLoadSeasonJson(season) {
+// Dynamically load season JSON from season_matchups/<season>.json
+// Use dynamic import of fs/path to avoid bundling node modules into client.
+async function tryLoadSeasonJson(season, messages) {
+  if (!season) return null;
   try {
-    const filePath = path.join(process.cwd(), 'season_matchups', `${season}.json`);
+    const fs = await import('fs/promises');
+    const p = await import('path');
+    const filePath = p.join(process.cwd(), 'season_matchups', `${season}.json`);
     const raw = await fs.readFile(filePath, 'utf8');
     const json = JSON.parse(raw);
+    messages.push(`season_matchups JSON loaded from ${filePath}`);
     return json;
   } catch (e) {
+    // don't spam logs for missing file
+    // messages.push(`season_matchups JSON not found for ${season}: ${e?.message ?? e}`);
     return null;
   }
 }
@@ -69,6 +77,7 @@ function pickPlayerIdFromMvpObj(mvp) {
 }
 
 export async function load(event) {
+  // server caching headers (edge-friendly)
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
   const url = event.url;
@@ -122,7 +131,7 @@ export async function load(event) {
     messages.push('Error while building seasons chain: ' + (err && err.message ? err.message : String(err)));
   }
 
-  // dedupe
+  // dedupe seasons by league_id
   const byId = {};
   for (let i = 0; i < seasons.length; i++) {
     const s = seasons[i];
@@ -164,7 +173,7 @@ export async function load(event) {
   try { leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }); }
   catch (e) { leagueMeta = null; messages.push('Failed fetching league meta for ' + selectedLeagueId + ' — ' + (e?.message ?? e)); }
 
-  // default playoffStart from league meta (may be overridden by JSON)
+  // derive playoff start from league metadata (may be overridden by JSON later)
   let playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
     playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
@@ -173,9 +182,8 @@ export async function load(event) {
       messages.push('Playoff start not found in metadata — defaulting to week ' + playoffStart);
     }
   }
-  const playoffEndDefault = playoffStart + 2;
 
-  // roster map
+  // roster map (with owners)
   let rosterMap = {};
   try {
     rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
@@ -323,12 +331,13 @@ export async function load(event) {
   let seasonJson = null;
   let seasonJsonLoaded = false;
   try {
-    seasonJson = await tryLoadSeasonJson(selectedSeasonParam);
+    seasonJson = await tryLoadSeasonJson(selectedSeasonParam, messages);
     if (seasonJson) {
       seasonJsonLoaded = true;
       messages.push(`Loaded season_matchups JSON for season ${selectedSeasonParam}.`);
       if (seasonJson.playoff_week_start) {
         playoffStart = Number(seasonJson.playoff_week_start) || playoffStart;
+        messages.push(`playoff_week_start overridden by JSON => ${playoffStart}`);
       }
     }
   } catch (e) {
@@ -900,7 +909,7 @@ export async function load(event) {
         messages.push('No Overall MVP found in JSON (no starters data).');
       }
 
-      // finals MVP
+      // finals MVP: find the final matchup row (finalRes.row) or attempt to discover it
       let finalMatchRow = finalRes?.row ?? null;
       if (!finalMatchRow && finalRes && (finalRes.winner || finalRes.loser)) {
         const aId = String(finalRes.winner), bId = String(finalRes.loser);
@@ -945,7 +954,7 @@ export async function load(event) {
       overallMvp = null;
     }
   } else {
-    // no JSON -> use sleeper helpers
+    // no JSON -> use sleeper helpers for current season
     try {
       finalsMvp = await sleeper.getFinalsMVP(selectedLeagueId, { season: selectedSeasonParam || (leagueMeta && leagueMeta.season) || null, championshipWeek: playoffEnd, maxWeek: playoffEnd, playersEndpoint: '/players/nba' });
       messages.push(`Fetched Finals MVP from Sleeper helper (season ${selectedSeasonParam}).`);
@@ -977,7 +986,6 @@ export async function load(event) {
       messages.push(`Resolving ${idsToFetch.length} MVP player(s) via sleeper client.`);
       try {
         if (typeof sleeper.getPlayers === 'function') {
-          // assume returns map object keyed by playerId
           const fetched = await sleeper.getPlayers(idsToFetch, { ttl: 60 * 60 });
           if (fetched && typeof fetched === 'object') {
             for (const k of Object.keys(fetched)) playersMap[String(k)] = fetched[k];
@@ -988,7 +996,7 @@ export async function load(event) {
               const p = await sleeper.getPlayer(pid, { ttl: 60 * 60 });
               if (p) playersMap[String(pid)] = p;
             } catch (e) {
-              // continue
+              // ignore per-player error
             }
           }
         } else if (typeof sleeper.getPlayersMap === 'function') {
@@ -997,7 +1005,7 @@ export async function load(event) {
             for (const k of Object.keys(fetched)) playersMap[String(k)] = fetched[k];
           }
         } else {
-          // last resort: try helper getPlayer for each id
+          // fallback: attempt per-player getPlayer if available
           for (const pid of idsToFetch) {
             try {
               if (typeof sleeper.getPlayer === 'function') {
@@ -1021,16 +1029,12 @@ export async function load(event) {
       if (!pid) return;
       const pobj = playersMap[String(pid)] ?? null;
       mvpObj.playerObj = pobj ?? null;
-      // common player name fields across different shapes:
       mvpObj.playerName = mvpObj.playerName
-        ?? mvpObj.playerName // keep if present
-        ?? (pobj?.full_name ?? pobj?.fullName ?? pobj?.name ?? pobj?.player_first_last ?? pobj?.first_name ? [pobj?.first_name, pobj?.last_name].filter(Boolean).join(' ') : null)
+        ?? (pobj?.full_name ?? pobj?.fullName ?? pobj?.name ?? pobj?.player_first_last ?? (pobj?.first_name ? [pobj?.first_name, pobj?.last_name].filter(Boolean).join(' ') : null))
         ?? null;
-      // also attempt legacy fields
       if (!mvpObj.playerName && (mvpObj.playerObj?.first_name || mvpObj.playerObj?.last_name)) {
         mvpObj.playerName = [mvpObj.playerObj.first_name, mvpObj.playerObj.last_name].filter(Boolean).join(' ');
       }
-      // ensure numeric-ish points is present
       if (typeof mvpObj.points === 'undefined' && (mvpObj.pts || mvpObj.score || mvpObj.total)) {
         mvpObj.points = mvpObj.pts ?? mvpObj.score ?? mvpObj.total;
       }
@@ -1043,7 +1047,7 @@ export async function load(event) {
     messages.push('Error resolving MVP player names: ' + (e?.message ?? String(e)));
   }
 
-  // push trace lines
+  // attach trace lines into messages for easier client debugging
   for (const t of trace) messages.push(t);
 
   return {
