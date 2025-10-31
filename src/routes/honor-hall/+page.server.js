@@ -1,12 +1,13 @@
 // src/routes/honor-hall/+page.server.js
 // Honor Hall loader + bracket simulation (updated losers-bracket logic)
-// JSON-first: if a local season_matchups/<season>.json exists, use it for that season's weeks
-// Also compute Finals MVP and Overall MVP from JSON (starters + starters_points) for historical seasons.
+// - Loads local season_matchups JSON when present (historical seasons)
+// - Computes overall & finals MVPs from starters + starters_points for historical seasons
+// - Falls back to Sleeper API for current season
 
-import { createSleeperClient } from '$lib/server/sleeperClient';
-import { createMemoryCache, createKVCache } from '$lib/server/cache';
 import fs from 'fs/promises';
 import path from 'path';
+import { createSleeperClient } from '$lib/server/sleeperClient';
+import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
 let cache;
 try {
@@ -50,35 +51,16 @@ function computeStreaks(resultsArray) {
   return { maxW, maxL };
 }
 
-async function loadLocalSeasonJsons() {
-  // try a few likely directories
-  const candidates = [
-    path.join(process.cwd(), 'season_matchups'),
-    path.join(process.cwd(), 'static', 'season_matchups'),
-    path.join(process.cwd(), 'src', 'season_matchups')
-  ];
-  const found = {};
-  for (const dir of candidates) {
-    try {
-      const files = await fs.readdir(dir);
-      for (const f of files) {
-        if (!f.toLowerCase().endsWith('.json')) continue;
-        const name = f.replace(/\.json$/i, '');
-        try {
-          const content = await fs.readFile(path.join(dir, f), 'utf8');
-          const parsed = JSON.parse(content);
-          found[String(name)] = parsed;
-        } catch (e) {
-          // ignore parse errors for single files
-        }
-      }
-      // once we successfully read a directory, stop searching others
-      if (Object.keys(found).length) return found;
-    } catch (e) {
-      // ignore - try next path
-    }
+async function tryLoadSeasonJson(season) {
+  // attempt to read season_matchups/<season>.json from project root
+  try {
+    const filePath = path.join(process.cwd(), 'season_matchups', `${season}.json`);
+    const raw = await fs.readFile(filePath, 'utf8');
+    const json = JSON.parse(raw);
+    return json;
+  } catch (e) {
+    return null;
   }
-  return found;
 }
 
 export async function load(event) {
@@ -173,45 +155,20 @@ export async function load(event) {
   }
   if (!selectedLeagueId) selectedLeagueId = String(selectedSeasonParam || BASE_LEAGUE_ID);
 
-  // --- load local JSONs (JSON-first for historical seasons) ---
-  let localSeasonJsons = {};
-  try {
-    localSeasonJsons = await loadLocalSeasonJsons();
-    if (Object.keys(localSeasonJsons).length) {
-      messages.push('Loaded season_matchups JSON for years: ' + Object.keys(localSeasonJsons).join(', '));
-    }
-  } catch (e) {
-    // non-fatal
-  }
-
-  // helper: determine if we should use JSON for the selected season
-  const selectedSeasonKeyForJson = String(selectedSeasonParam);
-  const useJsonForSelected = Boolean(localSeasonJsons && localSeasonJsons[selectedSeasonKeyForJson]);
-  const selectedSeasonJson = useJsonForSelected ? localSeasonJsons[selectedSeasonKeyForJson] : null;
-  if (useJsonForSelected) {
-    messages.push(`Using local JSON for season ${selectedSeasonKeyForJson}`);
-  }
-
   let leagueMeta = null;
   try { leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 }); }
   catch (e) { leagueMeta = null; messages.push('Failed fetching league meta for ' + selectedLeagueId + ' — ' + (e?.message ?? e)); }
 
-  // decide playoffStart, prefer JSON if present
-  let playoffStart = null;
-  if (selectedSeasonJson && Number(selectedSeasonJson.playoff_week_start)) {
-    playoffStart = Number(selectedSeasonJson.playoff_week_start);
-    messages.push(`Processed season_matchups JSON for year ${selectedSeasonKeyForJson} (playoff_week_start=${playoffStart}).`);
-  } else {
-    playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
+  // default playoffStart from league meta (may be overridden by JSON)
+  let playoffStart = (leagueMeta && leagueMeta.settings && (leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek)) ? Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek) : null;
+  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
+    playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
     if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-      playoffStart = (leagueMeta && leagueMeta.settings && leagueMeta.settings.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : null;
-      if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) {
-        playoffStart = 15;
-        messages.push('Playoff start not found in metadata — defaulting to week ' + playoffStart);
-      }
+      playoffStart = 15;
+      messages.push('Playoff start not found in metadata — defaulting to week ' + playoffStart);
     }
   }
-  const playoffEnd = playoffStart + 2;
+  const playoffEndDefault = playoffStart + 2;
 
   // roster map
   let rosterMap = {};
@@ -237,47 +194,23 @@ export async function load(event) {
   const regStart = 1;
   const regEnd = Math.max(1, playoffStart - 1);
 
-  // helper to get matchups for a given week from JSON (if present) or null
-  function getJsonMatchupsForWeek(seasonJson, week) {
-    if (!seasonJson) return null;
-    // JSON structure example uses keys like "1": [ ... ]
-    // try both string and numeric key
-    if (seasonJson[String(week)]) return Array.isArray(seasonJson[String(week)]) ? seasonJson[String(week)] : null;
-    if (seasonJson[week]) return Array.isArray(seasonJson[week]) ? seasonJson[week] : null;
-    return null;
-  }
-
+  // We'll still attempt to compute regular standings from Sleeper for the current season,
+  // but if we have local JSON for the selected season we won't call Sleeper for matchups later.
   for (let week = regStart; week <= regEnd; week++) {
     let matchups = null;
-
-    // prefer JSON when available for the selected season
-    if (useJsonForSelected) {
-      const jm = getJsonMatchupsForWeek(selectedSeasonJson, week);
-      if (Array.isArray(jm) && jm.length) {
-        matchups = jm;
-      }
+    try {
+      matchups = await sleeper.getMatchupsForWeek(selectedLeagueId, week, { ttl: 60 * 5 });
+    } catch (errWeek) {
+      messages.push('Error fetching matchups for league ' + selectedLeagueId + ' week ' + week + ' — ' + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
+      continue;
     }
-
-    if (!matchups) {
-      try {
-        matchups = await sleeper.getMatchupsForWeek(selectedLeagueId, week, { ttl: 60 * 5 });
-      } catch (errWeek) {
-        messages.push('Error fetching matchups for league ' + selectedLeagueId + ' week ' + week + ' — ' + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
-        continue;
-      }
-    }
-
     if (!matchups || !matchups.length) continue;
 
     const byMatch = {};
     for (let mi = 0; mi < matchups.length; mi++) {
       const e = matchups[mi];
-      // If JSON-produced matchup objects are in a slightly different shape, normalize here:
-      // Accept both JSON fields like teamA/teamB and Sleeper API objects (roster_id, points).
-      let mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
-      let wk = e.week ?? e.w ?? week;
-      // For JSON objects provided in your example, they are already normalized (teamA, teamB, teamAScore, teamBScore)
-      // We'll create a consistent key using matchup-id where available, otherwise auto.
+      const mid = e.matchup_id ?? e.matchupId ?? e.matchup ?? null;
+      const wk = e.week ?? e.w ?? week;
       const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
       if (!byMatch[key]) byMatch[key] = [];
       byMatch[key].push(e);
@@ -288,34 +221,9 @@ export async function load(event) {
       const entries = byMatch[keys[k]];
       if (!entries || entries.length === 0) continue;
 
-      // If the week data came from JSON, entries are likely one item representing a matchup with teamA/teamB.
-      // We need to support both types: Sleeper API array-of-entries or JSON normalized object.
       if (entries.length === 1) {
         const only = entries[0];
-
-        // JSON shape: teamA/teamB and teamAScore/teamBScore
-        if (only.teamA || only.teamB) {
-          const aId = String(only.teamA?.rosterId ?? only.teamA?.roster_id ?? only.teamA?.ownerId ?? only.teamA?.owner_id ?? 'unknownA');
-          const bId = String(only.teamB?.rosterId ?? only.teamB?.roster_id ?? only.teamB?.ownerId ?? only.teamB?.owner_id ?? 'unknownB');
-          const aPts = safeNum(only.teamAScore ?? only.teamA?.points ?? only.teamA?.points_for ?? only.teamA?.pts ?? null);
-          const bPts = safeNum(only.teamBScore ?? only.teamB?.points ?? only.teamB?.points_for ?? only.teamB?.pts ?? null);
-
-          // update trackers for both participants (if present)
-          if (aId) {
-            if (!statsByRosterRegular[aId]) statsByRosterRegular[aId] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-            if (!resultsByRosterRegular[aId]) resultsByRosterRegular[aId] = [];
-            statsByRosterRegular[aId].pf += aPts;
-          }
-          if (bId) {
-            if (!statsByRosterRegular[bId]) statsByRosterRegular[bId] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
-            if (!resultsByRosterRegular[bId]) resultsByRosterRegular[bId] = [];
-            statsByRosterRegular[bId].pf += bPts;
-          }
-          // For single-entry cases we won't compute wins/losses here (lack of opponent in same object) — that is acceptable
-          continue;
-        }
-
-        // Otherwise treat as single participant entry (e.g., only one roster reported) similar to earlier code
+        // treat single-entry Sleeper object (single participant or bye)
         const ridOnly = String(only.roster_id ?? only.rosterId ?? only.owner_id ?? only.ownerId ?? 'unknown');
         const ptsOnly = safeNum(only.points ?? only.points_for ?? only.pts ?? 0);
         if (!statsByRosterRegular[ridOnly]) statsByRosterRegular[ridOnly] = { wins:0, losses:0, ties:0, pf:0, pa:0, roster: null };
@@ -325,7 +233,6 @@ export async function load(event) {
         continue;
       }
 
-      // If entries.length >= 2 (Sleeper API style), use existing logic:
       const participants = [];
       for (let i = 0; i < entries.length; i++) {
         const ent = entries[i];
@@ -406,33 +313,87 @@ export async function load(event) {
   const placementToRoster = {};
   for (const k in placementMap) placementToRoster[ placementMap[k] ] = k;
 
-  // --- fetch playoff matchups and normalize rows ---
-  const rawMatchups = [];
-  for (let wk = playoffStart; wk <= playoffEnd; wk++) {
-    // prefer JSON for playoff weeks when present for the selected season
-    let wkMatchups = null;
-    if (useJsonForSelected) {
-      const jm = getJsonMatchupsForWeek(selectedSeasonJson, wk);
-      if (Array.isArray(jm) && jm.length) wkMatchups = jm;
+  // -------------------------
+  // Load playoff + playoff matchups
+  // If season JSON is present for the selected season, use that JSON for matchups.
+  // Otherwise fall back to calling Sleeper getMatchupsForWeek.
+  // -------------------------
+  let seasonJson = null;
+  let seasonJsonLoaded = false;
+  try {
+    seasonJson = await tryLoadSeasonJson(selectedSeasonParam);
+    if (seasonJson) {
+      seasonJsonLoaded = true;
+      messages.push(`Loaded season_matchups JSON for season ${selectedSeasonParam}.`);
+      // if json contains playoff_week_start override
+      if (seasonJson.playoff_week_start) {
+        playoffStart = Number(seasonJson.playoff_week_start) || playoffStart;
+      }
     }
+  } catch (e) {
+    seasonJson = null;
+    seasonJsonLoaded = false;
+  }
 
-    if (!wkMatchups) {
+  const playoffEnd = playoffStart + 2;
+
+  // Build rawMatchups array consistent shape for both JSON and Sleeper
+  const rawMatchups = [];
+
+  if (seasonJsonLoaded && seasonJson) {
+    // seasonJson shape example: { "playoff_week_start": 20, "1": [{matchup...}, ...], "2": [...], ... }
+    // gather numeric keys
+    const keys = Object.keys(seasonJson || {}).filter(k => /^\d+$/.test(k));
+    for (const wkKey of keys) {
+      const wk = Number(wkKey);
+      const arr = Array.isArray(seasonJson[wkKey]) ? seasonJson[wkKey] : [];
+      for (const m of arr) {
+        // normalize to a single object resembling a matchup
+        // ensure keys: matchup_id, week, teamA, teamB, teamAScore, teamBScore
+        const obj = {
+          matchup_id: m.matchup_id ?? m.matchupId ?? m.id ?? null,
+          week: wk,
+          teamA: {
+            rosterId: String(m.teamA?.rosterId ?? (m.teamA?.roster_id ?? m.teamA?.id ?? '') ?? ''),
+            name: m.teamA?.name ?? m.teamA?.team_name ?? null,
+            ownerName: m.teamA?.ownerName ?? m.teamA?.owner_name ?? null,
+            starters: Array.isArray(m.teamA?.starters) ? m.teamA.starters : null,
+            starters_points: Array.isArray(m.teamA?.starters_points) ? m.teamA.starters_points : null,
+            player_points: m.teamA?.player_points ?? null
+          },
+          teamB: {
+            rosterId: String(m.teamB?.rosterId ?? (m.teamB?.roster_id ?? m.teamB?.id ?? '') ?? ''),
+            name: m.teamB?.name ?? m.teamB?.team_name ?? null,
+            ownerName: m.teamB?.ownerName ?? m.teamB?.owner_name ?? null,
+            starters: Array.isArray(m.teamB?.starters) ? m.teamB.starters : null,
+            starters_points: Array.isArray(m.teamB?.starters_points) ? m.teamB.starters_points : null,
+            player_points: m.teamB?.player_points ?? null
+          },
+          teamAScore: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.teamAScore ?? m.teamA?.points ?? null),
+          teamBScore: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.teamBScore ?? m.teamB?.points ?? null)
+        };
+        rawMatchups.push(obj);
+      }
+    }
+    messages.push(`Processed season_matchups JSON for season ${selectedSeasonParam} (playoff_week_start=${playoffStart}).`);
+  } else {
+    // No JSON — fetch from Sleeper for playoff weeks
+    for (let wk = playoffStart; wk <= playoffEnd; wk++) {
       try {
-        const apiMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
-        if (Array.isArray(apiMatchups) && apiMatchups.length) wkMatchups = apiMatchups;
+        const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
+        if (Array.isArray(wkMatchups) && wkMatchups.length) {
+          for (const m of wkMatchups) {
+            if (m && (m.week == null && m.w == null)) m.week = wk;
+            rawMatchups.push(m);
+          }
+        }
       } catch (we) {
         messages.push('Failed to fetch matchups for week ' + wk + ': ' + (we?.message ?? String(we)));
       }
     }
-
-    if (Array.isArray(wkMatchups) && wkMatchups.length) {
-      for (const m of wkMatchups) {
-        if (m && (m.week == null && m.w == null)) m.week = wk;
-        rawMatchups.push(m);
-      }
-    }
   }
 
+  // Now normalize rawMatchups into matchupsRows similar to previous logic, supporting both shapes
   const byMatch = {};
   for (let i = 0; i < rawMatchups.length; i++) {
     const e = rawMatchups[i];
@@ -449,55 +410,122 @@ export async function load(event) {
     const entries = byMatch[mkeys[ki]];
     if (!entries || entries.length === 0) continue;
 
+    // If JSON matchups were used: each entry is a single object with teamA/teamB nested
     if (entries.length === 1) {
-      const a = entries[0];
-      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? a.teamA?.rosterId ?? a.teamA?.roster_id ?? 'unknownA');
-      const aMeta = rosterMap[aId] || {};
-      const aName = aMeta.team_name || aMeta.owner_name || a.teamA?.name || ('Roster ' + aId);
-      const aAvatar = aMeta.team_avatar || aMeta.owner_avatar || a.teamA?.avatar || null;
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? a.teamAScore ?? a.teamA?.points ?? null);
-      const aPlacement = placementMap[aId] ?? null;
-      matchupsRows.push({
-        matchup_id: mkeys[ki],
-        season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-        week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aName, avatar: aAvatar, points: aPts, placement: aPlacement },
-        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, placement: null },
-        participantsCount: 1
-      });
-      continue;
+      const only = entries[0];
+      if (only.teamA && only.teamB) {
+        // JSON-shaped matchup
+        const a = only.teamA;
+        const b = only.teamB;
+        const aId = String(a.rosterId ?? a.roster_id ?? '');
+        const bId = String(b.rosterId ?? b.roster_id ?? '');
+        const aPts = safeNum(only.teamAScore ?? a.score ?? 0);
+        const bPts = safeNum(only.teamBScore ?? b.score ?? 0);
+        const aPlacement = placementMap[aId] ?? null;
+        const bPlacement = placementMap[bId] ?? null;
+        matchupsRows.push({
+          matchup_id: mkeys[ki],
+          season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
+          week: only.week ?? only.w ?? null,
+          teamA: {
+            rosterId: aId,
+            name: a.name ?? a.team_name ?? (rosterMap[aId]?.team_name ?? rosterMap[aId]?.owner_name) || ('Roster ' + aId),
+            ownerName: a.ownerName ?? a.owner_name ?? rosterMap[aId]?.owner_name ?? null,
+            avatar: (rosterMap[aId]?.team_avatar || rosterMap[aId]?.owner_avatar) ?? null,
+            starters: a.starters ?? null,
+            starters_points: a.starters_points ?? null,
+            points: aPts,
+            placement: aPlacement
+          },
+          teamB: {
+            rosterId: bId,
+            name: b.name ?? b.team_name ?? (rosterMap[bId]?.team_name ?? rosterMap[bId]?.owner_name) || ('Roster ' + bId),
+            ownerName: b.ownerName ?? b.owner_name ?? rosterMap[bId]?.owner_name ?? null,
+            avatar: (rosterMap[bId]?.team_avatar || rosterMap[bId]?.owner_avatar) ?? null,
+            starters: b.starters ?? null,
+            starters_points: b.starters_points ?? null,
+            points: bPts,
+            placement: bPlacement
+          },
+          participantsCount: 2
+        });
+        continue;
+      } else {
+        // Single participant object (from Sleeper) — treat as bye/single
+        const a = only;
+        const ridOnly = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknown');
+        const ptsOnly = safeNum(a.points ?? a.points_for ?? a.pts ?? 0);
+        const meta = rosterMap[ridOnly] || {};
+        matchupsRows.push({
+          matchup_id: mkeys[ki],
+          season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
+          week: a.week ?? a.w ?? null,
+          teamA: { rosterId: ridOnly, name: meta.team_name || meta.owner_name || ('Roster ' + ridOnly), avatar: meta.team_avatar || meta.owner_avatar || null, points: ptsOnly, placement: placementMap[ridOnly] ?? null },
+          teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, placement: null },
+          participantsCount: 1
+        });
+        continue;
+      }
     }
 
+    // entries.length === 2 and/or entries are Sleeper participant objects
     if (entries.length === 2) {
-      const a = entries[0];
-      const b = entries[1];
-      const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? a.teamA?.rosterId ?? a.teamA?.roster_id ?? 'unknownA');
-      const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? b.teamB?.rosterId ?? b.teamB?.roster_id ?? 'unknownB');
-      const aMeta = rosterMap[aId] || {};
-      const bMeta = rosterMap[bId] || {};
-      const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? a.teamAScore ?? a.teamA?.points ?? null);
-      const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? b.teamBScore ?? b.teamB?.points ?? null);
-      const aPlacement = placementMap[aId] ?? null;
-      const bPlacement = placementMap[bId] ?? null;
-      matchupsRows.push({
-        matchup_id: mkeys[ki],
-        season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
-        week: a.week ?? a.w ?? null,
-        teamA: { rosterId: aId, name: aMeta.team_name || aMeta.owner_name || a.teamA?.name || ('Roster ' + aId), avatar: aMeta.team_avatar || aMeta.owner_avatar || a.teamA?.avatar || null, points: aPts, placement: aPlacement },
-        teamB: { rosterId: bId, name: bMeta.team_name || bMeta.owner_name || b.teamB?.name || ('Roster ' + bId), avatar: bMeta.team_avatar || bMeta.owner_avatar || b.teamB?.avatar || null, points: bPts, placement: bPlacement },
-        participantsCount: 2
-      });
-      continue;
+      // If these are Sleeper-style participant entries (each entry is a participant), handle that
+      const maybeA = entries[0];
+      const maybeB = entries[1];
+
+      // detect Sleeper participant objects (have roster_id/points)
+      const aIsSleeper = (typeof maybeA.roster_id !== 'undefined' || typeof maybeA.rosterId !== 'undefined' || typeof maybeA.owner_id !== 'undefined');
+      const bIsSleeper = (typeof maybeB.roster_id !== 'undefined' || typeof maybeB.rosterId !== 'undefined' || typeof maybeB.owner_id !== 'undefined');
+
+      if (aIsSleeper && bIsSleeper) {
+        const a = maybeA;
+        const b = maybeB;
+        const aId = String(a.roster_id ?? a.rosterId ?? a.owner_id ?? a.ownerId ?? 'unknownA');
+        const bId = String(b.roster_id ?? b.rosterId ?? b.owner_id ?? b.ownerId ?? 'unknownB');
+        const aMeta = rosterMap[aId] || {};
+        const bMeta = rosterMap[bId] || {};
+        const aPts = safeNum(a.points ?? a.points_for ?? a.pts ?? null);
+        const bPts = safeNum(b.points ?? b.points_for ?? b.pts ?? null);
+        const aPlacement = placementMap[aId] ?? null;
+        const bPlacement = placementMap[bId] ?? null;
+        matchupsRows.push({
+          matchup_id: mkeys[ki],
+          season: leagueMeta && leagueMeta.season ? String(leagueMeta.season) : null,
+          week: a.week ?? a.w ?? null,
+          teamA: { rosterId: aId, name: aMeta.team_name || aMeta.owner_name || ('Roster ' + aId), avatar: aMeta.team_avatar || aMeta.owner_avatar || null, points: aPts, placement: aPlacement },
+          teamB: { rosterId: bId, name: bMeta.team_name || bMeta.owner_name || ('Roster ' + bId), avatar: bMeta.team_avatar || bMeta.owner_avatar || null, points: bPts, placement: bPlacement },
+          participantsCount: 2
+        });
+        continue;
+      }
+
+      // Otherwise entries might each be an object already representing teamA/teamB (rare), attempt to unwrap
+      // fallback behavior: merge participants into combinedParticipants
     }
 
+    // fallback - combined participants (more than 2 or unknown shape)
     const participants = entries.map(ent => {
-      const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? ent.teamA?.rosterId ?? ent.teamB?.rosterId ?? 'r');
+      // if ent has teamA/teamB nested, unwrap; else treat as participant
+      if (ent.teamA && ent.teamB) {
+        // shouldn't hit here since length > 1 and one entry had nested teams, but handle safely
+        const a = ent.teamA;
+        return {
+          rosterId: String(a.rosterId ?? a.roster_id ?? ''),
+          name: a.name ?? a.team_name ?? ('Roster ' + (a.rosterId ?? a.roster_id ?? '?')),
+          avatar: (rosterMap[String(a.rosterId)]?.team_avatar || rosterMap[String(a.rosterId)]?.owner_avatar) ?? null,
+          points: safeNum(ent.teamAScore ?? a.score ?? 0),
+          placement: placementMap[String(a.rosterId ?? a.roster_id ?? '')] ?? null
+        };
+      }
+
+      const pid = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? ('r'));
       const meta = rosterMap[pid] || {};
       return {
         rosterId: pid,
-        name: meta.team_name || meta.owner_name || (ent.teamA?.name ?? ent.teamB?.name) || ('Roster ' + pid),
-        avatar: meta.team_avatar || meta.owner_avatar || (ent.teamA?.avatar ?? ent.teamB?.avatar) || null,
-        points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? ent.teamAScore ?? ent.teamBScore ?? 0),
+        name: meta.team_name || meta.owner_name || ('Roster ' + pid),
+        avatar: meta.team_avatar || meta.owner_avatar || null,
+        points: safeNum(ent.points ?? ent.points_for ?? ent.pts ?? 0),
         placement: placementMap[pid] ?? null
       };
     });
@@ -855,207 +883,147 @@ export async function load(event) {
   const biggestLoser = finalStandings[finalStandings.length - 1] ?? null;
 
   // -------------------------
-  // Compute MVPs:
-  // - If we have JSON for the selected season, compute from JSON using starters + starters_points (playoff weeks only).
-  // - Otherwise fall back to existing Sleeper helpers (getFinalsMVP / getOverallMVP).
+  // Compute MVPs
+  // - For historical seasons (JSON loaded): compute from starters + starters_points
+  // - For current season (no JSON): fall back to sleeper helpers
+  // Include MVP info in debug messages (playerId, points, roster)
   // -------------------------
   let finalsMvp = null;
   let overallMvp = null;
 
-  if (useJsonForSelected) {
+  if (seasonJsonLoaded && seasonJson) {
     try {
-      // accumulate totals across playoff matchups (rawMatchups contains the JSON match objects we loaded earlier for playoff weeks)
-      const playerTotals = {}; // pid -> total playoff points
-      const playerRosterContrib = {}; // pid -> { rosterId: pts }
-      // gather all playoff raw matchups that contain starters info
-      for (const m of rawMatchups) {
-        if (!m) continue;
-        // handle JSON shape with teamA/teamB
-        const processTeam = (teamObj) => {
-          if (!teamObj) return;
-          const rosterId = String(teamObj.rosterId ?? teamObj.roster_id ?? teamObj.ownerId ?? teamObj.owner_id ?? 'unknown');
-          const starters = Array.isArray(teamObj.starters) ? teamObj.starters : null;
-          const startersPts = Array.isArray(teamObj.starters_points) ? teamObj.starters_points : null;
-          if (!starters || !startersPts) return;
-          for (let i = 0; i < starters.length; i++) {
-            const pid = String(starters[i] ?? '');
+      // overall totals map
+      const totals = {}; // playerId -> total points
+      const playerRoster = {}; // playerId -> last-seen rosterId
+
+      // aggregate over all weeks in seasonJson (we already created rawMatchups from it earlier)
+      for (const rm of rawMatchups) {
+        // rm has keys teamA/teamB and starters arrays if from JSON
+        if (rm.teamA && Array.isArray(rm.teamA.starters) && Array.isArray(rm.teamA.starters_points)) {
+          for (let i = 0; i < rm.teamA.starters.length; i++) {
+            const pid = String(rm.teamA.starters[i] ?? '');
             if (!pid || pid === '0') continue;
-            const pts = safeNum(startersPts[i] ?? 0);
-            playerTotals[pid] = (playerTotals[pid] || 0) + pts;
-            if (!playerRosterContrib[pid]) playerRosterContrib[pid] = {};
-            playerRosterContrib[pid][rosterId] = (playerRosterContrib[pid][rosterId] || 0) + pts;
+            const pts = safeNum(rm.teamA.starters_points[i] ?? 0);
+            totals[pid] = (totals[pid] || 0) + pts;
+            playerRoster[pid] = String(rm.teamA.rosterId ?? playerRoster[pid] ?? '');
           }
-        };
-        // If JSON style has teamA/teamB:
-        if (m.teamA || m.teamB) {
-          processTeam(m.teamA);
-          processTeam(m.teamB);
-        } else {
-          // If Sleeper API objects (multiple entries), we may not have starters in rawMatchups; skip those (we only compute from JSON starters)
-          // But some JSON may be stored as arrays of entries with roster_id/points rather than teamA/teamB - those won't have starters.
-          // We intentionally only use the 'teamA/teamB' JSON style for MVP computation.
+        }
+        if (rm.teamB && Array.isArray(rm.teamB.starters) && Array.isArray(rm.teamB.starters_points)) {
+          for (let i = 0; i < rm.teamB.starters.length; i++) {
+            const pid = String(rm.teamB.starters[i] ?? '');
+            if (!pid || pid === '0') continue;
+            const pts = safeNum(rm.teamB.starters_points[i] ?? 0);
+            totals[pid] = (totals[pid] || 0) + pts;
+            playerRoster[pid] = String(rm.teamB.rosterId ?? playerRoster[pid] ?? '');
+          }
         }
       }
 
-      // compute overallMvp (highest total playoff points)
-      let overallTop = null;
-      for (const pid in playerTotals) {
-        if (!Object.prototype.hasOwnProperty.call(playerTotals, pid)) continue;
-        const pts = playerTotals[pid];
-        if (overallTop === null || pts > overallTop.points) {
-          overallTop = { playerId: pid, points: pts };
+      // determine overall MVP
+      let bestPid = null, bestTotal = -1;
+      for (const pid in totals) {
+        if (!Object.prototype.hasOwnProperty.call(totals, pid)) continue;
+        const t = totals[pid];
+        if (t > bestTotal) {
+          bestTotal = t;
+          bestPid = pid;
         }
       }
-      if (overallTop) {
-        // determine topRosterId (the roster the player scored most for)
-        const contrib = playerRosterContrib[overallTop.playerId] || {};
-        let topRosterId = null, topRosterPts = -1;
-        for (const rk in contrib) {
-          if (!Object.prototype.hasOwnProperty.call(contrib, rk)) continue;
-          if (contrib[rk] > topRosterPts) {
-            topRosterPts = contrib[rk];
-            topRosterId = rk;
-          }
-        }
+      if (bestPid) {
         overallMvp = {
-          playerId: overallTop.playerId,
-          topPlayerId: overallTop.playerId,
-          playerName: null, // client can resolve name/image; we leave null to avoid extra calls
-          points: Math.round(overallTop.points * 100) / 100,
-          total: Math.round(overallTop.points * 100) / 100,
-          topRosterId,
+          playerId: bestPid,
+          points: Math.round((bestTotal || 0) * 100) / 100,
+          rosterId: playerRoster[bestPid] ?? null
         };
-        if (topRosterId && rosterMap && rosterMap[String(topRosterId)]) {
-          overallMvp.roster_meta = rosterMap[String(topRosterId)];
-        }
+        messages.push(`Computed Overall MVP from JSON: playerId=${overallMvp.playerId} points=${overallMvp.points} roster=${overallMvp.rosterId}`);
+      } else {
+        messages.push('No Overall MVP found in JSON (no starters data).');
       }
 
-      // compute finalsMvp (highest single-match points in the final matchup)
-      // Find candidate final match(es) in rawMatchups at playoffEnd
-      const finalsCandidates = rawMatchups.filter(r => r && (Number(r.week ?? r.w ?? 0) === Number(playoffEnd)));
-      let finalMatch = null;
-      if (finalsCandidates && finalsCandidates.length === 1) {
-        finalMatch = finalsCandidates[0];
-      } else if (finalsCandidates && finalsCandidates.length > 1) {
-        // prefer a match where both participants are from winners seeds (seed <= 8) if placements are present
-        const pickBySeeds = finalsCandidates.find(c => {
-          const aRid = String(c.teamA?.rosterId ?? c.teamA?.roster_id ?? c.roster_id ?? '');
-          const bRid = String(c.teamB?.rosterId ?? c.teamB?.roster_id ?? c.roster_id ?? '');
-          const aPl = placementMap[aRid] ?? 999;
-          const bPl = placementMap[bRid] ?? 999;
-          return aPl <= 8 && bPl <= 8;
-        });
-        if (pickBySeeds) finalMatch = pickBySeeds;
-        else {
-          // fallback: pick candidate with largest combined score (teamAScore+teamBScore)
-          let best = null, bestSum = -1;
-          for (const c of finalsCandidates) {
-            const aScore = safeNum(c.teamAScore ?? c.teamA?.points ?? 0);
-            const bScore = safeNum(c.teamBScore ?? c.teamB?.points ?? 0);
-            const sum = aScore + bScore;
-            if (sum > bestSum) { best = c; bestSum = sum; }
-          }
-          finalMatch = best;
-        }
+      // determine finals MVP: look for finalRes and its row (matchRow), otherwise try to find the final matchup in rawMatchups
+      let finalMatchRow = finalRes?.row ?? null;
+      if (!finalMatchRow && finalRes && (finalRes.winner || finalRes.loser)) {
+        // try to find a match in matchupsRows where participants match winner/loser and where week is playoffEnd
+        const aId = String(finalRes.winner), bId = String(finalRes.loser);
+        finalMatchRow = findMatchForPair(aId, bId, [playoffStart, playoffStart+1, playoffStart+2]) ?? null;
       }
 
-      if (finalMatch && (finalMatch.teamA || finalMatch.teamB)) {
-        const topInFinal = {};
-        const processFinalTeam = (teamObj) => {
-          if (!teamObj) return;
-          const starters = Array.isArray(teamObj.starters) ? teamObj.starters : null;
-          const startersPts = Array.isArray(teamObj.starters_points) ? teamObj.starters_points : null;
-          if (!starters || !startersPts) return;
-          for (let i = 0; i < starters.length; i++) {
-            const pid = String(starters[i] ?? '');
+      if (finalMatchRow) {
+        // finalMatchRow shape may be JSON-shaped (teamA/teamB with starters_points) or Sleeper-shaped
+        let bestFpid = null, bestFpts = -1, bestFroster = null;
+        // If JSON-shaped
+        if (finalMatchRow.teamA && finalMatchRow.teamA.starters && finalMatchRow.teamA.starters_points) {
+          for (let i = 0; i < finalMatchRow.teamA.starters.length; i++) {
+            const pid = String(finalMatchRow.teamA.starters[i] ?? '');
             if (!pid || pid === '0') continue;
-            const pts = safeNum(startersPts[i] ?? 0);
-            topInFinal[pid] = (topInFinal[pid] || 0) + pts;
-          }
-        };
-        processFinalTeam(finalMatch.teamA);
-        processFinalTeam(finalMatch.teamB);
-
-        let finalTop = null;
-        for (const pid in topInFinal) {
-          if (!Object.prototype.hasOwnProperty.call(topInFinal, pid)) continue;
-          const pts = topInFinal[pid];
-          if (finalTop === null || pts > finalTop.points) {
-            finalTop = { playerId: pid, points: pts };
+            const pts = safeNum(finalMatchRow.teamA.starters_points[i] ?? 0);
+            if (pts > bestFpts) { bestFpts = pts; bestFpid = pid; bestFroster = finalMatchRow.teamA.rosterId; }
           }
         }
-        if (finalTop) {
-          // find roster the player scored for in that final match (first match of finalMatch teams)
-          let topRosterId = null;
-          const tryFindRoster = (teamObj) => {
-            if (!teamObj) return null;
-            const starters = Array.isArray(teamObj.starters) ? teamObj.starters : null;
-            if (!starters) return null;
-            for (let i = 0; i < starters.length; i++) {
-              const pid = String(starters[i] ?? '');
-              if (pid === finalTop.playerId) return String(teamObj.rosterId ?? teamObj.roster_id ?? teamObj.ownerId ?? teamObj.owner_id ?? null);
-            }
-            return null;
-          };
-          topRosterId = tryFindRoster(finalMatch.teamA) || tryFindRoster(finalMatch.teamB) || null;
+        if (finalMatchRow.teamB && finalMatchRow.teamB.starters && finalMatchRow.teamB.starters_points) {
+          for (let i = 0; i < finalMatchRow.teamB.starters.length; i++) {
+            const pid = String(finalMatchRow.teamB.starters[i] ?? '');
+            if (!pid || pid === '0') continue;
+            const pts = safeNum(finalMatchRow.teamB.starters_points[i] ?? 0);
+            if (pts > bestFpts) { bestFpts = pts; bestFpid = pid; bestFroster = finalMatchRow.teamB.rosterId; }
+          }
+        }
+
+        if (bestFpid) {
           finalsMvp = {
-            playerId: finalTop.playerId,
-            playerName: null,
-            points: Math.round(finalTop.points * 100) / 100,
-            rosterId: topRosterId
+            playerId: bestFpid,
+            points: Math.round(bestFpts * 100) / 100,
+            rosterId: bestFroster ?? null
           };
-          if (topRosterId && rosterMap && rosterMap[String(topRosterId)]) {
-            finalsMvp.roster_meta = rosterMap[String(topRosterId)];
-          }
+          messages.push(`Computed Finals MVP from JSON: playerId=${finalsMvp.playerId} points=${finalsMvp.points} roster=${finalsMvp.rosterId}`);
+        } else {
+          messages.push('Finals matchup found but no starters_points present to compute Finals MVP.');
         }
+      } else {
+        messages.push('Could not find final matchup row to compute Finals MVP from JSON.');
       }
-
-      messages.push(`Computed MVPs from JSON for season ${selectedSeasonKeyForJson}.`);
     } catch (e) {
       messages.push('Error computing MVPs from JSON: ' + (e?.message ?? String(e)));
       finalsMvp = null;
       overallMvp = null;
     }
   } else {
-    // no JSON -> use existing Sleeper helper functions (unchanged)
+    // No JSON for this season — fall back to Sleeper helper methods
     try {
       finalsMvp = await sleeper.getFinalsMVP(selectedLeagueId, { season: selectedSeasonParam || (leagueMeta && leagueMeta.season) || null, championshipWeek: playoffEnd, maxWeek: playoffEnd, playersEndpoint: '/players/nba' });
+      messages.push(`Fetched Finals MVP from Sleeper helper (season ${selectedSeasonParam}).`);
     } catch (e) {
-      messages.push('Failed computing Finals MVP: ' + (e?.message ?? e));
+      messages.push('Failed computing Finals MVP via Sleeper helper: ' + (e?.message ?? e));
       finalsMvp = null;
     }
     try {
       overallMvp = await sleeper.getOverallMVP(selectedLeagueId, { season: selectedSeasonParam || (leagueMeta && leagueMeta.season) || null, maxWeek: playoffEnd, playersEndpoint: '/players/nba' });
+      messages.push(`Fetched Overall MVP from Sleeper helper (season ${selectedSeasonParam}).`);
     } catch (e) {
-      messages.push('Failed computing Overall MVP: ' + (e?.message ?? e));
+      messages.push('Failed computing Overall MVP via Sleeper helper: ' + (e?.message ?? e));
       overallMvp = null;
     }
-
-    // enrich MVP objects with roster metadata (if available)
-    try {
-      if (finalsMvp && typeof finalsMvp.rosterId !== 'undefined' && rosterMap && rosterMap[String(finalsMvp.rosterId)]) {
-        finalsMvp.roster_meta = rosterMap[String(finalsMvp.rosterId)];
-      }
-      if (overallMvp && typeof overallMvp.topRosterId !== 'undefined' && rosterMap && rosterMap[String(overallMvp.topRosterId)]) {
-        overallMvp.roster_meta = rosterMap[String(overallMvp.topRosterId)];
-      }
-    } catch (e) {
-      // non-fatal
-    }
   }
 
-  // If we computed JSON MVPs above, we still may want to attach roster_meta if available (defensive)
+  // enrich MVP objects with roster metadata (if available)
   try {
-    if (finalsMvp && finalsMvp.rosterId && (!finalsMvp.roster_meta) && rosterMap && rosterMap[String(finalsMvp.rosterId)]) {
+    if (finalsMvp && typeof finalsMvp.rosterId !== 'undefined' && rosterMap && rosterMap[String(finalsMvp.rosterId)]) {
       finalsMvp.roster_meta = rosterMap[String(finalsMvp.rosterId)];
     }
-    if (overallMvp && (overallMvp.topRosterId || overallMvp.rosterId) && (!overallMvp.roster_meta)) {
-      const rid = overallMvp.topRosterId ?? overallMvp.rosterId;
-      if (rid && rosterMap && rosterMap[String(rid)]) overallMvp.roster_meta = rosterMap[String(rid)];
+    if (overallMvp && typeof overallMvp.rosterId !== 'undefined' && rosterMap && rosterMap[String(overallMvp.rosterId)]) {
+      overallMvp.roster_meta = rosterMap[String(overallMvp.rosterId)];
+    }
+    // also for legacy helper shape (topRosterId)
+    if (overallMvp && typeof overallMvp.topRosterId !== 'undefined' && rosterMap && rosterMap[String(overallMvp.topRosterId)]) {
+      overallMvp.roster_meta = rosterMap[String(overallMvp.topRosterId)];
     }
   } catch (e) {
-    // ignore
+    // non-fatal, attach nothing
   }
+
+  // push trace lines
+  for (const t of trace) messages.push(t);
 
   return {
     seasons,
