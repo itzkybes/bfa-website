@@ -432,7 +432,7 @@ export async function load(event) {
           week: only.week ?? only.w ?? null,
           teamA: {
             rosterId: aId,
-            name: a.name ?? a.team_name ?? ((rosterMap[aId]?.team_name ?? rosterMap[aId]?.owner_name) || ('Roster ' + aId)),
+            name: a.name ?? a.team_name ?? (rosterMap[aId]?.team_name ?? rosterMap[aId]?.owner_name),
             ownerName: a.ownerName ?? a.owner_name ?? rosterMap[aId]?.owner_name ?? null,
             avatar: (rosterMap[aId]?.team_avatar || rosterMap[aId]?.owner_avatar) ?? null,
             starters: a.starters ?? null,
@@ -442,9 +442,9 @@ export async function load(event) {
           },
           teamB: {
             rosterId: bId,
-            name: b.name ?? b.team_name ?? (rosterMap[bId]?.team_name ?? (rosterMap[bId]?.owner_name) || ('Roster ' + bId)),
+            name: b.name ?? b.team_name ?? (rosterMap[bId]?.team_name ?? rosterMap[bId]?.owner_name),
             ownerName: b.ownerName ?? b.owner_name ?? rosterMap[bId]?.owner_name ?? null,
-            avatar: ((rosterMap[bId]?.team_avatar || rosterMap[bId]?.owner_avatar)) ?? null,
+            avatar: (rosterMap[bId]?.team_avatar || rosterMap[bId]?.owner_avatar) ?? null,
             starters: b.starters ?? null,
             starters_points: b.starters_points ?? null,
             points: bPts,
