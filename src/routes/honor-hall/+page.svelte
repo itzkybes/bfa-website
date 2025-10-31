@@ -31,8 +31,8 @@
   }
 
   // also expose MVPs from top-level (computed for the selected league/season by server)
-  const finalsMvp = data?.finalsMvp ?? null;
-  const overallMvp = data?.overallMvp ?? null;
+  const finalsMvp = data?.finalsMvp;
+  const overallMvp = data?.overallMvp;
 
   // champion/biggestLoser are taken from finalStandings (server computes finalStandings already)
   $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
