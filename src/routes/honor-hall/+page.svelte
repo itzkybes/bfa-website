@@ -66,9 +66,10 @@
     font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
     margin: 0;
     padding: 0;
+    background: transparent;
   }
 
-  /* container: mobile-first single column, expand to two-column at larger sizes */
+  /* container */
   .container {
     max-width: 1180px;
     margin: 16px auto;
@@ -80,16 +81,10 @@
     box-sizing: border-box;
   }
 
-  @media (min-width: 980px) {
-    .container {
-      padding: 20px;
-      grid-template-columns: 1fr 360px;
-      gap: 20px;
-    }
-  }
-
+  /* header should span full width on desktop */
   .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
   .header-left { display:flex; flex-direction:column; gap:6px; }
+
   h1 { font-size: 1.4rem; margin:0; color: #e6eef8; line-height:1; }
   .subtitle { color: rgba(230,238,248,0.7); margin:0; font-size:.95rem; }
 
@@ -133,7 +128,7 @@
     font-size: 0.9rem;
   }
 
-  /* final standings list */
+  /* standings list */
   .standings-list { list-style:none; margin:0; padding:0; }
   .stand-row {
     display:flex;
@@ -149,7 +144,6 @@
   .teamMeta { color: #9aa3ad; font-size:.9rem; margin-top:4px; }
   .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; min-width:56px; text-align:right; font-size:.95rem; }
 
-  /* small screens: reduce seed column footprint */
   @media (max-width: 420px) {
     .teamName { max-width: calc(100vw - 160px); font-size:.95rem; }
     .seedCol { display:none; }
@@ -164,9 +158,19 @@
 
   .no-standings { color:#9aa3ad; padding:12px 0; }
 
-  /* make side section sticky on larger screens */
+  /* DESKTOP: grid with sidebar */
   @media (min-width: 980px) {
-    .side { position:sticky; top:16px; align-self:start; }
+    .container {
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+      padding: 20px;
+    }
+
+    /* make header span both columns */
+    .header { grid-column: 1 / -1; }
+
+    /* keep side sticky */
+    .side { position: sticky; top: 16px; align-self: start; }
   }
 </style>
 
