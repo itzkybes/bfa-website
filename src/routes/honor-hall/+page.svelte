@@ -1,13 +1,12 @@
 <!-- src/routes/honor-hall/+page.svelte -->
 <script>
-  import { onMount } from 'svelte';
   export let data;
 
   // seasons list and selection
   const seasons = data?.seasons ?? [];
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
-  // finalStandingsBySeason mapping returned by server (may include season-scoped MVPs)
+  // finalStandingsBySeason mapping returned by server
   const finalStandingsBySeason = data?.finalStandingsBySeason ?? {};
   // top-level fallbacks
   const finalStandingsFallback = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
@@ -24,16 +23,20 @@
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
+  // format points to a single decimal place safely
   function formatPts(v) {
     const n = Number(v);
     if (!isFinite(n)) return '—';
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // Champion / biggestLoser: prefer top-level finalStandings derived by server unless season-specific provided
-  // (your server already returns finalStandings; earlier requests asked champion/top-level consumption)
-  $: champion = (selectedSeasonResult.champion ?? data?.champion) ?? (finalStandings && finalStandings.length ? finalStandings[0] : null);
-  $: biggestLoser = (selectedSeasonResult.biggestLoser ?? data?.biggestLoser) ?? (finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null);
+  // also expose MVPs from top-level (computed for the selected league/season by server)
+  const finalsMvp = data?.finalsMvp ?? null;
+  const overallMvp = data?.overallMvp ?? null;
+
+  // champion/biggestLoser are taken from finalStandings (server computes finalStandings already)
+  $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
+  $: biggestLoser = finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
 
   // messages & other
   const messages = Array.isArray(data?.messages) ? data.messages : [];
@@ -57,6 +60,7 @@
     return '';
   }
 
+  // Filter debug lines: remove seed reassignment traces
   function filteredDebug(lines) {
     if (!Array.isArray(lines)) return [];
     return lines.filter(l => {
@@ -66,111 +70,83 @@
       if (s.startsWith('Fallback assign')) return false;
       if (s.includes('Assign place ')) return false;
       if (s.includes('Fallback assign')) return false;
+      // keep everything else
       return true;
     });
   }
+
   $: visibleDebug = filteredDebug(debugLines);
 
-  // ---------------------------
-  // Client-side player resolution (player map)
-  // - fetch https://api.sleeper.app/v1/players/nba once and cache in localStorage
-  // - resolve MVPs reactively using selectedSeasonResult (season-specific MVPs) or top-level data fallback
-  // ---------------------------
-  const PLAYER_MAP_KEY = 'sleeper_players_nba_v1';
-  const PLAYER_MAP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-  let playersMap = null; // the raw map from the API (or cache)
-  let playersMapLoaded = false;
-
-  function loadCachedPlayerMap() {
-    try {
-      const raw = localStorage.getItem(PLAYER_MAP_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || !parsed.ts || !parsed.data) return null;
-      if (Date.now() - parsed.ts > PLAYER_MAP_TTL_MS) {
-        localStorage.removeItem(PLAYER_MAP_KEY);
-        return null;
-      }
-      return parsed.data;
-    } catch (e) {
-      try { localStorage.removeItem(PLAYER_MAP_KEY); } catch(_) {}
-      return null;
-    }
+  // helper to determine best player id field (compat)
+  function mvpPlayerId(mvp) {
+    if (!mvp) return null;
+    return mvp.playerId ?? mvp.player_id ?? mvp.topPlayerId ?? mvp.top_player_id ?? null;
   }
 
-  async function fetchAndCachePlayerMap() {
-    try {
-      const res = await fetch('https://api.sleeper.app/v1/players/nba');
-      if (!res.ok) return null;
-      const json = await res.json();
-      try {
-        localStorage.setItem(PLAYER_MAP_KEY, JSON.stringify({ ts: Date.now(), data: json }));
-      } catch (e) {
-        // ignore caching errors
-      }
-      return json;
-    } catch (e) {
-      return null;
-    }
+  function mvpPlayerName(mvp) {
+    if (!mvp) return null;
+    return mvp.playerName ?? mvp.playerObj?.full_name ?? mvp.playerObj?.name ?? mvp.playerObj?.player_first_last ?? null;
   }
-
-  function pickPlayerIdFromMVP(obj) {
-    if (!obj) return null;
-    return obj.playerId ?? obj.topPlayerId ?? obj.player_id ?? obj.player ?? obj.top_player_id ?? null;
-  }
-
-  // current MVP objects from either season result or top-level (prefer season-specific)
-  $: currentFinalsMvp = (selectedSeasonResult.finalsMvp ?? data?.finalsMvp) ?? null;
-  $: currentOverallMvp = (selectedSeasonResult.overallMvp ?? data?.overallMvp) ?? null;
-
-  // displayed/resolved MVPs (with playerName/playerObj) — recompute whenever playersMapLoaded or season selection changes
-  $: displayedFinalsMvp = resolveMvpObject(currentFinalsMvp, playersMapLoaded ? playersMap : null);
-  $: displayedOverallMvp = resolveMvpObject(currentOverallMvp, playersMapLoaded ? playersMap : null);
-
-  function resolveMvpObject(mvpObj, pmap) {
-    if (!mvpObj) return null;
-    if (!pmap) {
-      // no player map yet — return original object (client will show server-provided fields)
-      return mvpObj;
-    }
-    const pid = pickPlayerIdFromMVP(mvpObj);
-    if (!pid) return mvpObj;
-    const p = pmap[String(pid)] || pmap[pid] || null;
-    if (!p) return mvpObj;
-    // return fresh object with resolved playerName and playerObj for template
-    return { ...mvpObj, playerName: p.full_name ?? (p.first_name ? `${p.first_name} ${p.last_name}` : p.player), playerObj: p, playerId: pid };
-  }
-
-  onMount(async () => {
-    // try cache first
-    let pm = loadCachedPlayerMap();
-    if (!pm) pm = await fetchAndCachePlayerMap();
-    if (pm) {
-      playersMap = pm;
-      playersMapLoaded = true;
-    } else {
-      playersMap = null;
-      playersMapLoaded = false;
-    }
-  });
 </script>
 
 <style>
-  /* same styling as before */
   :global(body) { color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-  .container { max-width: 1180px; margin: 24px auto; padding: 20px; display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+
+  .container {
+    max-width: 1180px;
+    margin: 24px auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 20px;
+    align-items: start;
+  }
+
   .header { grid-column: 1 / span 2; display:flex; justify-content:space-between; align-items:center; gap:12px; }
   h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
   .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
-  .main, .side { background: rgba(6,8,12,0.65); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.04); box-shadow: 0 10px 30px rgba(2,6,23,0.6); backdrop-filter: blur(6px); color: inherit; }
+
+  .main, .side {
+    background: rgba(6,8,12,0.65);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.04);
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    backdrop-filter: blur(6px);
+    color: inherit;
+  }
+
   .filters { display:flex; align-items:center; gap:.75rem; }
   .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
-  select.season-select { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #e6eef8; padding: 8px 12px; border-radius: 10px; font-weight: 700; min-width:140px; box-shadow: none; appearance: none; }
+  select.season-select {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #e6eef8;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    min-width:140px;
+    box-shadow: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
   .select-wrap { position: relative; display:inline-block; }
-  .select-wrap::after { content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #9aa3ad; font-size: 0.9rem; }
+  .select-wrap::after {
+    content: "▾";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #9aa3ad;
+    font-size: 0.9rem;
+  }
   select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
+
   .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
+  .debug ul { margin:0; padding-left:18px; }
+
   .standings-list { list-style:none; margin:0; padding:0; }
   .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); }
   .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#e6eef8; justify-content:flex-start; }
@@ -179,11 +155,17 @@
   .teamName { font-weight:800; color:#e6eef8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
   .teamMeta { color: #9aa3ad; font-size:.9rem; margin-top:4px; }
   .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; min-width:56px; text-align:right; }
+
   .outcome-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
   .outcome-name { font-weight:700; color:#e6eef8; }
   .small { color:#9aa3ad; font-size:.9rem; }
+
   .no-debug { color:#9aa3ad; }
-  @media (max-width: 980px) { .container { grid-template-columns: 1fr; padding:12px; } .side { order: 2; } }
+
+  @media (max-width: 980px) {
+    .container { grid-template-columns: 1fr; padding:12px; }
+    .side { order: 2; }
+  }
 </style>
 
 <div class="container">
@@ -280,43 +262,49 @@
       </div>
     {/if}
 
-    <!-- Finals MVP (resolved into right column) -->
-    {#if displayedFinalsMvp}
+    {#if finalsMvp}
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(displayedFinalsMvp.playerId) || avatarOrPlaceholder(displayedFinalsMvp.roster_meta?.owner_avatar, displayedFinalsMvp.playerName)}
+          src={playerHeadshot(mvpPlayerId(finalsMvp)) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, mvpPlayerName(finalsMvp))}
           alt="finals mvp avatar"
           style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(displayedFinalsMvp.roster_meta?.owner_avatar, displayedFinalsMvp.playerName); }}
+          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, mvpPlayerName(finalsMvp)); }}
         />
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">
-            {displayedFinalsMvp.playerName ?? displayedFinalsMvp.playerObj?.full_name ?? `Player ${displayedFinalsMvp.playerId ?? '—'}`}
-            • {formatPts(displayedFinalsMvp.points ?? displayedFinalsMvp.score ?? displayedFinalsMvp.pts ?? 0)} pts
-            • {displayedFinalsMvp.roster_meta?.owner_name ?? `Roster ${displayedFinalsMvp.rosterId ?? displayedFinalsMvp.rosterId}`}
+            {mvpPlayerName(finalsMvp) ?? (finalsMvp.playerObj?.full_name ?? `Player ${mvpPlayerId(finalsMvp)}`)}
+            • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
+            {#if finalsMvp.roster_meta?.owner_name}
+              • {finalsMvp.roster_meta.owner_name}
+            {:else if finalsMvp.rosterId}
+              • {`Roster ${finalsMvp.rosterId}`}
+            {/if}
           </div>
         </div>
       </div>
     {/if}
 
-    <!-- Overall MVP (resolved into right column) -->
-    {#if displayedOverallMvp}
+    {#if overallMvp}
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(displayedOverallMvp.playerId || displayedOverallMvp.topPlayerId) || avatarOrPlaceholder(displayedOverallMvp.roster_meta?.owner_avatar, displayedOverallMvp.playerName)}
+          src={playerHeadshot(mvpPlayerId(overallMvp)) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, mvpPlayerName(overallMvp))}
           alt="overall mvp avatar"
           style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(displayedOverallMvp.roster_meta?.owner_avatar, displayedOverallMvp.playerName); }}
+          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, mvpPlayerName(overallMvp)); }}
         />
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">
-            {displayedOverallMvp.playerName ?? displayedOverallMvp.playerObj?.full_name ?? `Player ${displayedOverallMvp.playerId ?? displayedOverallMvp.topPlayerId ?? '—'}`}
-            • {formatPts(displayedOverallMvp.points ?? displayedOverallMvp.total ?? displayedOverallMvp.score ?? 0)} pts
-            • {displayedOverallMvp.roster_meta?.owner_name ?? `Roster ${displayedOverallMvp.rosterId ?? displayedOverallMvp.topRosterId ?? '—'}`}
+            {mvpPlayerName(overallMvp) ?? (overallMvp.playerObj?.full_name ?? `Player ${mvpPlayerId(overallMvp)}`)}
+            • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
+            {#if overallMvp.roster_meta?.owner_name}
+              • {overallMvp.roster_meta.owner_name}
+            {:else if overallMvp.rosterId}
+              • {`Roster ${overallMvp.rosterId}`}
+            {/if}
           </div>
         </div>
       </div>
