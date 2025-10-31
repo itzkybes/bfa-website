@@ -1038,7 +1038,7 @@ export async function load(event) {
     r.pa = Math.round((r.pa || 0) * 100) / 100;
     r.champion = (r.championCount || 0) > 0;
     return r;
-  });
+  }) || [];
 
   const aggregatedPlayoff = Object.keys(poMap).map(k => {
     const r = poMap[k];
@@ -1046,7 +1046,7 @@ export async function load(event) {
     r.pa = Math.round((r.pa || 0) * 100) / 100;
     r.champion = (r.championCount || 0) > 0;
     return r;
-  });
+  }) || [];
 
   aggregatedRegular.sort((a,b) => {
     const wa = Number(a.wins || 0), wb = Number(b.wins || 0);
@@ -1059,6 +1059,13 @@ export async function load(event) {
     if (wb !== wa) return wb - wa;
     return (b.pf || 0) - (a.pf || 0);
   });
+
+  // Add diagnostic summary so the client debug panel shows what's loaded
+  try {
+    messages.push(`Debug summary: seasonsResults=${seasonsResults.length}, seasonsJSONLoaded=${Object.keys(seasonMatchupsMap).length}, jsonLinks=${jsonLinks.length}, leagueIdsToProcess=${leagueIdsToProcess.length}, aggregatedRegular=${aggregatedRegular.length}, aggregatedPlayoff=${aggregatedPlayoff.length}`);
+  } catch (e) {
+    // ignore
+  }
 
   // Attempt to fetch players map once (cached) so we can enrich any MVP objects later if needed.
   // This is done best-effort — failures are non-fatal.
@@ -1075,7 +1082,6 @@ export async function load(event) {
   try {
     finalsMvp = await sleeper.getFinalsMVP(BASE_LEAGUE_ID, { season: selectedSeasonParam || null, championshipWeek: null, maxWeek: null, playersEndpoint: '/players/nba' });
   } catch (e) {
-    // ignore here; we'll try again per-league when needed or leave null
     finalsMvp = null;
   }
   try {
@@ -1087,18 +1093,15 @@ export async function load(event) {
   // Enrich MVP objects with playersMap lookup (best-effort)
   function enrichMvpWithPlayersMap(mvpObj) {
     if (!mvpObj || !playersMap) return;
-    // possible keys: playerId, player_id, topPlayerId, player, top_player_id, playerObj
     const pid = mvpObj.playerId ?? mvpObj.player_id ?? mvpObj.topPlayerId ?? mvpObj.player ?? null;
     if (!pid) return;
     const pKey = String(pid);
     const playerObj = playersMap[pKey] || playersMap[String(Number(pid))] || playersMap[pKey.toUpperCase()] || null;
     if (playerObj) {
       mvpObj.playerObj = playerObj;
-      mvpObj.playerName = playerObj.full_name || playerObj.fullName || playerObj.first_name && playerObj.last_name ? `${playerObj.first_name} ${playerObj.last_name}` : mvpObj.playerName ?? mvpObj.playerName;
-      // canonical Sleeper CDN headshot path (best-effort)
+      mvpObj.playerName = playerObj.full_name || playerObj.fullName || (playerObj.first_name && playerObj.last_name ? `${playerObj.first_name} ${playerObj.last_name}` : mvpObj.playerName);
       mvpObj.playerImage = `https://sleepercdn.com/content/nba/players/${pKey}.jpg`;
     } else {
-      // still set a predictable image URL candidate
       mvpObj.playerImage = `https://sleepercdn.com/content/nba/players/${pKey}.jpg`;
     }
   }
@@ -1114,8 +1117,8 @@ export async function load(event) {
     seasons,
     selectedSeason: selectedSeasonParam,
     seasonsResults,
-    aggregatedRegular,
-    aggregatedPlayoff,
+    aggregatedRegular: aggregatedRegular || [],
+    aggregatedPlayoff: aggregatedPlayoff || [],
     jsonLinks,
     ownershipNotes,
     error: finalError,
