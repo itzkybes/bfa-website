@@ -20,6 +20,7 @@
   // helper to build player headshot URL (NBA)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
+    // use NBA player headshots (Sleeper CDN)
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
@@ -30,11 +31,25 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // also expose MVPs from top-level (computed for the selected league/season by server)
-  const finalsMvp = data?.finalsMvp;
-  const overallMvp = data?.overallMvp;
+  // prefer per-season MVP objects (if server returned them), otherwise fall back to top-level
+  $: finalsMvp = (selectedSeasonResult && (selectedSeasonResult.finalsMvp ?? selectedSeasonResult.finals_mvp)) ?? (data?.finalsMvp ?? null);
+  $: overallMvp = (selectedSeasonResult && (selectedSeasonResult.overallMvp ?? selectedSeasonResult.overall_mvp)) ?? (data?.overallMvp ?? null);
 
-  // champion/biggestLoser are taken from finalStandings (server computes finalStandings already)
+  // ensure playerName fallback so UI always renders something
+  $: if (finalsMvp) {
+    if (!finalsMvp.playerName) {
+      const pid = finalsMvp.playerId ?? finalsMvp.player_id ?? finalsMvp.topPlayerId ?? finalsMvp.top_player_id ?? null;
+      finalsMvp.playerName = finalsMvp.playerName ?? (pid ? `Player ${pid}` : (finalsMvp.playerObj?.full_name ?? finalsMvp.playerObj?.name ?? null));
+    }
+  }
+  $: if (overallMvp) {
+    if (!overallMvp.playerName) {
+      const pid = overallMvp.playerId ?? overallMvp.player_id ?? overallMvp.topPlayerId ?? overallMvp.top_player_id ?? null;
+      overallMvp.playerName = overallMvp.playerName ?? (pid ? `Player ${pid}` : (overallMvp.playerObj?.full_name ?? overallMvp.playerObj?.name ?? null));
+    }
+  }
+
+  // computed champion/biggest loser from finalStandings
   $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
   $: biggestLoser = finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
 
@@ -75,23 +90,15 @@
     });
   }
 
-  $: visibleDebug = filteredDebug(debugLines);
-
-  // helper to determine best player id field (compat)
-  function mvpPlayerId(mvp) {
-    if (!mvp) return null;
-    return mvp.playerId ?? mvp.player_id ?? mvp.topPlayerId ?? mvp.top_player_id ?? null;
-  }
-
-  function mvpPlayerName(mvp) {
-    if (!mvp) return null;
-    return mvp.playerName ?? mvp.playerObj?.full_name ?? mvp.playerObj?.name ?? mvp.playerObj?.player_first_last ?? null;
-  }
+  // combine server debug + top-level messages to show everything useful
+  $: visibleDebug = filteredDebug(debugLines || []).concat(Array.isArray(messages) ? messages : []);
 </script>
 
 <style>
+  /* Keep host page background but use light text so header/nav remains visible on dark backgrounds */
   :global(body) { color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
 
+  /* Container centers content */
   .container {
     max-width: 1180px;
     margin: 24px auto;
@@ -106,6 +113,7 @@
   h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
   .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
 
+  /* translucent dark cards (no bright white) */
   .main, .side {
     background: rgba(6,8,12,0.65);
     border-radius: 12px;
@@ -116,6 +124,7 @@
     color: inherit;
   }
 
+  /* filters */
   .filters { display:flex; align-items:center; gap:.75rem; }
   .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
   select.season-select {
@@ -144,9 +153,11 @@
   }
   select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
 
+  /* debug box */
   .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
   .debug ul { margin:0; padding-left:18px; }
 
+  /* final standings list */
   .standings-list { list-style:none; margin:0; padding:0; }
   .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); }
   .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#e6eef8; justify-content:flex-start; }
@@ -198,7 +209,7 @@
       <ul>
         {#if visibleDebug && visibleDebug.length}
           {#each visibleDebug as d}
-            <li>{@html d.replace(/</g,'&lt;')}</li>
+            <li>{@html String(d).replace(/</g,'&lt;')}</li>
           {/each}
         {:else}
           <li>No debug trace available.</li>
@@ -266,20 +277,20 @@
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(mvpPlayerId(finalsMvp)) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, mvpPlayerName(finalsMvp))}
+          src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
           alt="finals mvp avatar"
           style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, mvpPlayerName(finalsMvp)); }}
+          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName); }}
         />
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">
-            {mvpPlayerName(finalsMvp) ?? (finalsMvp.playerObj?.full_name ?? `Player ${mvpPlayerId(finalsMvp)}`)}
-            • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
+            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId ?? ''}`}
+            {#if finalsMvp.points} • {formatPts(finalsMvp.points)} pts{/if}
             {#if finalsMvp.roster_meta?.owner_name}
               • {finalsMvp.roster_meta.owner_name}
             {:else if finalsMvp.rosterId}
-              • {`Roster ${finalsMvp.rosterId}`}
+              • Roster {finalsMvp.rosterId}
             {/if}
           </div>
         </div>
@@ -290,20 +301,20 @@
       <div style="margin-top:12px" class="outcome-row">
         <img
           class="avatar"
-          src={playerHeadshot(mvpPlayerId(overallMvp)) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, mvpPlayerName(overallMvp))}
+          src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
           alt="overall mvp avatar"
           style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, mvpPlayerName(overallMvp)); }}
+          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName); }}
         />
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">
-            {mvpPlayerName(overallMvp) ?? (overallMvp.playerObj?.full_name ?? `Player ${mvpPlayerId(overallMvp)}`)}
-            • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
+            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId ?? ''}`}
+            {#if overallMvp.points} • {formatPts(overallMvp.points)} pts{/if}
             {#if overallMvp.roster_meta?.owner_name}
               • {overallMvp.roster_meta.owner_name}
             {:else if overallMvp.rosterId}
-              • {`Roster ${overallMvp.rosterId}`}
+              • Roster {overallMvp.rosterId}
             {/if}
           </div>
         </div>
