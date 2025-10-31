@@ -1,5 +1,6 @@
 <!-- src/routes/honor-hall/+page.svelte -->
 <script>
+  import { onMount } from 'svelte';
   export let data;
 
   // seasons list and selection
@@ -17,8 +18,6 @@
   $: finalStandings = Array.isArray(selectedSeasonResult.finalStandings) ? selectedSeasonResult.finalStandings : [];
   $: debugLines = Array.isArray(selectedSeasonResult.debug) ? selectedSeasonResult.debug : [];
 
-
-
   // helper to build player headshot URL (NFL fallback, then NBA)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
@@ -34,8 +33,9 @@
   }
 
   // also expose MVPs from top-level (computed for the selected league/season by server)
-  const finalsMvp = data?.finalsMvp ?? null;
-  const overallMvp = data?.overallMvp ?? null;
+  // make these `let` so we can update them reactively when we resolve player names client-side
+  let finalsMvp = data?.finalsMvp ?? null;
+  let overallMvp = data?.overallMvp ?? null;
 
   // computed champion/biggest loser from finalStandings
   $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
@@ -79,6 +79,87 @@
   }
 
   $: visibleDebug = filteredDebug(debugLines);
+
+  // ---------------------------
+  // Client-side player resolution (Option B)
+  // - fetch https://api.sleeper.app/v1/players/nba (large map)
+  // - cache in localStorage with TTL to avoid repeated downloads
+  // - use it to fill finalsMvp.playerName / overallMvp.playerName and playerObj
+  // ---------------------------
+  const PLAYER_MAP_KEY = 'sleeper_players_nba_v1';
+  const PLAYER_MAP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  function loadCachedPlayerMap() {
+    try {
+      const raw = localStorage.getItem(PLAYER_MAP_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.ts || !parsed.data) return null;
+      if (Date.now() - parsed.ts > PLAYER_MAP_TTL_MS) {
+        localStorage.removeItem(PLAYER_MAP_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch (e) {
+      console.warn('Failed loading cached player map', e);
+      try { localStorage.removeItem(PLAYER_MAP_KEY); } catch(_) {}
+      return null;
+    }
+  }
+
+  async function fetchAndCachePlayerMap() {
+    const url = 'https://api.sleeper.app/v1/players/nba';
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.warn('Player map fetch failed', res.status);
+        return null;
+      }
+      const json = await res.json();
+      if (!json || typeof json !== 'object') return null;
+      try {
+        localStorage.setItem(PLAYER_MAP_KEY, JSON.stringify({ ts: Date.now(), data: json }));
+      } catch (e) {
+        // localStorage might be full or not allowed — ignore caching
+        console.warn('Failed to cache player map', e);
+      }
+      return json;
+    } catch (e) {
+      console.warn('Failed to fetch player map', e);
+      return null;
+    }
+  }
+
+  function pickPlayerIdFromMVP(obj) {
+    if (!obj) return null;
+    // server might use different field names; try several
+    return obj.playerId ?? obj.topPlayerId ?? obj.player_id ?? obj.player ?? obj.top_player_id ?? null;
+  }
+
+  onMount(async () => {
+    // get cached map if available
+    let playersMap = loadCachedPlayerMap();
+    if (!playersMap) {
+      playersMap = await fetchAndCachePlayerMap();
+    }
+
+    if (!playersMap) return; // couldn't get players map — leave server payload as-is
+
+    // helper to apply resolved player object into MVP structure
+    function applyResolved(mvpObj) {
+      if (!mvpObj) return mvpObj;
+      const pid = pickPlayerIdFromMVP(mvpObj);
+      if (!pid) return mvpObj;
+      const p = playersMap[String(pid)] || playersMap[pid] || null;
+      if (!p) return mvpObj;
+      // create a new object reference so Svelte notices changes
+      return { ...mvpObj, playerName: p.full_name ?? p.first_name ? `${p.first_name} ${p.last_name}` : (p.full_name ?? p.player ?? null), playerObj: p };
+    }
+
+    // update finalsMvp and overallMvp reactively (reassign so Svelte updates)
+    finalsMvp = applyResolved(finalsMvp);
+    overallMvp = applyResolved(overallMvp);
+  });
 </script>
 
 <style>
@@ -272,7 +353,7 @@
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">
-            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId}`}
+            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId ?? finalsMvp.topPlayerId ?? '—'}`}
             • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
             • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId}`}
           </div>
@@ -292,7 +373,7 @@
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">
-            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId}`}
+            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId ?? '—'}`}
             • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
             • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId}`}
           </div>
