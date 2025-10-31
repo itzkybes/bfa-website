@@ -20,7 +20,6 @@
   // helper to build player headshot URL (NBA)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
-    // use NBA player headshots (Sleeper CDN)
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
@@ -31,23 +30,9 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // prefer per-season MVP objects (if server returned them), otherwise fall back to top-level
-  $: finalsMvp = (selectedSeasonResult && (selectedSeasonResult.finalsMvp ?? selectedSeasonResult.finals_mvp)) ?? (data?.finalsMvp ?? null);
-  $: overallMvp = (selectedSeasonResult && (selectedSeasonResult.overallMvp ?? selectedSeasonResult.overall_mvp)) ?? (data?.overallMvp ?? null);
-
-  // ensure playerName fallback so UI always renders something
-  $: if (finalsMvp) {
-    if (!finalsMvp.playerName) {
-      const pid = finalsMvp.playerId ?? finalsMvp.player_id ?? finalsMvp.topPlayerId ?? finalsMvp.top_player_id ?? null;
-      finalsMvp.playerName = finalsMvp.playerName ?? (pid ? `Player ${pid}` : (finalsMvp.playerObj?.full_name ?? finalsMvp.playerObj?.name ?? null));
-    }
-  }
-  $: if (overallMvp) {
-    if (!overallMvp.playerName) {
-      const pid = overallMvp.playerId ?? overallMvp.player_id ?? overallMvp.topPlayerId ?? overallMvp.top_player_id ?? null;
-      overallMvp.playerName = overallMvp.playerName ?? (pid ? `Player ${pid}` : (overallMvp.playerObj?.full_name ?? overallMvp.playerObj?.name ?? null));
-    }
-  }
+  // also expose MVPs from top-level (computed for the selected league/season by server)
+  const finalsMvp = data?.finalsMvp ?? null;
+  const overallMvp = data?.overallMvp ?? null;
 
   // computed champion/biggest loser from finalStandings
   $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
@@ -90,8 +75,7 @@
     });
   }
 
-  // combine server debug + top-level messages to show everything useful
-  $: visibleDebug = filteredDebug(debugLines || []).concat(Array.isArray(messages) ? messages : []);
+  $: visibleDebug = filteredDebug(debugLines);
 </script>
 
 <style>
@@ -209,7 +193,7 @@
       <ul>
         {#if visibleDebug && visibleDebug.length}
           {#each visibleDebug as d}
-            <li>{@html String(d).replace(/</g,'&lt;')}</li>
+            <li>{@html d.replace(/</g,'&lt;')}</li>
           {/each}
         {:else}
           <li>No debug trace available.</li>
@@ -273,8 +257,9 @@
       </div>
     {/if}
 
-    {#if finalsMvp}
-      <div style="margin-top:12px" class="outcome-row">
+    <!-- Finals MVP: always render a block; show placeholder when missing -->
+    <div style="margin-top:12px" class="outcome-row" aria-live="polite">
+      {#if finalsMvp}
         <img
           class="avatar"
           src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
@@ -285,20 +270,23 @@
         <div>
           <div class="outcome-name">Finals MVP</div>
           <div class="small">
-            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId ?? ''}`}
-            {#if finalsMvp.points} • {formatPts(finalsMvp.points)} pts{/if}
-            {#if finalsMvp.roster_meta?.owner_name}
-              • {finalsMvp.roster_meta.owner_name}
-            {:else if finalsMvp.rosterId}
-              • Roster {finalsMvp.rosterId}
-            {/if}
+            {finalsMvp.playerName ?? `Player ${finalsMvp.playerId}`}
+            • {formatPts(finalsMvp.points ?? 0)} pts
+            • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.topRosterId ?? '—'}`}
           </div>
         </div>
-      </div>
-    {/if}
+      {:else}
+        <img class="avatar" src={avatarOrPlaceholder(null, 'MVP')} alt="no finals mvp" style="width:56px;height:56px">
+        <div>
+          <div class="outcome-name">Finals MVP</div>
+          <div class="small">No player-level data found for the championship matchup.</div>
+        </div>
+      {/if}
+    </div>
 
-    {#if overallMvp}
-      <div style="margin-top:12px" class="outcome-row">
+    <!-- Overall MVP: always render a block; show placeholder when missing -->
+    <div style="margin-top:12px" class="outcome-row" aria-live="polite">
+      {#if overallMvp}
         <img
           class="avatar"
           src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
@@ -309,17 +297,19 @@
         <div>
           <div class="outcome-name">Overall MVP</div>
           <div class="small">
-            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId ?? ''}`}
-            {#if overallMvp.points} • {formatPts(overallMvp.points)} pts{/if}
-            {#if overallMvp.roster_meta?.owner_name}
-              • {overallMvp.roster_meta.owner_name}
-            {:else if overallMvp.rosterId}
-              • Roster {overallMvp.rosterId}
-            {/if}
+            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId}`}
+            • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
+            • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.topRosterId ?? overallMvp.rosterId ?? '—'}`}
           </div>
         </div>
-      </div>
-    {/if}
+      {:else}
+        <img class="avatar" src={avatarOrPlaceholder(null, 'MVP')} alt="no overall mvp" style="width:56px;height:56px">
+        <div>
+          <div class="outcome-name">Overall MVP</div>
+          <div class="small">No player-level data available to compute overall MVP.</div>
+        </div>
+      {/if}
+    </div>
 
     <div style="margin-top:12px; color:#9aa3ad; font-size:.9rem">
       Final standings are derived from server-scrubbed matchups and the bracket simulation logic. The debug trace above shows the decisions used to construct the bracket (matchups & tiebreaks).
