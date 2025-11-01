@@ -102,42 +102,37 @@
   .filters { display:flex; align-items:center; gap:.6rem; }
   .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; font-size:.95rem; }
 
-  /* === Updated select styling to match the other pages (pill / consistent look) === */
+  /* === Standings-style select (rounded 10px) === */
   .select-wrap { position: relative; display:inline-block; }
   select.season-select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
 
-    /* pill style */
-    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.06);
-    padding: 8px 38px 8px 14px; /* room for caret on right */
-    border-radius: 999px; /* pill */
     color: #e6eef8;
+    padding: 8px 12px;
+    border-radius: 10px;
     font-weight: 700;
-    min-width: 120px;
+    min-width: 140px;
+    box-shadow: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     font-size: .95rem;
-    box-shadow: inset 0 -6px 14px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.25);
-    transition: box-shadow .12s ease, border-color .12s ease;
   }
-  select.season-select:focus {
-    outline: none;
-    border-color: rgba(66,153,225,0.9);
-    box-shadow: 0 4px 18px rgba(0,0,0,0.4), 0 0 0 4px rgba(66,153,225,0.06);
-  }
-
-  /* caret indicator */
   .select-wrap::after {
     content: "▾";
     position: absolute;
-    right: 14px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
     color: #9aa3ad;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
+  select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
 
   /* standings list */
   .standings-list { list-style:none; margin:0; padding:0; }
