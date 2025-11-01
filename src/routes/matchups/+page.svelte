@@ -12,6 +12,10 @@
   const matchupsRows = data.matchupsRows || [];
   const originalRecords = data.originalRecords || {};
 
+  // server messages / jsonLinks (new)
+  const messages = Array.isArray(data?.messages) ? data.messages : [];
+  const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
+
   // helpers
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
@@ -44,7 +48,7 @@
   .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
   .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:10px; margin-bottom:1rem; }
   .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
-  /* improved select styling for visibility */
+  /* improved select styling for visibility (copied from other pages) */
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -60,6 +64,7 @@
     border-color: rgba(99,102,241,0.6);
     box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
   }
+
   table { width:100%; border-collapse:collapse; }
   thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
   td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
@@ -69,7 +74,6 @@
   .muted { color: var(--muted); font-size:.9rem; }
   .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
   .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  /* winning score — made more prominent */
   .score.winner {
     background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
     color: #f8fbff;
@@ -78,34 +82,39 @@
     box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
     border: 1px solid rgba(99,102,241,0.36);
   }
-  /* subtle tie style */
   .score.tie {
     background: rgba(255,255,255,0.02);
     color: var(--text);
     font-weight:700;
   }
 
-  /* multi-matchup inner table */
   .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
   .inner-table th { text-align:left; color:var(--muted); font-size:.82rem; padding:6px 8px; border-bottom:1px solid var(--card-border); }
   .inner-table td { padding:8px 8px; }
 
-  /* small-screen friendly tweaks */
+  /* messages/jsonLinks block */
+  .debug {
+    margin-bottom: 1rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .json-links { margin-top: 0.5rem; display:flex; flex-direction:column; gap:6px; }
+  .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
+  .json-links a:hover { text-decoration: underline; }
+
+  /* Small-screen friendly tweaks */
   @media (max-width:900px) {
     .filters { flex-direction:column; align-items:stretch; gap:0.5rem; }
     .select { min-width: 100%; width:100%; }
     .card { padding:12px; }
 
-    /* make table rows act like cards */
     thead { display:none; }
     tbody { display:block; }
     tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid var(--card-border); padding:10px; }
     tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-    /* keep team-cell layout horizontal inside each td */
     .team-cell { align-items:center; justify-content:space-between; }
     .avatar { width:48px; height:48px; }
     .team-name { max-width: 60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    /* On small screens, ensure score pushes to the far right */
     .score { min-width:auto; padding:6px 8px; margin-left:auto; }
   }
 
@@ -152,7 +161,6 @@
             {/if}
           </select>
         {:else}
-          <!-- fallback to previous simple weeks list -->
           <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
             {#each weeks as w}
               <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
@@ -165,6 +173,30 @@
         </noscript>
       </form>
     </div>
+
+    {#if messages && messages.length}
+      <div class="debug">
+        <strong>Info</strong>
+        <div style="margin-top:.35rem;">
+          {#each messages as m, i}
+            <div>{i + 1}. {m}</div>
+          {/each}
+
+          {#if jsonLinks && jsonLinks.length}
+            <div style="margin-top:.5rem; font-weight:700; color:inherit">Loaded JSON files:</div>
+            <div class="json-links" aria-live="polite">
+              {#each jsonLinks as jl}
+                {#if typeof jl === 'string'}
+                  <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
+                {:else}
+                  <a href={jl.url} target="_blank" rel="noopener noreferrer">{jl.title ?? jl.url}</a>
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     {#if matchupsRows.length}
       <table aria-label="Matchups table">
