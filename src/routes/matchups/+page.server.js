@@ -26,7 +26,7 @@ function safeNum(v) {
 
 // Try fetch from origin/{path} first, then fall back to local static file
 async function tryLoadJsonFromStatic(origin, relPath) {
-  // relPath expected like '/season_matchups/2022.json' or '/early2023.json'
+  // relPath expected like 'season_matchups/2022.json' or 'early2023.json'
   try {
     if (typeof fetch === 'function' && origin) {
       const url = origin.replace(/\/$/, '') + '/' + relPath.replace(/^\//, '');
@@ -36,7 +36,7 @@ async function tryLoadJsonFromStatic(origin, relPath) {
           const txt = await res.text();
           try {
             const parsed = JSON.parse(txt);
-            return parsed;
+            return { data: parsed, url };
           } catch (e) {
             // fallthrough to disk fallback
           }
@@ -55,7 +55,8 @@ async function tryLoadJsonFromStatic(origin, relPath) {
     const txt = await readFile(fileUrl, 'utf8');
     try {
       const parsed = JSON.parse(txt);
-      return parsed;
+      // provide a pseudo-url (static path)
+      return { data: parsed, url: `/static/${relPath}` };
     } catch (e) {
       return null;
     }
@@ -64,26 +65,16 @@ async function tryLoadJsonFromStatic(origin, relPath) {
   }
 }
 
-async function tryLoadSeasonMatchups(origin, id) {
-  if (!id) return null;
-  // try by id as provided (e.g., '2022' or league id)
-  const path1 = `season_matchups/${id}.json`;
-  const loaded = await tryLoadJsonFromStatic(origin, path1);
-  if (loaded) return loaded;
-
-  // sometimes selectedSeason is a league_id; try to find a file by season if it's numeric
-  // attempt a fallback where id might be like '2022' already handled above.
-  return null;
-}
-
 async function tryLoadEarly2023(origin) {
-  // keep backward-compatibility for early2023.json
   return tryLoadJsonFromStatic(origin, 'early2023.json');
 }
 
 export async function load(event) {
   // cache for edge
   event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
+
+  const messages = [];
+  const jsonLinks = [];
 
   // build season chain (same approach as records page)
   let seasons = [];
@@ -174,7 +165,8 @@ export async function load(event) {
   try {
     if (selectedLeagueId) rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
     else rosterMap = {};
-  } catch (e) { rosterMap = {}; }
+    messages.push(`Loaded rosters (${Object.keys(rosterMap).length})`);
+  } catch (e) { rosterMap = {}; messages.push('Failed loading rosters: ' + String(e)); }
 
   // normalize rosterMap for easy searching (lowercased lookups)
   const rosterByOwner = {};
@@ -209,22 +201,44 @@ export async function load(event) {
 
   // First: try to load season_matchups JSON for the selectedSeason (by season year or league id)
   let seasonJSON = null;
+  let seasonJSONUrl = null;
   try {
     // try by season label first (e.g., '2022')
-    seasonJSON = await tryLoadSeasonMatchups(event.url?.origin || null, String(selectedSeason));
+    if (selectedSeason) {
+      const tryRes = await tryLoadJsonFromStatic(event.url?.origin || null, `season_matchups/${String(selectedSeason)}.json`);
+      if (tryRes && tryRes.data) {
+        seasonJSON = tryRes.data;
+        seasonJSONUrl = tryRes.url;
+        messages.push(`Loaded season_matchups JSON for ${String(selectedSeason)}`);
+        jsonLinks.push({ title: `season_matchups/${String(selectedSeason)}.json`, url: seasonJSONUrl });
+      }
+    }
     // if not found and we have a league id, try by league id
     if (!seasonJSON && selectedLeagueId) {
-      seasonJSON = await tryLoadSeasonMatchups(event.url?.origin || null, String(selectedLeagueId));
+      const tryRes2 = await tryLoadJsonFromStatic(event.url?.origin || null, `season_matchups/${String(selectedLeagueId)}.json`);
+      if (tryRes2 && tryRes2.data) {
+        seasonJSON = tryRes2.data;
+        seasonJSONUrl = tryRes2.url;
+        messages.push(`Loaded season_matchups JSON for league ${String(selectedLeagueId)}`);
+        jsonLinks.push({ title: `season_matchups/${String(selectedLeagueId)}.json`, url: seasonJSONUrl });
+      }
     }
   } catch (e) {
-    seasonJSON = null;
+    // ignore errors here; we'll just fallback
   }
 
   // keep legacy early2023 logic for weeks 1-3 of 2023 (if present)
   let earlyData = null;
+  let earlyDataUrl = null;
   if (String(selectedSeason) === '2023' && selectedWeek >= 1 && selectedWeek <= 3) {
     try {
-      earlyData = await tryLoadEarly2023(event.url?.origin || null);
+      const ed = await tryLoadEarly2023(event.url?.origin || null);
+      if (ed && ed.data) {
+        earlyData = ed.data;
+        earlyDataUrl = ed.url;
+        messages.push('Loaded early2023.json');
+        jsonLinks.push({ title: 'early2023.json', url: earlyDataUrl });
+      }
     } catch (e) {
       earlyData = null;
     }
@@ -240,7 +254,6 @@ export async function load(event) {
     const aOwner = entry?.teamA?.ownerName ?? entry?.teamA?.owner_name ?? null;
     const bOwner = entry?.teamB?.ownerName ?? entry?.teamB?.owner_name ?? null;
 
-    // possible fields for points in JSONs: teamAScore/teamBScore or teamA.points etc.
     const aPts = (typeof entry?.teamAScore !== 'undefined') ? safeNum(entry.teamAScore) : (typeof entry?.teamA?.score !== 'undefined' ? safeNum(entry.teamA.score) : safeNum(entry?.teamA?.points ?? entry?.teamA?.points_for ?? 0));
     const bPts = (typeof entry?.teamBScore !== 'undefined') ? safeNum(entry.teamBScore) : (typeof entry?.teamB?.score !== 'undefined' ? safeNum(entry.teamB.score) : safeNum(entry?.teamB?.points ?? entry?.teamB?.points_for ?? 0));
 
@@ -297,7 +310,6 @@ export async function load(event) {
         // ignore malformed entries
       }
     }
-    // optionally sort (we keep previous behavior of sorting by teamA points)
     matchupsRows.sort((x,y) => ( (y.teamA?.points || 0) - (x.teamA?.points || 0) ));
   } else if (seasonJSON && (seasonJSON[String(selectedWeek)] && seasonJSON[String(selectedWeek)].length)) {
     // Season JSON contains an entry for the selected week (preferred)
@@ -309,10 +321,10 @@ export async function load(event) {
         // ignore bad entry
       }
     }
-    // keep consistent sorting
     matchupsRows.sort((x,y) => ( (y.teamA?.points || 0) - (x.teamA?.points || 0) ));
   } else {
     // No JSON available for this season/week -> fallback to Sleeper API (current-season behavior)
+    messages.push(`No local season_matchups JSON found for ${String(selectedSeason)} — using API fallback`);
     let rawMatchups = [];
     try {
       if (selectedLeagueId && selectedWeek >= 1) {
@@ -419,6 +431,9 @@ export async function load(event) {
     weekOptions,
     selectedSeason,
     selectedWeek,
-    matchupsRows
+    matchupsRows,
+    // new: messages & jsonLinks for the UI
+    messages,
+    jsonLinks
   };
 }
