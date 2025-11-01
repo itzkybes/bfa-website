@@ -24,10 +24,12 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-async function tryLoadEarly2023(origin) {
+// Try fetch from origin/{path} first, then fall back to local static file
+async function tryLoadJsonFromStatic(origin, relPath) {
+  // relPath expected like '/season_matchups/2022.json' or '/early2023.json'
   try {
     if (typeof fetch === 'function' && origin) {
-      const url = origin.replace(/\/$/, '') + '/early2023.json';
+      const url = origin.replace(/\/$/, '') + '/' + relPath.replace(/^\//, '');
       try {
         const res = await fetch(url, { method: 'GET' });
         if (res && res.ok) {
@@ -47,8 +49,9 @@ async function tryLoadEarly2023(origin) {
     // ignore
   }
 
+  // disk fallback (static directory)
   try {
-    const fileUrl = new URL('../../../static/early2023.json', import.meta.url);
+    const fileUrl = new URL(`../../../static/${relPath}`, import.meta.url);
     const txt = await readFile(fileUrl, 'utf8');
     try {
       const parsed = JSON.parse(txt);
@@ -59,6 +62,23 @@ async function tryLoadEarly2023(origin) {
   } catch (e) {
     return null;
   }
+}
+
+async function tryLoadSeasonMatchups(origin, id) {
+  if (!id) return null;
+  // try by id as provided (e.g., '2022' or league id)
+  const path1 = `season_matchups/${id}.json`;
+  const loaded = await tryLoadJsonFromStatic(origin, path1);
+  if (loaded) return loaded;
+
+  // sometimes selectedSeason is a league_id; try to find a file by season if it's numeric
+  // attempt a fallback where id might be like '2022' already handled above.
+  return null;
+}
+
+async function tryLoadEarly2023(origin) {
+  // keep backward-compatibility for early2023.json
+  return tryLoadJsonFromStatic(origin, 'early2023.json');
 }
 
 export async function load(event) {
@@ -175,7 +195,6 @@ export async function load(event) {
     if (ownerName) {
       const low = String(ownerName).toLowerCase();
       if (rosterByOwner[low]) return rosterByOwner[low];
-      // sometimes JSON ownerName has extra whitespace
       const trimmed = low.trim();
       if (trimmed && rosterByOwner[trimmed]) return rosterByOwner[trimmed];
     }
@@ -188,7 +207,20 @@ export async function load(event) {
     return null;
   }
 
-  // Attempt to load early2023.json if needed
+  // First: try to load season_matchups JSON for the selectedSeason (by season year or league id)
+  let seasonJSON = null;
+  try {
+    // try by season label first (e.g., '2022')
+    seasonJSON = await tryLoadSeasonMatchups(event.url?.origin || null, String(selectedSeason));
+    // if not found and we have a league id, try by league id
+    if (!seasonJSON && selectedLeagueId) {
+      seasonJSON = await tryLoadSeasonMatchups(event.url?.origin || null, String(selectedLeagueId));
+    }
+  } catch (e) {
+    seasonJSON = null;
+  }
+
+  // keep legacy early2023 logic for weeks 1-3 of 2023 (if present)
   let earlyData = null;
   if (String(selectedSeason) === '2023' && selectedWeek >= 1 && selectedWeek <= 3) {
     try {
@@ -198,41 +230,89 @@ export async function load(event) {
     }
   }
 
-  // If earlyData contains the week, build matchupsRows from that JSON
+  // build matchupsRows: prefer season JSON (or earlyData) when available; else use Sleeper API
   const matchupsRows = [];
+
+  // Helper to normalize JSON matchup entry to our desired shape
+  function pushJsonMatchup(entry, idxForId = null) {
+    const aName = entry?.teamA?.name ?? entry?.teamA?.team_name ?? 'Roster A';
+    const bName = entry?.teamB?.name ?? entry?.teamB?.team_name ?? 'Roster B';
+    const aOwner = entry?.teamA?.ownerName ?? entry?.teamA?.owner_name ?? null;
+    const bOwner = entry?.teamB?.ownerName ?? entry?.teamB?.owner_name ?? null;
+
+    // possible fields for points in JSONs: teamAScore/teamBScore or teamA.points etc.
+    const aPts = (typeof entry?.teamAScore !== 'undefined') ? safeNum(entry.teamAScore) : (typeof entry?.teamA?.score !== 'undefined' ? safeNum(entry.teamA.score) : safeNum(entry?.teamA?.points ?? entry?.teamA?.points_for ?? 0));
+    const bPts = (typeof entry?.teamBScore !== 'undefined') ? safeNum(entry.teamBScore) : (typeof entry?.teamB?.score !== 'undefined' ? safeNum(entry.teamB.score) : safeNum(entry?.teamB?.points ?? entry?.teamB?.points_for ?? 0));
+
+    // Try to resolve roster IDs and avatars using rosterMap heuristics
+    const aMatch = findRosterMeta(aOwner, aName);
+    const bMatch = findRosterMeta(bOwner, bName);
+
+    const aRosterId = aMatch ? aMatch.id : (entry?.teamA?.rosterId ?? entry?.teamA?.roster_id ?? null);
+    const bRosterId = bMatch ? bMatch.id : (entry?.teamB?.rosterId ?? entry?.teamB?.roster_id ?? null);
+
+    const aAvatar = aMatch ? (aMatch.meta.team_avatar || aMatch.meta.owner_avatar || null) : (entry?.teamA?.avatar ?? null);
+    const bAvatar = bMatch ? (bMatch.meta.team_avatar || bMatch.meta.owner_avatar || null) : (entry?.teamB?.avatar ?? null);
+
+    // preserve starters + starters_points if present in JSON (useful for MVP calculations)
+    const aStarters = Array.isArray(entry?.teamA?.starters) ? entry.teamA.starters.slice() : null;
+    const aStartersPoints = Array.isArray(entry?.teamA?.starters_points) ? entry.teamA.starters_points.slice() : null;
+    const bStarters = Array.isArray(entry?.teamB?.starters) ? entry.teamB.starters.slice() : null;
+    const bStartersPoints = Array.isArray(entry?.teamB?.starters_points) ? entry.teamB.starters_points.slice() : null;
+
+    matchupsRows.push({
+      matchup_id: entry?.matchup_id ?? entry?.matchupId ?? (idxForId != null ? `json-${selectedWeek}-${idxForId}` : (`json-${selectedWeek}-${matchupsRows.length}`)),
+      season: selectedSeason,
+      week: selectedWeek,
+      teamA: {
+        rosterId: aRosterId ? String(aRosterId) : null,
+        name: aName,
+        ownerName: aOwner,
+        avatar: aAvatar,
+        points: aPts,
+        starters: aStarters,
+        starters_points: aStartersPoints
+      },
+      teamB: {
+        rosterId: bRosterId ? String(bRosterId) : null,
+        name: bName,
+        ownerName: bOwner,
+        avatar: bAvatar,
+        points: bPts,
+        starters: bStarters,
+        starters_points: bStartersPoints
+      },
+      participantsCount: 2,
+      _source: 'season_matchups_json'
+    });
+  }
+
+  // If we have earlyData specifically and it contains this week, use it (legacy)
   if (earlyData && earlyData['2023'] && earlyData['2023'][String(selectedWeek)] && earlyData['2023'][String(selectedWeek)].length) {
     const weekArr = earlyData['2023'][String(selectedWeek)];
-    for (const entry of weekArr) {
-      const aName = entry?.teamA?.name ?? 'Roster A';
-      const bName = entry?.teamB?.name ?? 'Roster B';
-      const aOwner = entry?.teamA?.ownerName ?? null;
-      const bOwner = entry?.teamB?.ownerName ?? null;
-      const aPts = safeNum(entry?.teamAScore ?? entry?.teamA?.score ?? 0);
-      const bPts = safeNum(entry?.teamBScore ?? entry?.teamB?.score ?? 0);
-
-      // Attempt to resolve rosterId + avatar by matching ownerName or teamName against rosterMap
-      const aMatch = findRosterMeta(aOwner, aName);
-      const bMatch = findRosterMeta(bOwner, bName);
-
-      const aRosterId = aMatch ? aMatch.id : null;
-      const bRosterId = bMatch ? bMatch.id : null;
-      const aAvatar = aMatch ? (aMatch.meta.team_avatar || aMatch.meta.owner_avatar || null) : null;
-      const bAvatar = bMatch ? (bMatch.meta.team_avatar || bMatch.meta.owner_avatar || null) : null;
-
-      matchupsRows.push({
-        matchup_id: `early2023-${selectedWeek}-${matchupsRows.length}`,
-        season: selectedSeason,
-        week: selectedWeek,
-        teamA: { rosterId: aRosterId, name: aName, ownerName: aOwner, avatar: aAvatar, points: aPts },
-        teamB: { rosterId: bRosterId, name: bName, ownerName: bOwner, avatar: bAvatar, points: bPts },
-        participantsCount: 2,
-        _source: 'early2023.json'
-      });
+    for (let i = 0; i < weekArr.length; i++) {
+      try {
+        pushJsonMatchup(weekArr[i], i);
+      } catch (e) {
+        // ignore malformed entries
+      }
     }
-
+    // optionally sort (we keep previous behavior of sorting by teamA points)
+    matchupsRows.sort((x,y) => ( (y.teamA?.points || 0) - (x.teamA?.points || 0) ));
+  } else if (seasonJSON && (seasonJSON[String(selectedWeek)] && seasonJSON[String(selectedWeek)].length)) {
+    // Season JSON contains an entry for the selected week (preferred)
+    const weekArr = seasonJSON[String(selectedWeek)];
+    for (let i = 0; i < weekArr.length; i++) {
+      try {
+        pushJsonMatchup(weekArr[i], i);
+      } catch (e) {
+        // ignore bad entry
+      }
+    }
+    // keep consistent sorting
     matchupsRows.sort((x,y) => ( (y.teamA?.points || 0) - (x.teamA?.points || 0) ));
   } else {
-    // No early JSON mapping for this week/season — fallback to Sleeper API matchups
+    // No JSON available for this season/week -> fallback to Sleeper API (current-season behavior)
     let rawMatchups = [];
     try {
       if (selectedLeagueId && selectedWeek >= 1) {
