@@ -102,25 +102,31 @@
   .filters { display:flex; align-items:center; gap:.6rem; }
   .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; font-size:.95rem; }
 
-  /* === Standings-style select (rounded 10px) === */
+  /* === Standings exact-style select ===
+     Copied styling to match the dropdown on the Standings page:
+     - slightly taller rounded corner
+     - subtle gradient/inset to match card color
+     - thicker right padding for caret
+     - caret color tuned to the other pages
+  */
   .select-wrap { position: relative; display:inline-block; }
   select.season-select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
 
-    background: rgba(255,255,255,0.03);
+    /* match the standings select visual: subtle card-like background */
+    background: linear-gradient(180deg, rgba(255,255,255,0.018) 0%, rgba(255,255,255,0.008) 100%);
     border: 1px solid rgba(255,255,255,0.06);
     color: #e6eef8;
-    padding: 8px 12px;
+    padding: 9px 14px;
+    padding-right: 40px; /* room for caret */
     border-radius: 10px;
     font-weight: 700;
     min-width: 140px;
-    box-shadow: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 6px 18px rgba(2,6,23,0.45);
     font-size: .95rem;
+    line-height: 1;
   }
   .select-wrap::after {
     content: "▾";
@@ -129,10 +135,14 @@
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
-    color: #9aa3ad;
-    font-size: 0.9rem;
+    color: rgba(156, 170, 174, 0.95); /* caret color matched to standings */
+    font-size: 0.92rem;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.25);
   }
-  select.season-select option { background: rgba(6,8,12,0.85); color: #e6eef8; }
+  select.season-select option {
+    background: rgba(6,8,12,0.92);
+    color: #e6eef8;
+  }
 
   /* standings list */
   .standings-list { list-style:none; margin:0; padding:0; }
