@@ -113,40 +113,28 @@
   .filters { display:flex; align-items:center; gap:.75rem; }
   .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
 
-  /* ----- standings-style dropdown (replaces previous select styles) ----- */
-  .select-wrap { position: relative; display:inline-block; }
-
-  /* Visuals copied to match the Standings dropdown:
-     - dark navy card-like background
-     - subtle inset highlight
-     - navy-blue focus ring
-     - compact padding + bold label text
-  */
-  select.season-select {
+  /* Make the dropdown match the Standings page exactly */
+  .select {
+    padding:.6rem .8rem;
+    border-radius:8px;
+    background: #07101a;
+    color: #e6eef8;
+    border: 1px solid rgba(99,102,241,0.25);
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
+    min-width: 160px;
+    font-weight: 600;
+    outline: none;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-
-    /* background / card feel */
-    background: linear-gradient(180deg, rgba(16,20,24,0.90) 0%, rgba(10,12,14,0.90) 100%);
-    border-radius: 10px;
-    border: 1px solid rgba(28,44,64,0.55);
-
-    /* text / spacing */
-    color: #e6eef8;
-    font-weight: 700;
-    font-size: 0.95rem;
-    padding: 8px 14px;
-    padding-right: 44px; /* room for caret */
-    min-width: 128px;
-    line-height: 1;
-
-    /* subtle inset and elevation like the other selects */
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 8px 20px rgba(2,6,23,0.55);
-    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .select:focus {
+    border-color: rgba(99,102,241,0.6);
+    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
   }
 
-  /* caret styling matches Standings dropdown */
+  /* caret spacing helper (keeps a tidy right padding for the native caret) */
+  .select-wrap { position: relative; display:inline-block; }
   .select-wrap::after {
     content: "▾";
     position: absolute;
@@ -154,25 +142,14 @@
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
-    color: rgba(161,180,196,0.95); /* soft light caret */
+    color: rgba(161,180,196,0.95);
     font-size: 0.92rem;
     text-shadow: 0 1px 0 rgba(0,0,0,0.25);
   }
 
-  /* option background when dropdown opens */
-  select.season-select option {
-    background: rgba(6,8,12,0.95);
-    color: #e6eef8;
-  }
+  select.select option { background: rgba(6,8,12,0.95); color: #e6eef8; }
 
-  /* focus state (blue halo like the other dropdowns on Standings) */
-  select.season-select:focus {
-    outline: none;
-    border-color: rgba(24,118,226,0.95);
-    box-shadow: 0 0 0 4px rgba(24,118,226,0.10), inset 0 1px 0 rgba(255,255,255,0.02);
-  }
-
-  /* debug box (kept but you can hide by removing the .debug element in markup) */
+  /* debug box (kept but hidden by default) */
   .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
   .debug ul { margin:0; padding-left:18px; }
 
@@ -206,9 +183,9 @@
     </div>
 
     <form id="filters" method="get" class="filters" aria-hidden="false">
-      <label class="season-label" for="season">Season</label>
+      <label class="season-label" for="season-select">Season</label>
       <div class="select-wrap">
-        <select id="season" name="season" class="season-select" on:change={submitFilters}>
+        <select id="season-select" name="season" class="select" on:change={submitFilters}>
           {#if seasons && seasons.length}
             {#each seasons as s}
               <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
@@ -224,8 +201,7 @@
   </div>
 
   <div class="main">
-    <!-- debug intentionally left in markup but hidden by default if you want;
-         remove the whole .debug block below if you want it fully gone. -->
+    <!-- debug intentionally hidden; remove the element below if you want it shown -->
     <div class="debug" aria-live="polite" style="display:none;">
       <ul>
         {#if visibleDebug && visibleDebug.length}
