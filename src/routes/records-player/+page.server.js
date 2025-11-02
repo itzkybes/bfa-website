@@ -242,11 +242,13 @@ export async function load(event) {
     const champWeek = (typeof championshipWeek === 'number' && championshipWeek >= 1) ? championshipWeek : maxWeekFound;
     let finalsMvp = null;
     if (champWeek && byWeek[champWeek] && byWeek[champWeek].length) {
-      // collect players who appear as starters in any matchup in champWeek
-      const champPlayersPoints = {}; // pid -> points in that week
-      for (const m of byWeek[champWeek]) {
-        // handle both teamA/teamB and combinedParticipants variants
-        if (m.teamA || m.teamB) {
+      // **NEW stricter logic**: identify championship matchup(s) (must have both teamA and teamB)
+      const championshipMatchups = (byWeek[champWeek] || []).filter(m => (m.teamA && m.teamB));
+      const champPlayersPoints = {}; // pid -> points in that championship matchup(s)
+
+      if (championshipMatchups.length) {
+        // collect only players who are starters / present on the two teams in those matchup(s)
+        for (const m of championshipMatchups) {
           ['teamA','teamB'].forEach(side => {
             const t = m[side];
             if (!t) return;
@@ -265,34 +267,45 @@ export async function load(event) {
               }
             }
           });
-        } else if (m.combinedParticipants && Array.isArray(m.combinedParticipants)) {
-          for (const p of m.combinedParticipants) {
-            const starters = Array.isArray(p.starters) ? p.starters : (p.rosterId ? [p.rosterId] : []);
-            const pts = Array.isArray(p.starters_points) ? p.starters_points : (typeof p.points !== 'undefined' ? [p.points] : []);
+        }
+
+        // Now pick the highest scorer among champPlayersPoints (if any)
+        for (const pid of Object.keys(champPlayersPoints)) {
+          const pts = champPlayersPoints[pid] || 0;
+          if (!finalsMvp || pts > finalsMvp.points) finalsMvp = { playerId: pid, points: pts, championshipWeek: champWeek };
+        }
+      } else {
+        // fallback: no matchups with both teams found in championship week — revert to older behavior:
+        // pick top single-game scorer among players in the championship week (across all matchups)
+        const weekMap = {};
+        for (const m of byWeek[champWeek]) {
+          ['teamA','teamB'].forEach(side => {
+            const t = m[side];
+            if (!t) return;
+            const starters = Array.isArray(t.starters) ? t.starters : [];
+            const pts = Array.isArray(t.starters_points) ? t.starters_points : [];
             for (let i = 0; i < starters.length; i++) {
               const pid = String(starters[i] ?? '').trim();
               if (!pid || pid === '0') continue;
               const ppts = safeNum(pts[i] ?? 0);
-              champPlayersPoints[pid] = (champPlayersPoints[pid] || 0) + ppts;
+              weekMap[pid] = Math.max(weekMap[pid] || 0, ppts);
             }
-            if (p.player_points && typeof p.player_points === 'object') {
-              for (const pidKey of Object.keys(p.player_points || {})) {
-                const ppts = safeNum(p.player_points[pidKey]);
-                champPlayersPoints[String(pidKey)] = (champPlayersPoints[String(pidKey)] || 0) + ppts;
+            if (t.player_points && typeof t.player_points === 'object') {
+              for (const pidKey of Object.keys(t.player_points || {})) {
+                const ppts = safeNum(t.player_points[pidKey]);
+                weekMap[String(pidKey)] = Math.max(weekMap[String(pidKey)] || 0, ppts);
               }
             }
-          }
+          });
         }
-      }
-
-      // Now pick the highest scorer among champPlayersPoints (if any)
-      for (const pid of Object.keys(champPlayersPoints)) {
-        const pts = champPlayersPoints[pid] || 0;
-        if (!finalsMvp || pts > finalsMvp.points) finalsMvp = { playerId: pid, points: pts, championshipWeek: champWeek };
+        for (const pid of Object.keys(weekMap)) {
+          const pts = weekMap[pid] || 0;
+          if (!finalsMvp || pts > finalsMvp.points) finalsMvp = { playerId: pid, points: pts, championshipWeek: champWeek };
+        }
       }
     }
 
-    // fallback: if no finalsMvp found from championship week, try to pick top scorer from maxWeekFound as earlier fallback
+    // final fallback: if still no finalsMvp, try latest-week top performer (previous fallback)
     if (!finalsMvp && maxWeekFound > 0 && byWeek[maxWeekFound]) {
       const weekMap = {};
       for (const m of byWeek[maxWeekFound]) {
