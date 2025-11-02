@@ -21,7 +21,7 @@ const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 25;
 
 function safeNum(v) {
   const n = Number(v);
-  return isNaN(n) ? 0 : n;
+  return Number.isFinite(n) ? n : 0;
 }
 
 /**
@@ -79,26 +79,29 @@ async function fetchPlayersMap() {
 }
 
 /**
- * Compute MVPs from a flattened matchups array.
- * - overall: season-long accumulation of starters_points (and player_points fallback)
- * - finals: the highest single-game scorer in the given championshipWeek (if provided).
+ * Compute MVPs from provided matchups array (flexible shapes).
+ * - overallMvp = accumulated starters_points (season-long)
+ * - finalsMvp = highest single-game scorer but ONLY from the championship matchup (see logic below)
  *
- * matchups: array of matchup objects (teamA/teamB with starters + starters_points or player_points)
- * championshipWeek: number | null — prefer this week when computing finals MVP; if null, fallback to maxWeek
+ * Championship-matchup detection:
+ * - Determine championship week = max week number observed
+ * - Prefer 1v1 matchups (have teamA AND teamB and at least one score)
+ * - If exactly one 1v1 exists, that's the final
+ * - If multiple 1v1 exist, choose the one with highest combined score (heuristic)
+ * - If no clear 1v1, fall back to looking at all games that week (legacy)
  */
-function computeMvpsFromMatchups(matchups, championshipWeek = null) {
+function computeMvpsFromMatchups(matchups) {
   // maps playerId -> totalPoints (accumulate across season)
   const overallTotals = {};
-  // find highest week number to treat as fallback championshipWeek if needed
+  // find highest week number to treat as championshipWeek if needed
   let maxWeek = 0;
   const byWeek = {};
   for (const m of matchups || []) {
-    const wk = Number(m.week ?? m.w ?? 0);
+    const wk = (m.week ?? m.w ?? 0);
     if (wk > maxWeek) maxWeek = wk;
     if (!byWeek[wk]) byWeek[wk] = [];
     byWeek[wk].push(m);
-
-    // accumulate starters and player_points for overall totals
+    // accumulate starters_points for overall totals (both sides)
     ['teamA', 'teamB'].forEach(side => {
       const t = m[side];
       if (!t) return;
@@ -110,7 +113,7 @@ function computeMvpsFromMatchups(matchups, championshipWeek = null) {
         const ppts = safeNum(pts[i] ?? 0);
         overallTotals[pid] = (overallTotals[pid] || 0) + ppts;
       }
-      // fallback: if player_points is an object mapping id->points
+      // fallback: player_points object mapping
       if (t.player_points && typeof t.player_points === 'object') {
         for (const pidKey of Object.keys(t.player_points || {})) {
           const ppts = safeNum(t.player_points[pidKey]);
@@ -120,22 +123,38 @@ function computeMvpsFromMatchups(matchups, championshipWeek = null) {
     });
   }
 
-  // compute overall MVP (highest overallTotals)
+  // compute overall MVP (max accumulated points)
   let overallMvp = null;
   for (const pid of Object.keys(overallTotals)) {
     const pts = overallTotals[pid] || 0;
     if (!overallMvp || pts > overallMvp.points) overallMvp = { playerId: pid, points: pts };
   }
 
-  // decide which week to treat as championshipWeek: prefer provided championshipWeek, else fallback to maxWeek
-  let useChampWeek = (typeof championshipWeek === 'number' && championshipWeek > 0) ? championshipWeek : maxWeek;
-
-  // compute finals MVP ONLY from matchups in useChampWeek
+  // compute finals MVP (restrict to championship matchup participants only)
   let finalsMvp = null;
-  if (useChampWeek > 0 && byWeek[useChampWeek] && byWeek[useChampWeek].length) {
-    // Scan ONLY the matchups that happened in the championship week and pick the highest single-game scorer
+  if (maxWeek > 0 && byWeek[maxWeek] && byWeek[maxWeek].length) {
+    const weekEntries = byWeek[maxWeek];
+    // prefer clean 1v1 matchups with scores
+    const oneVsOne = weekEntries.filter(m =>
+      m && m.teamA && m.teamB &&
+      ( (typeof m.teamAScore !== 'undefined' && m.teamAScore !== null) || (typeof m.teamBScore !== 'undefined' && m.teamBScore !== null) )
+    );
+
+    let finalMatchups = oneVsOne.length ? oneVsOne.slice() : weekEntries.slice();
+
+    // if multiple candidate 1v1 finals, pick the one with highest combined team score (heuristic)
+    if (finalMatchups.length > 1) {
+      finalMatchups.sort((a, b) => {
+        const aSum = safeNum(a.teamAScore) + safeNum(a.teamBScore);
+        const bSum = safeNum(b.teamAScore) + safeNum(b.teamBScore);
+        return bSum - aSum;
+      });
+      finalMatchups = [finalMatchups[0]];
+    }
+
+    // Build single-game top-performer map from the chosen finalMatchups only
     const weekMap = {};
-    for (const m of byWeek[useChampWeek]) {
+    for (const m of finalMatchups) {
       ['teamA', 'teamB'].forEach(side => {
         const t = m[side];
         if (!t) return;
@@ -145,7 +164,6 @@ function computeMvpsFromMatchups(matchups, championshipWeek = null) {
           const pid = String(starters[i] ?? '').trim();
           if (!pid || pid === '0') continue;
           const ppts = safeNum(pts[i] ?? 0);
-          // finals MVP should be highest single-game scorer, so use Math.max
           weekMap[pid] = Math.max(weekMap[pid] || 0, ppts);
         }
         if (t.player_points && typeof t.player_points === 'object') {
@@ -156,44 +174,14 @@ function computeMvpsFromMatchups(matchups, championshipWeek = null) {
         }
       });
     }
-    // pick highest single-game scorer in the championship week
+
     for (const pid of Object.keys(weekMap)) {
       const pts = weekMap[pid] || 0;
-      if (!finalsMvp || pts > finalsMvp.points) finalsMvp = { playerId: pid, points: pts, championshipWeek: useChampWeek };
-    }
-  } else {
-    // no matchups in championship week — no finals mvp (or fallback to previous logic: maxWeek)
-    if (maxWeek > 0 && byWeek[maxWeek] && byWeek[maxWeek].length) {
-      // fallback to maxWeek (preserve older behavior)
-      const weekMap = {};
-      for (const m of byWeek[maxWeek]) {
-        ['teamA', 'teamB'].forEach(side => {
-          const t = m[side];
-          if (!t) return;
-          const starters = Array.isArray(t.starters) ? t.starters : [];
-          const pts = Array.isArray(t.starters_points) ? t.starters_points : [];
-          for (let i = 0; i < starters.length; i++) {
-            const pid = String(starters[i] ?? '').trim();
-            if (!pid || pid === '0') continue;
-            const ppts = safeNum(pts[i] ?? 0);
-            weekMap[pid] = Math.max(weekMap[pid] || 0, ppts);
-          }
-          if (t.player_points && typeof t.player_points === 'object') {
-            for (const pidKey of Object.keys(t.player_points || {})) {
-              const ppts = safeNum(t.player_points[pidKey]);
-              weekMap[String(pidKey)] = Math.max(weekMap[String(pidKey)] || 0, ppts);
-            }
-          }
-        });
-      }
-      for (const pid of Object.keys(weekMap)) {
-        const pts = weekMap[pid] || 0;
-        if (!finalsMvp || pts > finalsMvp.points) finalsMvp = { playerId: pid, points: pts, championshipWeek: maxWeek };
-      }
+      if (!finalsMvp || pts > finalsMvp.points) finalsMvp = { playerId: pid, points: pts, championshipWeek: maxWeek };
     }
   }
 
-  return { overallMvp, finalsMvp, championshipWeek: (finalsMvp ? finalsMvp.championshipWeek : (useChampWeek || null)) };
+  return { overallMvp, finalsMvp, championshipWeek: maxWeek };
 }
 
 export async function load(event) {
@@ -244,7 +232,7 @@ export async function load(event) {
   const byId = {};
   for (const s of seasons) byId[String(s.league_id)] = { league_id: String(s.league_id), season: s.season, name: s.name };
   seasons = Object.values(byId);
-  seasons.sort((a,b) => {
+  seasons.sort((a, b) => {
     if (a.season == null && b.season == null) return 0;
     if (a.season == null) return 1;
     if (b.season == null) return -1;
@@ -256,10 +244,14 @@ export async function load(event) {
   // which seasons to compute? use seasons array; also include fallback for recent numeric years found in static files if seasons empty
   const seasonsToProcess = seasons.map(s => ({ leagueId: s.league_id, season: s.season }));
 
+  // If no seasons from API, try to inspect static folder for season_matchups/*.json (best-effort)
   if (!seasonsToProcess.length) {
-    // best-effort fallback
-    const likelyYears = [2022,2023,2024,2025];
-    for (const y of likelyYears) seasonsToProcess.push({ leagueId: null, season: String(y) });
+    try {
+      const likelyYears = [2022, 2023, 2024, 2025];
+      for (const y of likelyYears) seasonsToProcess.push({ leagueId: null, season: String(y) });
+    } catch (e) {
+      // ignore
+    }
   }
 
   // Pre-fetch player map (heavy) — to resolve names for MVPs
@@ -267,51 +259,21 @@ export async function load(event) {
 
   const seasonsResults = [];
 
-  // helper to attach name
-  function attachNameToMvp(mvpObj) {
-    if (!mvpObj || !mvpObj.playerId) return mvpObj;
-    const pid = String(mvpObj.playerId);
-    const pObj = (playersMap && (playersMap[pid] || playersMap[pid.toUpperCase()] || playersMap[Number(pid)])) || null;
-    const name = pObj ? (pObj.full_name || (pObj.first_name ? (pObj.first_name + (pObj.last_name ? ' ' + pObj.last_name : '')) : pObj.display_name || pObj.player_name)) : null;
-    return { ...mvpObj, playerName: name ?? null, playerObj: pObj ?? null };
-  }
-
   // iterate seasonsToProcess and attempt to compute MVPs for each
   for (const s of seasonsToProcess) {
     const seasonLabel = s.season != null ? String(s.season) : (s.leagueId ? String(s.leagueId) : null);
     let matchups = null;
     let usedJson = null;
 
-    // Determine championshipWeek by consulting league metadata when possible
-    let championshipWeekFromLeague = null;
-    if (s.leagueId) {
-      try {
-        const leagueMeta = await sleeper.getLeague(String(s.leagueId), { ttl: 60 * 5 });
-        let playoffStart = null;
-        if (leagueMeta && leagueMeta.settings) {
-          playoffStart = Number(leagueMeta.settings.playoff_week_start ?? leagueMeta.settings.playoff_start_week ?? leagueMeta.settings.playoffStartWeek);
-        }
-        if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-        championshipWeekFromLeague = playoffStart + 2;
-        messages.push(`Season ${seasonLabel}: determined playoff start ${playoffStart}, championship week ${championshipWeekFromLeague} from league ${s.leagueId}.`);
-      } catch (e) {
-        // ignore — we'll fallback later
-        messages.push(`Season ${seasonLabel}: failed to fetch league metadata for ${s.leagueId} — will fallback to data-derived championship week.`);
-      }
-    }
-
     // try local JSON for historical seasons
     if (seasonLabel) {
-      const maybeYear = String(seasonLabel).replace(/[^0-9]/g, '').slice(0,4); // best-effort
+      const maybeYear = String(seasonLabel).replace(/[^0-9]/g, '').slice(0, 4); // best-effort
       if (maybeYear) {
         const loaded = await tryLoadSeasonMatchups(maybeYear, origin);
         if (loaded) {
-          // try to extract matchups in flexible shapes
-          if (Array.isArray(loaded)) matchups = loaded;
-          else if (Array.isArray(loaded.matchups)) matchups = loaded.matchups;
-          else if (Array.isArray(loaded.matchups_flat)) matchups = loaded.matchups_flat;
-          else {
-            // detect structure like { "2022": { "1": [...], ... } } or { "1": [...] }
+          matchups = Array.isArray(loaded) ? loaded : (Array.isArray(loaded.matchups) ? loaded.matchups : (loaded.matchups_flat || null));
+          // some JSONs may be shaped as { year: { week: [...] } } or week-keyed maps; try more extraction
+          if (!matchups) {
             if (loaded[maybeYear]) {
               const flat = [];
               const yearObj = loaded[maybeYear];
@@ -326,6 +288,7 @@ export async function load(event) {
               }
               if (flat.length) matchups = flat;
             } else {
+              // week-keyed object like { "1": [...], "2": [...] }
               const keys = Object.keys(loaded || {});
               const weekish = keys.filter(k => /^\d+$/.test(k));
               if (weekish.length) {
@@ -343,24 +306,21 @@ export async function load(event) {
               }
             }
           }
-
-          if (matchups && matchups.length) {
-            usedJson = maybeYear;
-            jsonLinks.push({ title: `season_matchups/${maybeYear}.json`, url: origin ? `${origin}/season_matchups/${maybeYear}.json` : `season_matchups/${maybeYear}.json` });
-            messages.push(`Loaded local season_matchups JSON for ${maybeYear}.`);
-          } else {
-            messages.push(`Loaded JSON for ${maybeYear} but could not extract matchups — skipping JSON for this season.`);
-          }
+          usedJson = maybeYear;
+          jsonLinks.push({ title: `season_matchups/${maybeYear}.json`, url: origin ? `${origin}/season_matchups/${maybeYear}.json` : `season_matchups/${maybeYear}.json` });
+          messages.push(`Loaded local season_matchups JSON for ${maybeYear}.`);
         } else {
           messages.push(`No local season_matchups JSON found for ${maybeYear} — will attempt API fallback for MVPs.`);
         }
       }
     }
 
-    // if no matchups from JSON, try using API (use leagueId when available)
+    // if no matchups from JSON and this season is the latest (or we want to fall back), try using API
     if (!matchups) {
+      // attempt to determine a league id to use — prefer s.leagueId, else BASE_LEAGUE_ID for latest
       const leagueId = s.leagueId || BASE_LEAGUE_ID;
       const aggregated = [];
+      // iterate weeks 1..MAX_WEEKS
       for (let wk = 1; wk <= MAX_WEEKS; wk++) {
         try {
           const wkMatchups = await sleeper.getMatchupsForWeek(leagueId, wk, { ttl: 60 * 5 });
@@ -374,9 +334,8 @@ export async function load(event) {
           // ignore single-week failures
         }
       }
-
       if (aggregated.length) {
-        // normalize api matchups to a shape compatible with computeMvpsFromMatchups
+        // normalize to shape similar to JSON (teamA/teamB with starters arrays if present in API)
         matchups = [];
         const byMatch = {};
         for (let i = 0; i < aggregated.length; i++) {
@@ -413,8 +372,9 @@ export async function load(event) {
             };
             matchups.push(mk);
           } else {
-            // many-to-many: synthesize single-team entries so computeMvps can still process starters/points
-            for (const ent of entries) {
+            // many-to-many: expand into separate pseudo matchups (teamA entries)
+            for (let idx = 0; idx < entries.length; idx++) {
+              const ent = entries[idx];
               matchups.push({
                 week: ent.week ?? ent.w ?? null,
                 teamA: {
@@ -428,7 +388,6 @@ export async function load(event) {
             }
           }
         }
-
         if (matchups && matchups.length) {
           messages.push(`Loaded ${matchups.length} matchups via API fallback for season ${seasonLabel} (league ${leagueId}).`);
         }
@@ -450,101 +409,31 @@ export async function load(event) {
       continue;
     }
 
-    // ===== Determine MVPs =====
-    // For 2022 keep the existing behavior (it matched your expectation).
-    // For other seasons: try to use the Honor Hall style—attempt the sleeper helper APIs first,
-    // and if unavailable/failing, fall back to computeMvpsFromMatchups using the championshipWeekFromLeague.
-    let attachedOverall = null;
-    let attachedFinals = null;
-    let usedChampWeek = championshipWeekFromLeague || null;
+    // compute MVPs from matchups
+    const { overallMvp, finalsMvp, championshipWeek } = computeMvpsFromMatchups(matchups);
 
-    if (seasonLabel === '2022') {
-      // preserve behavior that you said is correct
-      const result = computeMvpsFromMatchups(matchups, championshipWeekFromLeague);
-      attachedOverall = attachNameToMvp(result.overallMvp);
-      attachedFinals = attachNameToMvp(result.finalsMvp);
-      usedChampWeek = result.championshipWeek || usedChampWeek;
-      messages.push(`Season 2022: computed MVPs via local logic (champWeek ${usedChampWeek}).`);
-    } else {
-      // try helpers if we have a league id
-      let helperFinals = null;
-      let helperOverall = null;
-      let helperTried = false;
-      if (s.leagueId) {
-        helperTried = true;
-        try {
-          if (typeof sleeper.getFinalsMVP === 'function') {
-            try {
-              helperFinals = await sleeper.getFinalsMVP(String(s.leagueId), {
-                season: seasonLabel || null,
-                championshipWeek: championshipWeekFromLeague || undefined,
-                maxWeek: championshipWeekFromLeague || undefined,
-                playersEndpoint: '/players/nba'
-              });
-              messages.push(`Season ${seasonLabel}: sleeper.getFinalsMVP helper returned data.`);
-            } catch (e) {
-              messages.push(`Season ${seasonLabel}: sleeper.getFinalsMVP helper failed — ${e?.message ?? String(e)}.`);
-            }
-          } else {
-            messages.push(`Season ${seasonLabel}: sleeper.getFinalsMVP not available — skipping helper.`);
-          }
-        } catch (e) {
-          // ignore
-        }
-
-        try {
-          if (typeof sleeper.getOverallMVP === 'function') {
-            try {
-              helperOverall = await sleeper.getOverallMVP(String(s.leagueId), {
-                season: seasonLabel || null,
-                maxWeek: MAX_WEEKS,
-                playersEndpoint: '/players/nba'
-              });
-              messages.push(`Season ${seasonLabel}: sleeper.getOverallMVP helper returned data.`);
-            } catch (e) {
-              messages.push(`Season ${seasonLabel}: sleeper.getOverallMVP helper failed — ${e?.message ?? String(e)}.`);
-            }
-          } else {
-            messages.push(`Season ${seasonLabel}: sleeper.getOverallMVP not available — skipping helper.`);
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      // If helper returned something useful, map it into our shape and attach names
-      if (helperFinals || helperOverall) {
-        if (helperFinals) {
-          // helperFinals shape may vary; we try common fields
-          const pid = String(helperFinals.playerId ?? helperFinals.player_id ?? helperFinals.rosterPlayerId ?? helperFinals.player ?? helperFinals.topPlayerId ?? helperFinals.playerId ?? '');
-          const pts = safeNum(helperFinals.points ?? helperFinals.pts ?? helperFinals.score ?? 0);
-          const cw = helperFinals.championshipWeek ?? championshipWeekFromLeague ?? null;
-          attachedFinals = attachNameToMvp({ playerId: pid, points: pts, championshipWeek: cw });
-          usedChampWeek = cw || usedChampWeek;
-        }
-        if (helperOverall) {
-          const pid = String(helperOverall.playerId ?? helperOverall.player_id ?? helperOverall.topPlayerId ?? helperOverall.player ?? '');
-          const pts = safeNum(helperOverall.points ?? helperOverall.total ?? helperOverall.score ?? 0);
-          attachedOverall = attachNameToMvp({ playerId: pid, points: pts });
-        }
-      } else {
-        // no helpers or helpers failed — fallback to compute from matchups using championshipWeekFromLeague
-        const result = computeMvpsFromMatchups(matchups, championshipWeekFromLeague);
-        attachedOverall = attachNameToMvp(result.overallMvp);
-        attachedFinals = attachNameToMvp(result.finalsMvp);
-        usedChampWeek = result.championshipWeek || usedChampWeek;
-        messages.push(`Season ${seasonLabel}: computed MVPs via local matchups logic (champWeek ${usedChampWeek}).`);
-      }
+    // attach player names by looking up playersMap
+    function attachName(mvpObj) {
+      if (!mvpObj || !mvpObj.playerId) return mvpObj;
+      const pid = String(mvpObj.playerId);
+      const pObj = (playersMap && (playersMap[pid] || playersMap[pid.toUpperCase()] || playersMap[Number(pid)])) || null;
+      const name = pObj ? (pObj.full_name || (pObj.first_name ? (pObj.first_name + (pObj.last_name ? ' ' + pObj.last_name : '')) : pObj.full_name) || pObj.display_name || pObj.player_name || null) : null;
+      return { ...mvpObj, playerName: name ?? null };
     }
+
+    const attachedOverall = attachName(overallMvp);
+    const attachedFinals = attachName(finalsMvp);
 
     seasonsResults.push({
       season: seasonLabel,
       leagueId: s.leagueId || null,
-      championshipWeek: usedChampWeek || null,
+      championshipWeek: championshipWeek || null,
       finalsMvp: attachedFinals,
       overallMvp: attachedOverall,
       _sourceJson: usedJson || null
     });
+
+    messages.push(`Season ${seasonLabel}: computed MVPs via local matchups logic (champWeek ${championshipWeek}).`);
   } // end seasons loop
 
   return {
