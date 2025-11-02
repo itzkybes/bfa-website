@@ -10,14 +10,16 @@
   const messages = Array.isArray(data?.messages) ? data.messages : [];
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
 
-  // default selectedSeason: prefer last numeric season from seasons, else last seasonsResults
+  // default selectedSeason:
+  // prefer last numeric season from API seasons, else prefer last seasonsResults row,
+  // else null. Values are strings so binding is stable.
   let selectedSeason = (() => {
     if (seasons && seasons.length) {
       const last = seasons[seasons.length - 1];
       return String(last.season ?? last.league_id);
     }
     if (seasonsResults && seasonsResults.length) {
-      return String(seasonsResults[seasonsResults.length - 1].season);
+      return String(seasonsResults[seasonsResults.length - 1].season ?? seasonsResults[seasonsResults.length - 1].leagueId);
     }
     return null;
   })();
@@ -50,16 +52,7 @@
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
     const letter = name ? name[0] : 'P';
-    // use ui-avatars but keep it dark-friendly
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
-  }
-
-  // submit form if you want server-side filtering in future; currently selection is client-side.
-  function submitFilters(e) {
-    // retain compatibility: attempt to submit GET form if present
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else if (form) form?.submit();
   }
 </script>
 
@@ -170,26 +163,24 @@
   <h1>Player MVPs</h1>
 
   <div class="controls-row">
-    <form id="filters" method="get" style="display:flex; align-items:center; gap:12px;">
+    <!-- make selector client-side only (no GET submit) -->
+    <div id="filters" style="display:flex; align-items:center; gap:12px;">
       <label for="season-select" class="smallMuted" aria-hidden="true">Season</label>
-      <select id="season-select" name="season" class="select" bind:value={selectedSeason} on:change={submitFilters}>
+
+      <select id="season-select" class="select" bind:value={selectedSeason} aria-label="Select season">
         {#if seasons && seasons.length}
           {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-              {s.season ?? s.name ?? s.league_id}
-            </option>
+            <option value={String(s.season ?? s.league_id)}>{s.season ?? s.name ?? s.league_id}</option>
           {/each}
         {:else if seasonsResults && seasonsResults.length}
           {#each seasonsResults as r}
-            <option value={r.season ?? r.leagueId} selected={(r.season ?? r.leagueId) === String(selectedSeason)}>
-              {r.season ?? r.leagueId}
-            </option>
+            <option value={String(r.season ?? r.leagueId)}>{r.season ?? r.leagueId}</option>
           {/each}
         {:else}
           <option value={selectedSeason}>{selectedSeason}</option>
         {/if}
       </select>
-    </form>
+    </div>
 
     <div class="smallMuted">Showing MVPs for: <strong style="color:var(--text); margin-left:6px;">{selectedSeason}</strong></div>
   </div>
