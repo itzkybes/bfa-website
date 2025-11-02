@@ -8,8 +8,7 @@
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // determine default selected season:
-  // prefer server-provided latest season (if seasons available), else fallback to last seasonsResults entry
+  // label helper (same as other pages)
   function seasonLabel(s) {
     if (!s) return 'Unknown';
     if (s.season != null) return String(s.season);
@@ -17,26 +16,26 @@
     return s.league_id || 'Unknown';
   }
 
-  let selectedSeason = null;
+  // choose default selected season (latest numeric season if available)
+  let selectedSeason = '';
   if (seasons && seasons.length) {
     const numericSeasons = seasons.filter(s => s.season != null);
-    if (numericSeasons.length) selectedSeason = String(numericSeasons[numericSeasons.length - 1].season);
-    else selectedSeason = String(seasons[seasons.length - 1].league_id);
+    selectedSeason = numericSeasons.length ? String(numericSeasons[numericSeasons.length - 1].season) : String(seasons[seasons.length - 1].league_id);
   } else if (seasonsResults && seasonsResults.length) {
     selectedSeason = String(seasonsResults[seasonsResults.length - 1].season ?? seasonsResults[seasonsResults.length-1].leagueId);
-  } else {
-    selectedSeason = '';
   }
 
-  // when user picks a season, we simply filter client-side from seasonsResults
+  // reactive lookup of the selected season result
   $: selectedKey = String(selectedSeason);
   $: selectedEntry = seasonsResults.find(r => String(r.season) === selectedKey || String(r.leagueId) === selectedKey) ?? null;
 
-  function playerHeadshot(playerId) {
+  // Player headshot helper (same as Honor Hall)
+  function playerHeadshot(playerId, size = 64) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
+  // avatar fallback (owner/roster or UI avatars)
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
     const letter = name ? name[0] : 'P';
@@ -49,7 +48,6 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // Allow keyboard users to change selection with simple binding; no form submit required
   function onSeasonChange(e) {
     selectedSeason = e.target.value;
   }
@@ -91,7 +89,7 @@
   .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
   .json-links a:hover { text-decoration: underline; }
 
-  /* copy the exact select styling used on Standings/Matchups */
+  /* exact select style used elsewhere */
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -183,6 +181,7 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Finals MVP -->
         <tr>
           <td>
             <div style="font-weight:800;">Finals MVP</div>
@@ -193,14 +192,18 @@
               <div class="mvp-row">
                 <img
                   class="avatar"
-                  src={playerHeadshot(selectedEntry.finalsMvp.playerId) || avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerName)}
-                  alt={selectedEntry.finalsMvp.playerName ?? selectedEntry.finalsMvp.playerId}
-                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerName); }}
+                  src={playerHeadshot(selectedEntry.finalsMvp.playerId) || avatarOrPlaceholder(selectedEntry.finalsMvp.roster_meta?.owner_avatar, selectedEntry.finalsMvp.playerName)}
+                  alt={selectedEntry.finalsMvp.playerName ?? `Player ${selectedEntry.finalsMvp.playerId}`}
+                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedEntry.finalsMvp.roster_meta?.owner_avatar, selectedEntry.finalsMvp.playerName); }}
                 />
                 <div style="min-width:0;">
                   <div class="player-name">{selectedEntry.finalsMvp.playerName ?? `Player ${selectedEntry.finalsMvp.playerId}`}</div>
                   <div class="player-meta">
-                    {selectedEntry.finalsMvp.rosterId ? `Roster ${selectedEntry.finalsMvp.rosterId}` : ''}
+                    {#if selectedEntry.finalsMvp.roster_meta?.owner_name}
+                      {selectedEntry.finalsMvp.roster_meta.owner_name}
+                    {:else if selectedEntry.finalsMvp.rosterId}
+                      {`Roster ${selectedEntry.finalsMvp.rosterId}`}
+                    {/if}
                     {#if selectedEntry.finalsMvp.points != null}
                       &nbsp;•&nbsp; {formatPts(selectedEntry.finalsMvp.points)} pts
                     {/if}
@@ -222,6 +225,7 @@
           </td>
         </tr>
 
+        <!-- Overall MVP -->
         <tr>
           <td>
             <div style="font-weight:800;">Overall MVP</div>
@@ -232,9 +236,9 @@
               <div class="mvp-row">
                 <img
                   class="avatar"
-                  src={playerHeadshot(selectedEntry.overallMvp.playerId) || avatarOrPlaceholder(null, selectedEntry.overallMvp.playerName)}
-                  alt={selectedEntry.overallMvp.playerName ?? selectedEntry.overallMvp.playerId}
-                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(null, selectedEntry.overallMvp.playerName); }}
+                  src={playerHeadshot(selectedEntry.overallMvp.playerId) || avatarOrPlaceholder(selectedEntry.overallMvp.roster_meta?.owner_avatar, selectedEntry.overallMvp.playerName)}
+                  alt={selectedEntry.overallMvp.playerName ?? `Player ${selectedEntry.overallMvp.playerId}`}
+                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedEntry.overallMvp.roster_meta?.owner_avatar, selectedEntry.overallMvp.playerName); }}
                 />
                 <div style="min-width:0;">
                   <div class="player-name">{selectedEntry.overallMvp.playerName ?? `Player ${selectedEntry.overallMvp.playerId}`}</div>
@@ -243,6 +247,9 @@
                       {formatPts(selectedEntry.overallMvp.points)} pts (season)
                     {:else}
                       No season points found
+                    {/if}
+                    {#if selectedEntry.overallMvp.roster_meta?.owner_name}
+                      &nbsp;•&nbsp; {selectedEntry.overallMvp.roster_meta.owner_name}
                     {/if}
                   </div>
                 </div>
