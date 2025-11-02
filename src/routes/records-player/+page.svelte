@@ -1,47 +1,31 @@
 <script>
-  // Player MVPs table (by season)
+  // Player MVPs page
   export let data;
 
-  // seasons from server: [{ league_id, season, name }, ...]
+  // seasons from server
   const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
 
-  // server can provide either a mapping (mvpBySeason) or an array (mvpList)
+  // mapping created by server: seasonKey -> { finalsMvp, overallMvp, ... }
   const mvpBySeason = data?.mvpBySeason ?? {};
-  const mvpList = Array.isArray(data?.mvpList) ? data.mvpList : [];
 
-  // selected season (try server-specified selectedSeason then fallback to latest numeric season)
-  let selectedSeason = (() => {
-    const ds = data?.selectedSeason ? String(data.selectedSeason) : null;
-    if (ds) {
-      const matches = seasons.some(s => (s.season != null && String(s.season) === ds) || String(s.league_id) === ds);
-      if (matches) return ds;
-    }
-    // pick latest numeric season if available
-    const numericSeasons = seasons.filter(s => s.season != null);
-    if (numericSeasons.length) return String(numericSeasons[numericSeasons.length - 1].season);
-    if (seasons.length) return String(seasons[seasons.length - 1].league_id);
-    return null;
-  })();
+  // selected season - prefer server's selectedSeason
+  let selectedSeason = data?.selectedSeason ? String(data.selectedSeason) : (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
-  // reactive computed selected key and selected object
+  // reactive selectedKey and selectedEntry
   $: selectedKey = String(selectedSeason ?? '');
-  $: selectedEntry =
-    (mvpBySeason && mvpBySeason[selectedKey]) ?
-      mvpBySeason[selectedKey] :
-      (mvpList.find(x => String(x.season) === selectedKey || String(x.leagueId) === selectedKey) || null);
+  $: selectedEntry = mvpBySeason[selectedKey] ?? null;
 
-  // extract mvp objects (may be null)
-  $: finalsMvp = selectedEntry?.finalsMvp ?? null;
-  $: overallMvp = selectedEntry?.overallMvp ?? null;
+  // messages/jsonLinks from server (for debug / visibility)
+  const messages = Array.isArray(data?.messages) ? data.messages : [];
+  const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
+  const loadedFiles = Array.isArray(data?.loadedFiles) ? data.loadedFiles : [];
 
-  // helper - submit form on change
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form?.requestSubmit) form.requestSubmit();
     else form?.submit();
   }
 
-  // player headshot helper (Sleeper NBA CDN); keep client lazy so page can load even if server didn't fetch players
   function playerHeadshot(playerId) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
@@ -49,7 +33,7 @@
 
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
-    const letter = name ? name[0] : 'T';
+    const letter = name ? name[0] : 'P';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
 
@@ -59,7 +43,6 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  // Labels for select
   function seasonLabel(s) {
     if (!s) return 'Unknown';
     if (s.season != null) return String(s.season);
@@ -94,7 +77,7 @@
     justify-content:space-between;
   }
 
-  /* copy select style from Standings page for consistency */
+  /* Matchings select style from Standings */
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -120,6 +103,8 @@
   .player-name { font-weight:800; }
   .player-meta { color:var(--muted); font-size:.95rem; margin-top:6px; }
 
+  .messages { margin-bottom: 12px; color: var(--muted); font-size: .95rem; }
+
   @media (max-width: 720px) {
     .controls { flex-direction:column; align-items:stretch; gap:.6rem; }
     .avatar { width:56px; height:56px; }
@@ -130,13 +115,33 @@
 <div class="page">
   <h1>Player MVPs</h1>
 
+  {#if messages && messages.length}
+    <div class="messages" aria-live="polite">
+      <strong>Messages</strong>
+      <ol>
+        {#each messages as m, i}
+          <li>{m}</li>
+        {/each}
+      </ol>
+
+      {#if loadedFiles && loadedFiles.length}
+        <div style="margin-top:.6rem; font-weight:700">Loaded JSON files:</div>
+        <ul style="margin-top:.35rem; color:var(--muted)">
+          {#each loadedFiles as lf}
+            <li>{lf}</li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
+
   <div class="controls">
     <form id="filters" method="get" style="display:flex; gap:.5rem; align-items:center;">
       <label for="season" class="small-muted" aria-hidden="true">Season</label>
       <select id="season" name="season" class="select" bind:value={selectedSeason} on:change={submitFilters}>
         {#if seasons && seasons.length}
-          {#each seasons.filter(s => s.season != null) as s}
-            <option value={s.season} selected={String(s.season) === String(selectedSeason)}>{seasonLabel(s)}</option>
+          {#each seasons as s}
+            <option value={s.season ?? s.league_id}>{seasonLabel(s)}</option>
           {/each}
         {:else}
           <option value={selectedSeason}>{selectedSeason}</option>
@@ -164,15 +169,15 @@
             <div class="player-meta">Best performer across championship matchup(s)</div>
           </td>
           <td>
-            {#if finalsMvp}
+            {#if selectedEntry && selectedEntry.finalsMvp}
               <div class="mvp-row">
-                <img class="avatar" src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)} alt={finalsMvp.playerName ?? 'Finals MVP'} on:error={(e)=>e.currentTarget.src=avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)} />
+                <img class="avatar" src={playerHeadshot(selectedEntry.finalsMvp.playerId) || avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerId)} alt={selectedEntry.finalsMvp.playerId} on:error={(e)=>e.currentTarget.src=avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerId)} />
                 <div style="min-width:0;">
-                  <div class="player-name">{finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? `Player ${finalsMvp.playerId ?? '—'}`}</div>
+                  <div class="player-name">{selectedEntry.finalsMvp.playerName ?? selectedEntry.finalsMvp.playerId ?? 'Player'}</div>
                   <div class="player-meta">
-                    {finalsMvp.roster_meta?.owner_name ? `${finalsMvp.roster_meta.owner_name}` : (finalsMvp.rosterId ? `Roster ${finalsMvp.rosterId}` : 'Roster: —')}
-                    {#if finalsMvp.points != null}
-                      &nbsp;•&nbsp; {formatPts(finalsMvp.points)} pts
+                    {selectedEntry.finalsMvp.rosterId ? `Roster ${selectedEntry.finalsMvp.rosterId}` : 'Roster: —'}
+                    {#if selectedEntry.finalsMvp.points != null}
+                      &nbsp;•&nbsp; {formatPts(selectedEntry.finalsMvp.points)} pts
                     {/if}
                   </div>
                 </div>
@@ -195,15 +200,16 @@
             <div class="player-meta">Most points across the entire season (regular + playoffs)</div>
           </td>
           <td>
-            {#if overallMvp}
+            {#if selectedEntry && selectedEntry.overallMvp}
               <div class="mvp-row">
-                <img class="avatar" src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)} alt={overallMvp.playerName ?? 'Overall MVP'} on:error={(e)=>e.currentTarget.src=avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)} />
+                <img class="avatar" src={playerHeadshot(selectedEntry.overallMvp.playerId || selectedEntry.overallMvp.topPlayerId) || avatarOrPlaceholder(null, selectedEntry.overallMvp.playerId)} alt={selectedEntry.overallMvp.playerId} on:error={(e)=>e.currentTarget.src=avatarOrPlaceholder(null, selectedEntry.overallMvp.playerId)} />
                 <div style="min-width:0;">
-                  <div class="player-name">{overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? `Player ${overallMvp.playerId ?? overallMvp.topPlayerId ?? '—'}`}</div>
+                  <div class="player-name">{selectedEntry.overallMvp.playerName ?? selectedEntry.overallMvp.playerId ?? 'Player'}</div>
                   <div class="player-meta">
-                    {overallMvp.roster_meta?.owner_name ? `${overallMvp.roster_meta.owner_name}` : (overallMvp.rosterId || overallMvp.topRosterId ? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId}` : 'Roster: —')}
-                    {#if overallMvp.points != null}
-                      &nbsp;•&nbsp; {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score)} pts
+                    {#if selectedEntry.overallMvp.points != null}
+                      {formatPts(selectedEntry.overallMvp.points)} pts (season)
+                    {:else}
+                      No season points found
                     {/if}
                   </div>
                 </div>
