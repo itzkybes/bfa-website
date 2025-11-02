@@ -22,13 +22,12 @@
   });
 
   // Nav links in the order requested
-  // Keep a top-level "Records" entry here for ordering/display but we will render it specially
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
     { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
-    { href: '/records', label: 'Records' },         // special: expands to two options
+    { href: '/records', label: 'Records' },
     { href: '/honor-hall', label: 'Honor Hall' }
   ];
 
@@ -36,7 +35,13 @@
   function isActive(path, href) {
     if (!path) return false;
     if (href === '/' && (path === '/' || path === '')) return true;
-    return path === href || (href !== '/' && path.startsWith(href));
+    // exact match
+    if (path === href) return true;
+    // direct prefix match (e.g. /standings -> /standings/...)
+    if (href !== '/' && path.startsWith(href)) return true;
+    // special-case: treat '/records' as active for child routes like '/records-player', '/records-team', or '/records/...'
+    if (href === '/records' && (path.startsWith('/records-') || path.startsWith('/records/'))) return true;
+    return false;
   }
 
   // try next fallback if image errors
@@ -48,12 +53,6 @@
       logoVisible = false;
     }
   }
-
-  // computed active state for records submenu items
-  $: recordsActive = (() => {
-    const p = $page?.url?.pathname ?? '';
-    return isActive(p, '/records') || isActive(p, '/records-team') || isActive(p, '/records-player');
-  })();
 </script>
 
 <header class="site-header" role="banner">
@@ -76,34 +75,12 @@
 
     <nav class="nav-desktop" aria-label="Primary navigation">
       {#each links as l}
-        {#if l.href === '/records'}
-          <!-- Desktop: accessible details-based dropdown for Records -->
-          <details class="nav-dropdown" role="group" aria-label="Records menu">
-            <summary class="nav-link {recordsActive ? 'active' : ''}" role="button" aria-haspopup="true" aria-expanded="false">
-              {l.label} <span aria-hidden="true" class="caret">▾</span>
-            </summary>
-
-            <ul class="nav-submenu" role="menu" aria-label="Records submenu">
-              <li role="none">
-                <a role="menuitem" class="nav-submenu-link" href="/records-team" aria-current={isActive($page.url.pathname, '/records-team') ? 'page' : undefined}>
-                  Team records
-                </a>
-              </li>
-              <li role="none">
-                <a role="menuitem" class="nav-submenu-link" href="/records-player" aria-current={isActive($page.url.pathname, '/records-player') ? 'page' : undefined}>
-                  Player records
-                </a>
-              </li>
-            </ul>
-          </details>
-        {:else}
-          <a
-            href={l.href}
-            class="nav-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
-            aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
-            >{l.label}</a
-          >
-        {/if}
+        <a
+          href={l.href}
+          class="nav-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
+          aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+          >{l.label}</a
+        >
       {/each}
     </nav>
 
@@ -126,34 +103,13 @@
   <div id="mobile-menu" class="mobile-menu {open ? 'open' : ''}" aria-hidden={!open}>
     <div class="mobile-links">
       {#each links as l}
-        {#if l.href === '/records'}
-          <div class="mobile-records-group">
-            <a
-              href="/records-team"
-              class="mobile-link {isActive($page.url.pathname, '/records-team') ? 'active' : ''}"
-              on:click={() => (open = false)}
-              aria-current={isActive($page.url.pathname, '/records-team') ? 'page' : undefined}
-            >
-              Team records
-            </a>
-            <a
-              href="/records-player"
-              class="mobile-link {isActive($page.url.pathname, '/records-player') ? 'active' : ''}"
-              on:click={() => (open = false)}
-              aria-current={isActive($page.url.pathname, '/records-player') ? 'page' : undefined}
-            >
-              Player records
-            </a>
-          </div>
-        {:else}
-          <a
-            href={l.href}
-            class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
-            on:click={() => (open = false)}
-            aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
-            >{l.label}</a
-          >
-        {/if}
+        <a
+          href={l.href}
+          class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
+          on:click={() => (open = false)}
+          aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+          >{l.label}</a
+        >
       {/each}
     </div>
   </div>
@@ -263,49 +219,6 @@
     color: #071122;
   }
 
-  /* Desktop dropdown specifics */
-  .nav-dropdown { position: relative; display: inline-block; }
-  .nav-dropdown summary {
-    list-style: none;
-    cursor: pointer;
-  }
-  .nav-dropdown summary::-webkit-details-marker { display: none; }
-
-  .nav-submenu {
-    margin: 8px 0 0 0;
-    padding: 6px 6px;
-    position: absolute;
-    left: 0;
-    top: calc(100% + 6px);
-    background: rgba(7,16,26,0.98);
-    border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(2,6,23,0.6);
-    min-width: 170px;
-    list-style: none;
-    z-index: 40;
-  }
-  .nav-submenu-link {
-    display:block;
-    padding:8px 12px;
-    color:var(--nav-text);
-    text-decoration:none;
-    font-weight:700;
-    border-radius:6px;
-  }
-  .nav-submenu-link:hover,
-  .nav-submenu-link:focus {
-    background: rgba(255,255,255,0.02);
-    outline: none;
-  }
-
-  .nav-dropdown[open] summary { /* when dropdown open make it feel active */
-    background: linear-gradient(90deg, rgba(99,102,241,0.12), rgba(99,102,241,0.06));
-    border-radius: 10px;
-  }
-
-  .caret { margin-left: 6px; font-size: 0.9rem; opacity: 0.9; }
-
   /* Mobile controls */
   .mobile-controls {
     display: none;
@@ -411,17 +324,6 @@
   .mobile-link.active {
     background: linear-gradient(90deg, var(--accent), var(--accent-dark));
     color: #071122;
-  }
-
-  /* mobile group for records: visually grouped, slightly indented */
-  .mobile-records-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .mobile-records-group .mobile-link {
-    padding-left: 22px;
-    background: rgba(255,255,255,0.01);
   }
 
   /* Responsive adjustments */
