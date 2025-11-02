@@ -1,7 +1,7 @@
 <script>
 	import Header from '$lib/header/Header.svelte';
 	import { webVitals } from '$lib/vitals';
-	import { browser } from '$app/env';           // matches your kit version
+	import { browser } from '$app/env';
 	import { page } from '$app/stores';
 	import '../app.css';
 
@@ -36,6 +36,9 @@
 			<a href="/rosters" aria-label="Rosters">Rosters</a>
 			<a href="/standings" aria-label="Standings">Standings</a>
 			<a href="/matchups" aria-label="Matchups">Matchups</a>
+			<!-- replaced /records with concrete team/player routes -->
+			<a href="/records-team" aria-label="Team Records">Team Records</a>
+			<a href="/records-player" aria-label="Player Records">Player Records</a>
 			<a href="https://sleeper.com/" target="_blank" rel="noreferrer" aria-label="Open Sleeper">Sleeper</a>
 			<a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer" aria-label="Open Sleeper API docs">Sleeper API</a>
 		</nav>
