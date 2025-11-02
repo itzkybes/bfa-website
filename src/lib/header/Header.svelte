@@ -6,7 +6,6 @@
   let open = false;
   let mounted = false;
 
-  // logo fallback state — points to file in static/
   let logoVisible = true;
   let logoSrcs = ['/bfa-logo.png'];
   let currentLogo = logoSrcs[0];
@@ -15,33 +14,33 @@
   $: if (mounted) {
     $page; // reactive dependency so this runs when the page changes
     open = false;
+    recordsOpen = false;
   }
 
   onMount(() => {
     mounted = true;
   });
 
-  // Nav links in the order requested
+  // Nav: Records is a parent that points to children routes only
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
     { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
-    { href: '/records', label: 'Records' },
+    // Records parent — NOT a navigable <a> (avoids /records 404)
+    { href: '/records', label: 'Records', children: [
+      { href: '/records-team', label: 'Team records' },
+      { href: '/records-player', label: 'Player records' }
+    ]},
     { href: '/honor-hall', label: 'Honor Hall' }
   ];
 
-  // helper to test active link
+  // helper to test active link — treat parent href as active when the path starts with it
   function isActive(path, href) {
     if (!path) return false;
     if (href === '/' && (path === '/' || path === '')) return true;
-    // exact match
-    if (path === href) return true;
-    // direct prefix match (e.g. /standings -> /standings/...)
     if (href !== '/' && path.startsWith(href)) return true;
-    // special-case: treat '/records' as active for child routes like '/records-player', '/records-team', or '/records/...'
-    if (href === '/records' && (path.startsWith('/records-') || path.startsWith('/records/'))) return true;
-    return false;
+    return path === href;
   }
 
   // try next fallback if image errors
@@ -52,6 +51,12 @@
     } else {
       logoVisible = false;
     }
+  }
+
+  // dropdown state for desktop
+  let recordsOpen = false;
+  function toggleRecords(e) {
+    recordsOpen = !recordsOpen;
   }
 </script>
 
@@ -75,12 +80,26 @@
 
     <nav class="nav-desktop" aria-label="Primary navigation">
       {#each links as l}
-        <a
-          href={l.href}
-          class="nav-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
-          aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
-          >{l.label}</a
-        >
+        {#if l.children}
+          <div class="nav-item has-children {isActive($page.url.pathname, l.href) ? 'active' : ''}" on:mouseenter={() => recordsOpen = true} on:mouseleave={() => recordsOpen = false}>
+            <button class="nav-link record-button" aria-haspopup="true" aria-expanded={recordsOpen} on:click={toggleRecords} type="button">
+              {l.label} <span class="caret" aria-hidden="true">▾</span>
+            </button>
+
+            <div class="dropdown" hidden={!recordsOpen} role="menu" aria-label="Records submenu">
+              {#each l.children as c}
+                <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem">{c.label}</a>
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <a
+            href={l.href}
+            class="nav-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
+            aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+            >{l.label}</a
+          >
+        {/if}
       {/each}
     </nav>
 
@@ -103,13 +122,28 @@
   <div id="mobile-menu" class="mobile-menu {open ? 'open' : ''}" aria-hidden={!open}>
     <div class="mobile-links">
       {#each links as l}
-        <a
-          href={l.href}
-          class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
-          on:click={() => (open = false)}
-          aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
-          >{l.label}</a
-        >
+        {#if l.children}
+          <div class="mobile-section">
+            <div class="mobile-section-title">{l.label}</div>
+            {#each l.children as c}
+              <a
+                href={c.href}
+                class="mobile-link {isActive($page.url.pathname, c.href) ? 'active' : ''}"
+                on:click={() => (open = false)}
+                aria-current={isActive($page.url.pathname, c.href) ? 'page' : undefined}
+                >{c.label}</a
+              >
+            {/each}
+          </div>
+        {:else}
+          <a
+            href={l.href}
+            class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
+            on:click={() => (open = false)}
+            aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+            >{l.label}</a
+          >
+        {/if}
       {/each}
     </div>
   </div>
@@ -121,7 +155,6 @@
     --muted: #9fb0c4;
     --accent: #00c6d8;
     --accent-dark: #008fa6;
-    --bg-card: rgba(255,255,255,0.02);
   }
 
   .site-header {
@@ -151,17 +184,16 @@
     text-decoration: none;
     color: var(--nav-text);
     flex: 0 1 auto;
-    min-width: 0; /* allow shrinking */
+    min-width: 0;
   }
 
-  /* Larger logo with NO background, no border-radius, no shadow */
   .brand-logo {
-    width: 96px;   /* desktop */
+    width: 96px;
     height: 96px;
     object-fit: contain;
-    background: transparent; /* explicitly no background */
-    border-radius: 0;        /* remove rounding */
-    box-shadow: none;        /* remove shadow */
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
     flex-shrink: 0;
   }
 
@@ -178,18 +210,16 @@
     flex-shrink: 0;
   }
 
-  /* Single-line brand text (no wrapping) */
   .brand-text {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: 800;
-    font-size: clamp(0.95rem, 2.2vw, 1.2rem); /* responsive sizing */
+    font-size: clamp(0.95rem, 2.2vw, 1.2rem);
     color: var(--nav-text);
     min-width: 0;
   }
 
-  /* Desktop nav */
   .nav-desktop {
     display: flex;
     gap: 0.6rem;
@@ -197,7 +227,7 @@
     margin-left: 0.5rem;
   }
 
-  .nav-link {
+  .nav-link, .record-button {
     padding: 8px 12px;
     border-radius: 10px;
     font-weight: 700;
@@ -205,151 +235,74 @@
     text-decoration: none;
     background: transparent;
     transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+    border: none;
+    cursor: pointer;
   }
 
-  .nav-link:hover,
-  .nav-link:focus {
+  .nav-link:hover, .record-button:hover, .nav-link:focus, .record-button:focus {
     background: rgba(255,255,255,0.03);
     transform: translateY(-1px);
     outline: none;
   }
 
-  .nav-link.active {
+  .nav-link.active, .nav-item.has-children.active > .record-button {
     background: linear-gradient(90deg, var(--accent), var(--accent-dark));
     color: #071122;
   }
 
-  /* Mobile controls */
-  .mobile-controls {
-    display: none;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .hamburger {
-    background: transparent;
-    border: none;
-    padding: 8px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--nav-text);
-  }
-
-  .hamburger:focus {
-    outline: 3px solid rgba(0,198,216,0.18);
-  }
-
-  .hamburger-box {
-    width: 22px;
-    height: 16px;
-    display: inline-block;
-    position: relative;
-  }
-
-  .hamburger-inner,
-  .hamburger-inner::before,
-  .hamburger-inner::after {
-    display: block;
-    background-color: currentColor;
-    height: 2px;
-    border-radius: 2px;
+  /* Dropdown */
+  .nav-item { position: relative; }
+  .dropdown {
     position: absolute;
-    left: 0;
     right: 0;
-    transition: transform 200ms ease, opacity 200ms ease;
-  }
-
-  .hamburger-inner {
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .hamburger-inner::before {
-    content: '';
-    top: -7px;
-  }
-  .hamburger-inner::after {
-    content: '';
-    top: 7px;
-  }
-
-  /* animated open state */
-  .hamburger[aria-expanded='true'] .hamburger-inner {
-    transform: rotate(45deg);
-  }
-  .hamburger[aria-expanded='true'] .hamburger-inner::before {
-    transform: rotate(90deg) translateX(-1px);
-    top: 0;
-    opacity: 0;
-  }
-  .hamburger[aria-expanded='true'] .hamburger-inner::after {
-    transform: rotate(-90deg) translateX(-1px);
-    top: 0;
-    opacity: 0;
-  }
-
-  /* Mobile menu */
-  .mobile-menu {
-    display: none;
-    background: linear-gradient(180deg, rgba(6,10,15,0.95), rgba(6,10,15,0.98));
-    border-top: 1px solid rgba(255,255,255,0.03);
-    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
-  }
-
-  .mobile-menu.open {
-    display: block;
-  }
-
-  .mobile-links {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 12px 16px;
+    top: 38px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 6px;
+    min-width: 160px;
+    box-shadow: 0 8px 30px rgba(2,6,23,0.6);
     display:flex;
     flex-direction: column;
     gap: 6px;
+    z-index: 60;
   }
-
-  .mobile-link {
-    display: block;
-    padding: 12px 14px;
-    border-radius: 10px;
-    font-weight: 800;
-    color: var(--nav-text);
+  .dropdown-link {
+    padding: 8px 12px;
+    border-radius: 8px;
     text-decoration: none;
-    background: rgba(255,255,255,0.02);
+    color: var(--nav-text);
+    font-weight: 700;
   }
+  .dropdown-link:hover, .dropdown-link:focus { background: rgba(255,255,255,0.02); color:var(--nav-text); }
+  .dropdown-link.active { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #071122; }
 
-  .mobile-link.active {
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-    color: #071122;
-  }
+  .mobile-controls { display: none; align-items: center; gap: 8px; }
+  .hamburger { background: transparent; border: none; padding: 8px; border-radius: 8px; cursor: pointer; color: var(--nav-text); }
+  .hamburger-box { width: 22px; height: 16px; display:inline-block; position: relative; }
+  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { display: block; background-color: currentColor; height: 2px; border-radius: 2px; position: absolute; left: 0; right: 0; transition: transform 200ms ease, opacity 200ms ease; }
+  .hamburger-inner { top: 50%; transform: translateY(-50%); }
+  .hamburger-inner::before { content: ''; top: -7px; }
+  .hamburger-inner::after { content: ''; top: 7px; }
 
-  /* Responsive adjustments */
+  .hamburger[aria-expanded='true'] .hamburger-inner { transform: rotate(45deg); }
+  .hamburger[aria-expanded='true'] .hamburger-inner::before { transform: rotate(90deg) translateX(-1px); top: 0; opacity: 0; }
+  .hamburger[aria-expanded='true'] .hamburger-inner::after { transform: rotate(-90deg) translateX(-1px); top: 0; opacity: 0; }
+
+  .mobile-menu { display: none; background: linear-gradient(180deg, rgba(6,10,15,0.95), rgba(6,10,15,0.98)); border-top: 1px solid rgba(255,255,255,0.03); box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+  .mobile-menu.open { display: block; }
+  .mobile-links { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display:flex; flex-direction: column; gap: 6px; }
+  .mobile-link, .mobile-section-title { display:block; padding: 12px 14px; border-radius: 10px; font-weight: 800; color: var(--nav-text); text-decoration: none; background: rgba(255,255,255,0.02); }
+
+  .mobile-section-title { font-weight: 900; opacity: 0.95; }
+  .mobile-link.active { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #071122; }
+
   @media (max-width: 980px) {
     .nav-desktop { display: none; }
     .mobile-controls { display: inline-flex; }
-
-    /* scale logo down on smaller screens */
-    .brand-logo, .logo-emoji {
-      width: 72px;
-      height: 72px;
-    }
+    .brand-logo, .logo-emoji { width: 72px; height: 72px; }
     .brand-text { font-size: clamp(0.9rem, 3.0vw, 1.0rem); }
     .header-inner { padding: 0.45rem 0.75rem; gap: 0.6rem; }
-  }
-
-  @media (max-width: 520px) {
-    .brand-logo, .logo-emoji {
-      width: 56px;
-      height: 56px;
-    }
-    .brand-text {
-      font-size: 0.95rem;
-    }
-    /* ensure the brand doesn't push the hamburger off-screen */
-    .header-inner { padding: 0.35rem 0.6rem; gap: 0.5rem; }
   }
 
   @media (min-width: 981px) {
