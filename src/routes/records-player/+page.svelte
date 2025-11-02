@@ -1,30 +1,36 @@
 <script>
-  // Player MVPs page
+  // src/routes/records-player/+page.svelte
   export let data;
 
-  // seasons from server
+  // server outputs
   const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
-
-  // mapping created by server: seasonKey -> { finalsMvp, overallMvp, ... }
-  const mvpBySeason = data?.mvpBySeason ?? {};
-
-  // selected season - prefer server's selectedSeason
-  let selectedSeason = data?.selectedSeason ? String(data.selectedSeason) : (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-
-  // reactive selectedKey and selectedEntry
-  $: selectedKey = String(selectedSeason ?? '');
-  $: selectedEntry = mvpBySeason[selectedKey] ?? null;
-
-  // messages/jsonLinks from server (for debug / visibility)
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
+  const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
-  const loadedFiles = Array.isArray(data?.loadedFiles) ? data.loadedFiles : [];
+  const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else form?.submit();
+  // determine default selected season:
+  // prefer server-provided latest season (if seasons available), else fallback to last seasonsResults entry
+  function seasonLabel(s) {
+    if (!s) return 'Unknown';
+    if (s.season != null) return String(s.season);
+    if (s.name) return s.name;
+    return s.league_id || 'Unknown';
   }
+
+  let selectedSeason = null;
+  if (seasons && seasons.length) {
+    const numericSeasons = seasons.filter(s => s.season != null);
+    if (numericSeasons.length) selectedSeason = String(numericSeasons[numericSeasons.length - 1].season);
+    else selectedSeason = String(seasons[seasons.length - 1].league_id);
+  } else if (seasonsResults && seasonsResults.length) {
+    selectedSeason = String(seasonsResults[seasonsResults.length - 1].season ?? seasonsResults[seasonsResults.length-1].leagueId);
+  } else {
+    selectedSeason = '';
+  }
+
+  // when user picks a season, we simply filter client-side from seasonsResults
+  $: selectedKey = String(selectedSeason);
+  $: selectedEntry = seasonsResults.find(r => String(r.season) === selectedKey || String(r.leagueId) === selectedKey) ?? null;
 
   function playerHeadshot(playerId) {
     if (!playerId) return '';
@@ -43,11 +49,9 @@
     return (Math.round(n * 10) / 10).toFixed(1);
   }
 
-  function seasonLabel(s) {
-    if (!s) return 'Unknown';
-    if (s.season != null) return String(s.season);
-    if (s.name) return s.name;
-    return s.league_id || 'Unknown';
+  // Allow keyboard users to change selection with simple binding; no form submit required
+  function onSeasonChange(e) {
+    selectedSeason = e.target.value;
   }
 </script>
 
@@ -61,14 +65,6 @@
   .page { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
   h1 { margin: 0 0 0.5rem 0; font-size: 1.35rem; }
 
-  .card {
-    background: var(--card-bg);
-    border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 12px;
-    padding: 14px;
-    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-  }
-
   .controls {
     display:flex;
     gap:.75rem;
@@ -77,7 +73,25 @@
     justify-content:space-between;
   }
 
-  /* Matchings select style from Standings */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+  }
+
+  .messages {
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+
+  .json-links { margin-top: 0.5rem; display:flex; flex-direction:column; gap:6px; }
+  .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
+  .json-links a:hover { text-decoration: underline; }
+
+  /* copy the exact select styling used on Standings/Matchups */
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -103,8 +117,6 @@
   .player-name { font-weight:800; }
   .player-meta { color:var(--muted); font-size:.95rem; margin-top:6px; }
 
-  .messages { margin-bottom: 12px; color: var(--muted); font-size: .95rem; }
-
   @media (max-width: 720px) {
     .controls { flex-direction:column; align-items:stretch; gap:.6rem; }
     .avatar { width:56px; height:56px; }
@@ -124,30 +136,38 @@
         {/each}
       </ol>
 
-      {#if loadedFiles && loadedFiles.length}
+      {#if jsonLinks && jsonLinks.length}
         <div style="margin-top:.6rem; font-weight:700">Loaded JSON files:</div>
-        <ul style="margin-top:.35rem; color:var(--muted)">
-          {#each loadedFiles as lf}
-            <li>{lf}</li>
+        <div class="json-links" aria-live="polite">
+          {#each jsonLinks as jl}
+            {#if typeof jl === 'string'}
+              <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
+            {:else}
+              <a href={jl.url} target="_blank" rel="noopener noreferrer">{jl.title ?? jl.url}</a>
+            {/if}
           {/each}
-        </ul>
+        </div>
       {/if}
     </div>
   {/if}
 
   <div class="controls">
-    <form id="filters" method="get" style="display:flex; gap:.5rem; align-items:center;">
-      <label for="season" class="small-muted" aria-hidden="true">Season</label>
-      <select id="season" name="season" class="select" bind:value={selectedSeason} on:change={submitFilters}>
+    <div style="display:flex; align-items:center; gap:.6rem;">
+      <label for="season" style="color:var(--muted); font-weight:700;">Season</label>
+      <select id="season" class="select" bind:value={selectedSeason} on:change={onSeasonChange}>
         {#if seasons && seasons.length}
           {#each seasons as s}
             <option value={s.season ?? s.league_id}>{seasonLabel(s)}</option>
+          {/each}
+        {:else if seasonsResults && seasonsResults.length}
+          {#each seasonsResults as r}
+            <option value={r.season ?? r.leagueId}>{r.season ?? r.leagueId}</option>
           {/each}
         {:else}
           <option value={selectedSeason}>{selectedSeason}</option>
         {/if}
       </select>
-    </form>
+    </div>
 
     <div style="color:var(--muted); font-weight:700;">
       Showing MVPs for: <span style="color:inherit">{selectedEntry?.season ?? selectedEntry?.leagueId ?? selectedSeason ?? '—'}</span>
@@ -171,20 +191,28 @@
           <td>
             {#if selectedEntry && selectedEntry.finalsMvp}
               <div class="mvp-row">
-                <img class="avatar" src={playerHeadshot(selectedEntry.finalsMvp.playerId) || avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerId)} alt={selectedEntry.finalsMvp.playerId} on:error={(e)=>e.currentTarget.src=avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerId)} />
+                <img
+                  class="avatar"
+                  src={playerHeadshot(selectedEntry.finalsMvp.playerId) || avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerName)}
+                  alt={selectedEntry.finalsMvp.playerName ?? selectedEntry.finalsMvp.playerId}
+                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(null, selectedEntry.finalsMvp.playerName); }}
+                />
                 <div style="min-width:0;">
-                  <div class="player-name">{selectedEntry.finalsMvp.playerName ?? selectedEntry.finalsMvp.playerId ?? 'Player'}</div>
+                  <div class="player-name">{selectedEntry.finalsMvp.playerName ?? `Player ${selectedEntry.finalsMvp.playerId}`}</div>
                   <div class="player-meta">
-                    {selectedEntry.finalsMvp.rosterId ? `Roster ${selectedEntry.finalsMvp.rosterId}` : 'Roster: —'}
+                    {selectedEntry.finalsMvp.rosterId ? `Roster ${selectedEntry.finalsMvp.rosterId}` : ''}
                     {#if selectedEntry.finalsMvp.points != null}
                       &nbsp;•&nbsp; {formatPts(selectedEntry.finalsMvp.points)} pts
+                    {/if}
+                    {#if selectedEntry.championshipWeek}
+                      &nbsp;•&nbsp; Wk {selectedEntry.championshipWeek}
                     {/if}
                   </div>
                 </div>
               </div>
             {:else}
               <div class="mvp-row">
-                <img class="avatar" src={avatarOrPlaceholder(null, 'Player')} alt="placeholder" />
+                <img class="avatar" src={avatarOrPlaceholder(null,'Player')} alt="placeholder" />
                 <div style="min-width:0;">
                   <div class="player-name">No Finals MVP</div>
                   <div class="player-meta">No data for this season</div>
@@ -202,9 +230,14 @@
           <td>
             {#if selectedEntry && selectedEntry.overallMvp}
               <div class="mvp-row">
-                <img class="avatar" src={playerHeadshot(selectedEntry.overallMvp.playerId || selectedEntry.overallMvp.topPlayerId) || avatarOrPlaceholder(null, selectedEntry.overallMvp.playerId)} alt={selectedEntry.overallMvp.playerId} on:error={(e)=>e.currentTarget.src=avatarOrPlaceholder(null, selectedEntry.overallMvp.playerId)} />
+                <img
+                  class="avatar"
+                  src={playerHeadshot(selectedEntry.overallMvp.playerId) || avatarOrPlaceholder(null, selectedEntry.overallMvp.playerName)}
+                  alt={selectedEntry.overallMvp.playerName ?? selectedEntry.overallMvp.playerId}
+                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(null, selectedEntry.overallMvp.playerName); }}
+                />
                 <div style="min-width:0;">
-                  <div class="player-name">{selectedEntry.overallMvp.playerName ?? selectedEntry.overallMvp.playerId ?? 'Player'}</div>
+                  <div class="player-name">{selectedEntry.overallMvp.playerName ?? `Player ${selectedEntry.overallMvp.playerId}`}</div>
                   <div class="player-meta">
                     {#if selectedEntry.overallMvp.points != null}
                       {formatPts(selectedEntry.overallMvp.points)} pts (season)
@@ -216,7 +249,7 @@
               </div>
             {:else}
               <div class="mvp-row">
-                <img class="avatar" src={avatarOrPlaceholder(null, 'Player')} alt="placeholder" />
+                <img class="avatar" src={avatarOrPlaceholder(null,'Player')} alt="placeholder" />
                 <div style="min-width:0;">
                   <div class="player-name">No Overall MVP</div>
                   <div class="player-meta">No data for this season</div>
