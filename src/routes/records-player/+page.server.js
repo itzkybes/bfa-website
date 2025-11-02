@@ -267,6 +267,15 @@ export async function load(event) {
 
   const seasonsResults = [];
 
+  // helper to attach name
+  function attachNameToMvp(mvpObj) {
+    if (!mvpObj || !mvpObj.playerId) return mvpObj;
+    const pid = String(mvpObj.playerId);
+    const pObj = (playersMap && (playersMap[pid] || playersMap[pid.toUpperCase()] || playersMap[Number(pid)])) || null;
+    const name = pObj ? (pObj.full_name || (pObj.first_name ? (pObj.first_name + (pObj.last_name ? ' ' + pObj.last_name : '')) : pObj.display_name || pObj.player_name)) : null;
+    return { ...mvpObj, playerName: name ?? null, playerObj: pObj ?? null };
+  }
+
   // iterate seasonsToProcess and attempt to compute MVPs for each
   for (const s of seasonsToProcess) {
     const seasonLabel = s.season != null ? String(s.season) : (s.leagueId ? String(s.leagueId) : null);
@@ -441,25 +450,97 @@ export async function load(event) {
       continue;
     }
 
-    // compute MVPs, preferring the championshipWeek from league metadata if present
-    const { overallMvp, finalsMvp, championshipWeek } = computeMvpsFromMatchups(matchups, championshipWeekFromLeague);
+    // ===== Determine MVPs =====
+    // For 2022 keep the existing behavior (it matched your expectation).
+    // For other seasons: try to use the Honor Hall style—attempt the sleeper helper APIs first,
+    // and if unavailable/failing, fall back to computeMvpsFromMatchups using the championshipWeekFromLeague.
+    let attachedOverall = null;
+    let attachedFinals = null;
+    let usedChampWeek = championshipWeekFromLeague || null;
 
-    // attach player names by looking up playersMap
-    function attachName(mvpObj) {
-      if (!mvpObj || !mvpObj.playerId) return mvpObj;
-      const pid = String(mvpObj.playerId);
-      const pObj = (playersMap && (playersMap[pid] || playersMap[pid.toUpperCase()] || playersMap[Number(pid)])) || null;
-      const name = pObj ? (pObj.full_name || (pObj.first_name ? (pObj.first_name + (pObj.last_name ? ' ' + pObj.last_name : '')) : pObj.display_name || pObj.player_name)) : null;
-      return { ...mvpObj, playerName: name ?? null };
+    if (seasonLabel === '2022') {
+      // preserve behavior that you said is correct
+      const result = computeMvpsFromMatchups(matchups, championshipWeekFromLeague);
+      attachedOverall = attachNameToMvp(result.overallMvp);
+      attachedFinals = attachNameToMvp(result.finalsMvp);
+      usedChampWeek = result.championshipWeek || usedChampWeek;
+      messages.push(`Season 2022: computed MVPs via local logic (champWeek ${usedChampWeek}).`);
+    } else {
+      // try helpers if we have a league id
+      let helperFinals = null;
+      let helperOverall = null;
+      let helperTried = false;
+      if (s.leagueId) {
+        helperTried = true;
+        try {
+          if (typeof sleeper.getFinalsMVP === 'function') {
+            try {
+              helperFinals = await sleeper.getFinalsMVP(String(s.leagueId), {
+                season: seasonLabel || null,
+                championshipWeek: championshipWeekFromLeague || undefined,
+                maxWeek: championshipWeekFromLeague || undefined,
+                playersEndpoint: '/players/nba'
+              });
+              messages.push(`Season ${seasonLabel}: sleeper.getFinalsMVP helper returned data.`);
+            } catch (e) {
+              messages.push(`Season ${seasonLabel}: sleeper.getFinalsMVP helper failed — ${e?.message ?? String(e)}.`);
+            }
+          } else {
+            messages.push(`Season ${seasonLabel}: sleeper.getFinalsMVP not available — skipping helper.`);
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        try {
+          if (typeof sleeper.getOverallMVP === 'function') {
+            try {
+              helperOverall = await sleeper.getOverallMVP(String(s.leagueId), {
+                season: seasonLabel || null,
+                maxWeek: MAX_WEEKS,
+                playersEndpoint: '/players/nba'
+              });
+              messages.push(`Season ${seasonLabel}: sleeper.getOverallMVP helper returned data.`);
+            } catch (e) {
+              messages.push(`Season ${seasonLabel}: sleeper.getOverallMVP helper failed — ${e?.message ?? String(e)}.`);
+            }
+          } else {
+            messages.push(`Season ${seasonLabel}: sleeper.getOverallMVP not available — skipping helper.`);
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // If helper returned something useful, map it into our shape and attach names
+      if (helperFinals || helperOverall) {
+        if (helperFinals) {
+          // helperFinals shape may vary; we try common fields
+          const pid = String(helperFinals.playerId ?? helperFinals.player_id ?? helperFinals.rosterPlayerId ?? helperFinals.player ?? helperFinals.topPlayerId ?? helperFinals.playerId ?? '');
+          const pts = safeNum(helperFinals.points ?? helperFinals.pts ?? helperFinals.score ?? 0);
+          const cw = helperFinals.championshipWeek ?? championshipWeekFromLeague ?? null;
+          attachedFinals = attachNameToMvp({ playerId: pid, points: pts, championshipWeek: cw });
+          usedChampWeek = cw || usedChampWeek;
+        }
+        if (helperOverall) {
+          const pid = String(helperOverall.playerId ?? helperOverall.player_id ?? helperOverall.topPlayerId ?? helperOverall.player ?? '');
+          const pts = safeNum(helperOverall.points ?? helperOverall.total ?? helperOverall.score ?? 0);
+          attachedOverall = attachNameToMvp({ playerId: pid, points: pts });
+        }
+      } else {
+        // no helpers or helpers failed — fallback to compute from matchups using championshipWeekFromLeague
+        const result = computeMvpsFromMatchups(matchups, championshipWeekFromLeague);
+        attachedOverall = attachNameToMvp(result.overallMvp);
+        attachedFinals = attachNameToMvp(result.finalsMvp);
+        usedChampWeek = result.championshipWeek || usedChampWeek;
+        messages.push(`Season ${seasonLabel}: computed MVPs via local matchups logic (champWeek ${usedChampWeek}).`);
+      }
     }
-
-    const attachedOverall = attachName(overallMvp);
-    const attachedFinals = attachName(finalsMvp);
 
     seasonsResults.push({
       season: seasonLabel,
       leagueId: s.leagueId || null,
-      championshipWeek: championshipWeek || null,
+      championshipWeek: usedChampWeek || null,
       finalsMvp: attachedFinals,
       overallMvp: attachedOverall,
       _sourceJson: usedJson || null
