@@ -7,30 +7,21 @@
   const messages = data.messages || [];
   const jsonLinks = data.jsonLinks || [];
 
-  // default selected season: prefer last chronological season from seasonsResults (if present),
-  // otherwise fallback to last in seasons
+  // default selected season: pick the most recent seasonsResults entry if available
   let selectedSeason = (() => {
-    if (seasonsResults && seasonsResults.length) {
-      const last = seasonsResults[seasonsResults.length - 1];
-      return String(last.season);
-    }
+    if (seasonsResults && seasonsResults.length) return String(seasonsResults[seasonsResults.length - 1].season);
     if (seasons && seasons.length) {
-      const lastS = seasons[seasons.length - 1];
-      return String(lastS.season ?? lastS.league_id);
+      const last = seasons[seasons.length - 1];
+      return String(last.season ?? last.league_id);
     }
     return null;
   })();
 
   $: selectedResult = seasonsResults.find(r => String(r.season) === String(selectedSeason)) || (seasonsResults.length ? seasonsResults[0] : null);
 
-  function avatarOrPlaceholderFromPlayer(playerObj, name, size = 56) {
-    if (playerObj) {
-      // common fields in Sleeper / players APIs vary; try some likely image keys
-      const img = playerObj.img ?? playerObj.image ?? playerObj.headshot ?? playerObj.player_image ?? playerObj.player_image_url ?? null;
-      if (img) return img;
-    }
-    const letter = (name && name.length) ? name[0] : 'P';
-    return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
+  function placeholderInitial(name) {
+    if (!name) return 'P';
+    return name.trim()[0].toUpperCase();
   }
 </script>
 
@@ -44,6 +35,7 @@
   .messages { margin-bottom:1rem; padding:12px; border-radius:10px; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02); color:#e6eef8; }
   .json-links { margin-top:.6rem; display:flex; flex-direction:column; gap:6px; }
   .json-links a { color:#9fb0ff; font-weight:600; text-decoration:none; }
+
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
@@ -67,7 +59,6 @@
   .player .meta { text-align:right; }
   .player .name { font-weight:800; }
   .player .sub { color:var(--muted,#9ca3af); font-size:.95rem; margin-top:4px; }
-  .player .avatar { width:64px; height:64px; border-radius:10px; object-fit:cover; background:#081018; }
   .placeholder-avatar { display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:10px; background:#0b1220; color:#9ca3af; font-weight:800; font-size:1.2rem; }
   .no-data { color:var(--muted,#9ca3af); font-weight:700; }
   @media (max-width:900px) {
@@ -130,7 +121,6 @@
       <div class="small-muted" style="margin-top:6px;">Overall MVP = season-long starters points. Finals MVP = championship game performance (player must appear in the championship matchup).</div>
     </div>
 
-    <!-- Finals MVP -->
     <div class="mvp-row">
       <div class="award">
         <div class="title">Finals MVP</div>
@@ -139,14 +129,9 @@
 
       <div class="player">
         {#if selectedResult && selectedResult.finalsMvp && selectedResult.finalsMvp.playerId}
-          {#if selectedResult.finalsMvp.playerObj && (selectedResult.finalsMvp.playerObj.img || selectedResult.finalsMvp.playerObj.player_image)}
-            <img class="avatar" src={selectedResult.finalsMvp.playerObj.img ?? selectedResult.finalsMvp.playerObj.player_image} alt={selectedResult.finalsMvp.playerName ?? 'Player'} on:error={(e)=>e.target.style.visibility='hidden'} />
-          {:else}
-            <img class="avatar" src={avatarOrPlaceholderFromPlayer(selectedResult.finalsMvp.playerObj, selectedResult.finalsMvp.playerName)} alt={selectedResult.finalsMvp.playerName} />
-          {/if}
-
+          <div class="placeholder-avatar">{placeholderInitial(selectedResult.finalsMvp.playerName)}</div>
           <div class="meta">
-            <div class="name">{selectedResult.finalsMvp.playerName ?? (`Player ${selectedResult.finalsMvp.playerId}`)}</div>
+            <div class="name">{selectedResult.finalsMvp.playerName ?? `Player ${selectedResult.finalsMvp.playerId}`}</div>
             <div class="sub">{(selectedResult.finalsMvp.points ?? 0).toFixed ? (Number(selectedResult.finalsMvp.points).toFixed(1) + ' pts') : (selectedResult.finalsMvp.points + ' pts')} • Wk {selectedResult.championshipWeek ?? '—'}</div>
           </div>
         {:else}
@@ -159,7 +144,6 @@
       </div>
     </div>
 
-    <!-- Overall MVP -->
     <div class="mvp-row">
       <div class="award">
         <div class="title">Overall MVP</div>
@@ -168,14 +152,9 @@
 
       <div class="player">
         {#if selectedResult && selectedResult.overallMvp && selectedResult.overallMvp.playerId}
-          {#if selectedResult.overallMvp.playerObj && (selectedResult.overallMvp.playerObj.img || selectedResult.overallMvp.playerObj.player_image)}
-            <img class="avatar" src={selectedResult.overallMvp.playerObj.img ?? selectedResult.overallMvp.playerObj.player_image} alt={selectedResult.overallMvp.playerName ?? 'Player'} on:error={(e)=>e.target.style.visibility='hidden'} />
-          {:else}
-            <img class="avatar" src={avatarOrPlaceholderFromPlayer(selectedResult.overallMvp.playerObj, selectedResult.overallMvp.playerName)} alt={selectedResult.overallMvp.playerName} />
-          {/if}
-
+          <div class="placeholder-avatar">{placeholderInitial(selectedResult.overallMvp.playerName)}</div>
           <div class="meta">
-            <div class="name">{selectedResult.overallMvp.playerName ?? (`Player ${selectedResult.overallMvp.playerId}`)}</div>
+            <div class="name">{selectedResult.overallMvp.playerName ?? `Player ${selectedResult.overallMvp.playerId}`}</div>
             <div class="sub">{(selectedResult.overallMvp.points ?? 0).toFixed ? (Number(selectedResult.overallMvp.points).toFixed(1) + ' pts (season)') : (selectedResult.overallMvp.points + ' pts (season)')}</div>
           </div>
         {:else}
