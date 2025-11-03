@@ -7,21 +7,19 @@
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // determine default selectedSeason (prefer server's selectedSeason if provided via query, otherwise latest)
-  // Note: server currently returns seasons array but not selectedSeason; we pick latest numeric season if present.
+  // determine default selectedSeason (prefer server's selectedSeason if provided via query)
   function seasonValue(s) {
     return s.season != null ? String(s.season) : String(s.league_id);
   }
 
-  let selectedSeason = (() => {
-    // try to match a season that exists in seasonsResults
+  // Use server-provided selectedSeason if available (fixes "stuck" dropdown)
+  let selectedSeason = data.selectedSeason ?? (() => {
     if (seasonsResults && seasonsResults.length) {
-      // prefer seasonsResults last entry (server populates in similar order)
       const last = seasonsResults[seasonsResults.length - 1];
       if (last && last.season) return String(last.season);
     }
     if (seasons && seasons.length) return seasonValue(seasons[seasons.length - 1]);
-    return seasonsResults && seasonsResults.length ? String(seasonsResults[seasonsResults.length - 1].season) : null;
+    return null;
   })();
 
   // helper to submit GET form (used by selects)
@@ -31,27 +29,21 @@
     else if (form) form.submit();
   }
 
-  // Find the seasonsResults entry that matches selectedSeason
   $: selectedResult = (function() {
     if (!selectedSeason) return null;
-    // match by season string, then leagueId fallback
     const bySeason = seasonsResults.find(r => r.season != null && String(r.season) === String(selectedSeason));
     if (bySeason) return bySeason;
     const byLeague = seasonsResults.find(r => String(r.leagueId) === String(selectedSeason));
     if (byLeague) return byLeague;
-    // fallback: find first that contains the season substring
     return seasonsResults.find(r => String(r.season).includes(String(selectedSeason))) || null;
   })();
 
-  // build avatar URL for player — tries Sleeper CDN headshots (common pattern) then fallback handled in on:error
+  // headshot helper
   function playerHeadshotUrl(playerId) {
     if (!playerId) return null;
-    // Sleeper player ids are usually strings — this is a best-effort CDN pattern
-    // If you have a playersMap server-side, you can replace this with the direct headshot url provided there.
     return `https://sleepercdn.com/players/nba/${encodeURIComponent(playerId)}.jpg`;
   }
 
-  // placeholder avatar (SVG data URI) with initial
   function placeholderDataUri(name, size = 64) {
     const letter = (name && name.length) ? name[0].toUpperCase() : 'P';
     const bg = '#0b1220';
@@ -60,58 +52,34 @@
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   }
 
-  // helper: format points (handles null)
   function fmt(n) {
     if (n == null) return '-';
     return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
   }
 
-  // debug panel state
   let showDebug = false;
 </script>
 
 <style>
-  :root {
-    --muted: #9ca3af;
-    --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
-    --card-border: rgba(255,255,255,0.03);
-    --text: #e6eef8;
-  }
-
+  :root { --muted:#9ca3af; --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); --card-border: rgba(255,255,255,0.03); --text:#e6eef8; }
   .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
   h1 { margin:0 0 .6rem 0; font-size:1.4rem; }
-
   .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:12px; margin-bottom:1rem; box-shadow: 0 6px 18px rgba(2,6,23,0.5); }
   .filters { display:flex; gap:.6rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap; }
   .muted { color: var(--muted); font-size:.95rem; }
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: var(--text);
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
+  .select { padding:.6rem .8rem; border-radius:8px; background: #07101a; color: var(--text); border: 1px solid rgba(99,102,241,0.25); box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01); min-width:160px; font-weight:600; outline:none; }
   .select:focus { box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06); }
-
   table { width:100%; border-collapse:collapse; }
   thead th { text-align:left; padding:10px 12px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
   td { padding:12px 12px; border-bottom:1px solid var(--card-border); color:var(--text); vertical-align:middle; }
-
   .player-cell { display:flex; gap:.75rem; align-items:center; min-width:0; }
   .player-avatar { width:64px; height:64px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
   .player-meta { display:flex; flex-direction:column; min-width:0; }
-  .player-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 380px; }
+  .player-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:380px; }
   .player-sub { color:var(--muted); font-size:.92rem; }
-
   .points { font-weight:800; text-align:right; min-width:90px; }
-
   .debug-toggle { background: transparent; border: none; color: var(--muted); font-weight:700; cursor:pointer; }
   .debug-panel { margin-top: .8rem; padding: .8rem; border-radius:8px; background: rgba(255,255,255,0.01); border:1px dashed rgba(255,255,255,0.02); color:var(--muted); font-size:.9rem; }
-
   @media (max-width:900px) {
     .player-avatar { width:56px; height:56px; }
     .player-name { max-width: 60vw; }
@@ -135,16 +103,14 @@
         <select id="season-select" name="season" class="select" on:change={submitFilters} bind:value={selectedSeason} aria-label="Select season">
           {#if seasons.length}
             {#each seasons as s}
-              <option value={seasonValue(s)} selected={String(seasonValue(s)) === String(selectedSeason)}>{s.season ?? s.name ?? s.league_id}</option>
+              <option value={seasonValue(s)}>{s.season ?? s.name ?? s.league_id}</option>
             {/each}
           {:else}
-            <!-- if seasons not present, build options from seasonsResults -->
             {#each seasonsResults as sr}
-              <option value={String(sr.season)} selected={String(sr.season) === String(selectedSeason)}>{sr.season}</option>
+              <option value={String(sr.season)}>{sr.season}</option>
             {/each}
           {/if}
         </select>
-
         <noscript><button class="select" type="submit" style="cursor:pointer;">Go</button></noscript>
       </form>
     </div>
@@ -165,7 +131,6 @@
 
           <tbody>
             <tr>
-              <!-- Finals MVP -->
               <td></td>
               <td>
                 {#if selectedResult.finalsMvp}
@@ -190,14 +155,10 @@
                   <div class="muted">No Finals MVP found for this season.</div>
                 {/if}
               </td>
-              <td class="points">
-                {#if selectedResult.finalsMvp}{fmt(selectedResult.finalsMvp.points)}{:else}-{/if}
-              </td>
+              <td class="points">{#if selectedResult.finalsMvp}{fmt(selectedResult.finalsMvp.points)}{:else}-{/if}</td>
 
-              <!-- spacer -->
               <td></td>
 
-              <!-- Overall MVP -->
               <td>
                 {#if selectedResult.overallMvp}
                   <div class="player-cell" style="align-items:center;">
@@ -221,9 +182,7 @@
                   <div class="muted">No Overall MVP found for this season.</div>
                 {/if}
               </td>
-              <td class="points">
-                {#if selectedResult.overallMvp}{fmt(selectedResult.overallMvp.points)}{:else}-{/if}
-              </td>
+              <td class="points">{#if selectedResult.overallMvp}{fmt(selectedResult.overallMvp.points)}{:else}-{/if}</td>
             </tr>
           </tbody>
         </table>
@@ -268,6 +227,6 @@
           </ul>
         {/if}
       </div>
-    {/if}
+    {/if>
   </div>
 </div>
