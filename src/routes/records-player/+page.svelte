@@ -1,170 +1,273 @@
-<!-- src/routes/records-player/+page.svelte -->
 <script>
   export let data;
 
-  const seasons = data.seasons || [];
-  const seasonsResults = data.seasonsResults || [];
-  const messages = data.messages || [];
-  const jsonLinks = data.jsonLinks || [];
+  // data from server
+  const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
+  const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
+  const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
+  const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // default selected season: pick the most recent seasonsResults entry if available
+  // determine default selectedSeason (prefer server's selectedSeason if provided via query, otherwise latest)
+  // Note: server currently returns seasons array but not selectedSeason; we pick latest numeric season if present.
+  function seasonValue(s) {
+    return s.season != null ? String(s.season) : String(s.league_id);
+  }
+
   let selectedSeason = (() => {
-    if (seasonsResults && seasonsResults.length) return String(seasonsResults[seasonsResults.length - 1].season);
-    if (seasons && seasons.length) {
-      const last = seasons[seasons.length - 1];
-      return String(last.season ?? last.league_id);
+    // try to match a season that exists in seasonsResults
+    if (seasonsResults && seasonsResults.length) {
+      // prefer seasonsResults last entry (server populates in similar order)
+      const last = seasonsResults[seasonsResults.length - 1];
+      if (last && last.season) return String(last.season);
     }
-    return null;
+    if (seasons && seasons.length) return seasonValue(seasons[seasons.length - 1]);
+    return seasonsResults && seasonsResults.length ? String(seasonsResults[seasonsResults.length - 1].season) : null;
   })();
 
-  $: selectedResult = seasonsResults.find(r => String(r.season) === String(selectedSeason)) || (seasonsResults.length ? seasonsResults[0] : null);
-
-  function placeholderInitial(name) {
-    if (!name) return 'P';
-    return name.trim()[0].toUpperCase();
+  // helper to submit GET form (used by selects)
+  function submitFilters(e) {
+    const form = e.currentTarget.form || document.getElementById('filters');
+    if (form && form.requestSubmit) form.requestSubmit();
+    else if (form) form.submit();
   }
+
+  // Find the seasonsResults entry that matches selectedSeason
+  $: selectedResult = (function() {
+    if (!selectedSeason) return null;
+    // match by season string, then leagueId fallback
+    const bySeason = seasonsResults.find(r => r.season != null && String(r.season) === String(selectedSeason));
+    if (bySeason) return bySeason;
+    const byLeague = seasonsResults.find(r => String(r.leagueId) === String(selectedSeason));
+    if (byLeague) return byLeague;
+    // fallback: find first that contains the season substring
+    return seasonsResults.find(r => String(r.season).includes(String(selectedSeason))) || null;
+  })();
+
+  // build avatar URL for player — tries Sleeper CDN headshots (common pattern) then fallback handled in on:error
+  function playerHeadshotUrl(playerId) {
+    if (!playerId) return null;
+    // Sleeper player ids are usually strings — this is a best-effort CDN pattern
+    // If you have a playersMap server-side, you can replace this with the direct headshot url provided there.
+    return `https://sleepercdn.com/players/nba/${encodeURIComponent(playerId)}.jpg`;
+  }
+
+  // placeholder avatar (SVG data URI) with initial
+  function placeholderDataUri(name, size = 64) {
+    const letter = (name && name.length) ? name[0].toUpperCase() : 'P';
+    const bg = '#0b1220';
+    const fg = '#e6eef8';
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><rect width='100%' height='100%' fill='${bg}' rx='12' /><text x='50%' y='50%' dy='.36em' text-anchor='middle' fill='${fg}' font-family='sans-serif' font-weight='700' font-size='${Math.round(size/2)}'>${letter}</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  }
+
+  // helper: format points (handles null)
+  function fmt(n) {
+    if (n == null) return '-';
+    return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+  }
+
+  // debug panel state
+  let showDebug = false;
 </script>
 
 <style>
-  :global(body) { color-scheme: dark; }
-  .page { max-width:1100px; margin:1.2rem auto; padding:0 1rem; }
-  h1 { margin:0 0 .6rem 0; }
-  .controls-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; }
-  .small-muted { color: #9ca3af; }
-  .card { background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006)); border:1px solid rgba(255,255,255,0.04); border-radius:12px; padding:14px; box-shadow: 0 6px 18px rgba(2,6,23,0.6); }
-  .messages { margin-bottom:1rem; padding:12px; border-radius:10px; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02); color:#e6eef8; }
-  .json-links { margin-top:.6rem; display:flex; flex-direction:column; gap:6px; }
-  .json-links a { color:#9fb0ff; font-weight:600; text-decoration:none; }
+  :root {
+    --muted: #9ca3af;
+    --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
+    --card-border: rgba(255,255,255,0.03);
+    --text: #e6eef8;
+  }
 
+  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
+  h1 { margin:0 0 .6rem 0; font-size:1.4rem; }
+
+  .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:12px; margin-bottom:1rem; box-shadow: 0 6px 18px rgba(2,6,23,0.5); }
+  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap; }
+  .muted { color: var(--muted); font-size:.95rem; }
   .select {
     padding:.6rem .8rem;
     border-radius:8px;
     background: #07101a;
-    color: #e6eef8;
+    color: var(--text);
     border: 1px solid rgba(99,102,241,0.25);
     box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
     min-width: 160px;
     font-weight: 600;
     outline: none;
   }
-  .select:focus { border-color: rgba(99,102,241,0.6); box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06); }
+  .select:focus { box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06); }
 
-  .mvp-card { margin-top:1rem; border-radius:10px; overflow:hidden; }
-  .mvp-row { display:flex; justify-content:space-between; align-items:center; padding:18px; border-bottom:1px solid rgba(255,255,255,0.02); }
-  .mvp-row:last-child { border-bottom:none; }
-  .award { width:52%; }
-  .award .title { font-weight:700; margin-bottom:6px; }
-  .award .desc { color:var(--muted,#9ca3af); font-size:.95rem; }
-  .player { width:44%; display:flex; align-items:center; gap:.8rem; justify-content:flex-end; }
-  .player .meta { text-align:right; }
-  .player .name { font-weight:800; }
-  .player .sub { color:var(--muted,#9ca3af); font-size:.95rem; margin-top:4px; }
-  .placeholder-avatar { display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:10px; background:#0b1220; color:#9ca3af; font-weight:800; font-size:1.2rem; }
-  .no-data { color:var(--muted,#9ca3af); font-weight:700; }
+  table { width:100%; border-collapse:collapse; }
+  thead th { text-align:left; padding:10px 12px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
+  td { padding:12px 12px; border-bottom:1px solid var(--card-border); color:var(--text); vertical-align:middle; }
+
+  .player-cell { display:flex; gap:.75rem; align-items:center; min-width:0; }
+  .player-avatar { width:64px; height:64px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
+  .player-meta { display:flex; flex-direction:column; min-width:0; }
+  .player-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 380px; }
+  .player-sub { color:var(--muted); font-size:.92rem; }
+
+  .points { font-weight:800; text-align:right; min-width:90px; }
+
+  .debug-toggle { background: transparent; border: none; color: var(--muted); font-weight:700; cursor:pointer; }
+  .debug-panel { margin-top: .8rem; padding: .8rem; border-radius:8px; background: rgba(255,255,255,0.01); border:1px dashed rgba(255,255,255,0.02); color:var(--muted); font-size:.9rem; }
+
   @media (max-width:900px) {
-    .controls-row { flex-direction:column; align-items:stretch; }
-    .player { width:100%; justify-content:flex-start; text-align:left; gap:12px; }
-    .award { width:100%; margin-bottom:8px; }
-    .mvp-row { flex-direction:column; align-items:stretch; gap:10px; }
+    .player-avatar { width:56px; height:56px; }
+    .player-name { max-width: 60vw; }
+    .select { min-width: 100%; width:100%; }
+    .filters { flex-direction:column; align-items:stretch; gap:.5rem; }
   }
 </style>
 
 <div class="page">
   <h1>Player MVPs</h1>
 
-  <div class="controls-row">
-    <div>
-      <label class="small-muted" for="season-select">Season</label>
-      <select id="season-select" class="select" bind:value={selectedSeason} aria-label="Select season">
-        {#if seasonsResults && seasonsResults.length}
-          {#each seasonsResults as s}
-            <option value={s.season}>{s.season}</option>
-          {/each}
-        {:else if seasons && seasons.length}
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id}>{s.season ?? s.name}</option>
-          {/each}
-        {/if}
-      </select>
-    </div>
-
-    <div class="small-muted">Showing MVPs for: <strong style="color:inherit">{selectedSeason ?? '—'}</strong></div>
-  </div>
-
-  {#if messages && messages.length}
-    <div class="messages card">
-      <strong>Messages</strong>
-      <ol style="margin-top:.5rem;">
-        {#each messages as m, i}
-          <li style="margin:.25rem 0;">{m}</li>
-        {/each}
-      </ol>
-
-      {#if jsonLinks && jsonLinks.length}
-        <div style="margin-top:.5rem; font-weight:700;">Loaded JSON files:</div>
-        <div class="json-links" aria-live="polite">
-          {#each jsonLinks as jl}
-            {#if typeof jl === 'string'}
-              <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
-            {:else}
-              <a href={jl.url} target="_blank" rel="noopener noreferrer">{jl.title ?? jl.url}</a>
-            {/if}
-          {/each}
-        </div>
-      {/if}
-    </div>
-  {/if}
-
-  <div class="card mvp-card">
-    <div style="padding:12px 18px; border-bottom:1px solid rgba(255,255,255,0.02);">
-      <div style="font-weight:700; font-size:1.05rem;">Award</div>
-      <div class="small-muted" style="margin-top:6px;">Overall MVP = season-long starters points. Finals MVP = championship game performance (player must appear in the championship matchup).</div>
-    </div>
-
-    <div class="mvp-row">
-      <div class="award">
-        <div class="title">Finals MVP</div>
-        <div class="desc">Best performer across championship matchup(s)</div>
+  <div class="card" role="region" aria-labelledby="mvp-title">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+      <div style="min-width:0;">
+        <div id="mvp-title" style="font-weight:800; font-size:1.05rem;">MVPs by Season</div>
+        <div class="muted" style="margin-top:.2rem;">Select a season to view that season's Overall MVP and Finals MVP.</div>
       </div>
 
-      <div class="player">
-        {#if selectedResult && selectedResult.finalsMvp && selectedResult.finalsMvp.playerId}
-          <div class="placeholder-avatar">{placeholderInitial(selectedResult.finalsMvp.playerName)}</div>
-          <div class="meta">
-            <div class="name">{selectedResult.finalsMvp.playerName ?? `Player ${selectedResult.finalsMvp.playerId}`}</div>
-            <div class="sub">{(selectedResult.finalsMvp.points ?? 0).toFixed ? (Number(selectedResult.finalsMvp.points).toFixed(1) + ' pts') : (selectedResult.finalsMvp.points + ' pts')} • Wk {selectedResult.championshipWeek ?? '—'}</div>
-          </div>
+      <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
+        <label class="muted" for="season-select">Season</label>
+        <select id="season-select" name="season" class="select" on:change={submitFilters} bind:value={selectedSeason} aria-label="Select season">
+          {#if seasons.length}
+            {#each seasons as s}
+              <option value={seasonValue(s)} selected={String(seasonValue(s)) === String(selectedSeason)}>{s.season ?? s.name ?? s.league_id}</option>
+            {/each}
+          {:else}
+            <!-- if seasons not present, build options from seasonsResults -->
+            {#each seasonsResults as sr}
+              <option value={String(sr.season)} selected={String(sr.season) === String(selectedSeason)}>{sr.season}</option>
+            {/each}
+          {/if}
+        </select>
+
+        <noscript><button class="select" type="submit" style="cursor:pointer;">Go</button></noscript>
+      </form>
+    </div>
+
+    {#if selectedResult}
+      <div style="margin-top:1rem; overflow:auto;">
+        <table aria-label="MVPs table">
+          <thead>
+            <tr>
+              <th style="width:1%"></th>
+              <th>Finals MVP (Championship game)</th>
+              <th class="points">Points</th>
+              <th style="width:1%"></th>
+              <th>Overall MVP (Season total)</th>
+              <th class="points">Points</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <!-- Finals MVP -->
+              <td></td>
+              <td>
+                {#if selectedResult.finalsMvp}
+                  <div class="player-cell" style="align-items:center;">
+                    <img
+                      class="player-avatar"
+                      src={playerHeadshotUrl(selectedResult.finalsMvp.playerId)}
+                      alt={selectedResult.finalsMvp.playerName ?? `Player ${selectedResult.finalsMvp.playerId}`}
+                      on:error={(e) => { e.target.onerror = null; e.target.src = placeholderDataUri(selectedResult.finalsMvp.playerName, 64); }}
+                    />
+                    <div class="player-meta">
+                      <div class="player-name">{selectedResult.finalsMvp.playerName ?? `Player ${selectedResult.finalsMvp.playerId}`}</div>
+                      <div class="player-sub">
+                        {#if selectedResult.finalsMvp.roster_meta}
+                          {selectedResult.finalsMvp.roster_meta.team_name ?? selectedResult.finalsMvp.roster_meta.owner_name}
+                        {/if}
+                        {#if !selectedResult.finalsMvp.roster_meta}Top roster: {selectedResult.finalsMvp.topRosterId ?? '-' }{/if}
+                      </div>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="muted">No Finals MVP found for this season.</div>
+                {/if}
+              </td>
+              <td class="points">
+                {#if selectedResult.finalsMvp}{fmt(selectedResult.finalsMvp.points)}{:else}-{/if}
+              </td>
+
+              <!-- spacer -->
+              <td></td>
+
+              <!-- Overall MVP -->
+              <td>
+                {#if selectedResult.overallMvp}
+                  <div class="player-cell" style="align-items:center;">
+                    <img
+                      class="player-avatar"
+                      src={playerHeadshotUrl(selectedResult.overallMvp.playerId)}
+                      alt={selectedResult.overallMvp.playerName ?? `Player ${selectedResult.overallMvp.playerId}`}
+                      on:error={(e) => { e.target.onerror = null; e.target.src = placeholderDataUri(selectedResult.overallMvp.playerName, 64); }}
+                    />
+                    <div class="player-meta">
+                      <div class="player-name">{selectedResult.overallMvp.playerName ?? `Player ${selectedResult.overallMvp.playerId}`}</div>
+                      <div class="player-sub">
+                        {#if selectedResult.overallMvp.roster_meta}
+                          {selectedResult.overallMvp.roster_meta.team_name ?? selectedResult.overallMvp.roster_meta.owner_name}
+                        {/if}
+                        {#if !selectedResult.overallMvp.roster_meta}Top roster: {selectedResult.overallMvp.topRosterId ?? '-' }{/if}
+                      </div>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="muted">No Overall MVP found for this season.</div>
+                {/if}
+              </td>
+              <td class="points">
+                {#if selectedResult.overallMvp}{fmt(selectedResult.overallMvp.points)}{:else}-{/if}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {#if selectedResult._sourceJson}
+          <div style="margin-top:.6rem;" class="muted">Data source: <strong style="color:inherit">{selectedResult._sourceJson}</strong></div>
+        {/if}
+      </div>
+    {:else}
+      <div class="muted" style="padding:.8rem 0;">No MVP data available for the selected season.</div>
+    {/if}
+
+    <div style="margin-top:.8rem; display:flex; justify-content:flex-end;">
+      <button class="debug-toggle" type="button" on:click={() => showDebug = !showDebug}>{showDebug ? 'Hide' : 'Show'} debug</button>
+    </div>
+
+    {#if showDebug}
+      <div class="debug-panel" role="region" aria-live="polite">
+        <div style="font-weight:700; margin-bottom:.5rem;">Messages</div>
+        {#if messages && messages.length}
+          <ul style="margin:0 0 .6rem 1rem; padding:0;">
+            {#each messages as m}
+              <li>{m}</li>
+            {/each}
+          </ul>
         {:else}
-          <div class="placeholder-avatar">P</div>
-          <div class="meta" style="margin-left:.6rem;">
-            <div class="no-data">No Finals MVP</div>
-            <div class="sub">No data for this season</div>
-          </div>
+          <div class="muted">No messages</div>
+        {/if}
+
+        {#if jsonLinks && jsonLinks.length}
+          <div style="margin-top:.4rem; font-weight:700;">Loaded JSONs</div>
+          <ul style="margin:0 0 0.2rem 1rem; padding:0;">
+            {#each jsonLinks as jl}
+              <li>
+                {#if typeof jl === 'string'}
+                  <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
+                {:else}
+                  <a href={jl.url} target="_blank" rel="noopener noreferrer">{jl.title ?? jl.url}</a>
+                {/if}
+              </li>
+            {/each}
+          </ul>
         {/if}
       </div>
-    </div>
-
-    <div class="mvp-row">
-      <div class="award">
-        <div class="title">Overall MVP</div>
-        <div class="desc">Most points across the entire season (regular + playoffs)</div>
-      </div>
-
-      <div class="player">
-        {#if selectedResult && selectedResult.overallMvp && selectedResult.overallMvp.playerId}
-          <div class="placeholder-avatar">{placeholderInitial(selectedResult.overallMvp.playerName)}</div>
-          <div class="meta">
-            <div class="name">{selectedResult.overallMvp.playerName ?? `Player ${selectedResult.overallMvp.playerId}`}</div>
-            <div class="sub">{(selectedResult.overallMvp.points ?? 0).toFixed ? (Number(selectedResult.overallMvp.points).toFixed(1) + ' pts (season)') : (selectedResult.overallMvp.points + ' pts (season)')}</div>
-          </div>
-        {:else}
-          <div class="placeholder-avatar">P</div>
-          <div class="meta" style="margin-left:.6rem;">
-            <div class="no-data">No Overall MVP</div>
-            <div class="sub">No data for this season</div>
-          </div>
-        {/if}
-      </div>
-    </div>
+    {/if}
   </div>
 </div>
