@@ -93,8 +93,7 @@ function computeStreaks(resultsArray) {
   return { maxW, maxL };
 }
 
-/* Strict helper to compute Finals MVP and Overall MVP (honor-hall logic).
-   Returns { finalsMvp, overallMvp, debug } where each MVP contains playerId, playerName, points, topRosterId, roster_meta and player_avatar (if available). */
+/* Strict helper to compute Finals MVP and Overall MVP (honor-hall logic). */
 async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, rosterMap, finalRes, fullSeasonMatchupsRows = null) {
   const debug = [];
   const playoffPlayers = {}; // pid -> { points, byRoster }
@@ -268,7 +267,6 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
   const playersMap = await fetchPlayersMap();
 
   function resolvePlayerAvatar(pid, pm) {
-    // check probable fields from various provider shapes
     const avatarCandidates = [
       (pm && pm.headshot) ? pm.headshot : null,
       (pm && pm.headshot_url) ? pm.headshot_url : null,
@@ -284,20 +282,14 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
     for (const c of avatarCandidates) {
       if (!c) continue;
       try {
-        // prefer absolute URL; if it's a relative or id, return as-is and let the client handle it
         return String(c);
       } catch (e) {
         continue;
       }
     }
-    // last resort: construct a likely Sleeper CDN path (may not exist for all players)
-    // pattern is uncertain across versions, so only include if pid looks numeric/alphanumeric
     if (pid) {
       const clean = String(pid).replace(/[^a-zA-Z0-9]/g, '');
-      if (clean) {
-        // NOTE: this may or may not exist for your data; it's a best-effort fallback.
-        return `https://sleepercdn.com/players/nba/${clean}.png`;
-      }
+      if (clean) return `https://sleepercdn.com/players/nba/${clean}.png`;
     }
     return null;
   }
@@ -399,10 +391,12 @@ function normalizeApiMatchups(rawArr, rosterMap) {
    main load handler
    ============================ */
 export async function load(event) {
+  // small edge cache
   event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const url = event.url;
   const origin = url?.origin ?? null;
+  const incomingSeasonParam = url.searchParams.get('season') || null;
 
   const messages = [];
   const jsonLinks = [];
@@ -443,7 +437,28 @@ export async function load(event) {
     return (a.season < b.season ? -1 : (a.season > b.season ? 1 : 0));
   });
 
-  // build seasons to process
+  // Determine selectedSeason and selectedLeagueId (honor-hall approach)
+  let selectedSeasonParam = incomingSeasonParam;
+  if (!selectedSeasonParam) {
+    if (seasons && seasons.length) {
+      const latest = seasons[seasons.length - 1];
+      selectedSeasonParam = latest.season != null ? String(latest.season) : String(latest.league_id);
+    } else {
+      selectedSeasonParam = String(BASE_LEAGUE_ID);
+    }
+  }
+
+  let selectedLeagueId = null;
+  for (let i = 0; i < seasons.length; i++) {
+    const s = seasons[i];
+    if (String(s.league_id) === String(selectedSeasonParam) || (s.season != null && String(s.season) === String(selectedSeasonParam))) {
+      selectedLeagueId = String(s.league_id);
+      break;
+    }
+  }
+  if (!selectedLeagueId) selectedLeagueId = String(selectedSeasonParam || BASE_LEAGUE_ID);
+
+  // build seasons to process (we still compute for all known seasons)
   const seasonsToProcess = seasons.length ? seasons.map(s => ({ leagueId: s.league_id, season: s.season })) : [{ leagueId: BASE_LEAGUE_ID, season: new Date().getFullYear() }];
 
   const seasonsResults = [];
@@ -971,10 +986,13 @@ export async function load(event) {
     }
   } // end seasons loop
 
+  // Return selectedSeason and selectedLeagueId so client dropdown pre-selects correctly
   return {
     seasons,
     seasonsResults,
     jsonLinks,
-    messages
+    messages,
+    selectedSeason: selectedSeasonParam,
+    selectedLeagueId
   };
 }
