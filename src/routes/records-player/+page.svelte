@@ -6,9 +6,10 @@
   const jsonLinks = data.jsonLinks || [];
   const messages = data.messages || [];
 
-  // UI state (selected season via query param; default to last available)
+  // selectedSeason now comes from server; fall back to latest if missing
   let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : (seasonsResults.length ? seasonsResults[0].season : null));
 
+  // submit GET form on change (simple)
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
     if (form && form.requestSubmit) form.requestSubmit();
@@ -50,6 +51,7 @@
         <div class="muted">Shows Overall MVP and Finals MVP per season (uses local season_matchups JSON when available).</div>
       </div>
 
+      <!-- GET form so server can see ?season= -->
       <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
         <label class="muted" for="season">Season</label>
         <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
