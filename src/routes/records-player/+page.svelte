@@ -35,7 +35,7 @@
     if (bySeason) return bySeason;
     const byLeague = seasonsResults.find(r => String(r.leagueId) === String(selectedSeason));
     if (byLeague) return byLeague;
-    return seasonsResults.find(r => String(r.season).includes(String(selectedSeason))) || null;
+    return seasonsResults.find(r => (r.season != null && String(r.season).includes(String(selectedSeason)))) || null;
   })();
 
   // headshot helper
@@ -79,7 +79,7 @@
   .player-sub { color:var(--muted); font-size:.92rem; }
   .points { font-weight:800; text-align:right; min-width:90px; }
   .debug-toggle { background: transparent; border: none; color: var(--muted); font-weight:700; cursor:pointer; }
-  .debug-panel { margin-top: .8rem; padding: .8rem; border-radius:8px; background: rgba(255,255,255,0.01); border:1px dashed rgba(255,255,255,0.02); color:var(--muted); font-size:.9rem; }
+  .debug-panel { margin-top: .8rem; padding: .8rem; border-radius:8px; background: rgba(255,255,255,0.01); border:1px dashed rgba(255,255,255,0.02); color:var(--muted); font-size: .9rem; }
   @media (max-width:900px) {
     .player-avatar { width:56px; height:56px; }
     .player-name { max-width: 60vw; }
