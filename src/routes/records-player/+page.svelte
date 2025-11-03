@@ -16,13 +16,48 @@
     else if (form) form.submit();
   }
 
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
+  function fmt2(n) { return Number(n ?? 0).toFixed(2); }
+
+  // Honor-hall style avatar resolution (server sets player_avatar when possible)
+  function getMvpAvatar(mvp) {
+    if (!mvp) return null;
+
+    // 1) server-provided player_avatar (best)
+    if (mvp.player_avatar) return mvp.player_avatar;
+
+    // 2) roster-level avatar (team or owner)
+    const rm = mvp.roster_meta;
+    if (rm) {
+      if (rm.team_avatar) return rm.team_avatar;
+      if (rm.owner_avatar) return rm.owner_avatar;
+    }
+
+    // 3) try to craft a sensible Sleeper CDN url from playerId (best-effort)
+    // honor-hall used a few heuristics — we follow a simple one here:
+    try {
+      const id = String(mvp.playerId ?? mvp.player_id ?? mvp.id ?? '').replace(/[^0-9a-zA-Z]/g,'');
+      if (id) {
+        // plenty of deployments use sleepercdn or similar — this is a safe fallback pattern
+        return `https://sleepercdn.com/players/nba/${id}.png`;
+      }
+    } catch (e) {}
+
+    // 4) last resort: null (the template will replace with placeholder)
+    return null;
+  }
+
+  // placeholder generator (keeps UI consistent)
+  function placeholderFor(name, size = 64) {
     const letter = name ? (name.split(' ').map(x=>x[0]||'').slice(0,2).join('')) : 'P';
+    // small placeholder image with initials; you can replace with your static placeholder path
     return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
   }
 
-  function fmt2(n) { return Number(n ?? 0).toFixed(2); }
+  // on image error, swap to placeholder
+  function imgError(e, name) {
+    try { e.target.src = placeholderFor(name, 64); }
+    catch (err) { /* ignore */ }
+  }
 </script>
 
 <style>
@@ -90,7 +125,12 @@
                 <td>
                   {#if row.overallMvp}
                     <div class="player-cell">
-                      <img class="player-avatar" src={avatarOrPlaceholder(row.overallMvp.player_avatar, row.overallMvp.playerName, 64)} alt={row.overallMvp.playerName} on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.overallMvp.playerName, 64)} />
+                      <img
+                        class="player-avatar"
+                        src={getMvpAvatar(row.overallMvp) || placeholderFor(row.overallMvp.playerName)}
+                        alt={row.overallMvp.playerName}
+                        on:error={(e) => imgError(e, row.overallMvp.playerName)}
+                      />
                       <div>
                         <div class="player-name">{row.overallMvp.playerName}</div>
                         <div class="muted">Pts: {fmt2(row.overallMvp.points)}</div>
@@ -107,7 +147,12 @@
                 <td>
                   {#if row.finalsMvp}
                     <div class="player-cell">
-                      <img class="player-avatar" src={avatarOrPlaceholder(row.finalsMvp.player_avatar, row.finalsMvp.playerName, 64)} alt={row.finalsMvp.playerName} on:error={(e)=>e.target.src = avatarOrPlaceholder(null, row.finalsMvp.playerName, 64)} />
+                      <img
+                        class="player-avatar"
+                        src={getMvpAvatar(row.finalsMvp) || placeholderFor(row.finalsMvp.playerName)}
+                        alt={row.finalsMvp.playerName}
+                        on:error={(e) => imgError(e, row.finalsMvp.playerName)}
+                      />
                       <div>
                         <div class="player-name">{row.finalsMvp.playerName}</div>
                         <div class="muted">Pts: {fmt2(row.finalsMvp.points)}</div>
