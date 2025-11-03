@@ -27,14 +27,7 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-/* ==========================
-   helpers copied from honor-hall
-   - tryLoadLocalSeasonMatchups
-   - fetchPlayersMap
-   - computeStreaks
-   - computeMvpsFromMatchups (core of Finals/Overall MVP logic)
-   - bracket helpers: findMatchForPair, decideWinnerFromMatch, runMatch, bracket simulation
-   ========================== */
+/* ====== Helpers copied/adapted from honor-hall ====== */
 
 async function tryLoadLocalSeasonMatchups(key) {
   if (!key) return null;
@@ -51,10 +44,10 @@ async function tryLoadLocalSeasonMatchups(key) {
         const parsed = JSON.parse(raw);
         return { parsedRaw: parsed, path: p };
       } catch (e) {
-        // parse error -> continue
+        // parse error -> next
       }
     } catch (e) {
-      // file not found -> continue
+      // file not found -> next
     }
   }
   return null;
@@ -100,9 +93,8 @@ function computeStreaks(resultsArray) {
   return { maxW, maxL };
 }
 
-/* Compute Finals MVP and Overall MVP using the approach from honor-hall.
-   - finalsMvp: highest scorer in the championship matchup (only players who play in that matchup are eligible)
-   - overallMvp: top aggregated season total (weeks 1..playoffEnd when fullSeasonMatchupsRows is provided) */
+/* Strict helper to compute Finals MVP and Overall MVP (honor-hall logic).
+   Returns { finalsMvp, overallMvp, debug } where each MVP contains playerId, playerName, points, topRosterId, roster_meta and player_avatar (if available). */
 async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, rosterMap, finalRes, fullSeasonMatchupsRows = null) {
   const debug = [];
   const playoffPlayers = {}; // pid -> { points, byRoster }
@@ -272,11 +264,47 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
     }
   }
 
-  // attach player names via playersMap (best-effort)
+  // attach player names and avatar via playersMap (best-effort)
   const playersMap = await fetchPlayersMap();
+
+  function resolvePlayerAvatar(pid, pm) {
+    // check probable fields from various provider shapes
+    const avatarCandidates = [
+      (pm && pm.headshot) ? pm.headshot : null,
+      (pm && pm.headshot_url) ? pm.headshot_url : null,
+      (pm && pm.image) ? pm.image : null,
+      (pm && pm.photo) ? pm.photo : null,
+      (pm && pm.player_image) ? pm.player_image : null,
+      (pm && pm.player_photo) ? pm.player_photo : null,
+      (pm && pm.photo_url) ? pm.photo_url : null,
+      (pm && pm.search_image) ? pm.search_image : null,
+      (pm && pm.image_url) ? pm.image_url : null,
+      (pm && pm.headshot_url_https) ? pm.headshot_url_https : null
+    ];
+    for (const c of avatarCandidates) {
+      if (!c) continue;
+      try {
+        // prefer absolute URL; if it's a relative or id, return as-is and let the client handle it
+        return String(c);
+      } catch (e) {
+        continue;
+      }
+    }
+    // last resort: construct a likely Sleeper CDN path (may not exist for all players)
+    // pattern is uncertain across versions, so only include if pid looks numeric/alphanumeric
+    if (pid) {
+      const clean = String(pid).replace(/[^a-zA-Z0-9]/g, '');
+      if (clean) {
+        // NOTE: this may or may not exist for your data; it's a best-effort fallback.
+        return `https://sleepercdn.com/players/nba/${clean}.png`;
+      }
+    }
+    return null;
+  }
+
   function buildMvpObj(pid, pts, playersObj) {
     if (!pid) return null;
-    const pm = playersMap[pid] || {};
+    const pm = playersMap[pid] || playersMap[pid.toUpperCase?.() ?? pid] || playersMap[Number(pid)] || {};
     const playerName = pm.full_name || (pm.first_name && pm.last_name ? `${pm.first_name} ${pm.last_name}` : (pm.display_name || pm.player_name || pm.player_name)) || (`Player ${pid}`);
     const byRoster = (playersObj && playersObj[pid] && playersObj[pid].byRoster) ? playersObj[pid].byRoster : {};
     let topRosterId = null;
@@ -288,12 +316,14 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
         topRosterId = rId;
       }
     }
+    const player_avatar = resolvePlayerAvatar(pid, pm);
     return {
       playerId: pid,
       playerName,
       points: Math.round((pts || 0) * 100) / 100,
       topRosterId,
-      roster_meta: (topRosterId && rosterMap && rosterMap[String(topRosterId)]) ? rosterMap[String(topRosterId)] : null
+      roster_meta: (topRosterId && rosterMap && rosterMap[String(topRosterId)]) ? rosterMap[String(topRosterId)] : null,
+      player_avatar
     };
   }
 
@@ -345,7 +375,6 @@ function normalizeApiMatchups(rawArr, rosterMap) {
         }
       });
     } else {
-      // flatten many participants into single-team entries for compute consumption
       for (const ent of entries) {
         const id = String(ent.roster_id ?? ent.rosterId ?? ent.owner_id ?? ent.ownerId ?? '');
         out.push({
@@ -366,15 +395,14 @@ function normalizeApiMatchups(rawArr, rosterMap) {
   return out;
 }
 
-/* ==========================
+/* ============================
    main load handler
-   ========================== */
+   ============================ */
 export async function load(event) {
   event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const url = event.url;
   const origin = url?.origin ?? null;
-  const incomingSeasonParam = url.searchParams.get('season') || null;
 
   const messages = [];
   const jsonLinks = [];
@@ -414,17 +442,6 @@ export async function load(event) {
     if (!isNaN(na) && !isNaN(nb)) return na - nb;
     return (a.season < b.season ? -1 : (a.season > b.season ? 1 : 0));
   });
-
-  // determine selectedSeason to return (honor incoming param if present)
-  let selectedSeason = incomingSeasonParam;
-  if (!selectedSeason) {
-    if (seasons && seasons.length) {
-      const latest = seasons[seasons.length - 1];
-      selectedSeason = latest.season != null ? String(latest.season) : String(latest.league_id);
-    } else {
-      selectedSeason = String(BASE_LEAGUE_ID);
-    }
-  }
 
   // build seasons to process
   const seasonsToProcess = seasons.length ? seasons.map(s => ({ leagueId: s.league_id, season: s.season })) : [{ leagueId: BASE_LEAGUE_ID, season: new Date().getFullYear() }];
@@ -762,12 +779,11 @@ export async function load(event) {
       messages.push(`Season ${seasonLabel}: loaded local season_matchups JSON for key ${localUsedKey}.`);
     }
 
-    // If localUsedKey absent, we may have matchupsRows from API above. Now prepare fullSeasonMatchupsRows.
+    // prepare fullSeasonMatchupsRows
     let fullSeasonMatchupsRows = null;
     if (localUsedKey) {
       fullSeasonMatchupsRows = matchupsRows.slice();
     } else {
-      // fetch 1..playoffEnd for full-season totals (API)
       const allRaw = [];
       for (let wk = 1; wk <= Math.min(playoffEnd, MAX_WEEKS); wk++) {
         try {
@@ -790,7 +806,6 @@ export async function load(event) {
       }
     }
 
-    // If still empty, skip
     if (!fullSeasonMatchupsRows || !fullSeasonMatchupsRows.length) {
       messages.push(`Season ${seasonLabel}: no matchups available — skipping.`);
       seasonsResults.push({ season: seasonLabel, leagueId: leagueId, finalsMvp: null, overallMvp: null, _sourceJson: localUsedKey ?? null });
@@ -798,8 +813,7 @@ export async function load(event) {
     }
 
     // -------------------------
-    // bracket simulation to determine finalRes
-    // (re-implements honor-hall simulation using regularStandings placement)
+    // bracket simulation to determine finalRes (honor-hall approach)
     // -------------------------
     function findMatchForPair(rA, rB, preferredWeeks = [playoffStart, playoffStart+1, playoffStart+2]) {
       if (!rA || !rB) return null;
@@ -932,7 +946,7 @@ export async function load(event) {
       messages.push(`Season ${seasonLabel}: could not derive finalRes from bracket simulation — will fallback to matchups week scanning.`);
     }
 
-    // compute MVPs using computeMvpsFromMatchups with finalRes and fullSeasonMatchupsRows
+    // compute MVPs using computeMvpsFromMatchups
     try {
       const { finalsMvp, overallMvp, debug } = await computeMvpsFromMatchups(matchupsRows.length ? matchupsRows : fullSeasonMatchupsRows, playoffStart, playoffEnd, rosterMap, finalRes, fullSeasonMatchupsRows);
       for (const d of debug) messages.push(`Season ${seasonLabel}: ${d}`);
@@ -961,7 +975,6 @@ export async function load(event) {
     seasons,
     seasonsResults,
     jsonLinks,
-    messages,
-    selectedSeason
+    messages
   };
 }
