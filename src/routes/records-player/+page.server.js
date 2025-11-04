@@ -1,5 +1,6 @@
 // src/routes/records-player/+page.server.js
 // Records (player MVPs) — uses honor-hall's bracket + MVP logic (JSON-first, API fallback)
+// Adds server-side per-team leaders across all seasons (highest single-season scoring player for a team).
 
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
@@ -27,15 +28,8 @@ function safeNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-/* ==========================
-   helpers copied from honor-hall
-   - tryLoadLocalSeasonMatchups
-   - fetchPlayersMap
-   - computeStreaks
-   - computeMvpsFromMatchups (core of Finals/Overall MVP logic)
-   - bracket helpers: findMatchForPair, decideWinnerFromMatch, runMatch, bracket simulation
-   ========================== */
-
+/* Helper: attempt to find and load local season_matchups JSON for a given key.
+   Tries several likely file locations. Returns parsed object or null. */
 async function tryLoadLocalSeasonMatchups(key) {
   if (!key) return null;
   const candidates = [
@@ -51,15 +45,18 @@ async function tryLoadLocalSeasonMatchups(key) {
         const parsed = JSON.parse(raw);
         return { parsedRaw: parsed, path: p };
       } catch (e) {
-        // parse error -> continue
+        // ignore parse error, try next
       }
     } catch (e) {
-      // file not found -> continue
+      // file not found, try next
     }
   }
   return null;
 }
 
+/* Helper: get a players map (playerId -> playerObj) for NBA players.
+   Tries sleeper client helper if available, otherwise falls back to public API fetch.
+   Returns an object mapping ids to player objects; returns {} on failure. */
 async function fetchPlayersMap() {
   try {
     if (sleeper && typeof sleeper.getPlayers === 'function') {
@@ -67,7 +64,7 @@ async function fetchPlayersMap() {
       if (map && typeof map === 'object') return map;
     }
   } catch (e) {
-    // fallback
+    // ignore and fallback
   }
   try {
     const res = await fetch('https://api.sleeper.app/v1/players/nba');
@@ -118,11 +115,10 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
     }
   }
 
-  // playoffs aggregation (for Finals MVP)
+  // --- playoffs aggregation (for Finals MVP) ---
   for (const r of matchupsRows) {
     if (!r || !r.week) continue;
     const wk = Number(r.week);
-    if (isNaN(wk)) continue;
     if (wk < playoffStart || wk > playoffEnd) continue;
 
     for (const side of ['teamA', 'teamB']) {
@@ -148,7 +144,7 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
     }
   }
 
-  // season aggregation (for overall MVP)
+  // --- season aggregation (for overall MVP) ---
   if (fullSeasonMatchupsRows && Array.isArray(fullSeasonMatchupsRows) && fullSeasonMatchupsRows.length) {
     for (const r of fullSeasonMatchupsRows) {
       if (!r || !r.week) continue;
@@ -366,55 +362,30 @@ function normalizeApiMatchups(rawArr, rosterMap) {
   return out;
 }
 
-/* Compute team leaders (top regular-season scoring player per roster) from full-season normalized matchups */
-async function computeTeamLeadersFromFullMatchups(fullSeasonMatchupsRows, championshipWeek, rosterMap) {
-  // gather playersMap for name lookups
-  const playersMap = await fetchPlayersMap();
-
-  // determine maxWeek and champion-week fallback
-  let maxWeek = 0;
-  for (const m of fullSeasonMatchupsRows || []) {
-    if (m && m.week && Number(m.week) > maxWeek) maxWeek = Number(m.week);
-  }
-
-  let champWeek = (typeof championshipWeek !== 'undefined' && championshipWeek !== null) ? Number(championshipWeek) : null;
-  if (!champWeek || isNaN(champWeek)) champWeek = maxWeek || null;
-
-  // regular season end heuristic
-  let regEnd;
-  if (champWeek && champWeek > 2) regEnd = champWeek - 2;
-  else {
-    // best-effort: assume playoffs are 3 weeks; derive regular end
-    if (maxWeek && maxWeek > 6) regEnd = Math.max(1, Math.min(20, maxWeek - 3));
-    else regEnd = Math.max(1, maxWeek);
-  }
-
-  // aggregate per player by roster (regular-season only weeks 1..regEnd)
-  const perPlayer = {}; // pid -> { points, byRoster: { rosterId: pts } }
-
-  function note(pid, pts, rosterId) {
-    if (!pid) return;
-    const id = String(pid);
-    if (!perPlayer[id]) perPlayer[id] = { points: 0, byRoster: {} };
-    perPlayer[id].points += Number(pts) || 0;
-    if (rosterId) perPlayer[id].byRoster[String(rosterId)] = (perPlayer[id].byRoster[String(rosterId)] || 0) + (Number(pts) || 0);
-  }
+/* Compute per-roster regular-season top player from normalized fullSeasonMatchupsRows */
+async function computeSeasonRosterLeaders(fullSeasonMatchupsRows, playoffStart, rosterMap) {
+  // aggregate per-player-per-roster for weeks 1..(playoffStart-1)
+  const cutoff = Math.max(1, (playoffStart ? (playoffStart - 1) : 20));
+  const perPlayerByRoster = {}; // rosterId -> { pid -> pts }
 
   for (const r of fullSeasonMatchupsRows || []) {
     if (!r || !r.week) continue;
     const wk = Number(r.week);
-    if (isNaN(wk) || wk < 1) continue;
-    if (wk > regEnd) continue;
+    if (isNaN(wk)) continue;
+    if (wk < 1 || wk > cutoff) continue;
 
-    for (const side of ['teamA', 'teamB']) {
+    for (const side of ['teamA','teamB']) {
       const t = r[side];
-      if (!t) continue;
+      if (!t || !t.rosterId) continue;
+      const rid = String(t.rosterId);
+      perPlayerByRoster[rid] = perPlayerByRoster[rid] || {};
+
       if (Array.isArray(t.starters) && Array.isArray(t.starters_points) && t.starters.length === t.starters_points.length) {
         for (let i = 0; i < t.starters.length; i++) {
           const pid = t.starters[i];
           const pts = Number(t.starters_points[i]) || 0;
           if (!pid || String(pid) === '0') continue;
-          note(pid, pts, t.rosterId ?? null);
+          perPlayerByRoster[rid][String(pid)] = (perPlayerByRoster[rid][String(pid)] || 0) + pts;
         }
       } else if (Array.isArray(t.player_points)) {
         for (const pp of t.player_points) {
@@ -422,68 +393,55 @@ async function computeTeamLeadersFromFullMatchups(fullSeasonMatchupsRows, champi
           const pid = pp.player_id ?? pp.playerId ?? pp.id ?? null;
           const pts = Number(pp.points ?? pp.pts ?? 0);
           if (!pid || String(pid) === '0') continue;
-          note(pid, pts, t.rosterId ?? null);
+          perPlayerByRoster[rid][String(pid)] = (perPlayerByRoster[rid][String(pid)] || 0) + pts;
         }
       } else if (t.player_points && typeof t.player_points === 'object') {
         for (const pidKey of Object.keys(t.player_points || {})) {
           const ppts = safeNum(t.player_points[pidKey]);
-          if (!pidKey || String(pidKey) === '0') continue;
-          note(pidKey, ppts, t.rosterId ?? null);
+          perPlayerByRoster[rid][String(pidKey)] = (perPlayerByRoster[rid][String(pidKey)] || 0) + ppts;
         }
       }
     }
   }
 
-  // build roster -> top player
-  const rosterPlayers = {}; // rosterId -> { pid -> pts }
-  for (const pid of Object.keys(perPlayer)) {
-    const pinfo = perPlayer[pid];
-    for (const rid of Object.keys(pinfo.byRoster || {})) {
-      rosterPlayers[rid] = rosterPlayers[rid] || {};
-      rosterPlayers[rid][pid] = (rosterPlayers[rid][pid] || 0) + (pinfo.byRoster[rid] || 0);
-    }
-  }
-
+  const playersMap = await fetchPlayersMap();
   const out = [];
-  for (const rid of Object.keys(rosterPlayers)) {
-    const playersForRoster = rosterPlayers[rid];
+
+  for (const rid of Object.keys(perPlayerByRoster)) {
+    const map = perPlayerByRoster[rid] || {};
     let topPid = null, topPts = -Infinity;
-    for (const pid of Object.keys(playersForRoster)) {
-      const pts = playersForRoster[pid] || 0;
-      if (pts > topPts) { topPts = pts; topPid = pid; }
+    for (const pid of Object.keys(map)) {
+      const pts = map[pid] || 0;
+      if (pts > topPts) {
+        topPts = pts;
+        topPid = pid;
+      }
     }
-    const rosterMeta = rosterMap && rosterMap[rid] ? rosterMap[rid] : null;
-    // resolve name from playersMap if possible
-    let topPlayerName = null;
-    let avatar = null;
-    if (topPid && playersMap && playersMap[topPid]) {
-      const p = playersMap[topPid];
-      topPlayerName = p.full_name || (p.first_name ? `${p.first_name} ${p.last_name ?? ''}` : (p.display_name || p.player_name || null)) || null;
-      // many sleeper player objects use their key as the CDN name id; try topPid itself
-      avatar = topPid ? `https://sleepercdn.com/content/nba/players/${topPid}.jpg` : null;
-    } else if (topPid) {
-      // fallback: try CDN using pid
-      avatar = `https://sleepercdn.com/content/nba/players/${topPid}.jpg`;
-    }
+    const meta = rosterMap && rosterMap[String(rid)] ? rosterMap[String(rid)] : {};
+    const ownerName = meta.owner_name || (meta.owner && meta.owner.display_name) || null;
+    const rosterName = meta.team_name || ownerName || (`Roster ${rid}`);
+    const pm = (playersMap && playersMap[String(topPid)]) ? playersMap[String(topPid)] : null;
+    const topName = pm ? (pm.full_name || (pm.first_name ? `${pm.first_name} ${pm.last_name ?? ''}` : pm.player_name || pm.display_name)) : (topPid ? `Player ${topPid}` : null);
+    const avatarCid = pm ? (pm.player_id ?? pm.search_player_id ?? pm.playerId ?? null) : null;
+    const avatar = avatarCid ? `https://sleepercdn.com/content/nba/players/${avatarCid}.jpg` : null;
 
-    out.push({
-      rosterId: rid,
-      roster_name: rosterMeta?.team_name ?? rosterMeta?.owner_name ?? `Roster ${rid}`,
-      topPlayerId: topPid,
-      topPlayerName,
-      points: Math.round((topPts || 0) * 100) / 100,
-      avatar,
-      roster_meta: rosterMeta ?? null
-    });
-  }
-
-  // include rosters with no top player as placeholders
-  for (const rk of Object.keys(rosterMap || {})) {
-    if (!out.find(x => String(x.rosterId) === String(rk))) {
-      const meta = rosterMap[rk] || {};
+    if (topPid) {
       out.push({
-        rosterId: String(rk),
-        roster_name: meta.team_name ?? meta.owner_name ?? `Roster ${rk}`,
+        rosterId: rid,
+        roster_name: rosterName,
+        owner_name: ownerName,
+        topPlayerId: String(topPid),
+        topPlayerName: topName,
+        points: Math.round((topPts || 0) * 100) / 100,
+        avatar,
+        roster_meta: meta
+      });
+    } else {
+      // no player data for roster this season
+      out.push({
+        rosterId: rid,
+        roster_name: rosterName,
+        owner_name: ownerName,
         topPlayerId: null,
         topPlayerName: null,
         points: 0,
@@ -492,15 +450,6 @@ async function computeTeamLeadersFromFullMatchups(fullSeasonMatchupsRows, champi
       });
     }
   }
-
-  // stable ordering by roster_name
-  out.sort((a,b) => {
-    const A = (a.roster_name || '').toLowerCase();
-    const B = (b.roster_name || '').toLowerCase();
-    if (A < B) return -1;
-    if (A > B) return 1;
-    return 0;
-  });
 
   return out;
 }
@@ -557,6 +506,9 @@ export async function load(event) {
   const seasonsToProcess = seasons.length ? seasons.map(s => ({ leagueId: s.league_id, season: s.season })) : [{ leagueId: BASE_LEAGUE_ID, season: new Date().getFullYear() }];
 
   const seasonsResults = [];
+
+  // we'll gather per-season roster leaders and then reduce to global team leaders
+  const perSeasonRosterLeadersMap = {}; // seasonLabel -> [ rosterLeader objects ]
 
   for (const s of seasonsToProcess) {
     const seasonLabel = s.season != null ? String(s.season) : (s.leagueId ? String(s.leagueId) : null);
@@ -906,7 +858,7 @@ export async function load(event) {
             }
           }
         } catch (e) {
-          // continue
+          // continue even if some weeks fail
         }
       }
       if (allRaw.length) {
@@ -920,7 +872,7 @@ export async function load(event) {
     // If still empty, skip
     if (!fullSeasonMatchupsRows || !fullSeasonMatchupsRows.length) {
       messages.push(`Season ${seasonLabel}: no matchups available — skipping.`);
-      seasonsResults.push({ season: seasonLabel, leagueId: leagueId, finalsMvp: null, overallMvp: null, _sourceJson: localUsedKey ?? null, teamLeaders: [] });
+      seasonsResults.push({ season: seasonLabel, leagueId: leagueId, finalsMvp: null, overallMvp: null, championshipWeek: playoffEnd, teamLeaders: [], _sourceJson: localUsedKey ?? null });
       continue;
     }
 
@@ -1063,15 +1015,9 @@ export async function load(event) {
     try {
       const { finalsMvp, overallMvp, debug } = await computeMvpsFromMatchups(matchupsRows.length ? matchupsRows : fullSeasonMatchupsRows, playoffStart, playoffEnd, rosterMap, finalRes, fullSeasonMatchupsRows);
       for (const d of debug) messages.push(`Season ${seasonLabel}: ${d}`);
-
-      // compute team leaders server-side (regular-season top player per roster)
-      let teamLeaders = [];
-      try {
-        teamLeaders = await computeTeamLeadersFromFullMatchups(fullSeasonMatchupsRows, playoffEnd, rosterMap);
-      } catch (e) {
-        messages.push(`Season ${seasonLabel}: failed computing team leaders — ${e?.message ?? e}`);
-        teamLeaders = [];
-      }
+      // compute season roster leaders (regular season) for this season
+      const seasonRosterLeaders = await computeSeasonRosterLeaders(fullSeasonMatchupsRows, playoffStart, rosterMap);
+      perSeasonRosterLeadersMap[seasonLabel] = seasonRosterLeaders;
 
       seasonsResults.push({
         season: seasonLabel,
@@ -1079,22 +1025,71 @@ export async function load(event) {
         championshipWeek: playoffEnd,
         finalsMvp,
         overallMvp,
-        _sourceJson: localUsedKey ?? null,
-        teamLeaders
+        teamLeadersSeason: seasonRosterLeaders,
+        _sourceJson: localUsedKey ?? null
       });
     } catch (e) {
       messages.push(`Season ${seasonLabel}: error computing MVPs — ${e?.message ?? e}`);
+      perSeasonRosterLeadersMap[seasonLabel] = [];
       seasonsResults.push({
         season: seasonLabel,
         leagueId: leagueId,
         championshipWeek: playoffEnd,
         finalsMvp: null,
         overallMvp: null,
-        _sourceJson: localUsedKey ?? null,
-        teamLeaders: []
+        teamLeadersSeason: [],
+        _sourceJson: localUsedKey ?? null
       });
     }
   } // end seasons loop
+
+  // -------------------------
+  // Build global team leaders across seasons:
+  // For each roster (identified by owner_name if available, else rosterId),
+  // look at each season's teamLeadersSeason entry and pick the player-season with the highest points.
+  // Attach the chosen leader for each team and put the result onto each seasonsResults entry as `teamLeaders`
+  // (so client code can use selectedRow.teamLeaders directly).
+  // -------------------------
+  const globalMap = {}; // key -> bestEntry
+  for (const seasonKey of Object.keys(perSeasonRosterLeadersMap)) {
+    const arr = perSeasonRosterLeadersMap[seasonKey] || [];
+    for (const entry of arr) {
+      const rosterId = String(entry.rosterId);
+      const ownerName = entry.owner_name || (entry.roster_meta && entry.roster_meta.owner_name) || null;
+      const key = ownerName ? `owner:${ownerName}` : `roster:${rosterId}`;
+
+      const candidate = {
+        rosterId: rosterId,
+        roster_name: entry.roster_name ?? (entry.roster_meta?.team_name ?? null),
+        owner_name: ownerName ?? (entry.roster_meta?.owner_name ?? null),
+        topPlayerId: entry.topPlayerId,
+        topPlayerName: entry.topPlayerName,
+        points: entry.points || 0,
+        avatar: entry.avatar || (entry.roster_meta?.team_avatar ?? entry.roster_meta?.owner_avatar ?? null),
+        roster_meta: entry.roster_meta ?? null,
+        season: seasonKey
+      };
+
+      const cur = globalMap[key];
+      if (!cur || (candidate.points > (cur.points || 0))) {
+        globalMap[key] = candidate;
+      }
+    }
+  }
+
+  const teamLeadersGlobal = Object.values(globalMap).sort((a,b) => {
+    // sort by team name if present
+    const A = (a.roster_name || a.owner_name || a.rosterId || '').toLowerCase();
+    const B = (b.roster_name || b.owner_name || b.rosterId || '').toLowerCase();
+    if (A < B) return -1;
+    if (A > B) return 1;
+    return 0;
+  });
+
+  // attach `teamLeaders` (global) onto each seasonsResults entry so UI can read selectedRow.teamLeaders
+  for (const r of seasonsResults) {
+    r.teamLeaders = teamLeadersGlobal;
+  }
 
   return {
     seasons,
