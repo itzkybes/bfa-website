@@ -19,8 +19,7 @@
   // avatarOrPlaceholder: use provided url else ui-avatars with initials (matches honor-hall)
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
-    const letter = name ? name[0] : 'T';
-    // use same background/color as honor-hall
+    const letter = name ? name.split(' ').map(n=>n[0]||'').slice(0,2).join('') : 'T';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
 
@@ -42,7 +41,6 @@
 
   // Use server-provided teamLeaders directly (no client recompute)
   $: teamLeaders = Array.isArray(selectedRow?.teamLeaders) ? selectedRow.teamLeaders : [];
-
 </script>
 
 <style>
@@ -106,7 +104,7 @@
                   <div class="player-name">{selectedRow.overallMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(selectedRow.overallMvp.points)}</div>
                   {#if selectedRow.overallMvp.roster_meta}
-                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
+                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.owner_name ?? selectedRow.overallMvp.roster_meta.team_name}</div>
                   {/if}
                 </div>
               </div>
@@ -128,7 +126,7 @@
                   <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points)}</div>
                   {#if selectedRow.finalsMvp.roster_meta}
-                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
+                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.owner_name ?? selectedRow.finalsMvp.roster_meta.team_name}</div>
                   {/if}
                 </div>
               </div>
@@ -141,13 +139,13 @@
     </table>
 
     <!-- Team single-season leaders (server-provided) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders (regular season)</h3>
+    <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders (best player-season per team)</h3>
     {#if teamLeaders && teamLeaders.length}
       <table aria-label="Team single-season leaders">
         <thead>
           <tr>
             <th style="width:40%;">Team</th>
-            <th style="width:40%;">Top player (season total)</th>
+            <th style="width:40%;">Top player (single-season)</th>
             <th style="width:20%;">Pts</th>
           </tr>
         </thead>
@@ -156,7 +154,7 @@
             <tr>
               <td>
                 <div style="font-weight:800;">{t.roster_name}</div>
-                <div class="small">Roster #{t.rosterId}</div>
+                <div class="small">{t.owner_name ?? `Roster ${t.rosterId}`}</div> <!-- owner name instead of roster# -->
               </td>
               <td>
                 <div class="player-cell">
@@ -168,6 +166,7 @@
                   />
                   <div>
                     <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
+                    <div class="small">Season: {t.season}</div>
                   </div>
                 </div>
               </td>
