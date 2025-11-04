@@ -1,40 +1,42 @@
-<!-- src/routes/records-player/+page.svelte -->
 <script>
-  import { onMount } from 'svelte';
-
   export let data;
 
-  // seasons list and selection
   const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
-  // server-provided selectedSeason or fallback to latest season id
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : null);
 
-  // server-provided seasons results (each entry should include .season and ideally .teamLeaders precomputed)
   const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // pick the selected row from seasonsResults; if missing fallback to most-recent entry
-  $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? (seasonsResults.length ? seasonsResults[seasonsResults.length - 1] : null);
+  // cross-season leaders from server
+  const crossSeasonLeadersRaw = Array.isArray(data?.crossSeasonLeaders) ? data.crossSeasonLeaders : [];
 
-  // Sleeper CDN headshot helper (NBA)
+  $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
+
+  // teamLeaders for selected season (server-provided)
+  $: teamLeaders = Array.isArray(selectedRow?.teamLeaders) ? selectedRow.teamLeaders.slice().sort((a,b) => (b.points || 0) - (a.points || 0)) : [];
+
+  // cross-season sorted copy (defensive)
+  $: crossSeasonLeaders = crossSeasonLeadersRaw.slice().sort((a,b) => (b.points || 0) - (a.points || 0));
+
+  // helper to build player headshot URL (Sleeper CDN)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
-  // initials avatar fallback (same style as honor-hall)
+  // fallback to initials via ui-avatars (same style used in honor-hall)
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
-    const letter = name ? name.split(' ').map(n=>n[0]||'').slice(0,2).join('') : 'P';
+    const letter = name ? (Array.isArray(name) ? name[0] : name[0]) : 'T';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=07101a&color=ffffff&size=${size}`;
   }
 
   function formatPts(v) {
     const n = Number(v);
     if (!isFinite(n)) return '—';
-    // show one decimal if fractional, otherwise integer
-    return (Math.round(n * 10) / 10).toFixed(n % 1 === 0 ? 0 : 1);
+    // keep two decimals for points for better precision in leaderboards
+    return (Math.round(n * 100) / 100).toFixed(n % 1 === 0 ? 0 : 2);
   }
 
   function submitFilters(e) {
@@ -42,30 +44,6 @@
     if (form?.requestSubmit) form.requestSubmit();
     else form?.submit();
   }
-
-  function onImgError(e, fallback) {
-    try { e.currentTarget.src = fallback; } catch(_) {}
-  }
-
-  // --- Team leaders: prefer server-provided selectedRow.teamLeaders.
-  // If absent, fallback to empty list (client computation previously existed, but server-side is preferred).
-  $: perTeamLeaders = (selectedRow && Array.isArray(selectedRow.teamLeaders) && selectedRow.teamLeaders.length)
-    ? // normalize each leader object to common fields and sort by points desc
-      selectedRow.teamLeaders.map(t => ({
-        rosterId: String(t.rosterId ?? t.roster_id ?? t.roster ?? ''),
-        owner_name: t.owner_name ?? t.roster_name ?? t.team_name ?? t.owner ?? null,
-        roster_name: t.roster_name ?? t.team_name ?? t.owner_name ?? null,
-        topPlayerId: t.topPlayerId ?? t.playerId ?? t.top_player_id ?? t.player_id ?? null,
-        topPlayerName: t.topPlayerName ?? t.playerName ?? t.player_name ?? null,
-        points: Number(t.points ?? t.pts ?? t.pf ?? 0) || 0,
-        // team avatar preferred from server object, else fallback to roster_meta / owner avatar if present
-        teamAvatar: t.team_avatar ?? t.team_avatar_url ?? (t.roster_meta && (t.roster_meta.team_avatar ?? t.roster_meta.owner_avatar)) ?? null,
-        playerAvatar: t.playerAvatar ?? t.topPlayerAvatar ?? null
-      })).sort((a,b) => (b.points || 0) - (a.points || 0))
-    : [];
-
-  // Provide graceful UI when no teamLeaders provided by server
-  // (we avoid heavy client-side aggregation here since you asked server to compute it)
 </script>
 
 <style>
@@ -75,17 +53,25 @@
   .muted { color:#9ca3af; }
   .filters { display:flex; gap:.6rem; align-items:center; }
   .select { padding:.6rem .8rem; border-radius:8px; background:#07101a; color:#e6eef8; border:1px solid rgba(99,102,241,0.25); font-weight:600; min-width:160px; }
+
   table { width:100%; border-collapse:collapse; margin-top:12px; }
   thead th { text-align:left; padding:10px; color:#9aa3ad; font-size:.82rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.03); }
   td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
+
   .player-cell { display:flex; gap:.8rem; align-items:center; }
-  .player-avatar, .team-avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
+  .player-avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
+  .team-avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
+
   .player-name { font-weight:800; }
   .small { color:#9aa3ad; font-size:.92rem; }
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
-  .two-col { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
-  @media (max-width: 820px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* responsive tweaks */
+  @media (max-width:720px) {
+    .player-avatar, .team-avatar { width:44px; height:44px; }
+    .player-name { font-size:0.95rem; }
+  }
 </style>
 
 <div class="page">
@@ -98,11 +84,9 @@
 
       <form id="filters" method="get" class="filters" style="margin:0;">
         <label class="muted" for="season-select" style="margin-right:.4rem;">Season</label>
-
-        <!-- bind the select to selectedSeason so UI updates properly; on change we submit the form -->
-        <select id="season-select" name="season" class="select" bind:value={selectedSeason} on:change={submitFilters} aria-label="Select season">
+        <select id="season-select" name="season" class="select" on:change={submitFilters} aria-label="Select season">
           {#each seasons as s}
-            <option value={s.season ?? s.league_id}>
+            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>
               {s.season ?? s.name ?? s.league_id}
             </option>
           {/each}
@@ -110,124 +94,176 @@
       </form>
     </div>
 
-    <div class="two-col" style="margin-top:12px;">
-      <!-- MVP table (no season column) -->
-      <div>
-        <table aria-label="Player MVPs">
-          <thead>
-            <tr>
-              <th style="width:50%;">Overall MVP</th>
-              <th style="width:50%;">Finals MVP</th>
-            </tr>
-          </thead>
-          <tbody>
+    <!-- MVP table (no season column) -->
+    <table aria-label="Player MVPs">
+      <thead>
+        <tr>
+          <th style="width:50%;">Overall MVP</th>
+          <th style="width:50%;">Finals MVP</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            {#if selectedRow?.overallMvp}
+              <div class="player-cell">
+                <img
+                  class="player-avatar"
+                  src={playerHeadshot(selectedRow.overallMvp.playerId) || selectedRow.overallMvp.playerAvatar || selectedRow.overallMvp.roster_meta?.team_avatar || avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar, selectedRow.overallMvp.playerName)}
+                  alt={selectedRow.overallMvp.playerName}
+                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName); }}
+                />
+                <div>
+                  <div class="player-name">{selectedRow.overallMvp.playerName}</div>
+                  <div class="small">Pts: {formatPts(selectedRow.overallMvp.points ?? selectedRow.overallMvp.total ?? 0)}</div>
+                  {#if selectedRow.overallMvp.roster_meta}
+                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
+                  {/if}
+                </div>
+              </div>
+            {:else}
+              <div class="empty">No overall MVP determined for this season.</div>
+            {/if}
+          </td>
+
+          <td>
+            {#if selectedRow?.finalsMvp}
+              <div class="player-cell">
+                <img
+                  class="player-avatar"
+                  src={playerHeadshot(selectedRow.finalsMvp.playerId) || selectedRow.finalsMvp.playerAvatar || selectedRow.finalsMvp.roster_meta?.team_avatar || avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar, selectedRow.finalsMvp.playerName)}
+                  alt={selectedRow.finalsMvp.playerName}
+                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName); }}
+                />
+                <div>
+                  <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
+                  <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points ?? 0)}</div>
+                  {#if selectedRow.finalsMvp.roster_meta}
+                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
+                  {/if}
+                </div>
+              </div>
+            {:else}
+              <div class="empty">No finals MVP determined for this season.</div>
+            {/if}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Team single-season leaders (for selected season) -->
+    <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders (regular season) — {selectedRow ? selectedRow.season : 'selected'}</h3>
+    {#if teamLeaders && teamLeaders.length}
+      <table aria-label="Team single-season leaders">
+        <thead>
+          <tr>
+            <th style="width:40%;">Team</th>
+            <th style="width:40%;">Top player (season total)</th>
+            <th style="width:20%;">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each teamLeaders as t (t.rosterId)}
             <tr>
               <td>
-                {#if selectedRow?.overallMvp}
-                  <div class="player-cell">
-                    <img
-                      class="player-avatar"
-                      src={playerHeadshot(selectedRow.overallMvp.playerId) || selectedRow.overallMvp.playerAvatar || selectedRow.overallMvp.roster_meta?.team_avatar || avatarOrPlaceholder(null, selectedRow.overallMvp.playerName)}
-                      alt={selectedRow.overallMvp.playerName}
-                      on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName); }}
-                    />
-                    <div>
-                      <div class="player-name">{selectedRow.overallMvp.playerName}</div>
-                      <div class="small">Pts: {formatPts(selectedRow.overallMvp.points)}</div>
-                      {#if selectedRow.overallMvp.roster_meta}
-                        <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
-                      {/if}
-                    </div>
+                <div style="display:flex;gap:.8rem;align-items:center;">
+                  <img class="team-avatar" src={t.teamAvatar || t.roster_meta?.team_avatar || avatarOrPlaceholder(t.teamAvatar, t.owner_name)} alt={t.owner_name}
+                    on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(t.teamAvatar || t.roster_meta?.team_avatar, t.owner_name); }} />
+                  <div>
+                    <div style="font-weight:800;">{t.owner_name ?? t.roster_name ?? `Roster ${t.rosterId}`}</div>
+                    {#if t.roster_name}
+                      <div class="small">{t.roster_name}</div>
+                    {/if}
                   </div>
-                {:else}
-                  <div class="empty">No overall MVP determined for this season.</div>
-                {/if}
+                </div>
               </td>
 
               <td>
-                {#if selectedRow?.finalsMvp}
+                {#if t.topPlayerId || t.topPlayerName}
                   <div class="player-cell">
                     <img
                       class="player-avatar"
-                      src={playerHeadshot(selectedRow.finalsMvp.playerId) || selectedRow.finalsMvp.playerAvatar || selectedRow.finalsMvp.roster_meta?.team_avatar || avatarOrPlaceholder(null, selectedRow.finalsMvp.playerName)}
-                      alt={selectedRow.finalsMvp.playerName}
-                      on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName); }}
+                      src={playerHeadshot(t.topPlayerId) || t.playerAvatar || avatarOrPlaceholder(t.teamAvatar, t.topPlayerName)}
+                      alt={t.topPlayerName ?? `Player ${t.topPlayerId}`}
+                      on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(t.playerAvatar || t.teamAvatar, t.topPlayerName || `Player ${t.topPlayerId}`); }}
                     />
                     <div>
-                      <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
-                      <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points)}</div>
-                      {#if selectedRow.finalsMvp.roster_meta}
-                        <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
-                      {/if}
+                      <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
+                      <div class="small">Top season</div>
                     </div>
                   </div>
                 {:else}
-                  <div class="empty">No finals MVP determined for this season.</div>
+                  <div class="empty">No player data for this team this season.</div>
                 {/if}
               </td>
+
+              <td style="font-weight:800;">{formatPts(t.points)}</td>
             </tr>
-          </tbody>
-        </table>
+          {/each}
+        </tbody>
+      </table>
+    {:else}
+      <div class="muted" style="margin-bottom:12px;">
+        Team single-season leader data is not available for this season.
       </div>
+    {/if}
 
-      <!-- Team single-season leaders -->
-      <div>
-        <h3 style="margin:0 0 8px 0;">Team single-season leaders (regular season)</h3>
+    <!-- Cross-season best single-season per roster -->
+    <h3 style="margin-top:18px; margin-bottom:8px;">Cross-season best single-season per roster</h3>
+    {#if crossSeasonLeaders && crossSeasonLeaders.length}
+      <table aria-label="Cross-season bests">
+        <thead>
+          <tr>
+            <th style="width:30%;">Team</th>
+            <th style="width:40%;">Top player (best season)</th>
+            <th style="width:15%;">Pts</th>
+            <th style="width:15%;">Season</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each crossSeasonLeaders as c (c.rosterId)}
+            <tr>
+              <td>
+                <div style="display:flex;gap:.8rem;align-items:center;">
+                  <img class="team-avatar" src={c.teamAvatar || c.roster_meta?.team_avatar || avatarOrPlaceholder(c.teamAvatar, c.owner_name)} alt={c.owner_name}
+                    on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(c.teamAvatar || null, c.owner_name); }} />
+                  <div>
+                    <div style="font-weight:800;">{c.owner_name ?? c.roster_name ?? `Roster ${c.rosterId}`}</div>
+                    {#if c.roster_name}
+                      <div class="small">{c.roster_name}</div>
+                    {/if}
+                  </div>
+                </div>
+              </td>
 
-        {#if perTeamLeaders && perTeamLeaders.length}
-          <table aria-label="Team single-season leaders">
-            <thead>
-              <tr>
-                <th style="width:40%;">Team (owner)</th>
-                <th style="width:40%;">Top player (season total)</th>
-                <th style="width:20%;">Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each perTeamLeaders as t (t.rosterId)}
-                <tr>
-                  <td>
-                    <div class="player-cell">
-                      <img
-                        class="team-avatar"
-                        src={t.teamAvatar || t.roster_meta?.team_avatar || avatarOrPlaceholder(null, t.owner_name || t.roster_name)}
-                        alt={t.owner_name || t.roster_name}
-                        on:error={(e) => onImgError(e, avatarOrPlaceholder(null, t.owner_name || t.roster_name))}
-                      />
-                      <div>
-                        <div style="font-weight:800;">{t.owner_name ?? t.roster_name ?? `Roster ${t.rosterId}`}</div>
-                        <div class="small">{/* optional subtitle */}</div>
-                      </div>
+              <td>
+                {#if c.topPlayerId || c.topPlayerName}
+                  <div class="player-cell">
+                    <img
+                      class="player-avatar"
+                      src={playerHeadshot(c.topPlayerId) || c.playerAvatar || avatarOrPlaceholder(c.teamAvatar, c.topPlayerName)}
+                      alt={c.topPlayerName ?? `Player ${c.topPlayerId}`}
+                      on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(c.playerAvatar || c.teamAvatar, c.topPlayerName || `Player ${c.topPlayerId}`); }}
+                    />
+                    <div>
+                      <div class="player-name">{c.topPlayerName ?? `Player ${c.topPlayerId ?? ''}`}</div>
+                      <div class="small">Best season for team</div>
                     </div>
-                  </td>
+                  </div>
+                {:else}
+                  <div class="empty">No player recorded for this roster.</div>
+                {/if}
+              </td>
 
-                  <td>
-                    <div class="player-cell">
-                      <img
-                        class="player-avatar"
-                        src={playerHeadshot(t.topPlayerId) || t.playerAvatar || avatarOrPlaceholder(null, t.topPlayerName)}
-                        alt={t.topPlayerName}
-                        on:error={(e) => onImgError(e, avatarOrPlaceholder(null, t.topPlayerName))}
-                      />
-                      <div>
-                        <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td style="font-weight:800;">{formatPts(t.points)}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        {:else}
-          <div class="muted" style="margin-top:8px;">
-            Per-team single-season leader data not available. Please have the server include <code>teamLeaders</code> inside each season entry (recommended),
-            or include a normalized <code>fullSeasonMatchupsRows</code> so we can compute client-side (server-side is preferred).
-          </div>
-        {/if}
-      </div>
-    </div>
+              <td style="font-weight:800;">{formatPts(c.points)}</td>
+              <td class="small">{c.season ?? '—'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {:else}
+      <div class="muted">No cross-season leader data available.</div>
+    {/if}
 
     <!-- JSON links & debug -->
     {#if jsonLinks && jsonLinks.length}
