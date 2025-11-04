@@ -1,6 +1,4 @@
 <script>
-  import { onMount } from 'svelte';
-
   export let data;
 
   const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
@@ -12,16 +10,18 @@
 
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
 
-  // Sleeper CDN headshot
+  // Sleeper CDN headshot (NBA)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
 
+  // avatarOrPlaceholder: use provided url else ui-avatars with initials (matches honor-hall)
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
-    const letter = name ? name.split(' ').map(n=>n[0]||'').slice(0,2).join('') : 'P';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=07101a&color=ffffff&size=${size}`;
+    const letter = name ? name[0] : 'T';
+    // use same background/color as honor-hall
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
   }
 
   function formatPts(v) {
@@ -40,187 +40,9 @@
     try { e.currentTarget.src = fallback; } catch(_) {}
   }
 
-  // --- Team single-season leaders computation (client-side best-effort) ---
-  // We'll try to read matchups from:
-  // 1) selectedRow.fullSeasonMatchupsRows (preferred)
-  // 2) selectedRow.matchupsRows  (fallback — may only include playoffs)
-  // Each matchup should have the normalized shape used across the app:
-  // { week, teamA: { rosterId, starters, starters_points, player_points }, teamB: {...} }
-  // We aggregate only regular-season weeks: week 1..(championshipWeek - playoffLength) is ambiguous;
-  // We'll treat "regular season" as weeks 1..(championshipWeek - 2) if championshipWeek present, otherwise weeks 1..(selectedRow.championshipWeek ?? 23)
-  let perTeamLeaders = []; // array of { rosterId, roster_name, topPlayerId, topPlayerName, points, avatar }
-  let playersMap = null;
-  let playersMapLoaded = false;
-  let playersMapError = null;
+  // Use server-provided teamLeaders directly (no client recompute)
+  $: teamLeaders = Array.isArray(selectedRow?.teamLeaders) ? selectedRow.teamLeaders : [];
 
-  // lazy load playersMap when needed
-  async function fetchPlayersMapClient() {
-    try {
-      const res = await fetch('https://api.sleeper.app/v1/players/nba');
-      if (!res.ok) throw new Error('players fetch failed');
-      const obj = await res.json();
-      playersMap = obj || {};
-      playersMapLoaded = true;
-    } catch (e) {
-      playersMap = {};
-      playersMapLoaded = true;
-      playersMapError = String(e);
-    }
-  }
-
-  // try to compute per-team leaders from a single array of matchups
-  function computeLeadersFromMatchups(allMatchups, championshipWeek, rosterMetaMap = {}) {
-    if (!Array.isArray(allMatchups) || !allMatchups.length) return [];
-
-    // decide regular season cutoff:
-    let champWeek = (typeof championshipWeek !== 'undefined' && championshipWeek !== null) ? Number(championshipWeek) : null;
-    if (!champWeek || isNaN(champWeek)) champWeek = null;
-
-    // if champWeek known, treat regular as 1..(champWeek - 2) (common 3-week playoff); else include weeks 1..(maxWeek - 2)
-    let maxWeek = 0;
-    for (const m of allMatchups) if (m && m.week && Number(m.week) > maxWeek) maxWeek = Number(m.week);
-    if (!champWeek && maxWeek > 0) champWeek = maxWeek;
-
-    const regEnd = (champWeek && champWeek > 2) ? (champWeek - 2) : Math.max(1, Math.min(regularCandidateMaxWeek(allMatchups), Math.max(1, maxWeek)));
-    // aggregate per player and per roster (only regular-season weeks)
-    const perPlayer = {}; // pid -> { points, byRoster: { rosterId: pts } }
-    function note(pid, pts, rosterId) {
-      if (!pid) return;
-      const id = String(pid);
-      if (!perPlayer[id]) perPlayer[id] = { points: 0, byRoster: {} };
-      perPlayer[id].points += Number(pts) || 0;
-      if (rosterId) perPlayer[id].byRoster[String(rosterId)] = (perPlayer[id].byRoster[String(rosterId)] || 0) + (Number(pts) || 0);
-    }
-
-    for (const m of allMatchups) {
-      if (!m || !m.week) continue;
-      const wk = Number(m.week);
-      if (isNaN(wk) || wk < 1) continue;
-      if (wk > regEnd) continue;
-
-      for (const side of ['teamA','teamB']) {
-        const t = m[side];
-        if (!t) continue;
-        // starters + starters_points arrays
-        if (Array.isArray(t.starters) && Array.isArray(t.starters_points) && t.starters.length === t.starters_points.length) {
-          for (let i = 0; i < t.starters.length; i++) {
-            const pid = t.starters[i];
-            const pts = Number(t.starters_points[i]) || 0;
-            if (!pid || String(pid) === '0') continue;
-            note(pid, pts, t.rosterId ?? null);
-          }
-        } else if (Array.isArray(t.player_points)) {
-          // array of { player_id, points } or { playerId, points }
-          for (const pp of t.player_points) {
-            if (!pp) continue;
-            const pid = pp.player_id ?? pp.playerId ?? pp.id ?? null;
-            const pts = Number(pp.points ?? pp.pts ?? 0);
-            if (!pid || String(pid) === '0') continue;
-            note(pid, pts, t.rosterId ?? null);
-          }
-        } else if (t.player_points && typeof t.player_points === 'object') {
-          // object mapping playerId -> points
-          for (const pidKey of Object.keys(t.player_points || {})) {
-            const ppts = Number(t.player_points[pidKey]) || 0;
-            if (!pidKey || String(pidKey) === '0') continue;
-            note(pidKey, ppts, t.rosterId ?? null);
-          }
-        }
-      }
-    }
-
-    // build roster -> top player
-    const rosterPlayers = {}; // rosterId -> { pid -> pts }
-    for (const pid of Object.keys(perPlayer)) {
-      const pinfo = perPlayer[pid];
-      for (const rid of Object.keys(pinfo.byRoster || {})) {
-        rosterPlayers[rid] = rosterPlayers[rid] || {};
-        rosterPlayers[rid][pid] = (rosterPlayers[rid][pid] || 0) + (pinfo.byRoster[rid] || 0);
-      }
-    }
-
-    const out = [];
-    for (const rid of Object.keys(rosterPlayers)) {
-      const playersForRoster = rosterPlayers[rid];
-      let topPid = null, topPts = -Infinity;
-      for (const pid of Object.keys(playersForRoster)) {
-        const pts = playersForRoster[pid] || 0;
-        if (pts > topPts) { topPts = pts; topPid = pid; }
-      }
-      const rosterMeta = rosterMetaMap && rosterMetaMap[rid] ? rosterMetaMap[rid] : null;
-      out.push({
-        rosterId: rid,
-        roster_name: rosterMeta?.team_name ?? rosterMeta?.owner_name ?? `Roster ${rid}`,
-        topPlayerId: topPid,
-        topPlayerName: (playersMap && playersMap[topPid] && (playersMap[topPid].full_name || (playersMap[topPid].first_name ? (playersMap[topPid].first_name + ' ' + (playersMap[topPid].last_name ?? '')) : playersMap[topPid].player_name))) || null,
-        points: Math.round((topPts || 0) * 100) / 100,
-        avatar: (playersMap && playersMap[topPid] && playersMap[topPid].search_player_id) ? playerHeadshot(playersMap[topPid].search_player_id) : (playersMap && playersMap[topPid] && playersMap[topPid].player_id ? playerHeadshot(playersMap[topPid].player_id) : null)
-      });
-    }
-
-    // ensure a deterministic order (by roster name)
-    out.sort((a,b) => {
-      const A = (a.roster_name || '').toLowerCase();
-      const B = (b.roster_name || '').toLowerCase();
-      if (A < B) return -1;
-      if (A > B) return 1;
-      return 0;
-    });
-
-    return out;
-  }
-
-  // choose a reasonable max-week for regular season if no championshipWeek provided
-  function regularCandidateMaxWeek(matchups) {
-    let maxW = 0;
-    for (const m of matchups || []) if (m && m.week && Number(m.week) > maxW) maxW = Number(m.week);
-    // assume playoffs last 3 weeks; regular ~= maxW - 3 (but at least 17)
-    if (maxW <= 6) return Math.max(1, maxW);
-    return Math.max(1, Math.min(20, maxW - 3));
-  }
-
-  // compute perTeamLeaders whenever selectedRow changes
-  $: (async () => {
-    perTeamLeaders = [];
-    // try to use fullSeasonMatchupsRows (server could provide)
-    let allMatchups = null;
-    if (selectedRow?.fullSeasonMatchupsRows && Array.isArray(selectedRow.fullSeasonMatchupsRows) && selectedRow.fullSeasonMatchupsRows.length) {
-      allMatchups = selectedRow.fullSeasonMatchupsRows;
-    } else if (selectedRow?.matchupsRows && Array.isArray(selectedRow.matchupsRows) && selectedRow.matchupsRows.length) {
-      // fallback — might only be playoffs; still attempt
-      allMatchups = selectedRow.matchupsRows;
-    } else if (selectedRow?.rawMatchups && Array.isArray(selectedRow.rawMatchups) && selectedRow.rawMatchups.length) {
-      allMatchups = selectedRow.rawMatchups;
-    } else {
-      // nothing to compute client-side
-      perTeamLeaders = [];
-      return;
-    }
-
-    // ensure playersMap loaded (non-blocking)
-    if (!playersMapLoaded) await fetchPlayersMapClient();
-
-    // roster metadata map: try to use selectedRow.rosterMap if server attached it
-    const rosterMetaMap = selectedRow?.rosterMap ?? selectedRow?.roster_meta_map ?? {};
-    const leaders = computeLeadersFromMatchups(allMatchups, selectedRow?.championshipWeek ?? selectedRow?.champWeek ?? null, rosterMetaMap);
-
-    // attempt to attach missing names/avatars using playersMap if available
-    for (const l of leaders) {
-      if (!l.topPlayerName && playersMap && playersMap[l.topPlayerId]) {
-        const p = playersMap[l.topPlayerId];
-        l.topPlayerName = p.full_name || (p.first_name ? `${p.first_name} ${p.last_name ?? ''}` : (p.display_name || p.player_name || null)) || l.topPlayerName;
-        // many Sleeper player objects use the player_id key that the CDN expects; try several
-        if (!l.avatar) {
-          const pid = p.player_id ?? p.search_player_id ?? p.playerId ?? p.player_id;
-          if (pid) l.avatar = playerHeadshot(pid);
-        }
-      }
-      // ensure avatar fallback
-      if (!l.avatar) l.avatar = avatarOrPlaceholder(null, l.topPlayerName || 'Player');
-    }
-
-    perTeamLeaders = leaders;
-  })();
 </script>
 
 <style>
@@ -318,9 +140,9 @@
       </tbody>
     </table>
 
-    <!-- Team single-season leaders -->
+    <!-- Team single-season leaders (server-provided) -->
     <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders (regular season)</h3>
-    {#if perTeamLeaders && perTeamLeaders.length}
+    {#if teamLeaders && teamLeaders.length}
       <table aria-label="Team single-season leaders">
         <thead>
           <tr>
@@ -330,7 +152,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each perTeamLeaders as t (t.rosterId)}
+          {#each teamLeaders as t (t.rosterId)}
             <tr>
               <td>
                 <div style="font-weight:800;">{t.roster_name}</div>
@@ -338,7 +160,12 @@
               </td>
               <td>
                 <div class="player-cell">
-                  <img class="player-avatar" src={t.avatar || avatarOrPlaceholder(null, t.topPlayerName)} alt={t.topPlayerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, t.topPlayerName))}/>
+                  <img
+                    class="player-avatar"
+                    src={playerHeadshot(t.topPlayerId) || t.avatar || t.roster_meta?.team_avatar || t.roster_meta?.owner_avatar || avatarOrPlaceholder(null, t.topPlayerName)}
+                    alt={t.topPlayerName}
+                    on:error={(e) => onImgError(e, avatarOrPlaceholder(t.roster_meta?.team_avatar ?? t.roster_meta?.owner_avatar, t.topPlayerName))}
+                  />
                   <div>
                     <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
                   </div>
@@ -351,15 +178,7 @@
       </table>
     {:else}
       <div class="muted" style="margin-bottom:12px;">
-        Per-team single-season leader data is not available client-side. To enable this table:
-        <ul>
-          <li>Have the server include a full-season normalized matchups array for the season (field name: <code>fullSeasonMatchupsRows</code> or <code>matchupsRows</code>) containing per-week entries of the form:
-            <pre style="display:inline-block; background:rgba(0,0,0,0.35); padding:6px; border-radius:6px;">
-{`{ week: 1, teamA: { rosterId: '3', starters: ['1658',...], starters_points: [12.3,...], player_points: {...} }, teamB: { ... } }`}
-            </pre>
-          </li>
-          <li>Optionally server can precompute and return <code>topPlayersByTeam</code> or <code>rosterMap</code> to avoid client computation.</li>
-        </ul>
+        Per-team single-season leader data is not available for this season.
       </div>
     {/if}
 
