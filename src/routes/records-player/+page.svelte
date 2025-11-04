@@ -1,60 +1,44 @@
+<!-- src/routes/records-player/+page.svelte -->
 <script>
   export let data;
 
+  // seasons list and selection (dropdown only for selecting MVPs)
   const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
-  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : null);
+  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
+  // per-season results (server includes teamLeaders per-season)
   const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
-  const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // cross-season leaders from server (server should provide per-roster per-season bests)
-  const crossSeasonLeadersRaw = Array.isArray(data?.crossSeasonLeaders) ? data.crossSeasonLeaders : [];
+  // server-provided cross-season & playoff all-time aggregates
+  let crossSeasonLeaders = Array.isArray(data?.crossSeasonLeaders) ? data.crossSeasonLeaders.slice() : [];
+  let playoffAllTimeLeaders = Array.isArray(data?.playoffAllTimeLeaders) ? data.playoffAllTimeLeaders.slice() : [];
 
+  // ensure defensive sorting (server should already have sorted desc)
+  crossSeasonLeaders.sort((a,b) => (Number(b.totalPoints||0) - Number(a.totalPoints||0)));
+  playoffAllTimeLeaders.sort((a,b) => (Number(b.playoffPoints||0) - Number(a.playoffPoints||0)));
+
+  // pick the season result to display MVPs for (dropdown only)
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
+  $: finalsMvp = selectedRow?.finalsMvp ?? null;
+  $: overallMvp = selectedRow?.overallMvp ?? null;
 
-  // teamLeaders for selected season (server-provided) — we'll display playoff-only points
-  $: teamLeaders = Array.isArray(selectedRow?.teamLeaders) ? selectedRow.teamLeaders.slice() : [];
-
-  // helpers for interpreting potential server fields (very defensive)
-  function getPlayoffPoints(obj) {
-    if (!obj) return null;
-    return obj.playoffPoints ?? obj.playoff_points ?? obj.playoff_pts ?? obj.playoff ?? obj.playoffs ?? obj.postseasonPoints ?? obj.postseason_points ?? obj.playoff_total ?? obj.playoffTotal ?? obj.playoffPointsValue ?? obj.points_playoff ?? null;
-  }
-  function getRegularPoints(obj) {
-    if (!obj) return null;
-    return obj.regularPoints ?? obj.regular_points ?? obj.regular_pts ?? obj.regular ?? obj.seasonPoints ?? obj.season_points ?? obj.points_regular ?? obj.points ?? obj.points_regular_total ?? null;
-  }
-  function getTotalPoints(obj) {
-    if (!obj) return null;
-    // prefer explicit total
-    if (typeof obj.totalPoints !== 'undefined' && obj.totalPoints !== null) return obj.totalPoints;
-    if (typeof obj.total_points !== 'undefined' && obj.total_points !== null) return obj.total_points;
-    if (typeof obj.points !== 'undefined' && obj.points !== null) return obj.points;
-    // else sum regular + playoff if available
-    const r = Number(getRegularPoints(obj) ?? 0);
-    const p = Number(getPlayoffPoints(obj) ?? 0);
-    const sum = r + p;
-    return sum || null;
-  }
-
-  // format points safely
-  function formatPts(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    // show integer if whole, else 2 decimals
-    return (Math.round(n * 100) / 100).toFixed(n % 1 === 0 ? 0 : 2);
-  }
-
-  // headshot / avatar helpers (same pattern as honor-hall)
+  // Sleeper CDN headshot helper (same as honor-hall)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
+
+  // avatar fallback to initials (honor-hall style)
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
-    const letter = name ? (typeof name === 'string' ? name[0] : (Array.isArray(name) ? name[0] : 'T')) : 'T';
+    const letter = name ? name.split(' ').map(n => n[0]||'').slice(0,2).join('') : 'P';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=07101a&color=ffffff&size=${size}`;
+  }
+
+  function formatPts(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return '—';
+    return (Math.round(n * 100) / 100);
   }
 
   function submitFilters(e) {
@@ -63,32 +47,9 @@
     else form?.submit();
   }
 
-  // derive the playoff-only display for the teamLeaders table:
-  $: teamLeadersDisplay = teamLeaders.map(t => {
-    const playoffPts = getPlayoffPoints(t);
-    const fallbackUsed = (playoffPts == null);
-    const pointsToShow = (playoffPts != null) ? playoffPts : getTotalPoints(t); // fallback to total if playoff missing
-    return {
-      ...t,
-      _playoffPoints: (pointsToShow != null) ? Number(pointsToShow) : null,
-      _playoffFallback: fallbackUsed
-    };
-  }).sort((a,b) => (Number(b._playoffPoints || 0) - Number(a._playoffPoints || 0)));
-
-  // build crossSeason table values — compute regular, playoff, total per row, then sort by total desc
-  $: crossSeasonLeaders = crossSeasonLeadersRaw.map(c => {
-    const regular = Number(getRegularPoints(c) ?? 0);
-    const playoff = Number(getPlayoffPoints(c) ?? 0);
-    const explicitTotal = Number(getTotalPoints(c) ?? (regular + playoff));
-    const total = explicitTotal || (regular + playoff);
-    return {
-      ...c,
-      _regularPoints: regular,
-      _playoffPoints: playoff,
-      _totalPoints: total
-    };
-  }).sort((a,b) => (Number(b._totalPoints || 0) - Number(a._totalPoints || 0)));
-
+  function onImgError(e, fallback) {
+    try { e.currentTarget.src = fallback; } catch(_) {}
+  }
 </script>
 
 <style>
@@ -104,18 +65,11 @@
   td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
 
   .player-cell { display:flex; gap:.8rem; align-items:center; }
-  .player-avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
-  .team-avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
-
+  .player-avatar, .team-avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
   .player-name { font-weight:800; }
   .small { color:#9aa3ad; font-size:.92rem; }
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
-
-  @media (max-width:720px) {
-    .player-avatar, .team-avatar { width:44px; height:44px; }
-    .player-name { font-size:0.95rem; }
-  }
 </style>
 
 <div class="page">
@@ -123,7 +77,7 @@
     <div class="topline">
       <div>
         <h2 style="margin:0 0 6px 0;">Player Records — MVPs</h2>
-        <div class="muted" style="margin-bottom:6px;">Overall & Finals MVPs + team leaders. Select season to update tables.</div>
+        <div class="muted" style="margin-bottom:6px;">Dropdown selects which season’s Overall & Finals MVP to display. Team leader tables are cross-season / playoff-all-time and are computed server-side.</div>
       </div>
 
       <form id="filters" method="get" class="filters" style="margin:0;">
@@ -138,7 +92,7 @@
       </form>
     </div>
 
-    <!-- MVPs row (same as before) -->
+    <!-- MVP table (no season column) -->
     <table aria-label="Player MVPs">
       <thead>
         <tr>
@@ -149,19 +103,21 @@
       <tbody>
         <tr>
           <td>
-            {#if selectedRow?.overallMvp}
+            {#if overallMvp}
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={playerHeadshot(selectedRow.overallMvp.playerId) || selectedRow.overallMvp.playerAvatar || selectedRow.overallMvp.roster_meta?.team_avatar || avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar, selectedRow.overallMvp.playerName)}
-                  alt={selectedRow.overallMvp.playerName}
-                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName); }}
+                  src={playerHeadshot(overallMvp.playerId) || overallMvp.playerAvatar || overallMvp.roster_meta?.team_avatar || avatarOrPlaceholder(null, overallMvp.playerName)}
+                  alt={overallMvp.playerName}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar ?? overallMvp.roster_meta?.owner_avatar, overallMvp.playerName))}
                 />
                 <div>
-                  <div class="player-name">{selectedRow.overallMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.overallMvp.points ?? 0)}</div>
-                  {#if selectedRow.overallMvp.roster_meta}
-                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
+                  <div class="player-name">{overallMvp.playerName}</div>
+                  <div class="small">Pts: {formatPts(overallMvp.points)}</div>
+                  {#if overallMvp.roster_meta}
+                    <div class="small">Top roster: {overallMvp.roster_meta.team_name ?? overallMvp.roster_meta.owner_name}</div>
+                  {:else if overallMvp.topRosterId}
+                    <div class="small">Top roster: Roster {overallMvp.topRosterId}</div>
                   {/if}
                 </div>
               </div>
@@ -171,19 +127,21 @@
           </td>
 
           <td>
-            {#if selectedRow?.finalsMvp}
+            {#if finalsMvp}
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={playerHeadshot(selectedRow.finalsMvp.playerId) || selectedRow.finalsMvp.playerAvatar || selectedRow.finalsMvp.roster_meta?.team_avatar || avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar, selectedRow.finalsMvp.playerName)}
-                  alt={selectedRow.finalsMvp.playerName}
-                  on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName); }}
+                  src={playerHeadshot(finalsMvp.playerId) || finalsMvp.playerAvatar || finalsMvp.roster_meta?.team_avatar || avatarOrPlaceholder(null, finalsMvp.playerName)}
+                  alt={finalsMvp.playerName}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar ?? finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName))}
                 />
                 <div>
-                  <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points ?? 0)}</div>
-                  {#if selectedRow.finalsMvp.roster_meta}
-                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
+                  <div class="player-name">{finalsMvp.playerName}</div>
+                  <div class="small">Pts: {formatPts(finalsMvp.points)}</div>
+                  {#if finalsMvp.roster_meta}
+                    <div class="small">Roster: {finalsMvp.roster_meta.team_name ?? finalsMvp.roster_meta.owner_name}</div>
+                  {:else if finalsMvp.topRosterId}
+                    <div class="small">Roster: Roster {finalsMvp.topRosterId}</div>
                   {/if}
                 </div>
               </div>
@@ -195,140 +153,115 @@
       </tbody>
     </table>
 
-    <!-- Team single-season leaders: SHOW PLAYOFF-ONLY POINTS -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders — playoffs only ({selectedRow ? selectedRow.season : 'selected'})</h3>
-    {#if teamLeadersDisplay && teamLeadersDisplay.length}
-      <table aria-label="Team single-season leaders (playoffs)">
-        <thead>
-          <tr>
-            <th style="width:40%;">Team</th>
-            <th style="width:40%;">Top player (playoffs)</th>
-            <th style="width:20%;">Pts (playoffs)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each teamLeadersDisplay as t (t.rosterId)}
-            <tr>
-              <td>
-                <div style="display:flex;gap:.8rem;align-items:center;">
-                  <img class="team-avatar" src={t.teamAvatar || t.roster_meta?.team_avatar || avatarOrPlaceholder(t.teamAvatar, t.owner_name)} alt={t.owner_name}
-                    on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(t.teamAvatar || t.roster_meta?.team_avatar, t.owner_name); }} />
-                  <div>
-                    <div style="font-weight:800;">{t.owner_name ?? t.roster_name ?? `Roster ${t.rosterId}`}</div>
-                    {#if t.roster_name}
-                      <div class="small">{t.roster_name}</div>
-                    {/if}
-                  </div>
-                </div>
-              </td>
-
-              <td>
-                {#if t.topPlayerId || t.topPlayerName}
-                  <div class="player-cell">
-                    <img
-                      class="player-avatar"
-                      src={playerHeadshot(t.topPlayerId) || t.playerAvatar || avatarOrPlaceholder(t.teamAvatar, t.topPlayerName)}
-                      alt={t.topPlayerName ?? `Player ${t.topPlayerId}`}
-                      on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(t.playerAvatar || t.teamAvatar, t.topPlayerName || `Player ${t.topPlayerId}`); }}
-                    />
-                    <div>
-                      <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
-                      <div class="small">{t._playoffFallback ? 'Playoff data unavailable — showing fallback' : 'Playoff top'}</div>
-                    </div>
-                  </div>
-                {:else}
-                  <div class="empty">No player data for this team this season.</div>
-                {/if}
-              </td>
-
-              <td style="font-weight:800;">{t._playoffPoints != null ? formatPts(t._playoffPoints) : '—'}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {:else}
-      <div class="muted" style="margin-bottom:12px;">
-        Playoff-only team leader data is not available for this season.
-      </div>
-    {/if}
-
-    <!-- Cross-season best single-season per roster (show regular, playoff, total) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">Cross-season best single-season per roster (regular + playoffs)</h3>
-    {#if crossSeasonLeaders && crossSeasonLeaders.length}
-      <table aria-label="Cross-season bests">
+    <!-- Playoff all-time leaders (best playoff single-season per roster across seasons) -->
+    <h3 style="margin-top:18px; margin-bottom:8px;">Playoff — best single-season performance per team (all time)</h3>
+    {#if playoffAllTimeLeaders && playoffAllTimeLeaders.length}
+      <table aria-label="Playoff best single-season per roster">
         <thead>
           <tr>
             <th style="width:30%;">Team</th>
-            <th style="width:35%;">Top player (best season)</th>
-            <th style="width:12%;">Regular</th>
-            <th style="width:12%;">Playoffs</th>
-            <th style="width:11%;">Total</th>
-            <th style="width:10%;">Season</th>
+            <th style="width:40%;">Top player (playoff pts)</th>
+            <th style="width:15%;">Pts</th>
+            <th style="width:15%;">Season</th>
           </tr>
         </thead>
         <tbody>
-          {#each crossSeasonLeaders as c (c.rosterId)}
+          {#each playoffAllTimeLeaders as t (t.rosterId)}
             <tr>
               <td>
-                <div style="display:flex;gap:.8rem;align-items:center;">
-                  <img class="team-avatar" src={c.teamAvatar || c.roster_meta?.team_avatar || avatarOrPlaceholder(c.teamAvatar, c.owner_name)} alt={c.owner_name}
-                    on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(c.teamAvatar || null, c.owner_name); }} />
+                <div style="display:flex; align-items:center; gap:.8rem;">
+                  <img class="team-avatar" src={t.teamAvatar || (t.roster_meta?.team_avatar ?? null) || avatarOrPlaceholder(null, t.roster_name || t.owner_name)} alt={t.roster_name ?? t.owner_name}
+                    on:error={(e) => onImgError(e, avatarOrPlaceholder(null, t.roster_name || t.owner_name))}
+                  />
                   <div>
-                    <div style="font-weight:800;">{c.owner_name ?? c.roster_name ?? `Roster ${c.rosterId}`}</div>
-                    {#if c.roster_name}
-                      <div class="small">{c.roster_name}</div>
-                    {/if}
+                    <div style="font-weight:800;">{t.roster_name ?? t.owner_name}</div>
+                    <div class="small">{t.owner_name}</div>
                   </div>
                 </div>
               </td>
 
               <td>
-                {#if c.topPlayerId || c.topPlayerName}
-                  <div class="player-cell">
-                    <img
-                      class="player-avatar"
-                      src={playerHeadshot(c.topPlayerId) || c.playerAvatar || avatarOrPlaceholder(c.teamAvatar, c.topPlayerName)}
-                      alt={c.topPlayerName ?? `Player ${c.topPlayerId}`}
-                      on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(c.playerAvatar || c.teamAvatar, c.topPlayerName || `Player ${c.topPlayerId}`); }}
-                    />
-                    <div>
-                      <div class="player-name">{c.topPlayerName ?? `Player ${c.topPlayerId ?? ''}`}</div>
-                      <div class="small">Best season for this roster</div>
-                    </div>
+                <div class="player-cell">
+                  <img
+                    class="player-avatar"
+                    src={playerHeadshot(t.topPlayerId) || t.playerAvatar || avatarOrPlaceholder(null, t.topPlayerName)}
+                    alt={t.topPlayerName}
+                    on:error={(e) => onImgError(e, avatarOrPlaceholder(t.teamAvatar || (t.roster_meta?.team_avatar ?? null), t.topPlayerName))}
+                  />
+                  <div>
+                    <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
+                    <div class="small">Team: {t.roster_name ?? t.owner_name}</div>
                   </div>
-                {:else}
-                  <div class="empty">No player recorded for this roster.</div>
-                {/if}
+                </div>
               </td>
 
-              <td style="font-weight:700;">{formatPts(c._regularPoints)}</td>
-              <td style="font-weight:700;">{formatPts(c._playoffPoints)}</td>
-              <td style="font-weight:900;">{formatPts(c._totalPoints)}</td>
-              <td class="small">{c.season ?? '—'}</td>
+              <td style="font-weight:800;">{formatPts(t.playoffPoints)}</td>
+              <td>{t.season ?? '—'}</td>
             </tr>
           {/each}
         </tbody>
       </table>
     {:else}
-      <div class="muted">No cross-season leader data available.</div>
+      <div class="muted">Playoff all-time leaders are not available.</div>
     {/if}
 
-    <!-- JSON links & debug -->
-    {#if jsonLinks && jsonLinks.length}
-      <div style="margin-top:12px;">
-        <div class="small" style="margin-bottom:6px;">Loaded JSON files:</div>
-        <ul class="muted">
-          {#each jsonLinks as jl}
-            <li><a href={jl.url} target="_blank" rel="noreferrer">{jl.title}</a></li>
+    <!-- Cross-season best single-season per roster (regular+playoff totals) -->
+    <h3 style="margin-top:18px; margin-bottom:8px;">Cross-season — best single-season per team (regular + playoffs)</h3>
+    {#if crossSeasonLeaders && crossSeasonLeaders.length}
+      <table aria-label="Cross-season best single-season per roster">
+        <thead>
+          <tr>
+            <th style="width:30%;">Team</th>
+            <th style="width:40%;">Top player (season)</th>
+            <th style="width:15%;">Pts</th>
+            <th style="width:15%;">Season</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each crossSeasonLeaders as t (t.rosterId)}
+            <tr>
+              <td>
+                <div style="display:flex; align-items:center; gap:.8rem;">
+                  <img class="team-avatar" src={t.teamAvatar || (t.roster_meta?.team_avatar ?? null) || avatarOrPlaceholder(null, t.roster_name || t.owner_name)} alt={t.roster_name ?? t.owner_name}
+                    on:error={(e) => onImgError(e, avatarOrPlaceholder(null, t.roster_name || t.owner_name))}
+                  />
+                  <div>
+                    <div style="font-weight:800;">{t.roster_name ?? t.owner_name}</div>
+                    <div class="small">{t.owner_name}</div>
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                <div class="player-cell">
+                  <img
+                    class="player-avatar"
+                    src={playerHeadshot(t.topPlayerId) || t.playerAvatar || avatarOrPlaceholder(null, t.topPlayerName)}
+                    alt={t.topPlayerName}
+                    on:error={(e) => onImgError(e, avatarOrPlaceholder(t.teamAvatar || (t.roster_meta?.team_avatar ?? null), t.topPlayerName))}
+                  />
+                  <div>
+                    <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
+                    <div class="small">Regular: {formatPts(t.regularPoints)} • Playoffs: {formatPts(t.playoffPoints)}</div>
+                  </div>
+                </div>
+              </td>
+
+              <td style="font-weight:800;">{formatPts(t.totalPoints)}</td>
+              <td>{t.season ?? '—'}</td>
+            </tr>
           {/each}
-        </ul>
-      </div>
+        </tbody>
+      </table>
+    {:else}
+      <div class="muted">Cross-season leader data is not available.</div>
     {/if}
 
-    {#if messages && messages.length}
+    <!-- messages / debug -->
+    {#if Array.isArray(data?.messages) && data.messages.length}
       <div class="muted" style="margin-top:12px;">Messages / Debug:</div>
       <div class="debug" aria-live="polite">
-        {#each messages as m}
+        {#each data.messages as m}
           {m}
           {'\n'}
         {/each}
