@@ -8,35 +8,53 @@
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
-  // cross-season leaders from server
+  // cross-season leaders from server (server should provide per-roster per-season bests)
   const crossSeasonLeadersRaw = Array.isArray(data?.crossSeasonLeaders) ? data.crossSeasonLeaders : [];
 
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
 
-  // teamLeaders for selected season (server-provided)
-  $: teamLeaders = Array.isArray(selectedRow?.teamLeaders) ? selectedRow.teamLeaders.slice().sort((a,b) => (b.points || 0) - (a.points || 0)) : [];
+  // teamLeaders for selected season (server-provided) — we'll display playoff-only points
+  $: teamLeaders = Array.isArray(selectedRow?.teamLeaders) ? selectedRow.teamLeaders.slice() : [];
 
-  // cross-season sorted copy (defensive)
-  $: crossSeasonLeaders = crossSeasonLeadersRaw.slice().sort((a,b) => (b.points || 0) - (a.points || 0));
+  // helpers for interpreting potential server fields (very defensive)
+  function getPlayoffPoints(obj) {
+    if (!obj) return null;
+    return obj.playoffPoints ?? obj.playoff_points ?? obj.playoff_pts ?? obj.playoff ?? obj.playoffs ?? obj.postseasonPoints ?? obj.postseason_points ?? obj.playoff_total ?? obj.playoffTotal ?? obj.playoffPointsValue ?? obj.points_playoff ?? null;
+  }
+  function getRegularPoints(obj) {
+    if (!obj) return null;
+    return obj.regularPoints ?? obj.regular_points ?? obj.regular_pts ?? obj.regular ?? obj.seasonPoints ?? obj.season_points ?? obj.points_regular ?? obj.points ?? obj.points_regular_total ?? null;
+  }
+  function getTotalPoints(obj) {
+    if (!obj) return null;
+    // prefer explicit total
+    if (typeof obj.totalPoints !== 'undefined' && obj.totalPoints !== null) return obj.totalPoints;
+    if (typeof obj.total_points !== 'undefined' && obj.total_points !== null) return obj.total_points;
+    if (typeof obj.points !== 'undefined' && obj.points !== null) return obj.points;
+    // else sum regular + playoff if available
+    const r = Number(getRegularPoints(obj) ?? 0);
+    const p = Number(getPlayoffPoints(obj) ?? 0);
+    const sum = r + p;
+    return sum || null;
+  }
 
-  // helper to build player headshot URL (Sleeper CDN)
+  // format points safely
+  function formatPts(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return '—';
+    // show integer if whole, else 2 decimals
+    return (Math.round(n * 100) / 100).toFixed(n % 1 === 0 ? 0 : 2);
+  }
+
+  // headshot / avatar helpers (same pattern as honor-hall)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
-
-  // fallback to initials via ui-avatars (same style used in honor-hall)
   function avatarOrPlaceholder(url, name, size = 64) {
     if (url) return url;
-    const letter = name ? (Array.isArray(name) ? name[0] : name[0]) : 'T';
+    const letter = name ? (typeof name === 'string' ? name[0] : (Array.isArray(name) ? name[0] : 'T')) : 'T';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=07101a&color=ffffff&size=${size}`;
-  }
-
-  function formatPts(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    // keep two decimals for points for better precision in leaderboards
-    return (Math.round(n * 100) / 100).toFixed(n % 1 === 0 ? 0 : 2);
   }
 
   function submitFilters(e) {
@@ -44,6 +62,33 @@
     if (form?.requestSubmit) form.requestSubmit();
     else form?.submit();
   }
+
+  // derive the playoff-only display for the teamLeaders table:
+  $: teamLeadersDisplay = teamLeaders.map(t => {
+    const playoffPts = getPlayoffPoints(t);
+    const fallbackUsed = (playoffPts == null);
+    const pointsToShow = (playoffPts != null) ? playoffPts : getTotalPoints(t); // fallback to total if playoff missing
+    return {
+      ...t,
+      _playoffPoints: (pointsToShow != null) ? Number(pointsToShow) : null,
+      _playoffFallback: fallbackUsed
+    };
+  }).sort((a,b) => (Number(b._playoffPoints || 0) - Number(a._playoffPoints || 0)));
+
+  // build crossSeason table values — compute regular, playoff, total per row, then sort by total desc
+  $: crossSeasonLeaders = crossSeasonLeadersRaw.map(c => {
+    const regular = Number(getRegularPoints(c) ?? 0);
+    const playoff = Number(getPlayoffPoints(c) ?? 0);
+    const explicitTotal = Number(getTotalPoints(c) ?? (regular + playoff));
+    const total = explicitTotal || (regular + playoff);
+    return {
+      ...c,
+      _regularPoints: regular,
+      _playoffPoints: playoff,
+      _totalPoints: total
+    };
+  }).sort((a,b) => (Number(b._totalPoints || 0) - Number(a._totalPoints || 0)));
+
 </script>
 
 <style>
@@ -67,7 +112,6 @@
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
 
-  /* responsive tweaks */
   @media (max-width:720px) {
     .player-avatar, .team-avatar { width:44px; height:44px; }
     .player-name { font-size:0.95rem; }
@@ -79,7 +123,7 @@
     <div class="topline">
       <div>
         <h2 style="margin:0 0 6px 0;">Player Records — MVPs</h2>
-        <div class="muted" style="margin-bottom:6px;">Shows Overall MVP and Finals MVP for the selected season.</div>
+        <div class="muted" style="margin-bottom:6px;">Overall & Finals MVPs + team leaders. Select season to update tables.</div>
       </div>
 
       <form id="filters" method="get" class="filters" style="margin:0;">
@@ -94,7 +138,7 @@
       </form>
     </div>
 
-    <!-- MVP table (no season column) -->
+    <!-- MVPs row (same as before) -->
     <table aria-label="Player MVPs">
       <thead>
         <tr>
@@ -115,7 +159,7 @@
                 />
                 <div>
                   <div class="player-name">{selectedRow.overallMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.overallMvp.points ?? selectedRow.overallMvp.total ?? 0)}</div>
+                  <div class="small">Pts: {formatPts(selectedRow.overallMvp.points ?? 0)}</div>
                   {#if selectedRow.overallMvp.roster_meta}
                     <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
                   {/if}
@@ -151,19 +195,19 @@
       </tbody>
     </table>
 
-    <!-- Team single-season leaders (for selected season) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders (regular season) — {selectedRow ? selectedRow.season : 'selected'}</h3>
-    {#if teamLeaders && teamLeaders.length}
-      <table aria-label="Team single-season leaders">
+    <!-- Team single-season leaders: SHOW PLAYOFF-ONLY POINTS -->
+    <h3 style="margin-top:18px; margin-bottom:8px;">Team single-season leaders — playoffs only ({selectedRow ? selectedRow.season : 'selected'})</h3>
+    {#if teamLeadersDisplay && teamLeadersDisplay.length}
+      <table aria-label="Team single-season leaders (playoffs)">
         <thead>
           <tr>
             <th style="width:40%;">Team</th>
-            <th style="width:40%;">Top player (season total)</th>
-            <th style="width:20%;">Pts</th>
+            <th style="width:40%;">Top player (playoffs)</th>
+            <th style="width:20%;">Pts (playoffs)</th>
           </tr>
         </thead>
         <tbody>
-          {#each teamLeaders as t (t.rosterId)}
+          {#each teamLeadersDisplay as t (t.rosterId)}
             <tr>
               <td>
                 <div style="display:flex;gap:.8rem;align-items:center;">
@@ -189,7 +233,7 @@
                     />
                     <div>
                       <div class="player-name">{t.topPlayerName ?? `Player ${t.topPlayerId ?? ''}`}</div>
-                      <div class="small">Top season</div>
+                      <div class="small">{t._playoffFallback ? 'Playoff data unavailable — showing fallback' : 'Playoff top'}</div>
                     </div>
                   </div>
                 {:else}
@@ -197,27 +241,29 @@
                 {/if}
               </td>
 
-              <td style="font-weight:800;">{formatPts(t.points)}</td>
+              <td style="font-weight:800;">{t._playoffPoints != null ? formatPts(t._playoffPoints) : '—'}</td>
             </tr>
           {/each}
         </tbody>
       </table>
     {:else}
       <div class="muted" style="margin-bottom:12px;">
-        Team single-season leader data is not available for this season.
+        Playoff-only team leader data is not available for this season.
       </div>
     {/if}
 
-    <!-- Cross-season best single-season per roster -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">Cross-season best single-season per roster</h3>
+    <!-- Cross-season best single-season per roster (show regular, playoff, total) -->
+    <h3 style="margin-top:18px; margin-bottom:8px;">Cross-season best single-season per roster (regular + playoffs)</h3>
     {#if crossSeasonLeaders && crossSeasonLeaders.length}
       <table aria-label="Cross-season bests">
         <thead>
           <tr>
             <th style="width:30%;">Team</th>
-            <th style="width:40%;">Top player (best season)</th>
-            <th style="width:15%;">Pts</th>
-            <th style="width:15%;">Season</th>
+            <th style="width:35%;">Top player (best season)</th>
+            <th style="width:12%;">Regular</th>
+            <th style="width:12%;">Playoffs</th>
+            <th style="width:11%;">Total</th>
+            <th style="width:10%;">Season</th>
           </tr>
         </thead>
         <tbody>
@@ -247,7 +293,7 @@
                     />
                     <div>
                       <div class="player-name">{c.topPlayerName ?? `Player ${c.topPlayerId ?? ''}`}</div>
-                      <div class="small">Best season for team</div>
+                      <div class="small">Best season for this roster</div>
                     </div>
                   </div>
                 {:else}
@@ -255,7 +301,9 @@
                 {/if}
               </td>
 
-              <td style="font-weight:800;">{formatPts(c.points)}</td>
+              <td style="font-weight:700;">{formatPts(c._regularPoints)}</td>
+              <td style="font-weight:700;">{formatPts(c._playoffPoints)}</td>
+              <td style="font-weight:900;">{formatPts(c._totalPoints)}</td>
               <td class="small">{c.season ?? '—'}</td>
             </tr>
           {/each}
