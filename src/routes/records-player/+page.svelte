@@ -33,6 +33,7 @@
   function formatPts(v) {
     const n = Number(v);
     if (!isFinite(n)) return '—';
+    // show two decimals for consistency with other pages
     return (Math.round(n * 100) / 100).toFixed(2);
   }
 
@@ -107,7 +108,7 @@
     if (!teamName) teamName = rosterId ? `Roster ${rosterId}` : 'Roster';
     if (!ownerName) ownerName = rosterId ? `Roster ${rosterId}` : 'Roster';
 
-    return { teamName, ownerName, teamAvatar };
+    return { teamName, ownerName, teamAvatar, rosterId };
   }
 
   // reactive helpers for template usage
@@ -262,3 +263,52 @@
           {#each allTimeFullSeasonBestPerRoster as row (row.rosterId)}
             <tr>
               <td>
+                <div style="display:flex; gap:.6rem; align-items:center;">
+                  <img class="player-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
+                  <div>
+                    <div style="font-weight:800;">{getTeamName(row)}</div>
+                    <div class="small">{getOwnerName(row)}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="player-cell">
+                  <img class="player-avatar" src={row.playerAvatar || playerHeadshot(row.playerId) || avatarOrPlaceholder(null, row.playerName)} alt={row.playerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, row.playerName))}/>
+                  <div>
+                    <div class="player-name">{row.playerName ?? `Player ${row.playerId}`}</div>
+                    <div class="small">Season {row.season}</div>
+                  </div>
+                </div>
+              </td>
+              <td style="font-weight:800;">{formatPts(row.points)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {:else}
+      <div class="muted">No full-season bests available.</div>
+    {/if}
+
+    <!-- JSON links & debug -->
+    {#if jsonLinks && jsonLinks.length}
+      <div style="margin-top:12px;">
+        <div class="small" style="margin-bottom:6px;">Loaded JSON files:</div>
+        <ul class="muted">
+          {#each jsonLinks as jl}
+            <li><a href={jl.url} target="_blank" rel="noreferrer">{jl.title}</a></li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
+
+    {#if messages && messages.length}
+      <div class="muted" style="margin-top:12px;">Messages / Debug:</div>
+      <div class="debug" aria-live="polite">
+        {#each messages as m}
+          {m}
+          {'\n'}
+        {/each}
+      </div>
+    {/if}
+  </div>
+</div>
