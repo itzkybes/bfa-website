@@ -23,7 +23,7 @@
   $: overallMvp = selectedRow?.overallMvp ?? null;
   $: finalsMvp = selectedRow?.finalsMvp ?? null;
 
-  // helper: build player headshot URL
+  // helper: build player headshot URL (Sleeper CDN)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
@@ -52,28 +52,66 @@
     try { e.currentTarget.src = fallback; } catch (_) {}
   }
 
-  // Resolve team/owner display info for a row (use rosterNameMap or row fields)
-  function getTeamOwnerInfo(row) {
-    const rid = String(row?.rosterId ?? row?.roster_id ?? row?.roster ?? '');
-    const meta = rosterNameMap && rosterNameMap[rid] ? rosterNameMap[rid] : (row?.roster_meta ?? {});
-    const teamName = row?.teamName ?? row?.team_name ?? meta?.team_name ?? meta?.teamName ?? meta?.name ?? `Roster ${rid}`;
-    const ownerName = row?.owner_name ?? meta?.owner_name ?? meta?.owner?.display_name ?? meta?.owner?.username ?? null;
-    const teamAvatar = row?.teamAvatar ?? row?.team_avatar ?? meta?.team_avatar ?? meta?.owner_avatar ?? meta?.avatar ?? null;
-    return { teamName, ownerName, teamAvatar };
+  // Resolve team/owner display info using rosterNameMap or roster_meta or row-level fields
+  function resolveTeamInfoFromRosterId(rid) {
+    const id = String(rid ?? '');
+    const meta = rosterNameMap && rosterNameMap[id] ? rosterNameMap[id] : {};
+    const teamName = meta.team_name ?? meta.teamName ?? meta.name ?? `Roster ${id}`;
+    const ownerName = meta.owner_name ?? meta.owner ?? meta.owner?.display_name ?? meta.owner?.username ?? null;
+    const avatar = meta.team_avatar ?? meta.owner_avatar ?? meta.avatar ?? null;
+    return { teamName, ownerName, avatar };
   }
 
-  // precompute mapped arrays to avoid in-template function calls / #const blocks
+  // For an MVP object try to get team name/avatar/owner:
+  function resolveTeamInfoFromMvp(mvp) {
+    if (!mvp) return { teamName: null, ownerName: null, avatar: null, playerAvatar: null };
+    // prefer roster_meta if present
+    const rm = mvp.roster_meta ?? null;
+    if (rm) {
+      const teamName = rm.team_name ?? rm.teamName ?? rm.owner_name ?? null;
+      const ownerName = rm.owner_name ?? rm.owner?.display_name ?? rm.owner?.username ?? null;
+      const avatar = rm.team_avatar ?? rm.owner_avatar ?? rm.avatar ?? null;
+      const playerAvatar = mvp.playerAvatar ?? null;
+      return { teamName, ownerName, avatar, playerAvatar };
+    }
+
+    // try topRosterId or topRosterId-like fields
+    const rid = mvp.topRosterId ?? mvp.top_roster_id ?? mvp.rosterId ?? mvp.roster_id ?? mvp.roster ?? null;
+    if (rid) {
+      const resolved = resolveTeamInfoFromRosterId(rid);
+      return { teamName: resolved.teamName, ownerName: resolved.ownerName, avatar: resolved.avatar, playerAvatar: mvp.playerAvatar ?? null };
+    }
+
+    // fallback to any owner/team fields directly on mvp
+    const teamName = mvp.team_name ?? mvp.teamName ?? mvp.top_roster_name ?? null;
+    const ownerName = mvp.owner_name ?? null;
+    const avatar = mvp.team_avatar ?? mvp.roster_avatar ?? null;
+    return { teamName, ownerName, avatar, playerAvatar: mvp.playerAvatar ?? null };
+  }
+
+  // precompute overall/finals team info to use in template cleanly
+  $: overallInfo = resolveTeamInfoFromMvp(overallMvp);
+  $: finalsInfo = resolveTeamInfoFromMvp(finalsMvp);
+
+  // precompute team/owner info for historical tables (map into _ti)
   $: playoffRows = Array.isArray(allTimePlayoffBestPerRoster)
-    ? allTimePlayoffBestPerRoster.map(r => ({ ...r, _ti: getTeamOwnerInfo(r) }))
-      .sort((a,b) => (Number(b.playoffPoints ?? b.points ?? 0) - Number(a.playoffPoints ?? a.points ?? 0)))
+    ? allTimePlayoffBestPerRoster.map(r => {
+        const ti = resolveTeamInfoFromMvp(r);
+        const manual = resolveTeamInfoFromRosterId(r.rosterId || r.roster_id);
+        // prefer roster_meta for teamName/owner otherwise fallback to rosterNameMap
+        return { ...r, _ti: { teamName: ti.teamName ?? manual.teamName, ownerName: ti.ownerName ?? manual.ownerName, teamAvatar: ti.avatar ?? manual.avatar } };
+      }).sort((a,b) => (Number(b.playoffPoints ?? b.points ?? 0) - Number(a.playoffPoints ?? a.points ?? 0)))
     : [];
 
   $: fullSeasonRows = Array.isArray(allTimeFullSeasonBestPerRoster)
-    ? allTimeFullSeasonBestPerRoster.map(r => ({ ...r, _ti: getTeamOwnerInfo(r) }))
-      .sort((a,b) => (Number(b.totalPoints ?? b.points ?? 0) - Number(a.totalPoints ?? a.points ?? 0)))
+    ? allTimeFullSeasonBestPerRoster.map(r => {
+        const ti = resolveTeamInfoFromMvp(r);
+        const manual = resolveTeamInfoFromRosterId(r.rosterId || r.roster_id);
+        return { ...r, _ti: { teamName: ti.teamName ?? manual.teamName, ownerName: ti.ownerName ?? manual.ownerName, teamAvatar: ti.avatar ?? manual.avatar } };
+      }).sort((a,b) => (Number(b.totalPoints ?? b.points ?? 0) - Number(a.totalPoints ?? a.points ?? 0)))
     : [];
 
-  // ensure arrays are unique by rosterId (just defensive)
+  // ensure arrays are unique by rosterId (defensive)
   function uniqByRoster(arr) {
     const seen = new Set();
     const out = [];
@@ -88,9 +126,6 @@
 
   $: playoffRows = uniqByRoster(playoffRows);
   $: fullSeasonRows = uniqByRoster(fullSeasonRows);
-
-  // expose some debug-ready condensed messages if needed
-  $: debugMessages = messages;
 </script>
 
 <style>
@@ -156,16 +191,20 @@
           <td>
             {#if overallMvp}
               <div class="player-cell">
+                <!-- player headshot with fallback -->
                 <img
                   class="player-avatar"
-                  src={playerHeadshot(overallMvp.playerId) || overallMvp.playerAvatar || overallMvp.roster_meta?.team_avatar || avatarOrPlaceholder(null, overallMvp.playerName)}
+                  src={playerHeadshot(overallMvp.playerId) || overallMvp.playerAvatar || avatarOrPlaceholder(overallInfo.playerAvatar, overallMvp.playerName)}
                   alt={overallMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(overallMvp.roster_meta?.team_avatar ?? overallMvp.roster_meta?.owner_avatar, overallMvp.playerName))}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(overallInfo.avatar ?? overallInfo.playerAvatar, overallMvp.playerName))}
                 />
                 <div>
                   <div class="player-name">{overallMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(overallMvp.points ?? overallMvp.totalPoints ?? overallMvp.total ?? 0)}</div>
-                  <div class="small">{overallMvp.roster_meta?.team_name ?? overallMvp.roster_meta?.owner_name ?? ''}</div>
+                  <div class="small" style="margin-top:6px; display:flex; align-items:center; gap:.6rem;">
+                    <img src={overallInfo.avatar ?? ''} alt="team avatar" style="width:28px;height:28px;border-radius:6px;object-fit:cover;" on:error={(e)=>onImgError(e, avatarOrPlaceholder(overallInfo.avatar, overallInfo.teamName))} />
+                    <span>{overallInfo.teamName ?? overallInfo.ownerName ?? ''}{overallInfo.ownerName ? ` • ${overallInfo.ownerName}` : ''}</span>
+                  </div>
                 </div>
               </div>
             {:else}
@@ -178,14 +217,17 @@
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={playerHeadshot(finalsMvp.playerId) || finalsMvp.playerAvatar || finalsMvp.roster_meta?.team_avatar || avatarOrPlaceholder(null, finalsMvp.playerName)}
+                  src={playerHeadshot(finalsMvp.playerId) || finalsMvp.playerAvatar || avatarOrPlaceholder(finalsInfo.playerAvatar, finalsMvp.playerName)}
                   alt={finalsMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar ?? finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName))}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(finalsInfo.avatar ?? finalsInfo.playerAvatar, finalsMvp.playerName))}
                 />
                 <div>
                   <div class="player-name">{finalsMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(finalsMvp.points ?? finalsMvp.playoffPoints ?? 0)}</div>
-                  <div class="small">{finalsMvp.roster_meta?.team_name ?? finalsMvp.roster_meta?.owner_name ?? ''}</div>
+                  <div class="small" style="margin-top:6px; display:flex; align-items:center; gap:.6rem;">
+                    <img src={finalsInfo.avatar ?? ''} alt="team avatar" style="width:28px;height:28px;border-radius:6px;object-fit:cover;" on:error={(e)=>onImgError(e, avatarOrPlaceholder(finalsInfo.avatar, finalsInfo.teamName))} />
+                    <span>{finalsInfo.teamName ?? finalsInfo.ownerName ?? ''}{finalsInfo.ownerName ? ` • ${finalsInfo.ownerName}` : ''}</span>
+                  </div>
                 </div>
               </div>
             {:else}
@@ -290,10 +332,10 @@
       </div>
     {/if}
 
-    {#if debugMessages && debugMessages.length}
+    {#if messages && messages.length}
       <div class="muted" style="margin-top:12px;">Messages / Debug:</div>
       <div class="debug" aria-live="polite">
-        {#each debugMessages as m}
+        {#each messages as m}
           {m}
           {'\n'}
         {/each}
