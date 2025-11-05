@@ -79,32 +79,50 @@
   function getTeamName(row) { return getRosterInfo(row).teamName; }
   function getOwnerName(row) { return getRosterInfo(row).ownerName; }
   function getTeamAvatar(row) { return getRosterInfo(row).teamAvatar; }
+
+  // resolve MVP team/owner info (prefer roster_meta attached to MVP object)
+  function resolveMvpTeamOwner(mvp) {
+    if (!mvp) return { teamName: null, ownerName: null, teamAvatar: null };
+    const teamName = mvp.roster_meta?.team_name ?? mvp.teamName ?? rosterNameMap[String(mvp.topRosterId || mvp.topRosterId || mvp.rosterId)]?.teamName ?? null;
+    const ownerName = mvp.roster_meta?.owner_name ?? mvp.owner_name ?? rosterNameMap[String(mvp.topRosterId || mvp.rosterId)]?.ownerName ?? null;
+    const teamAvatar = mvp.roster_meta?.team_avatar ?? mvp.teamAvatar ?? rosterNameMap[String(mvp.topRosterId || mvp.rosterId)]?.teamAvatar ?? null;
+    return { teamName, ownerName, teamAvatar };
+  }
 </script>
 
 <style>
+  /* Styling to match records-team page: compact, clean, card + table */
   .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; color: var(--nav-text,#e6eef8); }
-  .card { background: rgba(6,8,12,0.6); border-radius: 12px; padding: 14px; border: 1px solid rgba(255,255,255,0.03); }
+  .card { background: linear-gradient(180deg, rgba(8,10,14,0.7), rgba(5,7,10,0.6)); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.04); box-shadow: 0 8px 30px rgba(2,6,23,0.55); }
   .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  h2 { margin:0; }
   .muted { color:#9ca3af; }
   .filters { display:flex; gap:.6rem; align-items:center; }
-  .select { padding:.6rem .8rem; border-radius:8px; background:#07101a; color:#e6eef8; border:1px solid rgba(99,102,241,0.25); font-weight:600; min-width:160px; }
-  table { width:100%; border-collapse:collapse; margin-top:12px; }
-  thead th { text-align:left; padding:10px; color:#9aa3ad; font-size:.82rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.03); }
-  td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
+  .select { padding:.6rem .8rem; border-radius:8px; background:#07101a; color:#e6eef8; border:1px solid rgba(99,102,241,0.18); font-weight:600; min-width:160px; }
+
+  table { width:100%; border-collapse:collapse; margin-top:12px; background:transparent; }
+  thead th { text-align:left; padding:12px 10px; color:#9aa3ad; font-size:.78rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.03); }
+  td { padding:10px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
+  tbody tr:hover { background: rgba(255,255,255,0.01); }
+
+  .team-cell { display:flex; gap:.75rem; align-items:center; }
+  .team-avatar { width:48px; height:48px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
   .player-cell { display:flex; gap:.8rem; align-items:center; }
   .player-avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; background:#081018; flex-shrink:0; border:1px solid rgba(255,255,255,0.03); }
   .player-name { font-weight:800; }
-  .small { color:#9aa3ad; font-size:.92rem; }
+  .small { color:#9aa3ad; font-size:.9rem; }
+  .pts { font-weight:800; text-align:right; }
+
+  .section-title { margin-top:18px; margin-bottom:8px; font-size:1rem; }
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
-  .empty { color:#9aa3ad; padding:14px 0; }
 </style>
 
 <div class="page">
   <div class="card">
     <div class="topline">
       <div>
-        <h2 style="margin:0 0 6px 0;">Player Records — MVPs</h2>
-        <div class="muted" style="margin-bottom:6px;">Select a season to view Overall & Finals MVP for that season (dropdown controls only the MVPs)</div>
+        <h2>Player Records — MVPs</h2>
+        <div class="muted">Select a season to view Overall & Finals MVP for that season (dropdown controls only the MVPs)</div>
       </div>
 
       <form id="filters" method="get" class="filters" style="margin:0;">
@@ -119,65 +137,71 @@
       </form>
     </div>
 
-    <!-- MVPs table -->
+    <!-- MVPs table styled like records-team -->
     <table aria-label="Player MVPs">
       <thead>
         <tr>
-          <th style="width:50%;">Overall MVP</th>
-          <th style="width:50%;">Finals MVP</th>
+          <th style="width:48%;">Overall MVP</th>
+          <th style="width:48%;">Finals MVP</th>
+          <th style="width:4%;">Pts</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>
             {#if selectedRow?.overallMvp}
+              {#const overall = selectedRow.overallMvp}
+              {#const ovInfo = resolveMvpTeamOwner(overall)}
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={selectedRow.overallMvp.playerAvatar || playerHeadshot(selectedRow.overallMvp.playerId) || avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar, selectedRow.overallMvp.playerName)}
-                  alt={selectedRow.overallMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName))}
+                  src={overall.playerAvatar || playerHeadshot(overall.playerId) || avatarOrPlaceholder(ovInfo.teamAvatar, overall.playerName)}
+                  alt={overall.playerName}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(ovInfo.teamAvatar ?? overall.roster_meta?.owner_avatar, overall.playerName))}
                 />
                 <div>
-                  <div class="player-name">{selectedRow.overallMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.overallMvp.points)}</div>
-                  {#if selectedRow.overallMvp.roster_meta}
-                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
-                  {/if}
+                  <div class="player-name">{overall.playerName}</div>
+                  <div class="small">{ovInfo.teamName ? `${ovInfo.teamName} • ${ovInfo.ownerName ?? ''}` : (overall.roster_meta?.owner_name ?? '')}</div>
                 </div>
               </div>
             {:else}
-              <div class="empty">No overall MVP determined for this season.</div>
+              <div class="small">No overall MVP determined for this season.</div>
             {/if}
           </td>
 
           <td>
             {#if selectedRow?.finalsMvp}
+              {#const finals = selectedRow.finalsMvp}
+              {#const fInfo = resolveMvpTeamOwner(finals)}
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={selectedRow.finalsMvp.playerAvatar || playerHeadshot(selectedRow.finalsMvp.playerId) || avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar, selectedRow.finalsMvp.playerName)}
-                  alt={selectedRow.finalsMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName))}
+                  src={finals.playerAvatar || playerHeadshot(finals.playerId) || avatarOrPlaceholder(fInfo.teamAvatar, finals.playerName)}
+                  alt={finals.playerName}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(fInfo.teamAvatar ?? finals.roster_meta?.owner_avatar, finals.playerName))}
                 />
                 <div>
-                  <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points)}</div>
-                  {#if selectedRow.finalsMvp.roster_meta}
-                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
-                  {/if}
+                  <div class="player-name">{finals.playerName}</div>
+                  <div class="small">{fInfo.teamName ? `${fInfo.teamName} • ${fInfo.ownerName ?? ''}` : (finals.roster_meta?.owner_name ?? '')}</div>
                 </div>
               </div>
             {:else}
-              <div class="empty">No finals MVP determined for this season.</div>
+              <div class="small">No finals MVP determined for this season.</div>
             {/if}
+          </td>
+
+          <td class="pts">
+            <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+              <div>{selectedRow?.overallMvp ? formatPts(selectedRow.overallMvp.points) : '—'}</div>
+              <div>{selectedRow?.finalsMvp ? formatPts(selectedRow.finalsMvp.points) : '—'}</div>
+            </div>
           </td>
         </tr>
       </tbody>
     </table>
 
     <!-- All-time Playoff Best per roster (single best-season playoff points for a player on each roster) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season playoff best (best player for each team — 2022→present)</h3>
+    <div class="section-title">All-time single-season playoff best (best player for each team — 2022→present)</div>
     {#if allTimePlayoffBestPerRoster && allTimePlayoffBestPerRoster.length}
       <table aria-label="All-time playoff best per roster">
         <thead>
@@ -191,8 +215,8 @@
           {#each allTimePlayoffBestPerRoster as row (row.rosterId)}
             <tr>
               <td>
-                <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
+                <div class="team-cell">
+                  <img class="team-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} />
                   <div>
                     <div style="font-weight:800;">{getTeamName(row)}</div>
                     <div class="small">{getOwnerName(row)}</div>
@@ -208,7 +232,7 @@
                   </div>
                 </div>
               </td>
-              <td style="font-weight:800;">{formatPts(row.points)}</td>
+              <td class="pts">{formatPts(row.points)}</td>
             </tr>
           {/each}
         </tbody>
@@ -218,7 +242,7 @@
     {/if}
 
     <!-- Cross-season full-season best per roster (1..playoffEnd totals) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
+    <div class="section-title">All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</div>
     {#if allTimeFullSeasonBestPerRoster && allTimeFullSeasonBestPerRoster.length}
       <table aria-label="All-time full-season best per roster">
         <thead>
@@ -232,8 +256,8 @@
           {#each allTimeFullSeasonBestPerRoster as row (row.rosterId)}
             <tr>
               <td>
-                <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
+                <div class="team-cell">
+                  <img class="team-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} />
                   <div>
                     <div style="font-weight:800;">{getTeamName(row)}</div>
                     <div class="small">{getOwnerName(row)}</div>
@@ -249,7 +273,7 @@
                   </div>
                 </div>
               </td>
-              <td style="font-weight:800;">{formatPts(row.points)}</td>
+              <td class="pts">{formatPts(row.points)}</td>
             </tr>
           {/each}
         </tbody>
