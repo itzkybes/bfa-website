@@ -80,11 +80,39 @@
   function getOwnerName(row) { return getRosterInfo(row).ownerName; }
   function getTeamAvatar(row) { return getRosterInfo(row).teamAvatar; }
 
-  // Precompute display-friendly team/owner for MVPs (prefer roster_meta, fall back to rosterNameMap)
-  $: overallTeamDisplayName = selectedRow?.overallMvp?.roster_meta?.team_name ?? getTeamName(selectedRow?.overallMvp ?? {});
-  $: overallOwnerDisplayName = selectedRow?.overallMvp?.roster_meta?.owner_name ?? getOwnerName(selectedRow?.overallMvp ?? {});
-  $: finalsTeamDisplayName = selectedRow?.finalsMvp?.roster_meta?.team_name ?? getTeamName(selectedRow?.finalsMvp ?? {});
-  $: finalsOwnerDisplayName = selectedRow?.finalsMvp?.roster_meta?.owner_name ?? getOwnerName(selectedRow?.finalsMvp ?? {});
+  // Resolve MVP roster info robustly (prefer roster_meta, fall back to lookup by roster id)
+  function resolveMvpRoster(mvp) {
+    if (!mvp) return { teamName: null, ownerName: null, teamAvatar: null };
+
+    // prefer explicit roster_meta if provided
+    const rm = mvp.roster_meta ?? {};
+    let teamName = rm.team_name ?? rm.teamName ?? mvp.teamName ?? null;
+    let ownerName = rm.owner_name ?? rm.ownerName ?? mvp.owner_name ?? null;
+    let teamAvatar = rm.team_avatar ?? rm.teamAvatar ?? mvp.teamAvatar ?? null;
+
+    // find roster id candidates commonly used by server payloads
+    const candidateIds = [
+      mvp.topRosterId, mvp.top_roster_id, mvp.top_roster, mvp.topRoster, mvp.rosterId, mvp.roster_id, mvp.roster
+    ].filter(Boolean);
+    const rosterId = candidateIds.length ? String(candidateIds[0]) : null;
+
+    // if either name missing, try rosterNameMap lookup
+    if ((!teamName || !ownerName || !teamAvatar) && rosterId) {
+      const lookup = rosterNameMap[String(rosterId)] ?? {};
+      if (!teamName) teamName = lookup.teamName ?? lookup.ownerName ?? null;
+      if (!ownerName) ownerName = lookup.ownerName ?? null;
+      if (!teamAvatar) teamAvatar = lookup.teamAvatar ?? null;
+    }
+
+    if (!teamName) teamName = rosterId ? `Roster ${rosterId}` : 'Roster';
+    if (!ownerName) ownerName = rosterId ? `Roster ${rosterId}` : 'Roster';
+
+    return { teamName, ownerName, teamAvatar };
+  }
+
+  // reactive helpers for template usage
+  $: overallRosterInfo = resolveMvpRoster(selectedRow?.overallMvp);
+  $: finalsRosterInfo  = resolveMvpRoster(selectedRow?.finalsMvp);
 </script>
 
 <style>
@@ -140,18 +168,14 @@
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={selectedRow.overallMvp.playerAvatar || playerHeadshot(selectedRow.overallMvp.playerId) || avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar, selectedRow.overallMvp.playerName)}
+                  src={selectedRow.overallMvp.playerAvatar || playerHeadshot(selectedRow.overallMvp.playerId) || avatarOrPlaceholder(overallRosterInfo.teamAvatar, selectedRow.overallMvp.playerName)}
                   alt={selectedRow.overallMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName))}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(overallRosterInfo.teamAvatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName))}
                 />
                 <div>
                   <div class="player-name">{selectedRow.overallMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(selectedRow.overallMvp.points)}</div>
-
-                  <!-- Team name + Owner name (preferred: roster_meta, fall back to rosterNameMap via helpers) -->
-                  <div class="small" style="margin-top:6px;">
-                    {overallTeamDisplayName}{overallOwnerDisplayName ? ` • ${overallOwnerDisplayName}` : ''}
-                  </div>
+                  <div class="small">{overallRosterInfo.teamName} • {overallRosterInfo.ownerName}</div>
                 </div>
               </div>
             {:else}
@@ -164,18 +188,14 @@
               <div class="player-cell">
                 <img
                   class="player-avatar"
-                  src={selectedRow.finalsMvp.playerAvatar || playerHeadshot(selectedRow.finalsMvp.playerId) || avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar, selectedRow.finalsMvp.playerName)}
+                  src={selectedRow.finalsMvp.playerAvatar || playerHeadshot(selectedRow.finalsMvp.playerId) || avatarOrPlaceholder(finalsRosterInfo.teamAvatar, selectedRow.finalsMvp.playerName)}
                   alt={selectedRow.finalsMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName))}
+                  on:error={(e) => onImgError(e, avatarOrPlaceholder(finalsRosterInfo.teamAvatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName))}
                 />
                 <div>
                   <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points)}</div>
-
-                  <!-- Team name + Owner name (preferred: roster_meta, fall back to rosterNameMap via helpers) -->
-                  <div class="small" style="margin-top:6px;">
-                    {finalsTeamDisplayName}{finalsOwnerDisplayName ? ` • ${finalsOwnerDisplayName}` : ''}
-                  </div>
+                  <div class="small">{finalsRosterInfo.teamName} • {finalsRosterInfo.ownerName}</div>
                 </div>
               </div>
             {:else}
@@ -242,52 +262,3 @@
           {#each allTimeFullSeasonBestPerRoster as row (row.rosterId)}
             <tr>
               <td>
-                <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
-                  <div>
-                    <div style="font-weight:800;">{getTeamName(row)}</div>
-                    <div class="small">{getOwnerName(row)}</div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <div class="player-cell">
-                  <img class="player-avatar" src={row.playerAvatar || playerHeadshot(row.playerId) || avatarOrPlaceholder(null, row.playerName)} alt={row.playerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, row.playerName))}/>
-                  <div>
-                    <div class="player-name">{row.playerName ?? `Player ${row.playerId}`}</div>
-                    <div class="small">Season {row.season}</div>
-                  </div>
-                </div>
-              </td>
-              <td style="font-weight:800;">{formatPts(row.points)}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {:else}
-      <div class="muted">No full-season bests available.</div>
-    {/if}
-
-    <!-- JSON links & debug -->
-    {#if jsonLinks && jsonLinks.length}
-      <div style="margin-top:12px;">
-        <div class="small" style="margin-bottom:6px;">Loaded JSON files:</div>
-        <ul class="muted">
-          {#each jsonLinks as jl}
-            <li><a href={jl.url} target="_blank" rel="noreferrer">{jl.title}</a></li>
-          {/each}
-        </ul>
-      </div>
-    {/if}
-
-    {#if messages && messages.length}
-      <div class="muted" style="margin-top:12px;">Messages / Debug:</div>
-      <div class="debug" aria-live="polite">
-        {#each messages as m}
-          {m}
-          {'\n'}
-        {/each}
-      </div>
-    {/if}
-  </div>
-</div>
