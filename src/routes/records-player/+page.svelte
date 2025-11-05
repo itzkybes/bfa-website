@@ -79,6 +79,12 @@
   function getTeamName(row) { return getRosterInfo(row).teamName; }
   function getOwnerName(row) { return getRosterInfo(row).ownerName; }
   function getTeamAvatar(row) { return getRosterInfo(row).teamAvatar; }
+
+  // Precompute display-friendly team/owner for MVPs (prefer roster_meta, fall back to rosterNameMap)
+  $: overallTeamDisplayName = selectedRow?.overallMvp?.roster_meta?.team_name ?? getTeamName(selectedRow?.overallMvp ?? {});
+  $: overallOwnerDisplayName = selectedRow?.overallMvp?.roster_meta?.owner_name ?? getOwnerName(selectedRow?.overallMvp ?? {});
+  $: finalsTeamDisplayName = selectedRow?.finalsMvp?.roster_meta?.team_name ?? getTeamName(selectedRow?.finalsMvp ?? {});
+  $: finalsOwnerDisplayName = selectedRow?.finalsMvp?.roster_meta?.owner_name ?? getOwnerName(selectedRow?.finalsMvp ?? {});
 </script>
 
 <style>
@@ -141,9 +147,11 @@
                 <div>
                   <div class="player-name">{selectedRow.overallMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(selectedRow.overallMvp.points)}</div>
-                  {#if selectedRow.overallMvp.roster_meta}
-                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
-                  {/if}
+
+                  <!-- Team name + Owner name (preferred: roster_meta, fall back to rosterNameMap via helpers) -->
+                  <div class="small" style="margin-top:6px;">
+                    {overallTeamDisplayName}{overallOwnerDisplayName ? ` • ${overallOwnerDisplayName}` : ''}
+                  </div>
                 </div>
               </div>
             {:else}
@@ -163,9 +171,11 @@
                 <div>
                   <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
                   <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points)}</div>
-                  {#if selectedRow.finalsMvp.roster_meta}
-                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
-                  {/if}
+
+                  <!-- Team name + Owner name (preferred: roster_meta, fall back to rosterNameMap via helpers) -->
+                  <div class="small" style="margin-top:6px;">
+                    {finalsTeamDisplayName}{finalsOwnerDisplayName ? ` • ${finalsOwnerDisplayName}` : ''}
+                  </div>
                 </div>
               </div>
             {:else}
