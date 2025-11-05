@@ -53,13 +53,11 @@
       if (!sr || !Array.isArray(sr.teamLeaders)) continue;
       for (const t of sr.teamLeaders) {
         const rid = String(t.rosterId);
-        // prefer explicit team name if present on _roster_meta
         const metaName = (t._roster_meta && (t._roster_meta.team_name || t._roster_meta.owner_name)) ? (t._roster_meta.team_name || t._roster_meta.owner_name) : null;
         const ownerName = t.owner_name ?? (t._roster_meta && (t._roster_meta.owner_name || t._roster_meta.owner?.display_name)) ?? null;
         if (!rosterNameMap[rid]) {
           rosterNameMap[rid] = { teamName: metaName || ownerName || null, ownerName: ownerName || null, teamAvatar: t.teamAvatar ?? (t._roster_meta?.team_avatar ?? null) };
         } else {
-          // fill missing fields if we find them later
           if (!rosterNameMap[rid].teamName && metaName) rosterNameMap[rid].teamName = metaName;
           if (!rosterNameMap[rid].ownerName && ownerName) rosterNameMap[rid].ownerName = ownerName;
           if (!rosterNameMap[rid].teamAvatar && (t.teamAvatar || t._roster_meta?.team_avatar)) rosterNameMap[rid].teamAvatar = t.teamAvatar ?? t._roster_meta?.team_avatar;
@@ -67,6 +65,20 @@
       }
     }
   })();
+
+  // helpers used by template to resolve team/owner/avatar
+  function getRosterInfo(row) {
+    const rid = String(row?.rosterId ?? '');
+    const rmap = rosterNameMap[rid] ?? {};
+    const teamName = row?.teamName ?? rmap.teamName ?? row?.owner_name ?? `Roster ${rid}`;
+    const ownerName = rmap.ownerName ?? row?.owner_name ?? `Roster ${rid}`;
+    const teamAvatar = row?.teamAvatar ?? rmap.teamAvatar ?? (row?._roster_meta?.team_avatar ?? null);
+    return { teamName, ownerName, teamAvatar };
+  }
+
+  function getTeamName(row) { return getRosterInfo(row).teamName; }
+  function getOwnerName(row) { return getRosterInfo(row).ownerName; }
+  function getTeamAvatar(row) { return getRosterInfo(row).teamAvatar; }
 </script>
 
 <style>
@@ -177,17 +189,13 @@
         </thead>
         <tbody>
           {#each allTimePlayoffBestPerRoster as row (row.rosterId)}
-            { /* resolve teamName + ownerName using rosterNameMap -> fallbacks */ }
-            {#let rInfo = rosterNameMap[String(row.rosterId)] ?? {}}
-            {#let teamName = row.teamName ?? rInfo.teamName ?? row.owner_name ?? `Roster ${row.rosterId}` }
-            {#let ownerName = rInfo.ownerName ?? row.owner_name ?? `Roster ${row.rosterId}` }
             <tr>
               <td>
                 <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={row.teamAvatar || rInfo.teamAvatar || avatarOrPlaceholder(null, teamName)} alt={teamName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, teamName))} style="width:48px;height:48px"/>
+                  <img class="player-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
                   <div>
-                    <div style="font-weight:800;">{teamName}</div>
-                    <div class="small">{ownerName}</div>
+                    <div style="font-weight:800;">{getTeamName(row)}</div>
+                    <div class="small">{getOwnerName(row)}</div>
                   </div>
                 </div>
               </td>
@@ -222,16 +230,13 @@
         </thead>
         <tbody>
           {#each allTimeFullSeasonBestPerRoster as row (row.rosterId)}
-            {#let rInfo = rosterNameMap[String(row.rosterId)] ?? {}}
-            {#let teamName = row.teamName ?? rInfo.teamName ?? row.owner_name ?? `Roster ${row.rosterId}` }
-            {#let ownerName = rInfo.ownerName ?? row.owner_name ?? `Roster ${row.rosterId}` }
             <tr>
               <td>
                 <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={row.teamAvatar || rInfo.teamAvatar || avatarOrPlaceholder(null, teamName)} alt={teamName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, teamName))} style="width:48px;height:48px"/>
+                  <img class="player-avatar" src={getTeamAvatar(row) || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
                   <div>
-                    <div style="font-weight:800;">{teamName}</div>
-                    <div class="small">{ownerName}</div>
+                    <div style="font-weight:800;">{getTeamName(row)}</div>
+                    <div class="small">{getOwnerName(row)}</div>
                   </div>
                 </div>
               </td>
