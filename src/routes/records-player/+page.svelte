@@ -33,6 +33,7 @@
   function formatPts(v) {
     const n = Number(v);
     if (!isFinite(n)) return '—';
+    // show 2 decimals like earlier template
     return (Math.round(n * 100) / 100).toFixed(2);
   }
 
@@ -131,19 +132,21 @@
         <tr>
           <td>
             {#if selectedRow?.overallMvp}
-              <div class="player-cell">
-                <img
-                  class="player-avatar"
-                  src={selectedRow.overallMvp.playerAvatar || playerHeadshot(selectedRow.overallMvp.playerId) || avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar, selectedRow.overallMvp.playerName)}
-                  alt={selectedRow.overallMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(selectedRow.overallMvp.roster_meta?.team_avatar ?? selectedRow.overallMvp.roster_meta?.owner_avatar, selectedRow.overallMvp.playerName))}
-                />
-                <div>
-                  <div class="player-name">{selectedRow.overallMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.overallMvp.points)}</div>
-                  {#if selectedRow.overallMvp.roster_meta}
-                    <div class="small">Top roster: {selectedRow.overallMvp.roster_meta.team_name ?? selectedRow.overallMvp.roster_meta.owner_name}</div>
-                  {/if}
+              {#const om = selectedRow.overallMvp}
+              <div style="display:flex; gap:12px; align-items:center;">
+                <!-- team avatar + team name/owner -->
+                <img class="player-avatar" style="width:56px;height:56px;border-radius:8px" src={om.roster_meta?.team_avatar || getTeamAvatar(om) || avatarOrPlaceholder(null, getTeamName(om))} alt={getTeamName(om)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(om)))} />
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <img class="player-avatar" src={om.playerAvatar || playerHeadshot(om.playerId) || avatarOrPlaceholder(null, om.playerName)} alt={om.playerName} on:error={(e)=>onImgError(e, avatarOrPlaceholder(om.roster_meta?.team_avatar, om.playerName))} />
+                    <div style="min-width:0;">
+                      <div class="player-name">{om.playerName}</div>
+                      <div class="small">Pts: {formatPts(om.points)}</div>
+                    </div>
+                  </div>
+                  <div class="small" style="margin-top:6px;">
+                    Team: {getTeamName(om)} • Owner: {getOwnerName(om)}
+                  </div>
                 </div>
               </div>
             {:else}
@@ -153,19 +156,20 @@
 
           <td>
             {#if selectedRow?.finalsMvp}
-              <div class="player-cell">
-                <img
-                  class="player-avatar"
-                  src={selectedRow.finalsMvp.playerAvatar || playerHeadshot(selectedRow.finalsMvp.playerId) || avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar, selectedRow.finalsMvp.playerName)}
-                  alt={selectedRow.finalsMvp.playerName}
-                  on:error={(e) => onImgError(e, avatarOrPlaceholder(selectedRow.finalsMvp.roster_meta?.team_avatar ?? selectedRow.finalsMvp.roster_meta?.owner_avatar, selectedRow.finalsMvp.playerName))}
-                />
-                <div>
-                  <div class="player-name">{selectedRow.finalsMvp.playerName}</div>
-                  <div class="small">Pts: {formatPts(selectedRow.finalsMvp.points)}</div>
-                  {#if selectedRow.finalsMvp.roster_meta}
-                    <div class="small">Roster: {selectedRow.finalsMvp.roster_meta.team_name ?? selectedRow.finalsMvp.roster_meta.owner_name}</div>
-                  {/if}
+              {#const fm = selectedRow.finalsMvp}
+              <div style="display:flex; gap:12px; align-items:center;">
+                <img class="player-avatar" style="width:56px;height:56px;border-radius:8px" src={fm.roster_meta?.team_avatar || getTeamAvatar(fm) || avatarOrPlaceholder(null, getTeamName(fm))} alt={getTeamName(fm)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(fm)))} />
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <img class="player-avatar" src={fm.playerAvatar || playerHeadshot(fm.playerId) || avatarOrPlaceholder(null, fm.playerName)} alt={fm.playerName} on:error={(e)=>onImgError(e, avatarOrPlaceholder(fm.roster_meta?.team_avatar, fm.playerName))} />
+                    <div style="min-width:0;">
+                      <div class="player-name">{fm.playerName}</div>
+                      <div class="small">Pts: {formatPts(fm.points)}</div>
+                    </div>
+                  </div>
+                  <div class="small" style="margin-top:6px;">
+                    Team: {getTeamName(fm)} • Owner: {getOwnerName(fm)}
+                  </div>
                 </div>
               </div>
             {:else}
@@ -192,10 +196,10 @@
             <tr>
               <td>
                 <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={row.teamAvatar || avatarOrPlaceholder(null, row.teamName)} alt={row.teamName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, row.teamName))} style="width:48px;height:48px"/>
+                  <img class="player-avatar" src={row.teamAvatar || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
                   <div>
-                    <div style="font-weight:800;">{row.teamName}</div>
-                    <div class="small">{row.owner_name}</div>
+                    <div style="font-weight:800;">{row.teamName ?? getTeamName(row)}</div>
+                    <div class="small">{row.owner_name ?? getOwnerName(row)}</div>
                   </div>
                 </div>
               </td>
@@ -233,10 +237,10 @@
             <tr>
               <td>
                 <div style="display:flex; gap:.6rem; align-items:center;">
-                  <img class="player-avatar" src={row.teamAvatar || avatarOrPlaceholder(null, row.teamName)} alt={row.teamName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, row.teamName))} style="width:48px;height:48px"/>
+                  <img class="player-avatar" src={row.teamAvatar || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
                   <div>
-                    <div style="font-weight:800;">{row.teamName}</div>
-                    <div class="small">{row.owner_name}</div>
+                    <div style="font-weight:800;">{row.teamName ?? getTeamName(row)}</div>
+                    <div class="small">{row.owner_name ?? getOwnerName(row)}</div>
                   </div>
                 </div>
               </td>
