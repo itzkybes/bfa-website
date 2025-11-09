@@ -9,7 +9,7 @@
   // top-level server outputs
   const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
   const allTimePlayoffBestPerRoster = Array.isArray(data?.allTimePlayoffBestPerRoster) ? data.allTimePlayoffBestPerRoster : [];
-  const allTimeFullSeasonBestPerRoster = Array.isArray(data?.allTimeFullSeasonBestPerRoster) ? data.allTimeFullSeasonBestPerRoster : [];
+  const allTimeFullSeasonBestPerRoster = Array.isArray(data?.allTimeFullSeasonBestPerRoster) ? data?.allTimeFullSeasonBestPerRoster : [];
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
@@ -83,12 +83,21 @@
 </script>
 
 <style>
-  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; color: var(--nav-text,#e6eef8); }
-  .card { background: rgba(6,8,12,0.6); border-radius: 12px; padding: 14px; border: 1px solid rgba(255,255,255,0.03); }
+  :root {
+    --bg: rgba(6,8,12,0.6);
+    --card-pad: 14px;
+    --muted: #9ca3af;
+    --text: #e6eef8;
+  }
+
+  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; color: var(--text); }
+  .card { background: var(--bg); border-radius: 12px; padding: var(--card-pad); border: 1px solid rgba(255,255,255,0.03); }
   .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
-  .muted { color:#9ca3af; }
+  .muted { color:var(--muted); }
   .filters { display:flex; gap:.6rem; align-items:center; }
-  .select { padding:.6rem .8rem; border-radius:8px; background:#07101a; color:#e6eef8; border:1px solid rgba(99,102,241,0.25); font-weight:600; min-width:160px; }
+  .select { padding:.6rem .8rem; border-radius:8px; background:#07101a; color:var(--text); border:1px solid rgba(99,102,241,0.12); font-weight:600; min-width:180px; }
+  .compact-select { min-width:120px; padding:.5rem .6rem; font-size:.95rem; }
+
   table { width:100%; border-collapse:collapse; margin-top:12px; }
   thead th { text-align:left; padding:10px; color:#9aa3ad; font-size:.82rem; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.03); }
   td { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.03); vertical-align:middle; }
@@ -98,6 +107,44 @@
   .small { color:#9aa3ad; font-size:.92rem; }
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
+
+  /* better spacing for headings on mobile */
+  h3 { margin: 18px 0 8px; }
+
+  /* Responsive: convert wide tables to stacked cards on small screens */
+  @media (max-width: 860px) {
+    .select { min-width:140px; }
+    thead th { font-size: .78rem; }
+    .player-avatar { width:48px; height:48px; }
+  }
+
+  @media (max-width: 700px) {
+    .page { padding: 0 12px; }
+    .card { padding: 12px; }
+    /* Make MVP area a stacked grid */
+    .mvp-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    /* Convert tables -> stacked cards for readability */
+    table, thead, tbody, th, td, tr { display: block; width: 100%; }
+    thead { display: none; }
+    tbody tr { margin-bottom: 12px; background: rgba(255,255,255,0.02); padding: 10px; border-radius: 10px; display:flex; gap:8px; align-items:center; }
+    td { padding: 6px 0; border-bottom: none; display:flex; justify-content:space-between; align-items:center; width:100%; }
+    td > div { flex:1; min-width:0; }
+    td::before { content: attr(data-label) ": "; font-weight:700; color:#9aa3ad; margin-right:8px; flex-shrink:0; white-space:nowrap; }
+    .player-avatar { width:44px; height:44px; }
+    .player-cell { gap:0.6rem; }
+    .select { min-width:120px; }
+    .compact-select { min-width:100px; padding:.45rem .55rem; }
+    .debug { font-size:0.85rem; }
+    /* ensure MVP player images don't overflow */
+    .mvp-player { display:flex; gap:10px; align-items:center; width:100%; }
+    .mvp-team { display:flex; gap:10px; align-items:center; }
+  }
+
+  /* small visual polish for very narrow phones */
+  @media (max-width: 360px) {
+    .player-name { font-size: .95rem; }
+    .small { font-size: .85rem; }
+  }
 </style>
 
 <div class="page">
@@ -110,7 +157,7 @@
 
       <form id="filters" method="get" class="filters" style="margin:0;">
         <label class="muted" for="season-select" style="margin-right:.4rem;">Season</label>
-        <select id="season-select" name="season" class="select" on:change={submitFilters} aria-label="Select season">
+        <select id="season-select" name="season" class="select compact-select" on:change={submitFilters} aria-label="Select season">
           {#each seasons as s}
             <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>
               {s.season ?? s.name ?? s.league_id}
@@ -120,24 +167,18 @@
       </form>
     </div>
 
-    <!-- MVPs table -->
-    <table aria-label="Player MVPs">
-      <thead>
-        <tr>
-          <th style="width:50%;">Overall MVP</th>
-          <th style="width:50%;">Finals MVP</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            {#if selectedRow?.overallMvp}
-              {#const om = selectedRow.overallMvp}
-              <div style="display:flex; gap:12px; align-items:center;">
-                <!-- team avatar + team name/owner -->
-                <img class="player-avatar" style="width:56px;height:56px;border-radius:8px" src={om.roster_meta?.team_avatar || getTeamAvatar(om) || avatarOrPlaceholder(null, getTeamName(om))} alt={getTeamName(om)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(om)))} />
-                <div style="flex:1; min-width:0;">
-                  <div style="display:flex; align-items:center; gap:12px;">
+    <!-- MVPs: responsive layout that stacks on mobile -->
+    <div class="mvp-grid" style="margin-top:12px;">
+      <div>
+        <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Overall MVP</div>
+        <div>
+          {#if selectedRow?.overallMvp}
+            {#const om = selectedRow.overallMvp}
+            <div class="mvp-player">
+              <div class="mvp-team" style="gap:12px; align-items:center;">
+                <img class="player-avatar" src={om.roster_meta?.team_avatar || getTeamAvatar(om) || avatarOrPlaceholder(null, getTeamName(om))} alt={getTeamName(om)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(om)))} />
+                <div style="min-width:0;">
+                  <div style="display:flex; gap:10px; align-items:center;">
                     <img class="player-avatar" src={om.playerAvatar || playerHeadshot(om.playerId) || avatarOrPlaceholder(null, om.playerName)} alt={om.playerName} on:error={(e)=>onImgError(e, avatarOrPlaceholder(om.roster_meta?.team_avatar, om.playerName))} />
                     <div style="min-width:0;">
                       <div class="player-name">{om.playerName}</div>
@@ -149,18 +190,23 @@
                   </div>
                 </div>
               </div>
-            {:else}
-              <div class="empty">No overall MVP determined for this season.</div>
-            {/if}
-          </td>
+            </div>
+          {:else}
+            <div class="empty">No overall MVP determined for this season.</div>
+          {/if}
+        </div>
+      </div>
 
-          <td>
-            {#if selectedRow?.finalsMvp}
-              {#const fm = selectedRow.finalsMvp}
-              <div style="display:flex; gap:12px; align-items:center;">
-                <img class="player-avatar" style="width:56px;height:56px;border-radius:8px" src={fm.roster_meta?.team_avatar || getTeamAvatar(fm) || avatarOrPlaceholder(null, getTeamName(fm))} alt={getTeamName(fm)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(fm)))} />
-                <div style="flex:1; min-width:0;">
-                  <div style="display:flex; align-items:center; gap:12px;">
+      <div>
+        <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Finals MVP</div>
+        <div>
+          {#if selectedRow?.finalsMvp}
+            {#const fm = selectedRow.finalsMvp}
+            <div class="mvp-player">
+              <div class="mvp-team" style="gap:12px; align-items:center;">
+                <img class="player-avatar" src={fm.roster_meta?.team_avatar || getTeamAvatar(fm) || avatarOrPlaceholder(null, getTeamName(fm))} alt={getTeamName(fm)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(fm)))} />
+                <div style="min-width:0;">
+                  <div style="display:flex; gap:10px; align-items:center;">
                     <img class="player-avatar" src={fm.playerAvatar || playerHeadshot(fm.playerId) || avatarOrPlaceholder(null, fm.playerName)} alt={fm.playerName} on:error={(e)=>onImgError(e, avatarOrPlaceholder(fm.roster_meta?.team_avatar, fm.playerName))} />
                     <div style="min-width:0;">
                       <div class="player-name">{fm.playerName}</div>
@@ -172,16 +218,16 @@
                   </div>
                 </div>
               </div>
-            {:else}
-              <div class="empty">No finals MVP determined for this season.</div>
-            {/if}
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            </div>
+          {:else}
+            <div class="empty">No finals MVP determined for this season.</div>
+          {/if}
+        </div>
+      </div>
+    </div>
 
     <!-- All-time Playoff Best per roster (single best-season playoff points for a player on each roster) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season playoff best (best player for each team — 2022→present)</h3>
+    <h3>All-time single-season playoff best (best player for each team — 2022→present)</h3>
     {#if allTimePlayoffBestPerRoster && allTimePlayoffBestPerRoster.length}
       <table aria-label="All-time playoff best per roster">
         <thead>
@@ -194,25 +240,25 @@
         <tbody>
           {#each allTimePlayoffBestPerRoster as row (row.rosterId)}
             <tr>
-              <td>
+              <td data-label="Team">
                 <div style="display:flex; gap:.6rem; align-items:center;">
                   <img class="player-avatar" src={row.teamAvatar || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
-                  <div>
-                    <div style="font-weight:800;">{row.teamName ?? getTeamName(row)}</div>
-                    <div class="small">{row.owner_name ?? getOwnerName(row)}</div>
+                  <div style="min-width:0;">
+                    <div style="font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.teamName ?? getTeamName(row)}</div>
+                    <div class="small" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.owner_name ?? getOwnerName(row)}</div>
                   </div>
                 </div>
               </td>
-              <td>
-                <div class="player-cell">
+              <td data-label="Player (season)">
+                <div class="player-cell" style="min-width:0;">
                   <img class="player-avatar" src={row.playerAvatar || playerHeadshot(row.playerId) || avatarOrPlaceholder(null, row.playerName)} alt={row.playerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, row.playerName))}/>
-                  <div>
-                    <div class="player-name">{row.playerName ?? `Player ${row.playerId}`}</div>
+                  <div style="min-width:0; overflow:hidden;">
+                    <div class="player-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.playerName ?? `Player ${row.playerId}`}</div>
                     <div class="small">Season {row.season}</div>
                   </div>
                 </div>
               </td>
-              <td style="font-weight:800;">{formatPts(row.points)}</td>
+              <td data-label="Pts" style="font-weight:800; white-space:nowrap;">{formatPts(row.points)}</td>
             </tr>
           {/each}
         </tbody>
@@ -222,7 +268,7 @@
     {/if}
 
     <!-- Cross-season full-season best per roster (1..playoffEnd totals) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
+    <h3>All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
     {#if allTimeFullSeasonBestPerRoster && allTimeFullSeasonBestPerRoster.length}
       <table aria-label="All-time full-season best per roster">
         <thead>
@@ -235,25 +281,25 @@
         <tbody>
           {#each allTimeFullSeasonBestPerRoster as row (row.rosterId)}
             <tr>
-              <td>
+              <td data-label="Team">
                 <div style="display:flex; gap:.6rem; align-items:center;">
                   <img class="player-avatar" src={row.teamAvatar || avatarOrPlaceholder(null, getTeamName(row))} alt={getTeamName(row)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(row)))} style="width:48px;height:48px"/>
-                  <div>
-                    <div style="font-weight:800;">{row.teamName ?? getTeamName(row)}</div>
-                    <div class="small">{row.owner_name ?? getOwnerName(row)}</div>
+                  <div style="min-width:0;">
+                    <div style="font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.teamName ?? getTeamName(row)}</div>
+                    <div class="small" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.owner_name ?? getOwnerName(row)}</div>
                   </div>
                 </div>
               </td>
-              <td>
-                <div class="player-cell">
+              <td data-label="Player (season)">
+                <div class="player-cell" style="min-width:0;">
                   <img class="player-avatar" src={row.playerAvatar || playerHeadshot(row.playerId) || avatarOrPlaceholder(null, row.playerName)} alt={row.playerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, row.playerName))}/>
-                  <div>
-                    <div class="player-name">{row.playerName ?? `Player ${row.playerId}`}</div>
+                  <div style="min-width:0; overflow:hidden;">
+                    <div class="player-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.playerName ?? `Player ${row.playerId}`}</div>
                     <div class="small">Season {row.season}</div>
                   </div>
                 </div>
               </td>
-              <td style="font-weight:800;">{formatPts(row.points)}</td>
+              <td data-label="Pts" style="font-weight:800; white-space:nowrap;">{formatPts(row.points)}</td>
             </tr>
           {/each}
         </tbody>
