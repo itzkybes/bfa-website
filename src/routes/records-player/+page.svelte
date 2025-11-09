@@ -7,9 +7,9 @@
   let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
 
   // top-level server outputs
-  const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
+  const seasonsResults = Array.isArray(data?.seasonsResults) ? data?.seasonsResults : [];
   const allTimePlayoffBestPerRoster = Array.isArray(data?.allTimePlayoffBestPerRoster) ? data.allTimePlayoffBestPerRoster : [];
-  const allTimeFullSeasonBestPerRoster = Array.isArray(data?.allTimeFullSeasonBestPerRoster) ? data?.allTimeFullSeasonBestPerRoster : [];
+  const allTimeFullSeasonBestPerRoster = Array.isArray(data?.allTimeFullSeasonBestPerRoster) ? data.allTimeFullSeasonBestPerRoster : [];
   const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
   const messages = Array.isArray(data?.messages) ? data.messages : [];
 
@@ -147,10 +147,13 @@
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
 
+  /* MVP grid: default to two columns (one row) on wider screens */
+  .mvp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; margin-top: 12px; }
+
   /* better spacing for headings on mobile */
   h3 { margin: 18px 0 8px; }
 
-  /* Responsive: convert wide tables to stacked cards on small screens */
+  /* Responsive: tweak sizes and collapse to single column on small screens */
   @media (max-width: 860px) {
     .select { min-width:140px; }
     thead th { font-size: .78rem; }
@@ -160,7 +163,7 @@
   @media (max-width: 700px) {
     .page { padding: 0 12px; }
     .card { padding: 12px; }
-    /* Make MVP area a stacked grid */
+    /* Make MVP area a stacked grid on small screens */
     .mvp-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
     /* Convert tables -> stacked cards for readability */
     table, thead, tbody, th, td, tr { display: block; width: 100%; }
@@ -206,8 +209,8 @@
       </form>
     </div>
 
-    <!-- MVPs: responsive layout that stacks on mobile -->
-    <div class="mvp-grid" style="margin-top:12px;">
+    <!-- MVPs: two columns on wide screens, single column on mobile -->
+    <div class="mvp-grid">
       <div>
         <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Overall MVP</div>
         <div>
