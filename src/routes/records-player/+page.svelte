@@ -16,6 +16,12 @@
   // find selected season's row (MVPs + per-season teamLeaders)
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
 
+  // expose small local vars for template (avoid unsupported {#const} block)
+  let om = null;
+  let fm = null;
+  $: om = selectedRow?.overallMvp ?? null;
+  $: fm = selectedRow?.finalsMvp ?? null;
+
   // helper to build player headshot URL (NBA)
   function playerHeadshot(playerId, size = 56) {
     if (!playerId) return '';
@@ -172,8 +178,7 @@
       <div>
         <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Overall MVP</div>
         <div>
-          {#if selectedRow?.overallMvp}
-            {#const om = selectedRow.overallMvp}
+          {#if om}
             <div class="mvp-player">
               <div class="mvp-team" style="gap:12px; align-items:center;">
                 <img class="player-avatar" src={om.roster_meta?.team_avatar || getTeamAvatar(om) || avatarOrPlaceholder(null, getTeamName(om))} alt={getTeamName(om)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(om)))} />
@@ -200,8 +205,7 @@
       <div>
         <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Finals MVP</div>
         <div>
-          {#if selectedRow?.finalsMvp}
-            {#const fm = selectedRow.finalsMvp}
+          {#if fm}
             <div class="mvp-player">
               <div class="mvp-team" style="gap:12px; align-items:center;">
                 <img class="player-avatar" src={fm.roster_meta?.team_avatar || getTeamAvatar(fm) || avatarOrPlaceholder(null, getTeamName(fm))} alt={getTeamName(fm)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(fm)))} />
