@@ -16,7 +16,7 @@
   // find selected season's row (MVPs + per-season teamLeaders)
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
 
-  // expose small local vars for template (avoid unsupported {#const} block)
+  // small local vars for template
   let om = null;
   let fm = null;
   $: om = selectedRow?.overallMvp ?? null;
@@ -39,7 +39,6 @@
   function formatPts(v) {
     const n = Number(v);
     if (!isFinite(n)) return '—';
-    // show 2 decimals like earlier template
     return (Math.round(n * 100) / 100).toFixed(2);
   }
 
@@ -75,8 +74,6 @@
 
   // helpers used by template to resolve team/owner/avatar
   function getRosterInfo(row) {
-    // Normalization: MVP rows and some other rows may put roster id / team meta in different fields.
-    // Try many fallback paths so we reliably find teamName / ownerName / avatar.
     if (!row) return { teamName: null, ownerName: null, teamAvatar: null };
 
     // possible roster id fields
@@ -148,7 +145,7 @@
   .empty { color:#9aa3ad; padding:14px 0; }
 
   /* MVP grid: default to two columns (one row) on wider screens */
-  .mvp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; margin-top: 12px; }
+  .mvp-grid { display: grid; grid-template-columns: 1fr; gap: 0; align-items: start; margin-top: 12px; }
 
   /* better spacing for headings on mobile */
   h3 { margin: 18px 0 8px; }
@@ -163,8 +160,6 @@
   @media (max-width: 700px) {
     .page { padding: 0 12px; }
     .card { padding: 12px; }
-    /* Make MVP area a stacked grid on small screens */
-    .mvp-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
     /* Convert tables -> stacked cards for readability */
     table, thead, tbody, th, td, tr { display: block; width: 100%; }
     thead { display: none; }
@@ -177,7 +172,6 @@
     .select { min-width:120px; }
     .compact-select { min-width:100px; padding:.45rem .55rem; }
     .debug { font-size:0.85rem; }
-    /* ensure MVP player images don't overflow */
     .mvp-player { display:flex; gap:10px; align-items:center; width:100%; }
     .mvp-team { display:flex; gap:10px; align-items:center; }
   }
@@ -209,65 +203,85 @@
       </form>
     </div>
 
-    <!-- MVPs: two columns on wide screens, single column on mobile -->
-    <div class="mvp-grid">
-      <div>
-        <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Overall MVP</div>
-        <div>
-          {#if om}
-            <div class="mvp-player">
-              <div class="mvp-team" style="gap:12px; align-items:center;">
-                <img class="player-avatar" src={om.roster_meta?.team_avatar || getTeamAvatar(om) || avatarOrPlaceholder(null, getTeamName(om))} alt={getTeamName(om)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(om)))} />
+    <!-- MVPs as a table with one row per MVP (matches other tables) -->
+    <h3 style="margin-top:12px; margin-bottom:8px;">MVPs</h3>
+    <table aria-label="MVPs">
+      <thead>
+        <tr>
+          <th style="width:35%;">Team</th>
+          <th style="width:45%;">Player (role)</th>
+          <th style="width:20%;">Pts</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#if om}
+          <tr>
+            <td data-label="Team">
+              <div style="display:flex; gap:.6rem; align-items:center;">
+                <img class="player-avatar" src={om.roster_meta?.team_avatar || getTeamAvatar(om) || avatarOrPlaceholder(null, getTeamName(om))} alt={getTeamName(om)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(om)))} style="width:48px;height:48px"/>
                 <div style="min-width:0;">
-                  <div style="display:flex; gap:10px; align-items:center;">
-                    <img class="player-avatar" src={om.playerAvatar || playerHeadshot(om.playerId) || avatarOrPlaceholder(null, om.playerName)} alt={om.playerName} on:error={(e)=>onImgError(e, avatarOrPlaceholder(om.roster_meta?.team_avatar, om.playerName))} />
-                    <div style="min-width:0;">
-                      <div class="player-name">{om.playerName}</div>
-                      <div class="small">Pts: {formatPts(om.points)}</div>
-                    </div>
-                  </div>
-                  <div class="small" style="margin-top:6px;">
-                    Team: {getTeamName(om)} • Owner: {getOwnerName(om)}
-                  </div>
+                  <div style="font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{getTeamName(om)}</div>
+                  <div class="small" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{getOwnerName(om)}</div>
                 </div>
               </div>
-            </div>
-          {:else}
-            <div class="empty">No overall MVP determined for this season.</div>
-          {/if}
-        </div>
-      </div>
+            </td>
 
-      <div>
-        <div style="font-weight:700; color:#9aa3ad; margin-bottom:8px;">Finals MVP</div>
-        <div>
-          {#if fm}
-            <div class="mvp-player">
-              <div class="mvp-team" style="gap:12px; align-items:center;">
-                <img class="player-avatar" src={fm.roster_meta?.team_avatar || getTeamAvatar(fm) || avatarOrPlaceholder(null, getTeamName(fm))} alt={getTeamName(fm)} on:error={(e)=>onImgError(e, avatarOrPlaceholder(null, getTeamName(fm)))} />
-                <div style="min-width:0;">
-                  <div style="display:flex; gap:10px; align-items:center;">
-                    <img class="player-avatar" src={fm.playerAvatar || playerHeadshot(fm.playerId) || avatarOrPlaceholder(null, fm.playerName)} alt={fm.playerName} on:error={(e)=>onImgError(e, avatarOrPlaceholder(fm.roster_meta?.team_avatar, fm.playerName))} />
-                    <div style="min-width:0;">
-                      <div class="player-name">{fm.playerName}</div>
-                      <div class="small">Pts: {formatPts(fm.points)}</div>
-                    </div>
-                  </div>
-                  <div class="small" style="margin-top:6px;">
-                    Team: {getTeamName(fm)} • Owner: {getOwnerName(fm)}
-                  </div>
+            <td data-label="Player (role)">
+              <div class="player-cell" style="min-width:0;">
+                <img class="player-avatar" src={om.playerAvatar || playerHeadshot(om.playerId) || avatarOrPlaceholder(null, om.playerName)} alt={om.playerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(om.roster_meta?.team_avatar, om.playerName))}/>
+                <div style="min-width:0; overflow:hidden;">
+                  <div class="player-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{om.playerName}</div>
+                  <div class="small">Overall MVP • {formatPts(om.points)} pts</div>
                 </div>
               </div>
-            </div>
-          {:else}
-            <div class="empty">No finals MVP determined for this season.</div>
-          {/if}
-        </div>
-      </div>
-    </div>
+            </td>
+
+            <td data-label="Pts" style="font-weight:800; white-space:nowrap;">{formatPts(om.points)}</td>
+          </tr>
+        {:else}
+          <tr>
+            <td data-label="Team"><div class="empty">No overall MVP</div></td>
+            <td data-label="Player (role)"><div class="empty">—</div></td>
+            <td data-label="Pts"><div class="empty">—</div></td>
+          </tr>
+        {/if}
+
+        {#if fm}
+          <tr>
+            <td data-label="Team">
+              <div style="display:flex; gap:.6rem; align-items:center;">
+                <img class="player-avatar" src={fm.roster_meta?.team_avatar || getTeamAvatar(fm) || avatarOrPlaceholder(null, getTeamName(fm))} alt={getTeamName(fm)} on:error={(e) => onImgError(e, avatarOrPlaceholder(null, getTeamName(fm)))} style="width:48px;height:48px"/>
+                <div style="min-width:0;">
+                  <div style="font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{getTeamName(fm)}</div>
+                  <div class="small" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{getOwnerName(fm)}</div>
+                </div>
+              </div>
+            </td>
+
+            <td data-label="Player (role)">
+              <div class="player-cell" style="min-width:0;">
+                <img class="player-avatar" src={fm.playerAvatar || playerHeadshot(fm.playerId) || avatarOrPlaceholder(null, fm.playerName)} alt={fm.playerName} on:error={(e) => onImgError(e, avatarOrPlaceholder(fm.roster_meta?.team_avatar, fm.playerName))}/>
+                <div style="min-width:0; overflow:hidden;">
+                  <div class="player-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{fm.playerName}</div>
+                  <div class="small">Finals MVP • {formatPts(fm.points)} pts</div>
+                </div>
+              </div>
+            </td>
+
+            <td data-label="Pts" style="font-weight:800; white-space:nowrap;">{formatPts(fm.points)}</td>
+          </tr>
+        {:else}
+          <tr>
+            <td data-label="Team"><div class="empty">No finals MVP</div></td>
+            <td data-label="Player (role)"><div class="empty">—</div></td>
+            <td data-label="Pts"><div class="empty">—</div></td>
+          </tr>
+        {/if}
+      </tbody>
+    </table>
 
     <!-- All-time Playoff Best per roster (single best-season playoff points for a player on each roster) -->
-    <h3>All-time single-season playoff best (best player for each team — 2022→present)</h3>
+    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season playoff best (best player for each team — 2022→present)</h3>
     {#if allTimePlayoffBestPerRoster && allTimePlayoffBestPerRoster.length}
       <table aria-label="All-time playoff best per roster">
         <thead>
@@ -308,7 +322,7 @@
     {/if}
 
     <!-- Cross-season full-season best per roster (1..playoffEnd totals) -->
-    <h3>All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
+    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
     {#if allTimeFullSeasonBestPerRoster && allTimeFullSeasonBestPerRoster.length}
       <table aria-label="All-time full-season best per roster">
         <thead>
@@ -368,6 +382,6 @@
           {'\n'}
         {/each}
       </div>
-    {/if}
+    {/if>
   </div>
 </div>
