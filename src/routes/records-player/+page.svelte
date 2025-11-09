@@ -75,11 +75,44 @@
 
   // helpers used by template to resolve team/owner/avatar
   function getRosterInfo(row) {
-    const rid = String(row?.rosterId ?? '');
-    const rmap = rosterNameMap[rid] ?? {};
-    const teamName = row?.teamName ?? rmap.teamName ?? row?.owner_name ?? `Roster ${rid}`;
-    const ownerName = rmap.ownerName ?? row?.owner_name ?? `Roster ${rid}`;
-    const teamAvatar = row?.teamAvatar ?? rmap.teamAvatar ?? (row?._roster_meta?.team_avatar ?? null);
+    // Normalization: MVP rows and some other rows may put roster id / team meta in different fields.
+    // Try many fallback paths so we reliably find teamName / ownerName / avatar.
+    if (!row) return { teamName: null, ownerName: null, teamAvatar: null };
+
+    // possible roster id fields
+    const ridCandidate = row.rosterId ?? row.topRosterId ?? row.top_roster_id ?? row.top_rosterId ?? row.toprosterId ?? null;
+
+    // Some objects place the roster info inside roster_meta
+    const rosterMeta = row.roster_meta ?? row._roster_meta ?? null;
+
+    // canonical roster id as string (if any)
+    const rid = (typeof ridCandidate !== 'undefined' && ridCandidate !== null) ? String(ridCandidate) : (rosterMeta && (rosterMeta.roster_id ?? rosterMeta.rosterId) ? String(rosterMeta.roster_id ?? rosterMeta.rosterId) : '');
+
+    const rmap = rid ? (rosterNameMap[rid] ?? {}) : {};
+
+    // prefer explicit fields on the row, then roster_meta, then rosterNameMap, then owner_name, then fallback
+    const teamName =
+      row.teamName ??
+      row.team_name ??
+      (rosterMeta && (rosterMeta.team_name ?? rosterMeta.teamName)) ??
+      rmap.teamName ??
+      row.owner_name ??
+      (rosterMeta && (rosterMeta.owner_name ?? rosterMeta.owner?.display_name)) ??
+      (rid ? `Roster ${rid}` : null);
+
+    const ownerName =
+      row.owner_name ??
+      (rosterMeta && (rosterMeta.owner_name ?? rosterMeta.owner?.display_name)) ??
+      rmap.ownerName ??
+      (rid ? `Roster ${rid}` : null);
+
+    const teamAvatar =
+      row.teamAvatar ??
+      row.team_avatar ??
+      rmap.teamAvatar ??
+      (rosterMeta && (rosterMeta.team_avatar ?? rosterMeta.owner_avatar ?? rosterMeta.owner?.avatar ?? null)) ??
+      null;
+
     return { teamName, ownerName, teamAvatar };
   }
 
