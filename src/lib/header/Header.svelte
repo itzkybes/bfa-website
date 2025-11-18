@@ -14,7 +14,7 @@
   let mobileMenu;
   let hamburgerBtn;
 
-  // close mobile menu on route change
+  // close mobile menu & desktop dropdown on route change
   $: if (mounted) {
     $page; // reactive dependency so this runs when the page changes
     open = false;
@@ -26,15 +26,10 @@
 
     // click outside handler (closes mobile menu)
     const handleDocClick = (e) => {
-      // if menu isn't open, nothing to do
       if (!open) return;
-
-      // if click is inside the mobile menu or the hamburger button, ignore
       const target = e.target;
       if (mobileMenu && mobileMenu.contains(target)) return;
       if (hamburgerBtn && hamburgerBtn.contains(target)) return;
-
-      // otherwise close the mobile menu
       open = false;
     };
 
@@ -49,7 +44,7 @@
     document.addEventListener('click', handleDocClick, true);
     document.addEventListener('keydown', handleKey, true);
 
-    // cleanup
+    // cleanup in onDestroy
     onDestroy(() => {
       document.removeEventListener('click', handleDocClick, true);
       document.removeEventListener('keydown', handleKey, true);
@@ -131,12 +126,14 @@
               {l.label} <span class="caret" aria-hidden="true">▾</span>
             </button>
 
-            <div class="dropdown" hidden={!recordsOpen} role="menu" aria-label="Records submenu">
-              {#each l.children as c}
-                <!-- ensure dropdown click closes dropdown (and route change will also hide mobile via $: reaction) -->
-                <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
-              {/each}
-            </div>
+            {#if recordsOpen}
+              <div class="dropdown" role="menu" aria-label="Records submenu">
+                {#each l.children as c}
+                  <!-- ensure dropdown click closes dropdown (and route change will also hide mobile via $: reaction) -->
+                  <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
+                {/each}
+              </div>
+            {/if}
           </div>
         {:else}
           <a
@@ -314,6 +311,10 @@
     gap: 6px;
     z-index: 60;
   }
+
+  /* defensive: ensure `hidden` attribute actually hides the dropdown if used */
+  .dropdown[hidden] { display: none !important; }
+
   .dropdown-link {
     padding: 8px 12px;
     border-radius: 8px;
