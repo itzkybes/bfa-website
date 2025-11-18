@@ -179,16 +179,17 @@
 </style>
 
 <div class="page">
-  <!-- Header card (title + season filter) -->
-  <div class="card">
-    <div class="topline">
+  <!-- MVPs card (title + selector inside this card) -->
+  <div class="card" aria-labelledby="mvp-heading">
+    <div class="topline" style="margin-bottom:8px;">
       <div>
-        <h2 style="margin:0 0 6px 0;">Player Records — MVPs</h2>
-        <div class="muted" style="margin-bottom:6px;">Select a season to view Overall & Finals MVP for that season (dropdown controls only the MVPs)</div>
+        <h2 id="mvp-heading" style="margin:0 0 6px 0;">Player Records — MVPs</h2>
+        <div class="muted" style="margin-bottom:0;">Select a season to view Overall & Finals MVP for that season (dropdown controls only the MVPs)</div>
       </div>
 
+      <!-- keep selector inside the same card as requested -->
       <form id="filters" method="get" class="filters" style="margin:0;">
-        <label class="muted" for="season-select" style="margin-right:.4rem;">Season</label>
+        <label class="muted" for="season-select" style="margin-right:.6rem;">Season</label>
         <select id="season-select" name="season" class="select compact-select" on:change={submitFilters} aria-label="Select season">
           {#each seasons as s}
             <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>
@@ -198,11 +199,8 @@
         </select>
       </form>
     </div>
-  </div>
 
-  <!-- MVPs card -->
-  <div class="card" aria-labelledby="mvp-heading">
-    <h3 id="mvp-heading" style="margin:0 0 8px 0;">MVPs</h3>
+    <h3 class="mvp-title" style="margin:0 0 8px 0;">MVPs</h3>
 
     <table aria-label="MVPs">
       <thead>
