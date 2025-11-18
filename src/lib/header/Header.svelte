@@ -24,24 +24,20 @@
   onMount(() => {
     mounted = true;
 
-    // click outside handler (closes mobile menu immediately)
+    // click outside handler (closes mobile menu or dropdown immediately)
     const handleDocClick = (e) => {
-      // close dropdown if open and click is outside the dropdown/records button
-      // also close mobile menu when clicking outside it
       const target = e.target;
 
-      // MOBILE: if mobile menu is open and click outside, close it
+      // MOBILE: close mobile menu when clicking outside it/hamburger
       if (open) {
         if (mobileMenu && !mobileMenu.contains(target) && !(hamburgerBtn && hamburgerBtn.contains(target))) {
           open = false;
         }
       }
 
-      // DESKTOP: if records dropdown open and click outside nav item area, close it
-      // find any open dropdown element in the DOM; if click isn't inside it or its button, close.
-      // simpler approach: if recordsOpen and click target isn't inside a .nav-item.has-children, close
+      // DESKTOP: close records dropdown if click outside the records nav item/button/dropdown
       if (recordsOpen) {
-        // if click inside any element with class 'nav-item has-children', ignore
+        // walk up the DOM tree to see if the click was inside nav item area
         let el = target;
         let insideRecords = false;
         while (el) {
@@ -51,9 +47,7 @@
           }
           el = el.parentElement;
         }
-        if (!insideRecords) {
-          recordsOpen = false;
-        }
+        if (!insideRecords) recordsOpen = false;
       }
     };
 
@@ -108,7 +102,7 @@
 
   // dropdown state for desktop
   let recordsOpen = false;
-  function toggleRecords(e) {
+  function toggleRecords() {
     recordsOpen = !recordsOpen;
   }
 
@@ -122,12 +116,12 @@
     recordsOpen = false;
   }
 
-  // Toggle mobile menu when a mobile link is clicked (close it)
+  // Close mobile menu when a mobile link is clicked
   function onMobileLinkClick() {
     open = false;
   }
 
-  // clicking brand closes mobile menu (immediate)
+  // clicking brand closes mobile menu & dropdown
   function onBrandClick() {
     open = false;
     recordsOpen = false;
@@ -155,7 +149,8 @@
     <nav class="nav-desktop" aria-label="Primary navigation">
       {#each links as l}
         {#if l.children}
-          <div class="nav-item has-children {isActive($page.url.pathname, l.href) ? 'active' : ''}" on:mouseenter={() => recordsOpen = true} on:mouseleave={() => recordsOpen = false}>
+          <!-- removed hover handlers so dropdown only opens on click -->
+          <div class="nav-item has-children {isActive($page.url.pathname, l.href) ? 'active' : ''}">
             <button class="nav-link record-button" aria-haspopup="true" aria-expanded={recordsOpen} on:click={toggleRecords} type="button">
               {l.label} <span class="caret" aria-hidden="true">▾</span>
             </button>
@@ -306,6 +301,7 @@
     margin-left: 0.5rem;
   }
 
+  /* ensure nav-link and record-button use the same font sizing so "Records" matches other tabs */
   .nav-link, .record-button {
     padding: 8px 12px;
     border-radius: 10px;
