@@ -1,7 +1,7 @@
 <!-- src/lib/header/Header.svelte -->
 <script>
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
 
   let open = false;
   let mounted = false;
@@ -9,6 +9,10 @@
   let logoVisible = true;
   let logoSrcs = ['/bfa-logo.png'];
   let currentLogo = logoSrcs[0];
+
+  // element refs for outside-click detection
+  let mobileMenu;
+  let hamburgerBtn;
 
   // close mobile menu on route change
   $: if (mounted) {
@@ -19,6 +23,37 @@
 
   onMount(() => {
     mounted = true;
+
+    // click outside handler (closes mobile menu)
+    const handleDocClick = (e) => {
+      // if menu isn't open, nothing to do
+      if (!open) return;
+
+      // if click is inside the mobile menu or the hamburger button, ignore
+      const target = e.target;
+      if (mobileMenu && mobileMenu.contains(target)) return;
+      if (hamburgerBtn && hamburgerBtn.contains(target)) return;
+
+      // otherwise close the mobile menu
+      open = false;
+    };
+
+    // escape key to close
+    const handleKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        open = false;
+        recordsOpen = false;
+      }
+    };
+
+    document.addEventListener('click', handleDocClick, true);
+    document.addEventListener('keydown', handleKey, true);
+
+    // cleanup
+    onDestroy(() => {
+      document.removeEventListener('click', handleDocClick, true);
+      document.removeEventListener('keydown', handleKey, true);
+    });
   });
 
   // Nav: Records is a parent that points to children routes only
@@ -58,11 +93,21 @@
   function toggleRecords(e) {
     recordsOpen = !recordsOpen;
   }
+
+  // When opening mobile menu, ensure desktop dropdown is closed
+  $: if (open) {
+    recordsOpen = false;
+  }
+
+  // helper used on desktop dropdown links to force-close dropdown on click
+  function onDropdownLinkClick() {
+    recordsOpen = false;
+  }
 </script>
 
 <header class="site-header" role="banner">
   <div class="wrap header-inner" role="navigation" aria-label="Main navigation">
-    <a class="brand" href="/" aria-label="Badger Fantasy Association home">
+    <a class="brand" href="/" aria-label="Badger Fantasy Association home" on:click={() => (open = false)}>
       {#if logoVisible}
         <img
           src={currentLogo}
@@ -88,7 +133,8 @@
 
             <div class="dropdown" hidden={!recordsOpen} role="menu" aria-label="Records submenu">
               {#each l.children as c}
-                <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem">{c.label}</a>
+                <!-- ensure dropdown click closes dropdown (and route change will also hide mobile via $: reaction) -->
+                <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
               {/each}
             </div>
           </div>
@@ -106,6 +152,7 @@
     <div class="mobile-controls">
       <button
         class="hamburger"
+        bind:this={hamburgerBtn}
         on:click={() => (open = !open)}
         aria-expanded={open}
         aria-controls="mobile-menu"
@@ -119,7 +166,7 @@
   </div>
 
   <!-- mobile menu -->
-  <div id="mobile-menu" class="mobile-menu {open ? 'open' : ''}" aria-hidden={!open}>
+  <div id="mobile-menu" bind:this={mobileMenu} class="mobile-menu {open ? 'open' : ''}" aria-hidden={!open}>
     <div class="mobile-links">
       {#each links as l}
         {#if l.children}
