@@ -26,12 +26,35 @@
 
     // click outside handler (closes mobile menu immediately)
     const handleDocClick = (e) => {
-      if (!open) return;
+      // close dropdown if open and click is outside the dropdown/records button
+      // also close mobile menu when clicking outside it
       const target = e.target;
-      // ignore clicks inside mobile menu or the hamburger button
-      if (mobileMenu && mobileMenu.contains(target)) return;
-      if (hamburgerBtn && hamburgerBtn.contains(target)) return;
-      open = false;
+
+      // MOBILE: if mobile menu is open and click outside, close it
+      if (open) {
+        if (mobileMenu && !mobileMenu.contains(target) && !(hamburgerBtn && hamburgerBtn.contains(target))) {
+          open = false;
+        }
+      }
+
+      // DESKTOP: if records dropdown open and click outside nav item area, close it
+      // find any open dropdown element in the DOM; if click isn't inside it or its button, close.
+      // simpler approach: if recordsOpen and click target isn't inside a .nav-item.has-children, close
+      if (recordsOpen) {
+        // if click inside any element with class 'nav-item has-children', ignore
+        let el = target;
+        let insideRecords = false;
+        while (el) {
+          if (el.classList && (el.classList.contains('nav-item') || el.classList.contains('record-button') || el.classList.contains('dropdown'))) {
+            insideRecords = true;
+            break;
+          }
+          el = el.parentElement;
+        }
+        if (!insideRecords) {
+          recordsOpen = false;
+        }
+      }
     };
 
     // escape key to close immediately
@@ -94,19 +117,20 @@
     recordsOpen = false;
   }
 
-  // Toggle dropdown when a desktop dropdown link is clicked
+  // Close dropdown immediately when a dropdown link is clicked
   function onDropdownLinkClick() {
-    recordsOpen = !recordsOpen;
+    recordsOpen = false;
   }
 
-  // Toggle mobile menu when a mobile link is clicked
+  // Toggle mobile menu when a mobile link is clicked (close it)
   function onMobileLinkClick() {
-    open = !open;
+    open = false;
   }
 
   // clicking brand closes mobile menu (immediate)
   function onBrandClick() {
     open = false;
+    recordsOpen = false;
   }
 </script>
 
@@ -139,7 +163,7 @@
             {#if recordsOpen}
               <div class="dropdown" role="menu" aria-label="Records submenu">
                 {#each l.children as c}
-                  <!-- toggle dropdown when clicked -->
+                  <!-- close dropdown immediately when clicked -->
                   <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
                 {/each}
               </div>
@@ -150,6 +174,7 @@
             href={l.href}
             class="nav-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
             aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+            on:click={() => (recordsOpen = false)}
             >{l.label}</a
           >
         {/if}
@@ -281,7 +306,6 @@
     margin-left: 0.5rem;
   }
 
-  /* ensure nav-link and record-button use the same font sizing so "Records" matches other tabs */
   .nav-link, .record-button {
     padding: 8px 12px;
     border-radius: 10px;
@@ -324,9 +348,6 @@
     gap: 6px;
     z-index: 60;
   }
-
-  /* defensive: ensure `hidden` attribute actually hides the dropdown if used elsewhere */
-  .dropdown[hidden] { display: none !important; }
 
   .dropdown-link {
     padding: 8px 12px;
