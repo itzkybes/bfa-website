@@ -3,6 +3,9 @@
   import { page } from '$app/stores';
   import { onMount, onDestroy } from 'svelte';
 
+  // small delay (ms) when closing after a link click so UI doesn't vanish instantly
+  const CLOSE_AFTER_CLICK_MS = 200;
+
   let open = false;
   let mounted = false;
 
@@ -14,9 +17,17 @@
   let mobileMenu;
   let hamburgerBtn;
 
+  // timers (so we can clear them)
+  let closeTimer = null;
+
   // close mobile menu & desktop dropdown on route change
   $: if (mounted) {
     $page; // reactive dependency so this runs when the page changes
+    // cancel any pending delayed closes and close immediately on navigation
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
     open = false;
     recordsOpen = false;
   }
@@ -24,18 +35,28 @@
   onMount(() => {
     mounted = true;
 
-    // click outside handler (closes mobile menu)
+    // click outside handler (closes mobile menu immediately)
     const handleDocClick = (e) => {
       if (!open) return;
       const target = e.target;
+      // ignore clicks originating inside the mobile menu or hamburger button
       if (mobileMenu && mobileMenu.contains(target)) return;
       if (hamburgerBtn && hamburgerBtn.contains(target)) return;
+      // close immediately
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
       open = false;
     };
 
-    // escape key to close
+    // escape key to close immediately
     const handleKey = (e) => {
       if (e.key === 'Escape' || e.key === 'Esc') {
+        if (closeTimer) {
+          clearTimeout(closeTimer);
+          closeTimer = null;
+        }
         open = false;
         recordsOpen = false;
       }
@@ -44,10 +65,13 @@
     document.addEventListener('click', handleDocClick, true);
     document.addEventListener('keydown', handleKey, true);
 
-    // cleanup in onDestroy
     onDestroy(() => {
       document.removeEventListener('click', handleDocClick, true);
       document.removeEventListener('keydown', handleKey, true);
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
     });
   });
 
@@ -94,15 +118,35 @@
     recordsOpen = false;
   }
 
-  // helper used on desktop dropdown links to force-close dropdown on click
+  // helper used on desktop dropdown links to force-close dropdown on click,
+  // but with a short delay so the UI doesn't vanish instantly.
   function onDropdownLinkClick() {
-    recordsOpen = false;
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      recordsOpen = false;
+      closeTimer = null;
+    }, CLOSE_AFTER_CLICK_MS);
+  }
+
+  // handler for mobile link clicks (close with short delay so the menu doesn't vanish instantly)
+  function onMobileLinkClick() {
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      open = false;
+      closeTimer = null;
+    }, CLOSE_AFTER_CLICK_MS);
+  }
+
+  // clicking brand closes mobile menu (immediate)
+  function onBrandClick() {
+    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+    open = false;
   }
 </script>
 
 <header class="site-header" role="banner">
   <div class="wrap header-inner" role="navigation" aria-label="Main navigation">
-    <a class="brand" href="/" aria-label="Badger Fantasy Association home" on:click={() => (open = false)}>
+    <a class="brand" href="/" aria-label="Badger Fantasy Association home" on:click={onBrandClick}>
       {#if logoVisible}
         <img
           src={currentLogo}
@@ -129,7 +173,7 @@
             {#if recordsOpen}
               <div class="dropdown" role="menu" aria-label="Records submenu">
                 {#each l.children as c}
-                  <!-- ensure dropdown click closes dropdown (and route change will also hide mobile via $: reaction) -->
+                  <!-- ensure dropdown click closes dropdown with a short delay -->
                   <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
                 {/each}
               </div>
@@ -173,7 +217,7 @@
               <a
                 href={c.href}
                 class="mobile-link {isActive($page.url.pathname, c.href) ? 'active' : ''}"
-                on:click={() => (open = false)}
+                on:click={onMobileLinkClick}
                 aria-current={isActive($page.url.pathname, c.href) ? 'page' : undefined}
                 >{c.label}</a
               >
@@ -183,7 +227,7 @@
           <a
             href={l.href}
             class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
-            on:click={() => (open = false)}
+            on:click={onMobileLinkClick}
             aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
             >{l.label}</a
           >
@@ -271,6 +315,7 @@
     margin-left: 0.5rem;
   }
 
+  /* ensure nav-link and record-button use the same font sizing so "Records" matches other tabs */
   .nav-link, .record-button {
     padding: 8px 12px;
     border-radius: 10px;
@@ -281,6 +326,8 @@
     transition: background 140ms ease, color 140ms ease, transform 140ms ease;
     border: none;
     cursor: pointer;
+    font-size: 0.95rem; /* explicit size to ensure parity */
+    line-height: 1.0;
   }
 
   .nav-link:hover, .record-button:hover, .nav-link:focus, .record-button:focus {
@@ -312,7 +359,7 @@
     z-index: 60;
   }
 
-  /* defensive: ensure `hidden` attribute actually hides the dropdown if used */
+  /* defensive: ensure `hidden` attribute actually hides the dropdown if used elsewhere */
   .dropdown[hidden] { display: none !important; }
 
   .dropdown-link {
@@ -321,6 +368,7 @@
     text-decoration: none;
     color: var(--nav-text);
     font-weight: 700;
+    font-size: 0.95rem;
   }
   .dropdown-link:hover, .dropdown-link:focus { background: rgba(255,255,255,0.02); color:var(--nav-text); }
   .dropdown-link.active { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #071122; }
@@ -340,7 +388,7 @@
   .mobile-menu { display: none; background: linear-gradient(180deg, rgba(6,10,15,0.95), rgba(6,10,15,0.98)); border-top: 1px solid rgba(255,255,255,0.03); box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
   .mobile-menu.open { display: block; }
   .mobile-links { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display:flex; flex-direction: column; gap: 6px; }
-  .mobile-link, .mobile-section-title { display:block; padding: 12px 14px; border-radius: 10px; font-weight: 800; color: var(--nav-text); text-decoration: none; background: rgba(255,255,255,0.02); }
+  .mobile-link, .mobile-section-title { display:block; padding: 12px 14px; border-radius: 10px; font-weight: 800; color: var(--nav-text); text-decoration: none; background: rgba(255,255,255,0.02); font-size: 0.95rem; }
 
   .mobile-section-title { font-weight: 900; opacity: 0.95; }
   .mobile-link.active { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #071122; }
