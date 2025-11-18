@@ -144,7 +144,7 @@
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
 
-  /* MVP grid: default to two columns (one row) on wider screens */
+  /* MVP grid: default to single column for MVP table label usage */
   .mvp-grid { display: grid; grid-template-columns: 1fr; gap: 0; align-items: start; margin-top: 12px; }
 
   /* better spacing for headings on mobile */
@@ -382,6 +382,6 @@
           {'\n'}
         {/each}
       </div>
-    {/if>
+    {/if}
   </div>
 </div>
