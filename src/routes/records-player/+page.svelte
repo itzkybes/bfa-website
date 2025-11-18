@@ -127,7 +127,7 @@
   }
 
   .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; color: var(--text); }
-  .card { background: var(--bg); border-radius: 12px; padding: var(--card-pad); border: 1px solid rgba(255,255,255,0.03); }
+  .card { background: var(--bg); border-radius: 12px; padding: var(--card-pad); border: 1px solid rgba(255,255,255,0.03); margin-bottom: 18px; }
   .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
   .muted { color:var(--muted); }
   .filters { display:flex; gap:.6rem; align-items:center; }
@@ -144,13 +144,10 @@
   .debug { font-family:monospace; white-space:pre-wrap; font-size:.82rem; color:#9fb0c4; margin-top:.8rem; max-height:280px; overflow:auto; background: rgba(255,255,255,0.02); padding:10px; border-radius:8px; }
   .empty { color:#9aa3ad; padding:14px 0; }
 
-  /* MVP grid: default to single column for MVP table label usage */
-  .mvp-grid { display: grid; grid-template-columns: 1fr; gap: 0; align-items: start; margin-top: 12px; }
+  /* MVP table small helpers */
+  .mvp-title { font-weight:700; color:#9aa3ad; margin-bottom:8px; }
 
-  /* better spacing for headings on mobile */
-  h3 { margin: 18px 0 8px; }
-
-  /* Responsive: tweak sizes and collapse to single column on small screens */
+  /* responsive tweaks — keep table-to-cards behavior on small viewports */
   @media (max-width: 860px) {
     .select { min-width:140px; }
     thead th { font-size: .78rem; }
@@ -172,8 +169,6 @@
     .select { min-width:120px; }
     .compact-select { min-width:100px; padding:.45rem .55rem; }
     .debug { font-size:0.85rem; }
-    .mvp-player { display:flex; gap:10px; align-items:center; width:100%; }
-    .mvp-team { display:flex; gap:10px; align-items:center; }
   }
 
   /* small visual polish for very narrow phones */
@@ -184,6 +179,7 @@
 </style>
 
 <div class="page">
+  <!-- Header card (title + season filter) -->
   <div class="card">
     <div class="topline">
       <div>
@@ -202,9 +198,12 @@
         </select>
       </form>
     </div>
+  </div>
 
-    <!-- MVPs as a table with one row per MVP (matches other tables) -->
-    <h3 style="margin-top:12px; margin-bottom:8px;">MVPs</h3>
+  <!-- MVPs card -->
+  <div class="card" aria-labelledby="mvp-heading">
+    <h3 id="mvp-heading" style="margin:0 0 8px 0;">MVPs</h3>
+
     <table aria-label="MVPs">
       <thead>
         <tr>
@@ -279,9 +278,12 @@
         {/if}
       </tbody>
     </table>
+  </div>
 
-    <!-- All-time Playoff Best per roster (single best-season playoff points for a player on each roster) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season playoff best (best player for each team — 2022→present)</h3>
+  <!-- All-time Playoff Best card -->
+  <div class="card" aria-labelledby="playoff-heading">
+    <h3 id="playoff-heading" style="margin:0 0 8px 0;">All-time single-season playoff best (best player for each team — 2022→present)</h3>
+
     {#if allTimePlayoffBestPerRoster && allTimePlayoffBestPerRoster.length}
       <table aria-label="All-time playoff best per roster">
         <thead>
@@ -320,9 +322,12 @@
     {:else}
       <div class="muted">No playoff bests available.</div>
     {/if}
+  </div>
 
-    <!-- Cross-season full-season best per roster (1..playoffEnd totals) -->
-    <h3 style="margin-top:18px; margin-bottom:8px;">All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
+  <!-- All-time Full-Season Best card -->
+  <div class="card" aria-labelledby="fullseason-heading">
+    <h3 id="fullseason-heading" style="margin:0 0 8px 0;">All-time single-season full-season best (best player for each team — includes regular + playoffs, 2022→present)</h3>
+
     {#if allTimeFullSeasonBestPerRoster && allTimeFullSeasonBestPerRoster.length}
       <table aria-label="All-time full-season best per roster">
         <thead>
@@ -361,10 +366,14 @@
     {:else}
       <div class="muted">No full-season bests available.</div>
     {/if}
+  </div>
 
-    <!-- JSON links & debug -->
+  <!-- JSON links & debug card -->
+  <div class="card" aria-labelledby="debug-heading">
+    <h3 id="debug-heading" style="margin:0 0 8px 0;">Loaded JSON & Messages</h3>
+
     {#if jsonLinks && jsonLinks.length}
-      <div style="margin-top:12px;">
+      <div style="margin-top:6px;">
         <div class="small" style="margin-bottom:6px;">Loaded JSON files:</div>
         <ul class="muted">
           {#each jsonLinks as jl}
