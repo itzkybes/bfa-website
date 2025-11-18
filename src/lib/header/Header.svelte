@@ -3,9 +3,6 @@
   import { page } from '$app/stores';
   import { onMount, onDestroy } from 'svelte';
 
-  // small delay (ms) when closing after a link click so UI doesn't vanish instantly
-  const CLOSE_AFTER_CLICK_MS = 200;
-
   let open = false;
   let mounted = false;
 
@@ -17,17 +14,9 @@
   let mobileMenu;
   let hamburgerBtn;
 
-  // timers (so we can clear them)
-  let closeTimer = null;
-
   // close mobile menu & desktop dropdown on route change
   $: if (mounted) {
     $page; // reactive dependency so this runs when the page changes
-    // cancel any pending delayed closes and close immediately on navigation
-    if (closeTimer) {
-      clearTimeout(closeTimer);
-      closeTimer = null;
-    }
     open = false;
     recordsOpen = false;
   }
@@ -39,24 +28,15 @@
     const handleDocClick = (e) => {
       if (!open) return;
       const target = e.target;
-      // ignore clicks originating inside the mobile menu or hamburger button
+      // ignore clicks inside mobile menu or the hamburger button
       if (mobileMenu && mobileMenu.contains(target)) return;
       if (hamburgerBtn && hamburgerBtn.contains(target)) return;
-      // close immediately
-      if (closeTimer) {
-        clearTimeout(closeTimer);
-        closeTimer = null;
-      }
       open = false;
     };
 
     // escape key to close immediately
     const handleKey = (e) => {
       if (e.key === 'Escape' || e.key === 'Esc') {
-        if (closeTimer) {
-          clearTimeout(closeTimer);
-          closeTimer = null;
-        }
         open = false;
         recordsOpen = false;
       }
@@ -68,10 +48,6 @@
     onDestroy(() => {
       document.removeEventListener('click', handleDocClick, true);
       document.removeEventListener('keydown', handleKey, true);
-      if (closeTimer) {
-        clearTimeout(closeTimer);
-        closeTimer = null;
-      }
     });
   });
 
@@ -118,28 +94,18 @@
     recordsOpen = false;
   }
 
-  // helper used on desktop dropdown links to force-close dropdown on click,
-  // but with a short delay so the UI doesn't vanish instantly.
+  // Toggle dropdown when a desktop dropdown link is clicked
   function onDropdownLinkClick() {
-    if (closeTimer) clearTimeout(closeTimer);
-    closeTimer = setTimeout(() => {
-      recordsOpen = false;
-      closeTimer = null;
-    }, CLOSE_AFTER_CLICK_MS);
+    recordsOpen = !recordsOpen;
   }
 
-  // handler for mobile link clicks (close with short delay so the menu doesn't vanish instantly)
+  // Toggle mobile menu when a mobile link is clicked
   function onMobileLinkClick() {
-    if (closeTimer) clearTimeout(closeTimer);
-    closeTimer = setTimeout(() => {
-      open = false;
-      closeTimer = null;
-    }, CLOSE_AFTER_CLICK_MS);
+    open = !open;
   }
 
   // clicking brand closes mobile menu (immediate)
   function onBrandClick() {
-    if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
     open = false;
   }
 </script>
@@ -173,7 +139,7 @@
             {#if recordsOpen}
               <div class="dropdown" role="menu" aria-label="Records submenu">
                 {#each l.children as c}
-                  <!-- ensure dropdown click closes dropdown with a short delay -->
+                  <!-- toggle dropdown when clicked -->
                   <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
                 {/each}
               </div>
@@ -326,7 +292,7 @@
     transition: background 140ms ease, color 140ms ease, transform 140ms ease;
     border: none;
     cursor: pointer;
-    font-size: 0.95rem; /* explicit size to ensure parity */
+    font-size: 0.95rem;
     line-height: 1.0;
   }
 
