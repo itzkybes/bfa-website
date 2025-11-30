@@ -1,8 +1,7 @@
 <!-- src/lib/header/Header.svelte -->
 <script>
   import { page } from '$app/stores';
-  import { onMount, onDestroy } from 'svelte';
-  import { slide } from 'svelte/transition';
+  import { onMount } from 'svelte';
 
   let open = false;
   let mounted = false;
@@ -18,49 +17,50 @@
 
   // close mobile menu & desktop dropdown on route change
   $: if (mounted) {
-    $page; // reactive dependency so this runs when the page changes
+    $page;
     open = false;
     recordsOpen = false;
   }
 
-  // Click outside handler
-  function handleDocClick(e) {
-    const target = e.target;
-
-    // MOBILE: close mobile menu when clicking outside it/hamburger
-    if (open) {
-      if (mobileMenu && !mobileMenu.contains(target) && !(hamburgerBtn && hamburgerBtn.contains(target))) {
-        open = false;
-      }
-    }
-
-    // DESKTOP: close records dropdown if click outside
-    if (recordsOpen) {
-      if (recordsDropdownEl && !recordsDropdownEl.contains(target)) {
-        recordsOpen = false;
-      }
-    }
-  }
-
-  // Keyboard handler
-  function handleKey(e) {
-    if (e.key === 'Escape' || e.key === 'Esc') {
-      open = false;
-      recordsOpen = false;
-    }
-    
-    // Close dropdown on Tab out
-    if (e.key === 'Tab' && recordsOpen) {
-      setTimeout(() => {
-        if (recordsDropdownEl && !recordsDropdownEl.contains(document.activeElement)) {
-          recordsOpen = false;
-        }
-      }, 0);
-    }
-  }
-
   onMount(() => {
     mounted = true;
+
+    // click outside handler
+    const handleDocClick = (e) => {
+      const target = e.target;
+
+      // MOBILE: close mobile menu when clicking outside it/hamburger
+      if (open) {
+        if (mobileMenu && !mobileMenu.contains(target) && !(hamburgerBtn && hamburgerBtn.contains(target))) {
+          open = false;
+        }
+      }
+
+      // DESKTOP: close records dropdown if click outside
+      if (recordsOpen) {
+        if (recordsDropdownEl && !recordsDropdownEl.contains(target)) {
+          recordsOpen = false;
+        }
+      }
+    };
+
+    // escape key to close
+    const handleKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        open = false;
+        recordsOpen = false;
+      }
+      
+      // Close dropdown on Tab out
+      if (e.key === 'Tab' && recordsOpen) {
+        setTimeout(() => {
+          if (recordsDropdownEl && !recordsDropdownEl.contains(document.activeElement)) {
+            recordsOpen = false;
+          }
+        }, 0);
+      }
+    };
+
     document.addEventListener('click', handleDocClick, true);
     document.addEventListener('keydown', handleKey, true);
 
@@ -70,13 +70,11 @@
     };
   });
 
-  // Nav: Records is a parent that points to children routes only
   const links = [
     { href: '/', label: 'Home' },
     { href: '/rosters', label: 'Rosters' },
     { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
-    // Records parent — NOT a navigable <a> (avoids /records 404)
     { href: '/records', label: 'Records', children: [
       { href: '/records-team', label: 'Team records' },
       { href: '/records-player', label: 'Player records' }
@@ -84,7 +82,6 @@
     { href: '/honor-hall', label: 'Honor Hall' }
   ];
 
-  // helper to test active link — treat parent href as active when the path starts with it
   function isActive(path, href) {
     if (!path) return false;
     if (href === '/' && (path === '/' || path === '')) return true;
@@ -92,7 +89,6 @@
     return path === href;
   }
 
-  // try next fallback if image errors
   function onLogoError() {
     const next = logoSrcs.indexOf(currentLogo) + 1;
     if (next < logoSrcs.length) {
@@ -102,29 +98,24 @@
     }
   }
 
-  // dropdown state for desktop
   let recordsOpen = false;
   function toggleRecords(e) {
     e.stopPropagation();
     recordsOpen = !recordsOpen;
   }
 
-  // When opening mobile menu, ensure desktop dropdown is closed
   $: if (open) {
     recordsOpen = false;
   }
 
-  // Close dropdown immediately when a dropdown link is clicked
   function onDropdownLinkClick() {
     recordsOpen = false;
   }
 
-  // Close mobile menu when a mobile link is clicked
   function onMobileLinkClick() {
     open = false;
   }
 
-  // clicking brand closes mobile menu & dropdown
   function onBrandClick() {
     open = false;
     recordsOpen = false;
@@ -169,12 +160,7 @@
             </button>
 
             {#if recordsOpen}
-              <div 
-                class="dropdown" 
-                role="menu" 
-                aria-label="Records submenu"
-                transition:slide={{ duration: 200 }}
-              >
+              <div class="dropdown" role="menu" aria-label="Records submenu">
                 {#each l.children as c}
                   <a 
                     href={c.href} 
@@ -217,14 +203,12 @@
     </div>
   </div>
 
-  <!-- mobile menu -->
   {#if open}
     <div 
       id="mobile-menu" 
       bind:this={mobileMenu} 
       class="mobile-menu" 
       aria-hidden={!open}
-      transition:slide={{ duration: 250 }}
     >
       <div class="mobile-links">
         {#each links as l}
@@ -287,7 +271,6 @@
     margin: 0 auto;
   }
 
-  /* Brand */
   .brand {
     display: inline-flex;
     gap: 0.9rem;
@@ -379,7 +362,6 @@
     color: #071122;
   }
 
-  /* Dropdown */
   .nav-item { 
     position: relative; 
   }
@@ -447,7 +429,6 @@
     transform: rotate(180deg);
   }
 
-  /* Mobile Controls */
   .mobile-controls { 
     display: none; 
     align-items: center; 
@@ -522,7 +503,6 @@
     opacity: 0; 
   }
 
-  /* Mobile Menu */
   .mobile-menu { 
     background: linear-gradient(180deg, rgba(6,10,15,0.98), rgba(6,10,15,0.99)); 
     border-top: 1px solid rgba(255,255,255,0.04); 
@@ -590,7 +570,6 @@
     gap: 6px;
   }
 
-  /* Responsive */
   @media (max-width: 980px) {
     .nav-desktop { 
       display: none; 
