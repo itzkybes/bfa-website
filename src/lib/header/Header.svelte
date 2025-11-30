@@ -2,6 +2,7 @@
 <script>
   import { page } from '$app/stores';
   import { onMount, onDestroy } from 'svelte';
+  import { slide } from 'svelte/transition';
 
   let open = false;
   let mounted = false;
@@ -13,6 +14,7 @@
   // element refs for outside-click detection
   let mobileMenu;
   let hamburgerBtn;
+  let recordsDropdownEl;
 
   // close mobile menu & desktop dropdown on route change
   $: if (mounted) {
@@ -21,51 +23,51 @@
     recordsOpen = false;
   }
 
-  onMount(() => {
-    mounted = true;
+  // Click outside handler
+  function handleDocClick(e) {
+    const target = e.target;
 
-    // click outside handler (closes mobile menu or dropdown immediately)
-    const handleDocClick = (e) => {
-      const target = e.target;
-
-      // MOBILE: close mobile menu when clicking outside it/hamburger
-      if (open) {
-        if (mobileMenu && !mobileMenu.contains(target) && !(hamburgerBtn && hamburgerBtn.contains(target))) {
-          open = false;
-        }
-      }
-
-      // DESKTOP: close records dropdown if click outside the records nav item/button/dropdown
-      if (recordsOpen) {
-        // walk up the DOM tree to see if the click was inside nav item area
-        let el = target;
-        let insideRecords = false;
-        while (el) {
-          if (el.classList && (el.classList.contains('nav-item') || el.classList.contains('record-button') || el.classList.contains('dropdown'))) {
-            insideRecords = true;
-            break;
-          }
-          el = el.parentElement;
-        }
-        if (!insideRecords) recordsOpen = false;
-      }
-    };
-
-    // escape key to close immediately
-    const handleKey = (e) => {
-      if (e.key === 'Escape' || e.key === 'Esc') {
+    // MOBILE: close mobile menu when clicking outside it/hamburger
+    if (open) {
+      if (mobileMenu && !mobileMenu.contains(target) && !(hamburgerBtn && hamburgerBtn.contains(target))) {
         open = false;
+      }
+    }
+
+    // DESKTOP: close records dropdown if click outside
+    if (recordsOpen) {
+      if (recordsDropdownEl && !recordsDropdownEl.contains(target)) {
         recordsOpen = false;
       }
-    };
+    }
+  }
 
+  // Keyboard handler
+  function handleKey(e) {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      open = false;
+      recordsOpen = false;
+    }
+    
+    // Close dropdown on Tab out
+    if (e.key === 'Tab' && recordsOpen) {
+      setTimeout(() => {
+        if (recordsDropdownEl && !recordsDropdownEl.contains(document.activeElement)) {
+          recordsOpen = false;
+        }
+      }, 0);
+    }
+  }
+
+  onMount(() => {
+    mounted = true;
     document.addEventListener('click', handleDocClick, true);
     document.addEventListener('keydown', handleKey, true);
 
-    onDestroy(() => {
+    return () => {
       document.removeEventListener('click', handleDocClick, true);
       document.removeEventListener('keydown', handleKey, true);
-    });
+    };
   });
 
   // Nav: Records is a parent that points to children routes only
@@ -102,7 +104,8 @@
 
   // dropdown state for desktop
   let recordsOpen = false;
-  function toggleRecords() {
+  function toggleRecords(e) {
+    e.stopPropagation();
     recordsOpen = !recordsOpen;
   }
 
@@ -136,6 +139,8 @@
           src={currentLogo}
           alt="Badger Fantasy Association"
           class="brand-logo"
+          width="96"
+          height="96"
           on:error={onLogoError}
           loading="eager"
         />
@@ -149,29 +154,49 @@
     <nav class="nav-desktop" aria-label="Primary navigation">
       {#each links as l}
         {#if l.children}
-          <!-- removed hover handlers so dropdown only opens on click -->
-          <div class="nav-item has-children {isActive($page.url.pathname, l.href) ? 'active' : ''}">
-            <button class="nav-link record-button" aria-haspopup="true" aria-expanded={recordsOpen} on:click={toggleRecords} type="button">
+          <div 
+            class="nav-item has-children {isActive($page.url.pathname, l.href) ? 'active' : ''}"
+            bind:this={recordsDropdownEl}
+          >
+            <button 
+              class="nav-link record-button" 
+              aria-haspopup="true" 
+              aria-expanded={recordsOpen} 
+              on:click={toggleRecords} 
+              type="button"
+            >
               {l.label} <span class="caret" aria-hidden="true">▾</span>
             </button>
 
             {#if recordsOpen}
-              <div class="dropdown" role="menu" aria-label="Records submenu">
+              <div 
+                class="dropdown" 
+                role="menu" 
+                aria-label="Records submenu"
+                transition:slide={{ duration: 200 }}
+              >
                 {#each l.children as c}
-                  <!-- close dropdown immediately when clicked -->
-                  <a href={c.href} class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" role="menuitem" on:click={onDropdownLinkClick}>{c.label}</a>
+                  <a 
+                    href={c.href} 
+                    class="dropdown-link {isActive($page.url.pathname, c.href) ? 'active' : ''}" 
+                    role="menuitem" 
+                    on:click={onDropdownLinkClick}
+                  >
+                    {c.label}
+                  </a>
                 {/each}
               </div>
             {/if}
           </div>
         {:else}
-          <a
+          
             href={l.href}
             class="nav-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
             aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
             on:click={() => (recordsOpen = false)}
-            >{l.label}</a
           >
+            {l.label}
+          </a>
         {/if}
       {/each}
     </nav>
@@ -193,34 +218,44 @@
   </div>
 
   <!-- mobile menu -->
-  <div id="mobile-menu" bind:this={mobileMenu} class="mobile-menu {open ? 'open' : ''}" aria-hidden={!open}>
-    <div class="mobile-links">
-      {#each links as l}
-        {#if l.children}
-          <div class="mobile-section">
-            <div class="mobile-section-title">{l.label}</div>
-            {#each l.children as c}
-              <a
-                href={c.href}
-                class="mobile-link {isActive($page.url.pathname, c.href) ? 'active' : ''}"
-                on:click={onMobileLinkClick}
-                aria-current={isActive($page.url.pathname, c.href) ? 'page' : undefined}
-                >{c.label}</a
-              >
-            {/each}
-          </div>
-        {:else}
-          <a
-            href={l.href}
-            class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
-            on:click={onMobileLinkClick}
-            aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
-            >{l.label}</a
-          >
-        {/if}
-      {/each}
+  {#if open}
+    <div 
+      id="mobile-menu" 
+      bind:this={mobileMenu} 
+      class="mobile-menu" 
+      aria-hidden={!open}
+      transition:slide={{ duration: 250 }}
+    >
+      <div class="mobile-links">
+        {#each links as l}
+          {#if l.children}
+            <div class="mobile-section">
+              <div class="mobile-section-title">{l.label}</div>
+              {#each l.children as c}
+                
+                  href={c.href}
+                  class="mobile-link {isActive($page.url.pathname, c.href) ? 'active' : ''}"
+                  on:click={onMobileLinkClick}
+                  aria-current={isActive($page.url.pathname, c.href) ? 'page' : undefined}
+                >
+                  {c.label}
+                </a>
+              {/each}
+            </div>
+          {:else}
+            
+              href={l.href}
+              class="mobile-link {isActive($page.url.pathname, l.href) ? 'active' : ''}"
+              on:click={onMobileLinkClick}
+              aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+            >
+              {l.label}
+            </a>
+          {/if}
+        {/each}
+      </div>
     </div>
-  </div>
+  {/if}
 </header>
 
 <style>
@@ -229,6 +264,8 @@
     --muted: #9fb0c4;
     --accent: #00c6d8;
     --accent-dark: #008fa6;
+    --transition-fast: 140ms ease;
+    --transition-base: 180ms ease;
   }
 
   .site-header {
@@ -259,6 +296,17 @@
     color: var(--nav-text);
     flex: 0 1 auto;
     min-width: 0;
+    transition: opacity var(--transition-fast);
+  }
+
+  .brand:hover {
+    opacity: 0.9;
+  }
+
+  .brand:focus-visible {
+    outline: 3px solid rgba(0, 198, 216, 0.5);
+    outline-offset: 2px;
+    border-radius: 8px;
   }
 
   .brand-logo {
@@ -301,7 +349,6 @@
     margin-left: 0.5rem;
   }
 
-  /* ensure nav-link and record-button use the same font sizing so "Records" matches other tabs */
   .nav-link, .record-button {
     padding: 8px 12px;
     border-radius: 10px;
@@ -309,17 +356,22 @@
     color: var(--nav-text);
     text-decoration: none;
     background: transparent;
-    transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+    transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
     border: none;
     cursor: pointer;
     font-size: 0.95rem;
     line-height: 1.0;
   }
 
-  .nav-link:hover, .record-button:hover, .nav-link:focus, .record-button:focus {
-    background: rgba(255,255,255,0.03);
+  .nav-link:hover, .record-button:hover {
+    background: rgba(255,255,255,0.05);
     transform: translateY(-1px);
-    outline: none;
+  }
+
+  .nav-link:focus-visible, .record-button:focus-visible {
+    outline: 3px solid rgba(0, 198, 216, 0.5);
+    outline-offset: 2px;
+    background: rgba(255,255,255,0.03);
   }
 
   .nav-link.active, .nav-item.has-children.active > .record-button {
@@ -328,63 +380,261 @@
   }
 
   /* Dropdown */
-  .nav-item { position: relative; }
+  .nav-item { 
+    position: relative; 
+  }
+  
   .dropdown {
     position: absolute;
     right: 0;
-    top: 38px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
-    border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 8px;
-    padding: 6px;
-    min-width: 160px;
-    box-shadow: 0 8px 30px rgba(2,6,23,0.6);
-    display:flex;
+    top: 100%;
+    margin-top: 4px;
+    background: linear-gradient(180deg, rgba(15, 23, 36, 0.98), rgba(7, 14, 26, 0.98));
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 8px;
+    min-width: 180px;
+    box-shadow: 0 12px 32px rgba(2,6,23,0.7);
+    display: flex;
     flex-direction: column;
-    gap: 6px;
-    z-index: 60;
+    gap: 4px;
+    z-index: 70;
+    animation: dropdownFade 200ms ease-out;
+  }
+
+  @keyframes dropdownFade {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .dropdown-link {
-    padding: 8px 12px;
+    padding: 10px 14px;
     border-radius: 8px;
     text-decoration: none;
     color: var(--nav-text);
     font-weight: 700;
     font-size: 0.95rem;
+    transition: background var(--transition-fast), color var(--transition-fast);
   }
-  .dropdown-link:hover, .dropdown-link:focus { background: rgba(255,255,255,0.02); color:var(--nav-text); }
-  .dropdown-link.active { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #071122; }
+  
+  .dropdown-link:hover {
+    background: rgba(255,255,255,0.06);
+  }
+  
+  .dropdown-link:focus-visible {
+    outline: 3px solid rgba(0, 198, 216, 0.5);
+    outline-offset: -2px;
+  }
+  
+  .dropdown-link.active { 
+    background: linear-gradient(90deg, var(--accent), var(--accent-dark)); 
+    color: #071122; 
+  }
 
-  .mobile-controls { display: none; align-items: center; gap: 8px; }
-  .hamburger { background: transparent; border: none; padding: 8px; border-radius: 8px; cursor: pointer; color: var(--nav-text); }
-  .hamburger-box { width: 22px; height: 16px; display:inline-block; position: relative; }
-  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { display: block; background-color: currentColor; height: 2px; border-radius: 2px; position: absolute; left: 0; right: 0; transition: transform 200ms ease, opacity 200ms ease; }
-  .hamburger-inner { top: 50%; transform: translateY(-50%); }
-  .hamburger-inner::before { content: ''; top: -7px; }
-  .hamburger-inner::after { content: ''; top: 7px; }
+  .caret {
+    margin-left: 4px;
+    font-size: 0.75em;
+    transition: transform var(--transition-fast);
+  }
 
-  .hamburger[aria-expanded='true'] .hamburger-inner { transform: rotate(45deg); }
-  .hamburger[aria-expanded='true'] .hamburger-inner::before { transform: rotate(90deg) translateX(-1px); top: 0; opacity: 0; }
-  .hamburger[aria-expanded='true'] .hamburger-inner::after { transform: rotate(-90deg) translateX(-1px); top: 0; opacity: 0; }
+  .record-button[aria-expanded="true"] .caret {
+    transform: rotate(180deg);
+  }
 
-  .mobile-menu { display: none; background: linear-gradient(180deg, rgba(6,10,15,0.95), rgba(6,10,15,0.98)); border-top: 1px solid rgba(255,255,255,0.03); box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
-  .mobile-menu.open { display: block; }
-  .mobile-links { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display:flex; flex-direction: column; gap: 6px; }
-  .mobile-link, .mobile-section-title { display:block; padding: 12px 14px; border-radius: 10px; font-weight: 800; color: var(--nav-text); text-decoration: none; background: rgba(255,255,255,0.02); font-size: 0.95rem; }
+  /* Mobile Controls */
+  .mobile-controls { 
+    display: none; 
+    align-items: center; 
+    gap: 8px; 
+  }
+  
+  .hamburger { 
+    background: transparent; 
+    border: none; 
+    padding: 8px; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    color: var(--nav-text);
+    transition: background var(--transition-fast);
+  }
 
-  .mobile-section-title { font-weight: 900; opacity: 0.95; }
-  .mobile-link.active { background: linear-gradient(90deg, var(--accent), var(--accent-dark)); color: #071122; }
+  .hamburger:hover {
+    background: rgba(255,255,255,0.05);
+  }
 
+  .hamburger:focus-visible {
+    outline: 3px solid rgba(0, 198, 216, 0.5);
+    outline-offset: 2px;
+  }
+  
+  .hamburger-box { 
+    width: 22px; 
+    height: 16px; 
+    display: inline-block; 
+    position: relative; 
+  }
+  
+  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { 
+    display: block; 
+    background-color: currentColor; 
+    height: 2px; 
+    border-radius: 2px; 
+    position: absolute; 
+    left: 0; 
+    right: 0; 
+    transition: transform 200ms ease, opacity 200ms ease; 
+  }
+  
+  .hamburger-inner { 
+    top: 50%; 
+    transform: translateY(-50%); 
+  }
+  
+  .hamburger-inner::before { 
+    content: ''; 
+    top: -7px; 
+  }
+  
+  .hamburger-inner::after { 
+    content: ''; 
+    top: 7px; 
+  }
+
+  .hamburger[aria-expanded='true'] .hamburger-inner { 
+    transform: rotate(45deg); 
+  }
+  
+  .hamburger[aria-expanded='true'] .hamburger-inner::before { 
+    transform: rotate(90deg) translateX(-1px); 
+    top: 0; 
+    opacity: 0; 
+  }
+  
+  .hamburger[aria-expanded='true'] .hamburger-inner::after { 
+    transform: rotate(-90deg) translateX(-1px); 
+    top: 0; 
+    opacity: 0; 
+  }
+
+  /* Mobile Menu */
+  .mobile-menu { 
+    background: linear-gradient(180deg, rgba(6,10,15,0.98), rgba(6,10,15,0.99)); 
+    border-top: 1px solid rgba(255,255,255,0.04); 
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    animation: slideDown 250ms ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .mobile-links { 
+    max-width: 1100px; 
+    margin: 0 auto; 
+    padding: 16px 20px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+  }
+  
+  .mobile-link, .mobile-section-title { 
+    display: block; 
+    padding: 14px 16px; 
+    border-radius: 10px; 
+    font-weight: 800; 
+    color: var(--nav-text); 
+    text-decoration: none; 
+    background: rgba(255,255,255,0.03); 
+    font-size: 0.95rem;
+    transition: background var(--transition-fast), transform var(--transition-fast);
+  }
+
+  .mobile-link:hover {
+    background: rgba(255,255,255,0.08);
+    transform: translateX(4px);
+  }
+
+  .mobile-link:focus-visible {
+    outline: 3px solid rgba(0, 198, 216, 0.5);
+    outline-offset: -2px;
+  }
+
+  .mobile-section-title { 
+    font-weight: 900; 
+    opacity: 0.95;
+    background: rgba(255,255,255,0.05);
+    pointer-events: none;
+  }
+  
+  .mobile-link.active { 
+    background: linear-gradient(90deg, var(--accent), var(--accent-dark)); 
+    color: #071122; 
+  }
+
+  .mobile-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Responsive */
   @media (max-width: 980px) {
-    .nav-desktop { display: none; }
-    .mobile-controls { display: inline-flex; }
-    .brand-logo, .logo-emoji { width: 72px; height: 72px; }
-    .brand-text { font-size: clamp(0.9rem, 3.0vw, 1.0rem); }
-    .header-inner { padding: 0.45rem 0.75rem; gap: 0.6rem; }
+    .nav-desktop { 
+      display: none; 
+    }
+    
+    .mobile-controls { 
+      display: inline-flex; 
+    }
+    
+    .brand-logo, .logo-emoji { 
+      width: 72px; 
+      height: 72px; 
+    }
+    
+    .brand-text { 
+      font-size: clamp(0.9rem, 3.0vw, 1.0rem); 
+    }
+    
+    .header-inner { 
+      padding: 0.45rem 0.75rem; 
+      gap: 0.6rem; 
+    }
+
+    .mobile-menu {
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
   }
 
   @media (min-width: 981px) {
-    .mobile-menu { display: none !important; }
+    .mobile-menu { 
+      display: none !important; 
+    }
+  }
+
+  @media (max-width: 520px) {
+    .brand-logo, .logo-emoji {
+      width: 56px;
+      height: 56px;
+    }
+
+    .brand-text {
+      font-size: 0.85rem;
+    }
   }
 </style>
