@@ -169,7 +169,6 @@
                     on:click={onDropdownLinkClick}
                   >
                     {c.label}
-                  </a>
                 {/each}
               </div>
             {/if}
@@ -182,7 +181,6 @@
             on:click={() => (recordsOpen = false)}
           >
             {l.label}
-          </a>
         {/if}
       {/each}
     </nav>
