@@ -1,7 +1,7 @@
 <script>
 	import Header from '$lib/header/Header.svelte';
 	import { webVitals } from '$lib/vitals';
-	import { browser } from '$app/env';
+	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import '../app.css';
 
