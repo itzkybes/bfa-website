@@ -1,7 +1,6 @@
 // src/routes/standings/+page.server.js
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
-import { readFile } from 'fs/promises';
 
 let _cache = null;
 let _sleeper = null;
@@ -60,13 +59,7 @@ async function tryLoadEarly2023(origin) {
       }
     } catch (e) {}
   }
-  try {
-    const fileUrl = new URL('../../../static/early2023.json', import.meta.url);
-    const txt = await readFile(fileUrl, 'utf8');
-    return JSON.parse(txt);
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 
 // Try to load per-year season_matchups JSON (fetch origin first, then static file)
@@ -90,17 +83,8 @@ async function tryLoadSeasonMatchups(years, origin) {
       }
     }
 
-    // static file fallback
-    if (!loaded) {
-      try {
-        const fileUrl = new URL(`../../../static/season_matchups/${String(y)}.json`, import.meta.url);
-        const txt = await readFile(fileUrl, 'utf8');
-        loaded = JSON.parse(txt);
-        jsonLinks.push(`/season_matchups/${String(y)}.json`);
-      } catch (e) {
-        loaded = null;
-      }
-    }
+    // No disk fallback — when running on Vercel, static files are CDN-served (handled by origin fetch above).
+
 
     if (loaded) map[String(y)] = loaded;
   }

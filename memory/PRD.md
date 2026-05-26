@@ -45,10 +45,13 @@ User followed up confirming:
 - ✅ Fixed two season-selector navigation bugs (Honor Hall + Records-Player) via `data-sveltekit-reload`
 - ✅ Vercel Node 22 build error resolved (pinned `@sveltejs/adapter-vercel@^6.3.3` with explicit `runtime: 'nodejs22.x'`)
 - ✅ Fixed Vercel `/rosters` 500 error — Sleeper `/players/nba` was 5MB, exceeding the 4.5MB serverless response limit. Slimmed playersMap to only roster-relevant players (~250 entries, 256KB total response).
-- ✅ Fixed Vercel `FUNCTION_INVOCATION_FAILED` on ALL `+page.server.js` routes — was caused by a stale `pnpm-lock.yaml` on GitHub conflicting with the local `yarn.lock`. Fixes applied: (1) `vercel.json` with `installCommand: "rm -f pnpm-lock.yaml package-lock.json && yarn install"` forces yarn install regardless of stray lock files; (2) refactored ALL 7 `+page.server.js` files from module-level instantiation to lazy `getSleeperClient()` singletons so dependency mismatch / cold-start exceptions can't kill the function on import. Also normalized CRLF→LF line endings in server files.
+- ✅ Refactored all 7 `+page.server.js` files to lazy `getSleeperClient()` singletons to avoid cold-start crashes
+- ✅ **REMOVED ALL `fs/promises` + `path` filesystem usage** from all server-load files. Vercel serverless functions don't have `/app/static/` bundled into the function — static files are only served by the CDN. The fallback `readFile()` calls were throwing on Vercel and (apparently in some routes) crashing the function before the try/catch could catch them. Replaced with `event.fetch('/season_matchups/<year>.json')` which goes through SvelteKit's smart fetch (works identically on local dev + Vercel CDN).
+- ✅ Added `/app/vercel.json` to force yarn install + strip any stale pnpm-lock.yaml
+- ✅ Normalized CRLF→LF in all server files
 - ✅ Frontend supervisor wrapper at `/app/frontend/package.json` so local preview works
 - ✅ SITE_FILE_COMPARISON.md document with file-by-file summary
-- ✅ Testing: 100% pass rate after fixes (iteration_2.json)
+- ✅ Verified: directly invoking the Vercel-built `catchall.func/index.js` locally returns 200 on all 7 server-rendered routes
 
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P1** — Per-team season trends chart (PF/week over time) for Standings page

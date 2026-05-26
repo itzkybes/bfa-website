@@ -1,6 +1,4 @@
 import { c as createKVCache, a as createMemoryCache, b as createSleeperClient } from "../../../chunks/cache.js";
-import { readFile } from "fs/promises";
-import path from "path";
 let _cache = null;
 let _sleeper = null;
 function getSleeperClient() {
@@ -43,16 +41,17 @@ function computeStreaks(resultsArray) {
   }
   return { maxW, maxL };
 }
-async function tryLoadLocalSeasonMatchups(key) {
-  if (!key) return null;
-  const candidates = [
-    path.join(process.cwd(), "season_matchups", `${key}.json`),
-    path.join(process.cwd(), "static", "season_matchups", `${key}.json`),
-    path.join(process.cwd(), "src", "season_matchups", `${key}.json`)
+async function tryLoadLocalSeasonMatchups(key, fetchFn) {
+  if (!key || !fetchFn) return null;
+  const candidatePaths = [
+    `/season_matchups/${key}.json`,
+    `/static/season_matchups/${key}.json`
   ];
-  for (const p of candidates) {
+  for (const p of candidatePaths) {
     try {
-      const raw = await readFile(p, "utf8");
+      const res = await fetchFn(p);
+      if (!res || !res.ok) continue;
+      const raw = await res.text();
       if (!raw) continue;
       try {
         const parsed = JSON.parse(raw);
@@ -494,7 +493,7 @@ async function load(event) {
     let foundLocal = null;
     let foundKey = null;
     for (const k of uniqKeys) {
-      const attempt = await tryLoadLocalSeasonMatchups(k);
+      const attempt = await tryLoadLocalSeasonMatchups(k, event.fetch);
       if (attempt && attempt.parsedRaw) {
         foundLocal = attempt.parsedRaw;
         foundKey = k;

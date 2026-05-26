@@ -4,8 +4,6 @@
 
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
-import { readFile } from 'fs/promises';
-import path from 'path';
 
 let _cache = null;
 let _sleeper = null;
@@ -55,26 +53,24 @@ function computeStreaks(resultsArray) {
 
 /* Helper: attempt to find and load local season_matchups JSON for a given key.
    Tries several likely file locations. Returns parsed object or null. */
-async function tryLoadLocalSeasonMatchups(key) {
-  if (!key) return null;
-  const candidates = [
-    path.join(process.cwd(), 'season_matchups', `${key}.json`),
-    path.join(process.cwd(), 'static', 'season_matchups', `${key}.json`),
-    path.join(process.cwd(), 'src', 'season_matchups', `${key}.json`)
+async function tryLoadLocalSeasonMatchups(key, fetchFn) {
+  if (!key || !fetchFn) return null;
+  // Use SvelteKit's event.fetch — works for static assets on both local dev and Vercel CDN.
+  const candidatePaths = [
+    `/season_matchups/${key}.json`,
+    `/static/season_matchups/${key}.json`
   ];
-  for (const p of candidates) {
+  for (const p of candidatePaths) {
     try {
-      const raw = await readFile(p, 'utf8');
+      const res = await fetchFn(p);
+      if (!res || !res.ok) continue;
+      const raw = await res.text();
       if (!raw) continue;
       try {
         const parsed = JSON.parse(raw);
         return { parsedRaw: parsed, path: p };
-      } catch (e) {
-        // ignore parse error, try next
-      }
-    } catch (e) {
-      // file not found, try next
-    }
+      } catch (e) { /* ignore parse error, try next */ }
+    } catch (e) { /* file not found, try next */ }
   }
   return null;
 }
@@ -571,7 +567,7 @@ export async function load(event) {
     let foundLocal = null;
     let foundKey = null;
     for (const k of uniqKeys) {
-      const attempt = await tryLoadLocalSeasonMatchups(k);
+      const attempt = await tryLoadLocalSeasonMatchups(k, event.fetch);
       if (attempt && attempt.parsedRaw) {
         foundLocal = attempt.parsedRaw;
         foundKey = k;

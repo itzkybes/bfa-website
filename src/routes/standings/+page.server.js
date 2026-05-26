@@ -9,7 +9,6 @@
 
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
-import { readFile } from 'fs/promises';
 
 let _cache = null;
 let _sleeper = null;
@@ -74,14 +73,7 @@ async function tryLoadEarly2023(origin) {
     }
   }
 
-  // disk fallback: relative path to static folder
-  try {
-    const fileUrl = new URL('../../../static/early2023.json', import.meta.url);
-    const txt = await readFile(fileUrl, 'utf8');
-    return JSON.parse(txt);
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 
 // NEW: try to load season_matchups/<season>.json via origin fetch then disk fallback
@@ -105,14 +97,7 @@ async function tryLoadSeasonMatchups(season, origin) {
     }
   }
 
-  // disk fallback: relative path to static folder
-  try {
-    const fileUrl = new URL(`../../../static/season_matchups/${season}.json`, import.meta.url);
-    const txt = await readFile(fileUrl, 'utf8');
-    return JSON.parse(txt);
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 
 // robust participant points extractor — prefers starters-only values if present

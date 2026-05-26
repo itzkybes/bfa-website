@@ -1,5 +1,4 @@
 import { c as createKVCache, a as createMemoryCache, b as createSleeperClient } from "../../../chunks/cache.js";
-import { readFile } from "fs/promises";
 let _cache = null;
 let _sleeper = null;
 function getSleeperClient() {
@@ -57,13 +56,7 @@ async function tryLoadEarly2023(origin) {
     } catch (e) {
     }
   }
-  try {
-    const fileUrl = new URL("../../../static/early2023.json", import.meta.url);
-    const txt = await readFile(fileUrl, "utf8");
-    return JSON.parse(txt);
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 async function tryLoadSeasonMatchups(season, origin) {
   if (!season) return null;
@@ -81,13 +74,7 @@ async function tryLoadSeasonMatchups(season, origin) {
     } catch (e) {
     }
   }
-  try {
-    const fileUrl = new URL(`../../../static/season_matchups/${season}.json`, import.meta.url);
-    const txt = await readFile(fileUrl, "utf8");
-    return JSON.parse(txt);
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== "object") return 0;

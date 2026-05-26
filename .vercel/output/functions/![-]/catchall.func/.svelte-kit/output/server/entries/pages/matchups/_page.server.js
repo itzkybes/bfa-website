@@ -1,5 +1,4 @@
 import { c as createKVCache, a as createMemoryCache, b as createSleeperClient } from "../../../chunks/cache.js";
-import { readFile } from "fs/promises";
 let _cache = null;
 let _sleeper = null;
 function getSleeperClient() {
@@ -41,18 +40,7 @@ async function tryLoadJsonFromStatic(origin, relPath) {
     }
   } catch (e) {
   }
-  try {
-    const fileUrl = new URL(`../../../static/${relPath}`, import.meta.url);
-    const txt = await readFile(fileUrl, "utf8");
-    try {
-      const parsed = JSON.parse(txt);
-      return { data: parsed, url: `/static/${relPath}` };
-    } catch (e) {
-      return null;
-    }
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 async function tryLoadEarly2023(origin) {
   return tryLoadJsonFromStatic(origin, "early2023.json");

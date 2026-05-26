@@ -1,7 +1,6 @@
 // src/routes/matchups/+page.server.js
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
-import { readFile } from 'fs/promises';
 
 let _cache = null;
 let _sleeper = null;
@@ -53,20 +52,8 @@ async function tryLoadJsonFromStatic(origin, relPath) {
     // ignore
   }
 
-  // disk fallback (static directory)
-  try {
-    const fileUrl = new URL(`../../../static/${relPath}`, import.meta.url);
-    const txt = await readFile(fileUrl, 'utf8');
-    try {
-      const parsed = JSON.parse(txt);
-      // provide a pseudo-url (static path)
-      return { data: parsed, url: `/static/${relPath}` };
-    } catch (e) {
-      return null;
-    }
-  } catch (e) {
-    return null;
-  }
+  // No disk fallback on Vercel — static files are CDN-served, not in function bundle.
+  return null;
 }
 
 async function tryLoadEarly2023(origin) {
