@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "sveltekit",
+  "installCommand": "rm -f pnpm-lock.yaml package-lock.json && yarn install",
+  "buildCommand": "yarn build"
+}

@@ -6,16 +6,20 @@ import { createMemoryCache, createKVCache } from '$lib/server/cache';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-let cache;
-try {
-  if (typeof globalThis !== 'undefined' && globalThis.KV) cache = createKVCache(globalThis.KV);
-  else cache = createMemoryCache();
-} catch (e) {
-  cache = createMemoryCache();
+let _cache = null;
+let _sleeper = null;
+function getSleeperClient() {
+  if (_sleeper) return _sleeper;
+  if (!_cache) {
+    try {
+      if (typeof globalThis !== 'undefined' && globalThis.KV) _cache = createKVCache(globalThis.KV);
+      else _cache = createMemoryCache();
+    } catch (e) { _cache = createMemoryCache(); }
+  }
+  const concurrency = Number(process.env.SLEEPER_CONCURRENCY) || 8;
+  _sleeper = createSleeperClient({ cache: _cache, concurrency });
+  return _sleeper;
 }
-
-const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
-const sleeper = createSleeperClient({ cache, concurrency: SLEEPER_CONCURRENCY });
 
 const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process.env.BASE_LEAGUE_ID)
   ? process.env.BASE_LEAGUE_ID
@@ -507,6 +511,7 @@ async function computeTeamLeadersForSeason(fullSeasonMatchupsRows, playoffStart,
    main load handler
    ========================== */
 export async function load(event) {
+  const sleeper = getSleeperClient();
   event.setHeaders({ 'cache-control': 's-maxage=60, stale-while-revalidate=120' });
 
   const url = event.url;

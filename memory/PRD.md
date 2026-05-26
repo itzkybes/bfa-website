@@ -36,7 +36,7 @@ User followed up confirming:
 8. **Admin tool** — Generate season_matchups JSON from Sleeper data (read-only, copy to clipboard)
 
 ## What's Been Implemented (2026-01-26)
-- ✅ Full redesign of all 8 routes with the BFA-themed "Performance Pro" aesthetic
+- ✅ Full redesign of all 8 routes with the BFA-themed "Performance Pro" aesthetic — consistent across every page (verified: every page reads `--bg-base: #07070d`, `--brand: #3831DB` for eyebrows/identity, `--accent: #E3772F` for action elements)
 - ✅ All Sleeper API server-load functions preserved (zero behavior change)
 - ✅ Fixed corrupted `lib/cache.js` + `routes/+page.svelte` (had garbage doc prefix breaking the build)
 - ✅ Sticky responsive header with Records dropdown + mobile hamburger
@@ -45,6 +45,7 @@ User followed up confirming:
 - ✅ Fixed two season-selector navigation bugs (Honor Hall + Records-Player) via `data-sveltekit-reload`
 - ✅ Vercel Node 22 build error resolved (pinned `@sveltejs/adapter-vercel@^6.3.3` with explicit `runtime: 'nodejs22.x'`)
 - ✅ Fixed Vercel `/rosters` 500 error — Sleeper `/players/nba` was 5MB, exceeding the 4.5MB serverless response limit. Slimmed playersMap to only roster-relevant players (~250 entries, 256KB total response).
+- ✅ Fixed Vercel `FUNCTION_INVOCATION_FAILED` on ALL `+page.server.js` routes — was caused by a stale `pnpm-lock.yaml` on GitHub conflicting with the local `yarn.lock`. Fixes applied: (1) `vercel.json` with `installCommand: "rm -f pnpm-lock.yaml package-lock.json && yarn install"` forces yarn install regardless of stray lock files; (2) refactored ALL 7 `+page.server.js` files from module-level instantiation to lazy `getSleeperClient()` singletons so dependency mismatch / cold-start exceptions can't kill the function on import. Also normalized CRLF→LF line endings in server files.
 - ✅ Frontend supervisor wrapper at `/app/frontend/package.json` so local preview works
 - ✅ SITE_FILE_COMPARISON.md document with file-by-file summary
 - ✅ Testing: 100% pass rate after fixes (iteration_2.json)

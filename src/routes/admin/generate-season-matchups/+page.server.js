@@ -7,19 +7,20 @@
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
-let cache;
-try {
-  if (typeof globalThis !== 'undefined' && globalThis.KV) {
-    cache = createKVCache(globalThis.KV);
-  } else {
-    cache = createMemoryCache();
+let _cache = null;
+let _sleeper = null;
+function getSleeperClient() {
+  if (_sleeper) return _sleeper;
+  if (!_cache) {
+    try {
+      if (typeof globalThis !== 'undefined' && globalThis.KV) _cache = createKVCache(globalThis.KV);
+      else _cache = createMemoryCache();
+    } catch (e) { _cache = createMemoryCache(); }
   }
-} catch (e) {
-  cache = createMemoryCache();
+  const concurrency = Number(process.env.SLEEPER_CONCURRENCY) || 8;
+  _sleeper = createSleeperClient({ cache: _cache, concurrency });
+  return _sleeper;
 }
-
-const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
-const sleeper = createSleeperClient({ cache: cache, concurrency: SLEEPER_CONCURRENCY });
 
 const BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process.env.BASE_LEAGUE_ID)
   ? process.env.BASE_LEAGUE_ID
@@ -92,6 +93,7 @@ function computeTotalFromParticipant(part) {
 }
 
 export async function load(event) {
+  const sleeper = getSleeperClient();
   // Cache headers for page
   event.setHeaders({
     'cache-control': 's-maxage=60, stale-while-revalidate=300'

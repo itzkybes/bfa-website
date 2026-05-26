@@ -5,16 +5,21 @@
 import { createSleeperClient } from '$lib/server/sleeperClient';
 import { createMemoryCache, createKVCache } from '$lib/server/cache';
 
-var cache;
-try {
-  if (typeof globalThis !== 'undefined' && globalThis.KV) cache = createKVCache(globalThis.KV);
-  else cache = createMemoryCache();
-} catch (e) {
-  cache = createMemoryCache();
+// Lazy singletons — avoid module-init crashes on Vercel cold start
+let _cache = null;
+let _sleeper = null;
+function getSleeperClient() {
+  if (_sleeper) return _sleeper;
+  if (!_cache) {
+    try {
+      if (typeof globalThis !== 'undefined' && globalThis.KV) _cache = createKVCache(globalThis.KV);
+      else _cache = createMemoryCache();
+    } catch (e) { _cache = createMemoryCache(); }
+  }
+  const concurrency = Number(process.env.SLEEPER_CONCURRENCY) || 8;
+  _sleeper = createSleeperClient({ cache: _cache, concurrency });
+  return _sleeper;
 }
-
-var SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
-var sleeper = createSleeperClient({ cache: cache, concurrency: SLEEPER_CONCURRENCY });
 
 var BASE_LEAGUE_ID = (typeof process !== 'undefined' && process.env && process.env.BASE_LEAGUE_ID) ? process.env.BASE_LEAGUE_ID : '1219816671624048640';
 var CACHE_TTL = Number(process.env.ROSTERS_CACHE_TTL) || 60 * 5;
@@ -23,6 +28,7 @@ var MAX_WEEKS = Number(process.env.MAX_WEEKS) || 25;
 function safeNum(v) { var n = Number(v); return isNaN(n) ? 0 : n; }
 
 export async function load(event) {
+  var sleeper = getSleeperClient();
   event.setHeaders({ 'cache-control': 's-maxage=120, stale-while-revalidate=300' });
 
   var url = event.url;

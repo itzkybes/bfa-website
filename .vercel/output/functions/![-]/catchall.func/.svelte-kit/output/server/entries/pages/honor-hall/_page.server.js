@@ -1,15 +1,22 @@
 import { c as createKVCache, a as createMemoryCache, b as createSleeperClient } from "../../../chunks/cache.js";
 import { readFile } from "fs/promises";
 import path from "path";
-let cache;
-try {
-  if (typeof globalThis !== "undefined" && globalThis.KV) cache = createKVCache(globalThis.KV);
-  else cache = createMemoryCache();
-} catch (e) {
-  cache = createMemoryCache();
+let _cache = null;
+let _sleeper = null;
+function getSleeperClient() {
+  if (_sleeper) return _sleeper;
+  if (!_cache) {
+    try {
+      if (typeof globalThis !== "undefined" && globalThis.KV) _cache = createKVCache(globalThis.KV);
+      else _cache = createMemoryCache();
+    } catch (e) {
+      _cache = createMemoryCache();
+    }
+  }
+  const concurrency = Number(process.env.SLEEPER_CONCURRENCY) || 8;
+  _sleeper = createSleeperClient({ cache: _cache, concurrency });
+  return _sleeper;
 }
-const SLEEPER_CONCURRENCY = Number(process.env.SLEEPER_CONCURRENCY) || 8;
-const sleeper = createSleeperClient({ cache, concurrency: SLEEPER_CONCURRENCY });
 const BASE_LEAGUE_ID = typeof process !== "undefined" && process.env && process.env.BASE_LEAGUE_ID ? process.env.BASE_LEAGUE_ID : "1219816671624048640";
 const MAX_WEEKS = Number(process.env.MAX_WEEKS) || 25;
 function safeNum(v) {
@@ -249,6 +256,7 @@ async function computeMvpsFromMatchups(matchupsRows, playoffStart, playoffEnd, r
   return { finalsMvp, overallMvp, debug };
 }
 async function load(event) {
+  const sleeper2 = getSleeperClient();
   event.setHeaders({ "cache-control": "s-maxage=120, stale-while-revalidate=300" });
   const url = event.url;
   const incomingSeasonParam = url.searchParams.get("season") || null;
@@ -258,7 +266,7 @@ async function load(event) {
   try {
     let mainLeague = null;
     try {
-      mainLeague = await sleeper.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
+      mainLeague = await sleeper2.getLeague(BASE_LEAGUE_ID, { ttl: 60 * 5 });
     } catch (e) {
       messages.push("Failed fetching base league " + BASE_LEAGUE_ID + " — " + (e && e.message ? e.message : String(e)));
     }
@@ -274,7 +282,7 @@ async function load(event) {
       while (currPrev && steps < 50) {
         steps++;
         try {
-          const prevLeague = await sleeper.getLeague(currPrev, { ttl: 60 * 5 });
+          const prevLeague = await sleeper2.getLeague(currPrev, { ttl: 60 * 5 });
           if (!prevLeague) {
             messages.push("Could not fetch league for previous_league_id " + currPrev);
             break;
@@ -330,7 +338,7 @@ async function load(event) {
   if (!selectedLeagueId) selectedLeagueId = String(selectedSeasonParam || BASE_LEAGUE_ID);
   let leagueMeta = null;
   try {
-    leagueMeta = await sleeper.getLeague(selectedLeagueId, { ttl: 60 * 5 });
+    leagueMeta = await sleeper2.getLeague(selectedLeagueId, { ttl: 60 * 5 });
   } catch (e) {
     leagueMeta = null;
     messages.push("Failed fetching league meta for " + selectedLeagueId + " — " + (e?.message ?? e));
@@ -346,7 +354,7 @@ async function load(event) {
   let playoffEnd = playoffStart + 2;
   let rosterMap = {};
   try {
-    rosterMap = await sleeper.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
+    rosterMap = await sleeper2.getRosterMapWithOwners(selectedLeagueId, { ttl: 60 * 5 });
     messages.push("Loaded rosters (" + Object.keys(rosterMap).length + ")");
   } catch (e) {
     rosterMap = {};
@@ -366,7 +374,7 @@ async function load(event) {
   for (let week = regStart; week <= regEnd; week++) {
     let matchups = null;
     try {
-      matchups = await sleeper.getMatchupsForWeek(selectedLeagueId, week, { ttl: 60 * 5 });
+      matchups = await sleeper2.getMatchupsForWeek(selectedLeagueId, week, { ttl: 60 * 5 });
     } catch (errWeek) {
       messages.push("Error fetching matchups for league " + selectedLeagueId + " week " + week + " — " + (errWeek && errWeek.message ? errWeek.message : String(errWeek)));
       continue;
@@ -552,7 +560,7 @@ async function load(event) {
     const rawMatchups = [];
     for (let wk = playoffStart; wk <= playoffEnd; wk++) {
       try {
-        const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
+        const wkMatchups = await sleeper2.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
         if (Array.isArray(wkMatchups) && wkMatchups.length) {
           for (const m of wkMatchups) {
             if (m && (m.week == null && m.w == null)) m.week = wk;
@@ -648,7 +656,7 @@ async function load(event) {
       const allRaw = [];
       for (let wk = 1; wk <= Math.min(playoffEnd, MAX_WEEKS); wk++) {
         try {
-          const wkMatchups = await sleeper.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
+          const wkMatchups = await sleeper2.getMatchupsForWeek(selectedLeagueId, wk, { ttl: 60 * 5 });
           if (Array.isArray(wkMatchups) && wkMatchups.length) {
             for (const m of wkMatchups) {
               if (m && (m.week == null && m.w == null)) m.week = wk;
