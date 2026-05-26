@@ -2,31 +2,25 @@
 	"/": [
 		"src/routes/+page.js"
 	],
-	"/_diag": [
-		"src/routes/_diag/+server.js"
-	],
-	"/_minimal": [
-		"src/routes/_minimal/+page.server.js"
-	],
 	"/admin/generate-season-matchups": [
-		"src/routes/admin/generate-season-matchups/+page.server.js"
+		"src/routes/admin/generate-season-matchups/+page.js"
 	],
 	"/honor-hall": [
-		"src/routes/honor-hall/+page.server.js"
+		"src/routes/honor-hall/+page.js"
 	],
 	"/matchups": [
-		"src/routes/matchups/+page.server.js"
+		"src/routes/matchups/+page.js"
 	],
 	"/records-player": [
-		"src/routes/records-player/+page.server.js"
+		"src/routes/records-player/+page.js"
 	],
 	"/records-team": [
-		"src/routes/records-team/+page.server.js"
+		"src/routes/records-team/+page.js"
 	],
 	"/rosters": [
-		"src/routes/rosters/+page.server.js"
+		"src/routes/rosters/+page.js"
 	],
 	"/standings": [
-		"src/routes/standings/+page.server.js"
+		"src/routes/standings/+page.js"
 	]
 }

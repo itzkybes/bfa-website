@@ -1,4 +1,4 @@
-import { W as noop, a1 as safe_not_equal } from "./renderer.js";
+import { V as noop, a0 as safe_not_equal } from "./renderer.js";
 const subscriber_queue = [];
 function readable(value, start) {
   return {

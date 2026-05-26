@@ -29,14 +29,12 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/_diag" | "/_minimal" | "/admin" | "/admin/generate-season-matchups" | "/honor-hall" | "/matchups" | "/records-player" | "/records-team" | "/rosters" | "/standings";
+		RouteId(): "/" | "/admin" | "/admin/generate-season-matchups" | "/honor-hall" | "/matchups" | "/records-player" | "/records-team" | "/rosters" | "/standings";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
-			"/_diag": Record<string, never>;
-			"/_minimal": Record<string, never>;
 			"/admin": Record<string, never>;
 			"/admin/generate-season-matchups": Record<string, never>;
 			"/honor-hall": Record<string, never>;
@@ -46,7 +44,7 @@ declare module "$app/types" {
 			"/rosters": Record<string, never>;
 			"/standings": Record<string, never>
 		};
-		Pathname(): "/" | "/_diag" | "/_minimal" | "/admin/generate-season-matchups" | "/honor-hall" | "/matchups" | "/records-player" | "/records-team" | "/rosters" | "/standings";
+		Pathname(): "/" | "/admin/generate-season-matchups" | "/honor-hall" | "/matchups" | "/records-player" | "/records-team" | "/rosters" | "/standings";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/bfa-logo.png" | "/early2023.json" | "/robots.txt" | "/season_matchups/2022.json" | "/season_matchups/2023.json" | "/season_matchups/2024.json" | "/svelte-welcome.webp" | "/week-ranges.json" | string & {};
 	}

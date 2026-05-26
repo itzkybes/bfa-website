@@ -29,14 +29,6 @@
 			"continue": false
 		},
 		{
-			"src": "^/_diag/?(?:/__data.json)?$",
-			"dest": "/_diag"
-		},
-		{
-			"src": "^/_minimal/?(?:/__data.json)?$",
-			"dest": "/_minimal"
-		},
-		{
 			"src": "^/admin/generate-season-matchups/?(?:/__data.json)?$",
 			"dest": "/admin/generate-season-matchups"
 		},

@@ -1,2 +1,0 @@
-import{a as s,s as f,f as m}from"../chunks/wFSdZPMz.js";import"../chunks/DDxaThq2.js";import{b3 as n,Y as i,b5 as d,M as c,aK as l}from"../chunks/BDSDxmdz.js";import{p as _}from"../chunks/1aRFUTeY.js";var u=m('<pre style="padding:2rem; color:#fff; background:#07070d; font-family: ui-monospace, monospace; font-size: 13px;"> </pre>');function y(e,o){let t=_(o,"data",8);var a=u(),r=c(a);l(a),n(p=>f(r,`${p??""}
-`),[()=>(i(t()),d(()=>JSON.stringify(t(),null,2)))]),s(e,a)}export{y as component};

@@ -1,70 +1,243 @@
-<!-- src/routes/records-player/+page.svelte — Player MVPs & all-time bests -->
+<!-- src/routes/records-player/+page.svelte (client-side fetched) -->
 <script>
-  export let data;
+  import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getMatchupsForWeek, getRosterMapWithOwners, getPlayersNba, playerHeadshot, getLeague } from '$lib/sleeperClient.client';
+  import { fetchStaticJson, HARDCODED_CHAMPIONS } from '$lib/leagueCompute.client';
+  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
-  const seasons = Array.isArray(data?.seasons) ? data.seasons : [];
-  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : null);
-
-  const seasonsResults = Array.isArray(data?.seasonsResults) ? data.seasonsResults : [];
-  const allTimePlayoff = Array.isArray(data?.allTimePlayoffBestPerRoster) ? data.allTimePlayoffBestPerRoster : [];
-  const allTimeFull = Array.isArray(data?.allTimeFullSeasonBestPerRoster) ? data.allTimeFullSeasonBestPerRoster : [];
-
-  $: selectedRow = seasonsResults.find((r) => String(r.season) === String(selectedSeason)) ?? null;
-  $: om = selectedRow?.overallMvp ?? null;
-  $: fm = selectedRow?.finalsMvp ?? null;
-
-  function headshot(pid) {
-    return pid ? `https://sleepercdn.com/content/nba/players/${pid}.jpg` : '';
-  }
+  let loading = true;
+  let error = null;
+  let seasons = [];
+  let selectedSeason = null;
+  let seasonsResults = [];   // [{ season, overallMvp, finalsMvp, teamLeaders[] }]
+  let allTimePlayoff = [];
+  let allTimeFull = [];
+  let playersMap = {};
 
   function avatarOrPh(url, name) {
     if (url) return url;
     const ch = name ? name[0].toUpperCase() : 'P';
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
   }
-
   function fmt(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
+    const n = Number(v); if (!isFinite(n)) return '—';
     return (Math.round(n * 100) / 100).toFixed(2);
   }
 
-  // Roster info resolver (preserved from original)
-  const rosterNameMap = {};
-  (function () {
-    for (const sr of seasonsResults) {
-      if (!Array.isArray(sr?.teamLeaders)) continue;
-      for (const t of sr.teamLeaders) {
-        const rid = String(t.rosterId);
-        const meta = t._roster_meta || {};
-        if (!rosterNameMap[rid]) {
-          rosterNameMap[rid] = {
-            teamName: meta.team_name || meta.owner_name || t.owner_name || null,
-            ownerName: t.owner_name || meta.owner_name || null,
-            teamAvatar: t.teamAvatar || meta.team_avatar || null
-          };
+  function playerName(pid) {
+    if (!pid) return '';
+    const p = playersMap[pid];
+    if (!p) return String(pid);
+    return p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || String(pid);
+  }
+
+  $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
+  $: om = selectedRow?.overallMvp ?? null;
+  $: fm = selectedRow?.finalsMvp ?? null;
+
+  // Aggregate player points across multiple matchups
+  function aggregatePlayerPoints(matchupEntries) {
+    // For each roster, sum every starter's points across all entries
+    const byPlayer = {}; // pid -> { points, rosterId }
+    for (const entry of matchupEntries) {
+      if (!entry) continue;
+      const rid = String(entry.roster_id ?? entry.rosterId ?? '');
+      const starters = Array.isArray(entry.starters) ? entry.starters : [];
+      const pts = entry.starters_points || entry.player_points || null;
+      if (pts && typeof pts === 'object') {
+        for (const pid of starters) {
+          if (!pid) continue;
+          let val = 0;
+          if (Array.isArray(pts)) {
+            const idx = starters.indexOf(pid);
+            val = Number(pts[idx] ?? 0);
+          } else {
+            val = Number(pts[String(pid)] ?? 0);
+          }
+          if (!isFinite(val)) val = 0;
+          if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
+          byPlayer[pid].points += val;
         }
       }
     }
-  })();
+    for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
+    return byPlayer;
+  }
+
+  async function fetchAllSeasonMatchups(leagueId, leagueSeason, playoffStart, playoffEnd) {
+    // Returns { regular: { week -> [entries] }, playoff: { week -> [entries] } }
+    const out = { regular: {}, playoff: {} };
+    for (let week = 1; week <= 22; week++) {
+      let entries = null;
+      // try static
+      if (leagueSeason && ['2022','2023','2024'].includes(leagueSeason)) {
+        const sm = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
+        if (sm && sm[String(week)]) {
+          entries = sm[String(week)].flatMap((m, i) => {
+            const mid = m.matchup_id ?? i;
+            return [
+              m.teamA ? {
+                matchup_id: mid, roster_id: String(m.teamA.rosterId),
+                starters: m.teamA.starters || [], starters_points: m.teamA.starters_points || m.teamA.player_points,
+                player_points: m.teamA.player_points
+              } : null,
+              m.teamB ? {
+                matchup_id: mid, roster_id: String(m.teamB.rosterId),
+                starters: m.teamB.starters || [], starters_points: m.teamB.starters_points || m.teamB.player_points,
+                player_points: m.teamB.player_points
+              } : null
+            ].filter(Boolean);
+          });
+        }
+      }
+      if (!entries) {
+        try { entries = await getMatchupsForWeek(leagueId, week); } catch (e) { continue; }
+      }
+      if (!Array.isArray(entries) || !entries.length) continue;
+      const bucket = (week >= playoffStart && week <= playoffEnd) ? out.playoff : out.regular;
+      bucket[week] = entries;
+    }
+    return out;
+  }
+
+  async function loadAll() {
+    loading = true; error = null;
+    try {
+      const { seasons: chain } = await getSeasonsChain(BASE_LEAGUE_ID);
+      seasons = chain;
+      const urlSeason = $page.url.searchParams.get('season');
+      const latest = chain.length ? chain[chain.length - 1] : null;
+      selectedSeason = urlSeason || (latest?.season != null ? String(latest.season) : String(latest?.league_id || BASE_LEAGUE_ID));
+
+      // Fetch players map (~5MB, cached aggressively client-side via fetchWithCache + localStorage)
+      const playersPromise = getPlayersNba().catch(() => ({}));
+
+      // For each season, fetch matchups & compute MVPs
+      const allResults = await Promise.all(chain.map(async (s) => {
+        const league = await getLeague(s.league_id).catch(() => null);
+        let playoffStart = league?.settings?.playoff_week_start ? Number(league.settings.playoff_week_start) : 15;
+        if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+        const playoffEnd = playoffStart + 2;
+        const rosterMap = await getRosterMapWithOwners(s.league_id).catch(() => ({}));
+        const matchups = await fetchAllSeasonMatchups(s.league_id, s.season ? String(s.season) : null, playoffStart, playoffEnd);
+
+        // Overall MVP = top scorer across full season
+        const fullEntries = [...Object.values(matchups.regular).flat(), ...Object.values(matchups.playoff).flat()];
+        const playoffOnly = Object.values(matchups.playoff).flat();
+        const fullByPlayer = aggregatePlayerPoints(fullEntries);
+        const playoffByPlayer = aggregatePlayerPoints(playoffOnly);
+
+        const overallList = Object.values(fullByPlayer).sort((a,b) => b.points - a.points);
+        const finalsList = Object.values(playoffByPlayer).sort((a,b) => b.points - a.points);
+
+        // Filter Finals MVP to champion's roster (using hardcoded champ if season matches)
+        let finalsMvp = finalsList[0] || null;
+        if (s.season && HARDCODED_CHAMPIONS[String(s.season)]) {
+          const championOwner = String(HARDCODED_CHAMPIONS[String(s.season)]).toLowerCase();
+          // find roster IDs belonging to that owner
+          const champRosterIds = Object.keys(rosterMap).filter(rid => {
+            const m = rosterMap[rid];
+            return String(m.owner_username || '').toLowerCase() === championOwner ||
+                   String(m.owner_name || '').toLowerCase() === championOwner;
+          });
+          if (champRosterIds.length) {
+            const champFinalsList = finalsList.filter(p => champRosterIds.includes(p.rosterId));
+            if (champFinalsList.length) finalsMvp = champFinalsList[0];
+          }
+        }
+
+        // team leaders (top scorer per roster)
+        const teamLeaders = [];
+        const seenRosters = new Set();
+        for (const p of overallList) {
+          if (seenRosters.has(p.rosterId)) continue;
+          const meta = rosterMap[p.rosterId] || {};
+          teamLeaders.push({
+            rosterId: p.rosterId, playerId: p.playerId, points: p.points,
+            teamName: meta.team_name, owner_name: meta.owner_name, teamAvatar: meta.team_avatar,
+            _roster_meta: meta
+          });
+          seenRosters.add(p.rosterId);
+        }
+
+        return {
+          season: s.season ?? s.league_id,
+          leagueId: s.league_id,
+          overallMvp: overallList[0] ? { ...overallList[0], playerName: null, roster_meta: rosterMap[overallList[0].rosterId] } : null,
+          finalsMvp: finalsMvp ? { ...finalsMvp, playerName: null, roster_meta: rosterMap[finalsMvp.rosterId] } : null,
+          teamLeaders,
+          rosterMap,
+          fullByPlayer,
+          playoffByPlayer
+        };
+      }));
+
+      playersMap = await playersPromise;
+      seasonsResults = allResults;
+      // resolve player names now that playersMap is loaded
+      for (const r of seasonsResults) {
+        if (r.overallMvp) r.overallMvp.playerName = playerName(r.overallMvp.playerId);
+        if (r.finalsMvp) r.finalsMvp.playerName = playerName(r.finalsMvp.playerId);
+      }
+      seasonsResults = seasonsResults; // force reactivity
+
+      // All-time playoff best per roster
+      const allTimePlayoffMap = {}; // rid -> { rosterId, playerId, points, season, ... }
+      for (const r of seasonsResults) {
+        for (const [pid, info] of Object.entries(r.playoffByPlayer || {})) {
+          const rid = info.rosterId;
+          if (!allTimePlayoffMap[rid] || info.points > allTimePlayoffMap[rid].points) {
+            const meta = r.rosterMap[rid] || {};
+            allTimePlayoffMap[rid] = {
+              rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
+              season: r.season, teamName: meta.team_name, owner_name: meta.owner_name, teamAvatar: meta.team_avatar
+            };
+          }
+        }
+      }
+      allTimePlayoff = Object.values(allTimePlayoffMap).sort((a,b) => b.points - a.points);
+
+      // All-time full-season best per roster
+      const allTimeFullMap = {};
+      for (const r of seasonsResults) {
+        for (const [pid, info] of Object.entries(r.fullByPlayer || {})) {
+          const rid = info.rosterId;
+          if (!allTimeFullMap[rid] || info.points > allTimeFullMap[rid].points) {
+            const meta = r.rosterMap[rid] || {};
+            allTimeFullMap[rid] = {
+              rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
+              season: r.season, teamName: meta.team_name, owner_name: meta.owner_name, teamAvatar: meta.team_avatar
+            };
+          }
+        }
+      }
+      allTimeFull = Object.values(allTimeFullMap).sort((a,b) => b.points - a.points);
+    } catch (e) {
+      console.error('[Records-Player] failed', e);
+      error = e;
+    } finally {
+      loading = false;
+    }
+  }
+
+  function onSeasonChange(e) {
+    selectedSeason = e.target.value;
+    goto(`?season=${encodeURIComponent(selectedSeason)}`, { replaceState: true, keepFocus: true, noScroll: true });
+  }
 
   function rosterInfo(row) {
     if (!row) return { teamName: null, ownerName: null, teamAvatar: null };
-    const rid = String(row.rosterId ?? row.topRosterId ?? '');
-    const rm = row.roster_meta || row._roster_meta || {};
-    const map = rid ? rosterNameMap[rid] || {} : {};
     return {
-      teamName: row.teamName || row.team_name || rm.team_name || map.teamName || row.owner_name || `Roster ${rid}`,
-      ownerName: row.owner_name || rm.owner_name || map.ownerName || (rid ? `Roster ${rid}` : null),
-      teamAvatar: row.teamAvatar || row.team_avatar || rm.team_avatar || rm.owner_avatar || map.teamAvatar || null
+      teamName: row.teamName || row.roster_meta?.team_name || row.owner_name || `Roster ${row.rosterId}`,
+      ownerName: row.owner_name || row.roster_meta?.owner_name || (row.rosterId ? `Roster ${row.rosterId}` : null),
+      teamAvatar: row.teamAvatar || row.roster_meta?.team_avatar || row.roster_meta?.owner_avatar || null
     };
   }
 
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else form?.submit();
-  }
+  onMount(loadAll);
 </script>
 
 <div class="page wrap">
@@ -74,377 +247,138 @@
         <div class="eyebrow">All-Time · Player Records</div>
         <h1 class="page-title">Player Records</h1>
       </div>
-      <form id="filters" method="get" data-sveltekit-reload>
+      <div>
         <label for="season-select" class="visually-hidden">Season</label>
-        <select id="season-select" name="season" on:change={submitFilters} data-testid="player-season-select">
-          {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>
-              {s.season ?? s.name ?? s.league_id}
-            </option>
-          {/each}
+        <select id="season-select" on:change={onSeasonChange} value={selectedSeason} data-testid="player-season-select">
+          {#each seasons as s}<option value={s.season ?? s.league_id}>{s.season ?? s.name}</option>{/each}
         </select>
-      </form>
+      </div>
     </div>
   </header>
 
-  <!-- MVPs for selected season -->
-  <section class="block">
-    <div class="block-head">
-      <h2 class="block-title">Season MVPs · {selectedSeason}</h2>
-      <span class="block-sub">Overall & Finals</span>
-    </div>
-
-    <div class="mvp-grid">
-      <!-- Overall MVP -->
-      <div class="mvp-card" data-testid="mvp-overall">
-        <div class="mvp-label">Overall MVP</div>
-        {#if om}
-          <div class="mvp-body">
-            <img
-              class="mvp-headshot"
-              src={headshot(om.playerId) || avatarOrPh(rosterInfo(om).teamAvatar, om.playerName)}
-              alt={om.playerName}
-              on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(om).teamAvatar, om.playerName))}
-            />
-            <div>
-              <div class="mvp-player-name">{om.playerName}</div>
-              <div class="mvp-pts num">{fmt(om.points)}<span class="pts-label"> PTS</span></div>
-              <div class="mvp-team">
-                <img class="team-mini" src={avatarOrPh(rosterInfo(om).teamAvatar, rosterInfo(om).teamName)} alt={rosterInfo(om).teamName} />
-                <div>
-                  <div class="t-name">{rosterInfo(om).teamName}</div>
-                  <div class="t-owner">{rosterInfo(om).ownerName}</div>
+  {#if loading}
+    <SkeletonLoader variant="row" count={6} />
+  {:else if error}
+    <ErrorBoundary {error} onRetry={loadAll} context="player records" />
+  {:else}
+    <section class="block">
+      <div class="block-head"><h2 class="block-title">Season MVPs · {selectedSeason}</h2><span class="block-sub">Overall & Finals</span></div>
+      <div class="mvp-grid">
+        <div class="mvp-card" data-testid="mvp-overall">
+          <div class="mvp-label">Overall MVP</div>
+          {#if om}
+            <div class="mvp-body">
+              <img class="mvp-headshot" src={playerHeadshot(om.playerId) || avatarOrPh(rosterInfo(om).teamAvatar, om.playerName)} alt={om.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(om).teamAvatar, om.playerName))} />
+              <div>
+                <div class="mvp-player-name">{om.playerName}</div>
+                <div class="mvp-pts num">{fmt(om.points)}<span class="pts-label"> PTS</span></div>
+                <div class="mvp-team">
+                  <img class="team-mini" src={avatarOrPh(rosterInfo(om).teamAvatar, rosterInfo(om).teamName)} alt={rosterInfo(om).teamName} />
+                  <div><div class="t-name">{rosterInfo(om).teamName}</div><div class="t-owner">{rosterInfo(om).ownerName}</div></div>
                 </div>
               </div>
             </div>
-          </div>
-        {:else}
-          <div class="mvp-empty">No Overall MVP data.</div>
-        {/if}
-      </div>
-
-      <!-- Finals MVP -->
-      <div class="mvp-card finals" data-testid="mvp-finals">
-        <div class="mvp-label finals">Finals MVP</div>
-        {#if fm}
-          <div class="mvp-body">
-            <img
-              class="mvp-headshot"
-              src={headshot(fm.playerId) || avatarOrPh(rosterInfo(fm).teamAvatar, fm.playerName)}
-              alt={fm.playerName}
-              on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(fm).teamAvatar, fm.playerName))}
-            />
-            <div>
-              <div class="mvp-player-name">{fm.playerName}</div>
-              <div class="mvp-pts num">{fmt(fm.points)}<span class="pts-label"> PTS</span></div>
-              <div class="mvp-team">
-                <img class="team-mini" src={avatarOrPh(rosterInfo(fm).teamAvatar, rosterInfo(fm).teamName)} alt={rosterInfo(fm).teamName} />
-                <div>
-                  <div class="t-name">{rosterInfo(fm).teamName}</div>
-                  <div class="t-owner">{rosterInfo(fm).ownerName}</div>
+          {:else}<div class="mvp-empty">No Overall MVP data.</div>{/if}
+        </div>
+        <div class="mvp-card finals" data-testid="mvp-finals">
+          <div class="mvp-label finals">Finals MVP</div>
+          {#if fm}
+            <div class="mvp-body">
+              <img class="mvp-headshot" src={playerHeadshot(fm.playerId) || avatarOrPh(rosterInfo(fm).teamAvatar, fm.playerName)} alt={fm.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(fm).teamAvatar, fm.playerName))} />
+              <div>
+                <div class="mvp-player-name">{fm.playerName}</div>
+                <div class="mvp-pts num">{fmt(fm.points)}<span class="pts-label"> PTS</span></div>
+                <div class="mvp-team">
+                  <img class="team-mini" src={avatarOrPh(rosterInfo(fm).teamAvatar, rosterInfo(fm).teamName)} alt={rosterInfo(fm).teamName} />
+                  <div><div class="t-name">{rosterInfo(fm).teamName}</div><div class="t-owner">{rosterInfo(fm).ownerName}</div></div>
                 </div>
               </div>
             </div>
-          </div>
-        {:else}
-          <div class="mvp-empty">No Finals MVP data.</div>
-        {/if}
+          {:else}<div class="mvp-empty">No Finals MVP data.</div>{/if}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- All-time playoff best -->
-  <section class="block">
-    <div class="block-head">
-      <h2 class="block-title">All-Time Single-Season Playoff Best</h2>
-      <span class="block-sub">Per team · 2022 → present</span>
-    </div>
-    {#if allTimePlayoff.length}
-      <div class="table-wrap">
-        <table class="bfa-table">
-          <thead>
-            <tr>
-              <th>Team</th>
-              <th>Player</th>
-              <th>Season</th>
-              <th class="col-num">PTS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each allTimePlayoff as row (row.rosterId)}
-              {@const info = rosterInfo(row)}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="team-avatar small" src={avatarOrPh(info.teamAvatar, info.teamName)} alt={info.teamName} />
-                    <div>
-                      <div class="team-name-cell">{row.teamName ?? info.teamName}</div>
-                      <div class="team-owner-cell">{row.owner_name ?? info.ownerName}</div>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="player-cell">
-                    <img class="headshot" src={headshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                    <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
-                  </div>
-                </td>
-                <td><span class="num accent-text">{row.season}</span></td>
-                <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {:else}
-      <div class="empty-card">No playoff data.</div>
-    {/if}
-  </section>
+    <section class="block">
+      <div class="block-head"><h2 class="block-title">All-Time Single-Season Playoff Best</h2><span class="block-sub">Per team · 2022 → present</span></div>
+      {#if allTimePlayoff.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead><tr><th>Team</th><th>Player</th><th>Season</th><th class="col-num">PTS</th></tr></thead>
+            <tbody>
+              {#each allTimePlayoff as row (row.rosterId)}
+                <tr>
+                  <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
+                  <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
+                  <td><span class="num accent-text">{row.season}</span></td>
+                  <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}<div class="empty-card">No playoff data.</div>{/if}
+    </section>
 
-  <!-- All-time full-season best -->
-  <section class="block">
-    <div class="block-head">
-      <h2 class="block-title">All-Time Single-Season Full-Season Best</h2>
-      <span class="block-sub">Per team · regular + playoffs · 2022 → present</span>
-    </div>
-    {#if allTimeFull.length}
-      <div class="table-wrap">
-        <table class="bfa-table">
-          <thead>
-            <tr>
-              <th>Team</th>
-              <th>Player</th>
-              <th>Season</th>
-              <th class="col-num">PTS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each allTimeFull as row (row.rosterId)}
-              {@const info = rosterInfo(row)}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="team-avatar small" src={avatarOrPh(info.teamAvatar, info.teamName)} alt={info.teamName} />
-                    <div>
-                      <div class="team-name-cell">{row.teamName ?? info.teamName}</div>
-                      <div class="team-owner-cell">{row.owner_name ?? info.ownerName}</div>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="player-cell">
-                    <img class="headshot" src={headshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                    <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
-                  </div>
-                </td>
-                <td><span class="num accent-text">{row.season}</span></td>
-                <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {:else}
-      <div class="empty-card">No full-season data.</div>
-    {/if}
-  </section>
+    <section class="block">
+      <div class="block-head"><h2 class="block-title">All-Time Single-Season Full-Season Best</h2><span class="block-sub">Per team · regular + playoffs</span></div>
+      {#if allTimeFull.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead><tr><th>Team</th><th>Player</th><th>Season</th><th class="col-num">PTS</th></tr></thead>
+            <tbody>
+              {#each allTimeFull as row (row.rosterId)}
+                <tr>
+                  <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
+                  <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
+                  <td><span class="num accent-text">{row.season}</span></td>
+                  <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}<div class="empty-card">No full-season data.</div>{/if}
+    </section>
+  {/if}
 </div>
 
 <style>
   .page { padding: 2.5rem 0 4rem; }
   .page-head { margin-bottom: 2rem; }
+  .head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+  .page-title { font-family: var(--font-display); font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1; text-transform: uppercase; margin: 0.4rem 0 0; }
 
-  .head-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
+  .block { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 1.25rem; }
+  .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; flex-wrap: wrap; }
+  .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+  .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
 
-  .page-title {
-    font-family: var(--font-display);
-    font-size: clamp(2.4rem, 6vw, 4rem);
-    line-height: 1;
-    text-transform: uppercase;
-    margin: 0.4rem 0 0;
-  }
+  .mvp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .mvp-card { padding: 1.5rem; border-right: 1px solid var(--border-subtle); }
+  .mvp-card.finals { border-right: none; background: linear-gradient(180deg, rgba(227, 119, 47, 0.05), transparent); }
+  .mvp-label { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 1.25rem; }
+  .mvp-label.finals { color: var(--accent); }
+  .mvp-body { display: flex; gap: 1rem; align-items: flex-start; }
+  .mvp-headshot { width: 96px; height: 96px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .mvp-player-name { font-family: var(--font-display); font-size: 1.6rem; line-height: 1; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-primary); margin-bottom: 0.5rem; }
+  .mvp-pts { color: var(--accent); font-size: 1.8rem; margin-bottom: 0.6rem; line-height: 1; }
+  .pts-label { font-family: var(--font-body); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.2em; color: var(--text-tertiary); margin-left: 0.25rem; }
+  .mvp-team { display: flex; align-items: center; gap: 0.55rem; padding-top: 0.5rem; border-top: 1px solid var(--border-subtle); }
+  .team-mini { width: 32px; height: 32px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); }
+  .t-name { font-weight: 700; font-size: 0.85rem; color: var(--text-primary); }
+  .t-owner { color: var(--text-tertiary); font-size: 0.75rem; }
+  .mvp-empty { color: var(--text-tertiary); padding: 1rem 0; font-style: italic; }
 
-  .block {
-    background: var(--surface-1);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--r-sm);
-    overflow: hidden;
-    margin-bottom: 1.25rem;
-  }
-
-  .block-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--border-subtle);
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .block-title {
-    font-family: var(--font-display);
-    font-size: 1.3rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: 0;
-  }
-
-  .block-sub {
-    color: var(--text-tertiary);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    font-weight: 700;
-  }
-
-  /* MVP grid */
-  .mvp-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-  }
-
-  .mvp-card {
-    padding: 1.5rem;
-    border-right: 1px solid var(--border-subtle);
-  }
-
-  .mvp-card.finals { border-right: none; background: linear-gradient(180deg, rgba(255, 69, 0, 0.05), transparent); }
-
-  .mvp-label {
-    font-family: var(--font-body);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    font-size: 0.72rem;
-    color: var(--text-tertiary);
-    margin-bottom: 1.25rem;
-  }
-
-  .mvp-label.finals {
-    color: var(--accent);
-  }
-
-  .mvp-body {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-
-  .mvp-headshot {
-    width: 96px;
-    height: 96px;
-    object-fit: cover;
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    border: 1px solid var(--border-subtle);
-    flex-shrink: 0;
-  }
-
-  .mvp-player-name {
-    font-family: var(--font-display);
-    font-size: 1.6rem;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-  }
-
-  .mvp-pts {
-    color: var(--accent);
-    font-size: 1.8rem;
-    margin-bottom: 0.6rem;
-    line-height: 1;
-  }
-
-  .pts-label {
-    font-family: var(--font-body);
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.2em;
-    color: var(--text-tertiary);
-    margin-left: 0.25rem;
-  }
-
-  .mvp-team {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--border-subtle);
-  }
-
-  .team-mini {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--r-sm);
-    object-fit: cover;
-    background: var(--surface-2);
-  }
-
-  .t-name {
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: var(--text-primary);
-  }
-
-  .t-owner {
-    color: var(--text-tertiary);
-    font-size: 0.75rem;
-  }
-
-  .mvp-empty {
-    color: var(--text-tertiary);
-    padding: 1rem 0;
-    font-style: italic;
-  }
-
-  /* Tables */
   .table-wrap { overflow-x: auto; }
   .bfa-table { min-width: 720px; }
-
-  .team-cell, .player-cell {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-  }
-
-  .team-avatar.small { width: 42px; height: 42px; }
-
-  .team-name-cell, .player-name-cell {
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.15;
-  }
-
-  .team-owner-cell {
-    color: var(--text-tertiary);
-    font-size: 0.78rem;
-    margin-top: 0.15rem;
-  }
-
-  .bigpts {
-    font-size: 1.15rem;
-    color: var(--accent);
-    font-weight: 700;
-  }
-
+  .team-cell, .player-cell { display: flex; align-items: center; gap: 0.7rem; }
+  .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
+  .team-name-cell, .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
+  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
+  .bigpts { font-size: 1.15rem; color: var(--accent); font-weight: 700; }
   .accent-text { color: var(--accent); }
-
-  .empty-card {
-    padding: 1.5rem;
-    text-align: center;
-    color: var(--text-secondary);
-  }
-
+  .empty-card { padding: 1.5rem; text-align: center; color: var(--text-secondary); }
   @media (max-width: 720px) {
     .mvp-grid { grid-template-columns: 1fr; }
     .mvp-card { border-right: none; border-bottom: 1px solid var(--border-subtle); }

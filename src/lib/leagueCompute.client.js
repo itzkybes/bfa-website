@@ -1,0 +1,392 @@
+// src/lib/leagueCompute.client.js
+// Browser-safe helpers ported from the previous server-side load functions.
+// Keep these as pure functions so we can reuse them across +page.svelte components.
+
+import { safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek, getSeasonsChain, getPlayersNba } from './sleeperClient.client';
+
+const BASE_LEAGUE_ID = '1219816671624048640';
+const MAX_WEEKS = 25;
+
+function computeStreaks(resultsArray) {
+  let maxW = 0, maxL = 0, curW = 0, curL = 0;
+  if (!Array.isArray(resultsArray)) return { maxW: 0, maxL: 0 };
+  for (const r of resultsArray) {
+    if (r === 'W') { curW += 1; curL = 0; if (curW > maxW) maxW = curW; }
+    else if (r === 'L') { curL += 1; curW = 0; if (curL > maxL) maxL = curL; }
+    else { curW = 0; curL = 0; }
+  }
+  return { maxW, maxL };
+}
+
+function computeParticipantPoints(entry) {
+  if (!entry || typeof entry !== 'object') return 0;
+  const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
+  for (const k of arrayKeys) {
+    if (Array.isArray(entry[k]) && entry[k].length) {
+      let s = 0;
+      for (const v of entry[k]) s += safeNum(v);
+      return Math.round(s * 100) / 100;
+    }
+  }
+  if (Array.isArray(entry.starters) && entry.player_points && typeof entry.player_points === 'object') {
+    let s = 0;
+    for (const st of entry.starters) s += safeNum(entry.player_points[String(st)] ?? entry.player_points[st]);
+    return Math.round(s * 100) / 100;
+  }
+  const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
+  return Math.round(fallback * 100) / 100;
+}
+
+/** Try fetching a static asset (relative URL). Returns parsed JSON or null. */
+async function fetchStaticJson(path) {
+  try {
+    const res = await fetch(path);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+export const HARDCODED_CHAMPIONS = {
+  '2022': 'riguy506',
+  '2023': 'armyjunior',
+  '2024': 'riguy506'
+};
+
+/* ============================================================
+ *   STANDINGS (per league)
+ * ============================================================ */
+export async function computeStandingsForLeague(leagueId) {
+  const leagueMeta = await getLeague(leagueId).catch(() => null);
+  const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
+  const leagueName = leagueMeta?.name ?? null;
+  const rosterMap = await getRosterMapWithOwners(leagueId).catch(() => ({}));
+
+  let playoffStart = (leagueMeta?.settings?.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 15;
+  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+  const playoffEnd = playoffStart + 2;
+
+  const statsByRosterRegular = {}, resultsByRosterRegular = {}, paByRosterRegular = {};
+  const statsByRosterPlayoff = {}, resultsByRosterPlayoff = {}, paByRosterPlayoff = {};
+
+  for (const rk of Object.keys(rosterMap)) {
+    statsByRosterRegular[rk] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: rosterMap[rk].roster_raw || null };
+    resultsByRosterRegular[rk] = []; paByRosterRegular[rk] = 0;
+    statsByRosterPlayoff[rk] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: rosterMap[rk].roster_raw || null };
+    resultsByRosterPlayoff[rk] = []; paByRosterPlayoff[rk] = 0;
+  }
+
+  // Try seasonMatchups JSON for 2022/2023/2024
+  let seasonMatchups = null;
+  if (leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)) {
+    seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
+  }
+
+  // Try early2023 overrides
+  let earlyData = null;
+  if (leagueSeason === '2023') {
+    earlyData = await fetchStaticJson('/early2023.json');
+  }
+
+  for (let week = 1; week <= MAX_WEEKS; week++) {
+    let matchups = null;
+
+    // Use season JSON if available
+    if (seasonMatchups && seasonMatchups[String(week)] && Array.isArray(seasonMatchups[String(week)])) {
+      const transformed = [];
+      for (const m of seasonMatchups[String(week)]) {
+        if (m.teamA) {
+          const ridA = String(m.teamA.rosterId ?? m.teamA.roster_id ?? '');
+          if (ridA) transformed.push({
+            week, roster_id: ridA, matchup_id: m.matchup_id ?? null,
+            points: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
+            __team_name: m.teamA.name ?? null, __owner_name: m.teamA.ownerName ?? null
+          });
+        }
+        if (m.teamB) {
+          const ridB = String(m.teamB.rosterId ?? m.teamB.roster_id ?? '');
+          if (ridB) transformed.push({
+            week, roster_id: ridB, matchup_id: m.matchup_id ?? null,
+            points: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
+            __team_name: m.teamB.name ?? null, __owner_name: m.teamB.ownerName ?? null
+          });
+        }
+      }
+      matchups = transformed;
+    } else {
+      try { matchups = await getMatchupsForWeek(leagueId, week); } catch (e) { continue; }
+    }
+
+    if (!matchups || !matchups.length) continue;
+
+    const isRegularWeek = (week >= 1 && week < playoffStart);
+    const isPlayoffWeek = (week >= playoffStart && week <= playoffEnd);
+    if (!isRegularWeek && !isPlayoffWeek) continue;
+
+    const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
+    const resultsByRoster = isPlayoffWeek ? resultsByRosterPlayoff : resultsByRosterRegular;
+    const paByRoster = isPlayoffWeek ? paByRosterPlayoff : paByRosterRegular;
+
+    // build early-week override map
+    let earlyWeekMap = null;
+    if (earlyData && earlyData['2023'] && earlyData['2023'][String(week)] && week >= 1 && week <= 3) {
+      earlyWeekMap = {};
+      for (const e of earlyData['2023'][String(week)]) {
+        const aOwner = e.teamA?.ownerName ? String(e.teamA.ownerName).toLowerCase() : null;
+        const bOwner = e.teamB?.ownerName ? String(e.teamB.ownerName).toLowerCase() : null;
+        const aTeam = e.teamA?.name ? String(e.teamA.name).toLowerCase() : null;
+        const bTeam = e.teamB?.name ? String(e.teamB.name).toLowerCase() : null;
+        if (aOwner) earlyWeekMap['owner:' + aOwner] = safeNum(e.teamAScore ?? 0);
+        if (bOwner) earlyWeekMap['owner:' + bOwner] = safeNum(e.teamBScore ?? 0);
+        if (aTeam) earlyWeekMap['team:' + aTeam] = safeNum(e.teamAScore ?? 0);
+        if (bTeam) earlyWeekMap['team:' + bTeam] = safeNum(e.teamBScore ?? 0);
+      }
+    }
+
+    // group entries by matchup id
+    const byMatch = {};
+    for (let mi = 0; mi < matchups.length; mi++) {
+      const e = matchups[mi];
+      const possibleRid = e.roster_id ?? e.rosterId ?? e.owner_id ?? null;
+      const pidStr = possibleRid != null ? String(possibleRid) : null;
+      if (pidStr && !rosterMap[pidStr] && (e.__team_name || e.__owner_name)) {
+        rosterMap[pidStr] = {
+          roster_id: pidStr, team_name: e.__team_name, owner_name: e.__owner_name,
+          team_avatar: null, owner_avatar: null, owner_username: null, owner_id: null, roster_raw: null
+        };
+      }
+      const mid = e.matchup_id ?? e.matchupId ?? null;
+      const wk = e.week ?? week;
+      const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + mi));
+      if (!byMatch[key]) byMatch[key] = [];
+      byMatch[key].push(e);
+    }
+
+    for (const key of Object.keys(byMatch)) {
+      const entries = byMatch[key];
+      if (!entries || entries.length === 0) continue;
+
+      if (entries.length === 1) {
+        const only = entries[0];
+        const ridOnly = String(only.roster_id ?? only.rosterId ?? '');
+        statsByRoster[ridOnly] = statsByRoster[ridOnly] || { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: null };
+        resultsByRoster[ridOnly] = resultsByRoster[ridOnly] || [];
+        paByRoster[ridOnly] = paByRoster[ridOnly] || 0;
+        let pts = null;
+        if (earlyWeekMap) {
+          const meta = rosterMap[ridOnly] || {};
+          const ownerLow = (meta.owner_name || meta.owner_username) ? String(meta.owner_name || meta.owner_username).toLowerCase() : null;
+          const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
+          if (ownerLow && earlyWeekMap['owner:' + ownerLow] != null) pts = earlyWeekMap['owner:' + ownerLow];
+          else if (teamLow && earlyWeekMap['team:' + teamLow] != null) pts = earlyWeekMap['team:' + teamLow];
+        }
+        if (pts == null) pts = computeParticipantPoints(only);
+        statsByRoster[ridOnly].pf += pts;
+        continue;
+      }
+
+      const participants = [];
+      for (const en of entries) {
+        const pid = String(en.roster_id ?? en.rosterId ?? '');
+        let ppts = null;
+        if (earlyWeekMap) {
+          const meta = rosterMap[pid] || {};
+          const ownerLow = (meta.owner_name || meta.owner_username) ? String(meta.owner_name || meta.owner_username).toLowerCase() : null;
+          const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
+          if (ownerLow && earlyWeekMap['owner:' + ownerLow] != null) ppts = earlyWeekMap['owner:' + ownerLow];
+          else if (teamLow && earlyWeekMap['team:' + teamLow] != null) ppts = earlyWeekMap['team:' + teamLow];
+        }
+        if (ppts == null) ppts = computeParticipantPoints(en);
+        participants.push({ rosterId: pid, points: ppts });
+        statsByRoster[pid] = statsByRoster[pid] || { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: null };
+        resultsByRoster[pid] = resultsByRoster[pid] || [];
+        paByRoster[pid] = paByRoster[pid] || 0;
+        statsByRoster[pid].pf += ppts;
+      }
+
+      for (let pi = 0; pi < participants.length; pi++) {
+        const part = participants[pi];
+        const others = participants.filter((_, i) => i !== pi);
+        const oppAvg = others.length ? others.reduce((s, o) => s + o.points, 0) / others.length : 0;
+        paByRoster[part.rosterId] += oppAvg;
+        if (part.points > oppAvg + 1e-9) { resultsByRoster[part.rosterId].push('W'); statsByRoster[part.rosterId].wins += 1; }
+        else if (part.points < oppAvg - 1e-9) { resultsByRoster[part.rosterId].push('L'); statsByRoster[part.rosterId].losses += 1; }
+        else { resultsByRoster[part.rosterId].push('T'); statsByRoster[part.rosterId].ties += 1; }
+      }
+    }
+  }
+
+  function build(stats, results, pa) {
+    const out = [];
+    const keys = Object.keys(results).length ? Object.keys(results) : Object.keys(rosterMap);
+    for (const rid of keys) {
+      stats[rid] = stats[rid] || { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: null };
+      const meta = rosterMap[rid] || {};
+      const streaks = computeStreaks(results[rid] || []);
+      out.push({
+        rosterId: rid,
+        owner_id: meta.owner_id || null,
+        team_name: meta.team_name || ('Roster ' + rid),
+        owner_name: meta.owner_name || null,
+        avatar: meta.team_avatar || meta.owner_avatar || null,
+        wins: stats[rid].wins || 0,
+        losses: stats[rid].losses || 0,
+        ties: stats[rid].ties || 0,
+        pf: Math.round((stats[rid].pf || 0) * 100) / 100,
+        pa: Math.round((pa[rid] || 0) * 100) / 100,
+        champion: false,
+        maxWinStreak: streaks.maxW,
+        maxLoseStreak: streaks.maxL
+      });
+    }
+    out.sort((a, b) => {
+      if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
+      return (b.pf || 0) - (a.pf || 0);
+    });
+    return out;
+  }
+
+  const regularStandings = build(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular);
+  const playoffStandings = build(statsByRosterPlayoff, resultsByRosterPlayoff, paByRosterPlayoff);
+
+  // Hardcoded champion mapping
+  if (leagueSeason && HARDCODED_CHAMPIONS[leagueSeason]) {
+    const championOwner = String(HARDCODED_CHAMPIONS[leagueSeason]).toLowerCase();
+    for (const r of playoffStandings) {
+      const meta = rosterMap[r.rosterId] || {};
+      if (String(meta.owner_username || '').toLowerCase() === championOwner ||
+          String(meta.owner_name || '').toLowerCase() === championOwner) {
+        r.champion = true;
+        break;
+      }
+    }
+  }
+
+  return {
+    leagueId: String(leagueId),
+    season: leagueSeason,
+    leagueName,
+    regularStandings,
+    playoffStandings,
+    rosterMap,
+    playoffStart,
+    playoffEnd
+  };
+}
+
+/* ============================================================
+ *   MATCHUPS (per league + week)
+ * ============================================================ */
+export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = null) {
+  if (!rosterMap) rosterMap = await getRosterMapWithOwners(leagueId).catch(() => ({}));
+  const leagueMeta = await getLeague(leagueId).catch(() => null);
+  const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
+  let playoffStart = leagueMeta?.settings?.playoff_week_start ? Number(leagueMeta.settings.playoff_week_start) : 15;
+  if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+  const playoffEnd = playoffStart + 2;
+
+  // Try seasonMatchups static JSON first
+  let seasonMatchups = null;
+  if (leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)) {
+    seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
+  }
+  let earlyData = null;
+  if (leagueSeason === '2023' && week >= 1 && week <= 3) {
+    earlyData = await fetchStaticJson('/early2023.json');
+  }
+
+  let raw = null;
+  let usedStatic = false;
+  if (seasonMatchups && seasonMatchups[String(week)] && Array.isArray(seasonMatchups[String(week)])) {
+    usedStatic = true;
+    const arr = seasonMatchups[String(week)];
+    // Build matchupsRows directly from JSON
+    return {
+      week, playoffStart, playoffEnd, leagueSeason,
+      matchupsRows: arr.map(m => ({
+        matchup_id: m.matchup_id ?? null,
+        week,
+        season: leagueSeason,
+        teamA: m.teamA ? normalizeTeamFromStatic(m.teamA, m.teamAScore, rosterMap) : null,
+        teamB: m.teamB ? normalizeTeamFromStatic(m.teamB, m.teamBScore, rosterMap) : null,
+        participantsCount: (m.teamA ? 1 : 0) + (m.teamB ? 1 : 0)
+      }))
+    };
+  }
+
+  try { raw = await getMatchupsForWeek(leagueId, week); } catch (e) { raw = []; }
+  if (!Array.isArray(raw)) raw = [];
+
+  // group by matchup_id
+  const byMatch = {};
+  for (let i = 0; i < raw.length; i++) {
+    const e = raw[i];
+    const mid = e.matchup_id ?? e.matchupId ?? null;
+    const wk = e.week ?? week;
+    const key = String(mid != null ? (mid + '|' + wk) : ('auto|' + wk + '|' + i));
+    if (!byMatch[key]) byMatch[key] = [];
+    byMatch[key].push(e);
+  }
+  const rows = [];
+  for (const k of Object.keys(byMatch)) {
+    const entries = byMatch[k];
+    if (entries.length === 1) {
+      const a = entries[0];
+      const aId = String(a.roster_id ?? a.rosterId ?? 'unknown');
+      rows.push({
+        matchup_id: k, week, season: leagueSeason,
+        teamA: makeTeam(aId, rosterMap, a),
+        teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, starters: null, starters_points: null },
+        participantsCount: 1
+      });
+      continue;
+    }
+    if (entries.length === 2) {
+      const a = entries[0], b = entries[1];
+      rows.push({
+        matchup_id: k, week, season: leagueSeason,
+        teamA: makeTeam(String(a.roster_id ?? a.rosterId ?? ''), rosterMap, a),
+        teamB: makeTeam(String(b.roster_id ?? b.rosterId ?? ''), rosterMap, b),
+        participantsCount: 2
+      });
+      continue;
+    }
+    // multi
+    rows.push({
+      matchup_id: k, week, season: leagueSeason,
+      combinedParticipants: entries.map(en => makeTeam(String(en.roster_id ?? en.rosterId ?? ''), rosterMap, en)),
+      participantsCount: entries.length
+    });
+  }
+  return { week, playoffStart, playoffEnd, leagueSeason, matchupsRows: rows };
+}
+
+function makeTeam(rid, rosterMap, entry) {
+  const meta = rosterMap[rid] || {};
+  return {
+    rosterId: rid,
+    name: meta.team_name || meta.owner_name || ('Roster ' + rid),
+    ownerName: meta.owner_name || null,
+    avatar: meta.team_avatar || meta.owner_avatar || null,
+    points: computeParticipantPoints(entry),
+    starters: entry?.starters ?? null,
+    starters_points: entry?.starters_points ?? null,
+    player_points: entry?.player_points ?? null
+  };
+}
+
+function normalizeTeamFromStatic(t, score, rosterMap) {
+  const rid = String(t.rosterId ?? t.roster_id ?? '');
+  const meta = rid && rosterMap[rid] ? rosterMap[rid] : {};
+  return {
+    rosterId: rid,
+    name: t.name ?? meta.team_name ?? null,
+    ownerName: t.ownerName ?? meta.owner_name ?? null,
+    avatar: t.avatar ?? meta.team_avatar ?? null,
+    points: safeNum(score ?? t.score ?? t.points ?? 0),
+    starters: t.starters ?? null,
+    starters_points: t.starters_points ?? null,
+    player_points: t.player_points ?? null
+  };
+}
+
+export { computeStreaks, computeParticipantPoints, fetchStaticJson, BASE_LEAGUE_ID, MAX_WEEKS };

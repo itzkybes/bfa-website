@@ -37,19 +37,19 @@ User followed up confirming:
 
 ## What's Been Implemented (2026-01-26)
 - ✅ Full BFA-themed redesign across all 8 routes (Blue `#3831DB` brand + Orange `#E3772F` accent, Bebas Neue + Outfit)
-- ✅ Fixed corrupted `lib/cache.js` + home `+page.svelte` (had garbage doc prefix)
-- ✅ Fixed two season-selector navigation bugs (Honor Hall + Records-Player) via `data-sveltekit-reload`
-- ✅ Slimmed rosters players-map payload (5MB → 256KB) under Vercel's 4.5MB response limit
-- ✅ Refactored ALL 7 `+page.server.js` files to lazy `getSleeperClient()` singletons (no module-init crashes)
-- ✅ Removed all `fs/promises` + `path` imports — static `season_matchups/*.json` are now fetched via origin HTTP (works on Vercel CDN) instead of read from disk (not bundled in Vercel function)
-- ✅ Vercel adapter explicitly pinned to `@sveltejs/adapter-vercel@^6.3.3` with `runtime: 'nodejs20.x'` (most battle-tested LTS, avoids Node 22 edge cases)
-- ✅ `package.json` `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
-- ✅ `vercel.json` `installCommand: "rm -f pnpm-lock.yaml package-lock.json && yarn install"` defeats stale pnpm-lock issues
+- ✅ **MAJOR REFACTOR: Moved ALL data fetching client-side** (same pattern as the home page) — eliminated every `+page.server.js` file. New flow: page is rendered as static HTML shell on Vercel CDN, then `onMount` fetches Sleeper API directly from the browser. **Zero serverless function invocation.**
+- ✅ Created `lib/sleeperClient.client.js` (browser-safe Sleeper API client w/ localStorage cache)
+- ✅ Created `lib/leagueCompute.client.js` (browser-safe standings/matchups/MVP compute, ported from server logic)
+- ✅ Each route now has `+page.js` with `ssr=false; prerender=false` to force pure client-side render
+- ✅ Verified locally: rosters → 14 teams + 214 players · honor-hall → champion "THE CODFATHER" + Luka Dončić as MVP · standings → 14 ranked teams · all with real Sleeper data
+- ✅ Vercel adapter explicitly pinned to `@sveltejs/adapter-vercel@^6.3.3` with `runtime: 'nodejs20.x'`
 - ✅ `vite.config.js` sets `server.allowedHosts: true` + `preview.allowedHosts: true` for Emergent preview environment
-- ✅ Added `/_diag` and `/_minimal` debug endpoints for live Vercel diagnostics
-- ✅ CRLF→LF normalized across all server files
-- ✅ Verified: directly invoking the Vercel-built `catchall.func/index.js` returns 200 on every route (including with `/static` removed to simulate Vercel filesystem)
-- ✅ All 10 routes (8 production + 2 diagnostic) return 200 locally on the dev server
+- ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
+- ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
+
+## How It Works Now (vs broken approach)
+- **Before**: Each route had `+page.server.js`. Vercel serverless function was invoked for every page view. Function was crashing with `FUNCTION_INVOCATION_FAILED` for inscrutable Vercel-side reasons.
+- **After**: Each route is a static HTML shell + browser-side fetch. The Vercel serverless function is **never invoked**. The home page already worked this way (using the Rando Player client-side fetch) — now every page follows the same pattern.
 
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P1** — Per-team season trends chart (PF/week over time) for Standings page
