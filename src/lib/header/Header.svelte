@@ -239,7 +239,7 @@
 
   .brand-line-1 {
     font-size: 1.4rem;
-    color: var(--accent);
+    color: var(--brand);
   }
 
   .brand-line-2 {

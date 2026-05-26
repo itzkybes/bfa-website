@@ -85,7 +85,7 @@
     height: 60px;
     display: grid;
     place-items: center;
-    background: var(--accent);
+    background: var(--brand);
     color: #fff;
     font-family: var(--font-display);
     font-size: 1.5rem;
@@ -125,7 +125,7 @@
     text-transform: uppercase;
     letter-spacing: 0.18em;
     font-size: 0.7rem;
-    color: var(--accent);
+    color: var(--brand);
     margin-bottom: 0.5rem;
   }
 

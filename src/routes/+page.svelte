@@ -437,7 +437,7 @@
   }
 
   .title-accent {
-    color: var(--accent);
+    color: var(--brand);
     display: inline-block;
     position: relative;
   }

@@ -10,8 +10,9 @@
 
 | File | Old Site | New Site |
 | --- | --- | --- |
-| `package.json` | SvelteKit 2.8 + Svelte 5.2 + Vite 6 + Vercel adapter-auto. Scripts: dev, build, preview, check, lint, format. | **Unchanged.** Same deps, same scripts. |
-| `svelte.config.js` | `@sveltejs/adapter-auto`. | **Unchanged.** |
+| `package.json` | SvelteKit 2.8 + Svelte 5.2 + Vite 6 + Vercel adapter-auto. Scripts: dev, build, preview, check, lint, format. | Same core deps. Added `@sveltejs/adapter-vercel@^6.3.3` and `"engines": { "node": ">=20" }` to fix Vercel Node 22 build error. |
+| `svelte.config.js` | `@sveltejs/adapter-auto`. | **Updated** to use `@sveltejs/adapter-vercel` with explicit `runtime: 'nodejs22.x'` — fixes the "Unsupported Node.js version: v22.22.2" Vercel build error. |
+| `.nvmrc` | _(did not exist)_ | **NEW** — pins Node 22 for local + Vercel builds. |
 | `vite.config.js` | Vite plugin sveltekit. | **Unchanged.** |
 | `jsconfig.json` | Extends `./.svelte-kit/tsconfig.json`. | **Unchanged.** |
 | `README.md` | Standard SvelteKit boilerplate. | **Unchanged.** |
@@ -28,7 +29,7 @@
 
 | Old | New |
 | --- | --- |
-| Minimal base — used cyan/teal `#00c6d8` + Inter. Generic. | **Rewritten** — full "Performance Pro" design-system: CSS variables for surfaces (`--surface-1..3`), Court Orange `--accent`, semantic colors (`--win`, `--loss`, `--gold`), 10-color basketball-position palette (PG red, SG gold, G orange, SF green, PF blue, F violet, C lavender, UTIL slate, BN dark, TX pink), sharp `--r-sm: 2px` radii, motion tokens, `.btn`, `.pos-pill`, `.bfa-table`, `.headshot`, `.team-avatar`, `.shimmer`, `.rise`, `.eyebrow`, `.skip-link`, custom scrollbars, reduced-motion + print rules. |
+| Minimal base — used cyan/teal `#00c6d8` + Inter. Generic. | **Rewritten** — full "Performance Pro" design-system lifted from the **BFA logo**: CSS variables for surfaces with subtle blue-black tint (`--surface-1..3`), **BFA Blue `#3831DB`** as `--brand` for identity (logo wordmark, hero title accent, eyebrows, footer mark, col-titles), **BFA Basketball Orange `#E3772F`** as `--accent` for action (winners, primary CTAs, active nav underline, week pill, Shuffle button, score winners), semantic colors (`--win`, `--loss`, `--gold`), 10-color basketball-position palette (PG red, SG gold, G orange, SF green, PF blue, F violet, C lavender, UTIL slate, BN dark, TX pink), sharp `--r-sm: 2px` radii, motion tokens, `.btn`, `.pos-pill`, `.bfa-table`, `.headshot`, `.team-avatar`, `.shimmer`, `.rise`, `.eyebrow`, `.skip-link`, custom scrollbars, reduced-motion + print rules. The body background combines a blue radial glow at the top with an orange glow at the bottom-right — visually echoing the logo's blue circle + orange ball. |
 
 ## 4. `src/app.d.ts` / `src/hooks.js`
 
