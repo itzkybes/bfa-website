@@ -330,7 +330,32 @@ async function load(event) {
     console.error("rosters: league error", leagueIdToProcess, err);
     resultLeague.error = err && err.message ? err.message : String(err);
   }
-  dataPayload.players = playersMap;
+  var neededIds = /* @__PURE__ */ new Set();
+  if (Array.isArray(resultLeague.rosters)) {
+    for (var nri = 0; nri < resultLeague.rosters.length; nri++) {
+      var rEntry = resultLeague.rosters[nri];
+      var ids = Array.isArray(rEntry.player_ids) ? rEntry.player_ids : [];
+      for (var nij = 0; nij < ids.length; nij++) if (ids[nij]) neededIds.add(String(ids[nij]));
+    }
+  }
+  var slimPlayers = {};
+  if (playersMap && typeof playersMap === "object") {
+    neededIds.forEach(function(npid) {
+      var pdata = playersMap[npid];
+      if (pdata && typeof pdata === "object") {
+        slimPlayers[npid] = {
+          player_id: pdata.player_id || npid,
+          full_name: pdata.full_name || ((pdata.first_name || "") + " " + (pdata.last_name || "")).trim() || npid,
+          first_name: pdata.first_name || null,
+          last_name: pdata.last_name || null,
+          team: pdata.team || pdata.team_abbreviation || "FA",
+          position: pdata.position || null,
+          fantasy_positions: Array.isArray(pdata.fantasy_positions) ? pdata.fantasy_positions : null
+        };
+      }
+    });
+  }
+  dataPayload.players = slimPlayers;
   dataPayload.data = [resultLeague];
   dataPayload.error = !resultLeague.rosters || resultLeague.rosters.length === 0 ? "No rosters found. Details: " + (messages.length ? messages.join(" | ") : "no details") : null;
   dataPayload.anyFound = resultLeague.rosters && resultLeague.rosters.length > 0;

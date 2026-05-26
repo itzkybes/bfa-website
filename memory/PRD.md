@@ -44,6 +44,7 @@ User followed up confirming:
 - ✅ Custom Bebas Neue + Outfit typography (no Inter/Roboto)
 - ✅ Fixed two season-selector navigation bugs (Honor Hall + Records-Player) via `data-sveltekit-reload`
 - ✅ Vercel Node 22 build error resolved (pinned `@sveltejs/adapter-vercel@^6.3.3` with explicit `runtime: 'nodejs22.x'`)
+- ✅ Fixed Vercel `/rosters` 500 error — Sleeper `/players/nba` was 5MB, exceeding the 4.5MB serverless response limit. Slimmed playersMap to only roster-relevant players (~250 entries, 256KB total response).
 - ✅ Frontend supervisor wrapper at `/app/frontend/package.json` so local preview works
 - ✅ SITE_FILE_COMPARISON.md document with file-by-file summary
 - ✅ Testing: 100% pass rate after fixes (iteration_2.json)

@@ -70,7 +70,7 @@ Both **unchanged.** Page-level config (ssr/prerender flags).
 
 | File | Old | New |
 | --- | --- | --- |
-| `+page.server.js` | Server-load: pulls rosters + users + NBA player dict from Sleeper through the previous-league chain. | **Unchanged.** |
+| `+page.server.js` | Server-load: pulls rosters + users + NBA player dict from Sleeper through the previous-league chain. | **Fixed** — was returning the full ~5 MB Sleeper `/players/nba` map, which exceeded Vercel's 4.5 MB serverless function response limit and caused **500 Internal Error** on production (worked locally because vite dev has no such limit). Now slims `playersMap` to **only the player IDs that appear on this league's rosters** (~250 entries vs ~10k) and returns a minimal shape (`player_id`, `full_name`, `team`, `position`, `fantasy_positions`). Response size dropped from ~5 MB → 256 KB. |
 | `+page.svelte` | Card grid with default cyan/teal accents, basic position badges, default fonts. | **Rewritten.** Redesigned team-cards grid with the new aesthetic: avatar + Bebas Neue team name + owner, stat pills (Starters / Bench / Taxi counts), collapse/expand button, color-coded position pills (PG/SG/G/SF/PF/F/C/UTIL/BN/TX) with NBA player headshots from Sleeper CDN, three sections per team (Starters / Bench / Taxi Squad). All elements have `data-testid` for testing. |
 
 ## 10. `src/routes/standings/`

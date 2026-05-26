@@ -298,7 +298,35 @@ export async function load(event) {
 
   // return shape:
   // { seasons, selectedSeason, prevChain, messages, players (map), data: [ { leagueId, season, leagueName, rosters: [...] } ] }
-  dataPayload.players = playersMap;
+  // IMPORTANT: /v1/players/nba is ~5 MB. Returning the entire map blows past Vercel's
+  // 4.5 MB serverless function response limit and causes 500 errors. Slim it down to
+  // only the players that actually appear on this league's rosters.
+  var neededIds = new Set();
+  if (Array.isArray(resultLeague.rosters)) {
+    for (var nri = 0; nri < resultLeague.rosters.length; nri++) {
+      var rEntry = resultLeague.rosters[nri];
+      var ids = Array.isArray(rEntry.player_ids) ? rEntry.player_ids : [];
+      for (var nij = 0; nij < ids.length; nij++) if (ids[nij]) neededIds.add(String(ids[nij]));
+    }
+  }
+  var slimPlayers = {};
+  if (playersMap && typeof playersMap === 'object') {
+    neededIds.forEach(function (npid) {
+      var pdata = playersMap[npid];
+      if (pdata && typeof pdata === 'object') {
+        slimPlayers[npid] = {
+          player_id: pdata.player_id || npid,
+          full_name: pdata.full_name || ((pdata.first_name || '') + ' ' + (pdata.last_name || '')).trim() || npid,
+          first_name: pdata.first_name || null,
+          last_name: pdata.last_name || null,
+          team: pdata.team || pdata.team_abbreviation || 'FA',
+          position: pdata.position || null,
+          fantasy_positions: Array.isArray(pdata.fantasy_positions) ? pdata.fantasy_positions : null
+        };
+      }
+    });
+  }
+  dataPayload.players = slimPlayers;
   dataPayload.data = [ resultLeague ];
   dataPayload.error = (!resultLeague.rosters || resultLeague.rosters.length === 0) ? ('No rosters found. Details: ' + (messages.length ? messages.join(' | ') : 'no details')) : null;
   dataPayload.anyFound = (resultLeague.rosters && resultLeague.rosters.length > 0);
