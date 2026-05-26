@@ -39,6 +39,29 @@ export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_5_MIN) {
   );
 }
 
+/** Winners bracket — array of matches with rounds + placements.
+ * Each entry: { r: round, m: match_id, t1, t2, w (winner), l (loser), p: placement, t1_from, t2_from } */
+export async function getWinnersBracket(leagueId, ttl = CACHE_10_MIN) {
+  try {
+    return await fetchWithCache(
+      `${BASE}/league/${encodeURIComponent(leagueId)}/winners_bracket`,
+      {},
+      ttl
+    );
+  } catch (e) { return []; }
+}
+
+/** Losers bracket — array of matches for the toilet bowl. Same shape. */
+export async function getLosersBracket(leagueId, ttl = CACHE_10_MIN) {
+  try {
+    return await fetchWithCache(
+      `${BASE}/league/${encodeURIComponent(leagueId)}/losers_bracket`,
+      {},
+      ttl
+    );
+  } catch (e) { return []; }
+}
+
 export async function getPlayersNba(ttl = CACHE_1_HOUR) {
   // The full players map is ~5MB. Cache aggressively (the browser pays the
   // cost once; subsequent visits read from localStorage).

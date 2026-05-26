@@ -2,7 +2,7 @@
 // Browser-safe helpers ported from the previous server-side load functions.
 // Keep these as pure functions so we can reuse them across +page.svelte components.
 
-import { safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek, getSeasonsChain, getPlayersNba } from './sleeperClient.client';
+import { safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek, getSeasonsChain, getPlayersNba, getWinnersBracket, getLosersBracket } from './sleeperClient.client';
 
 const BASE_LEAGUE_ID = '1219816671624048640';
 const MAX_WEEKS = 25;
@@ -52,14 +52,86 @@ export const HARDCODED_CHAMPIONS = {
   '2024': 'riguy506'
 };
 
+/**
+ * Resolve final standings (1st → last) using the Sleeper winners + losers brackets.
+ * Each bracket entry has `p` (the placement determined by that match) and `w` (winner roster_id).
+ *
+ * Returns { finalRanking, champion, bracketComplete }
+ *   - bracketComplete: true only if a real championship match (p === 1 with a winner) exists.
+ *     Used to avoid counting an in-progress season's "leader" as a champion.
+ *   - For unresolved positions, falls back to regular-season order.
+ */
+export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket, regularStandings, playoffTeamCount) {
+  const ranking = new Map(); // rosterId -> rank
+  const wbBrackets = Array.isArray(winnersBracket) ? winnersBracket : [];
+  const lbBrackets = Array.isArray(losersBracket) ? losersBracket : [];
+
+  // A season is "complete" if the championship match (p === 1) exists AND has a winner.
+  let championshipMatch = null;
+  for (const m of wbBrackets) {
+    if (m && Number(m.p) === 1 && m.w != null) { championshipMatch = m; break; }
+  }
+  const bracketComplete = championshipMatch != null;
+
+  function placeFromMatch(match) {
+    if (!match || match.p == null) return;
+    const p = Number(match.p);
+    if (!isFinite(p) || p < 1) return;
+    if (match.w != null && !ranking.has(String(match.w))) ranking.set(String(match.w), p);
+    if (match.l != null && !ranking.has(String(match.l))) ranking.set(String(match.l), p + 1);
+  }
+
+  for (const m of wbBrackets) placeFromMatch(m);
+
+  // Losers bracket: `p` may be relative (1 = top non-playoff) or absolute. Detect heuristically.
+  const lbPs = lbBrackets.map((x) => Number(x.p)).filter((n) => isFinite(n) && n >= 1);
+  const lbIsRelative = lbPs.length === 0 || Math.min(...lbPs) <= 2;
+  for (const m of lbBrackets) {
+    if (!m || m.p == null) continue;
+    const pRaw = Number(m.p);
+    if (!isFinite(pRaw)) continue;
+    const p = lbIsRelative ? (playoffTeamCount + pRaw) : pRaw;
+    if (m.w != null && !ranking.has(String(m.w))) ranking.set(String(m.w), p);
+    if (m.l != null && !ranking.has(String(m.l))) ranking.set(String(m.l), p + 1);
+  }
+
+  // Fallback for any roster the brackets didn't cover — use regular-season order.
+  const remainingRanks = [];
+  for (let i = 1; i <= regularStandings.length; i++) {
+    if (![...ranking.values()].includes(i)) remainingRanks.push(i);
+  }
+  let fallbackIdx = 0;
+  for (const row of regularStandings) {
+    if (!ranking.has(String(row.rosterId))) {
+      const rank = remainingRanks[fallbackIdx++] ?? (regularStandings.length + 1);
+      ranking.set(String(row.rosterId), rank);
+    }
+  }
+
+  const finalRanking = [...ranking.entries()]
+    .map(([rosterId, rank]) => ({ rosterId, rank }))
+    .sort((a, b) => a.rank - b.rank);
+
+  // Champion is only valid if the bracket actually crowned one (championshipMatch.w),
+  // not just whoever is currently leading the regular season.
+  const champion = bracketComplete ? String(championshipMatch.w) : null;
+  return { finalRanking, champion, bracketComplete };
+}
+
 /* ============================================================
  *   STANDINGS (per league)
  * ============================================================ */
 export async function computeStandingsForLeague(leagueId) {
-  const leagueMeta = await getLeague(leagueId).catch(() => null);
+  // Fetch league + rosters + brackets + static seasonal JSON in parallel.
+  const [leagueMeta, rosterMap, winnersBracket, losersBracket] = await Promise.all([
+    getLeague(leagueId).catch(() => null),
+    getRosterMapWithOwners(leagueId).catch(() => ({})),
+    getWinnersBracket(leagueId).catch(() => []),
+    getLosersBracket(leagueId).catch(() => [])
+  ]);
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   const leagueName = leagueMeta?.name ?? null;
-  const rosterMap = await getRosterMapWithOwners(leagueId).catch(() => ({}));
+  const playoffTeams = leagueMeta?.settings?.playoff_teams ? Number(leagueMeta.settings.playoff_teams) : 8;
 
   let playoffStart = (leagueMeta?.settings?.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 15;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
@@ -75,23 +147,19 @@ export async function computeStandingsForLeague(leagueId) {
     resultsByRosterPlayoff[rk] = []; paByRosterPlayoff[rk] = 0;
   }
 
-  // Try seasonMatchups JSON for 2022/2023/2024
-  let seasonMatchups = null;
-  if (leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)) {
-    seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
-  }
+  // Try seasonMatchups + early2023 in parallel
+  const [seasonMatchups, earlyData] = await Promise.all([
+    leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)
+      ? fetchStaticJson(`/season_matchups/${leagueSeason}.json`)
+      : Promise.resolve(null),
+    leagueSeason === '2023' ? fetchStaticJson('/early2023.json') : Promise.resolve(null)
+  ]);
 
-  // Try early2023 overrides
-  let earlyData = null;
-  if (leagueSeason === '2023') {
-    earlyData = await fetchStaticJson('/early2023.json');
-  }
-
+  // Fetch ALL weeks in parallel (instead of sequential)
+  const weekFetches = [];
   for (let week = 1; week <= MAX_WEEKS; week++) {
-    let matchups = null;
-
-    // Use season JSON if available
     if (seasonMatchups && seasonMatchups[String(week)] && Array.isArray(seasonMatchups[String(week)])) {
+      // synthesize from static JSON
       const transformed = [];
       for (const m of seasonMatchups[String(week)]) {
         if (m.teamA) {
@@ -111,12 +179,23 @@ export async function computeStandingsForLeague(leagueId) {
           });
         }
       }
-      matchups = transformed;
+      weekFetches.push(Promise.resolve({ week, matchups: transformed }));
     } else {
-      try { matchups = await getMatchupsForWeek(leagueId, week); } catch (e) { continue; }
+      weekFetches.push(
+        getMatchupsForWeek(leagueId, week).then(
+          (m) => ({ week, matchups: m }),
+          () => ({ week, matchups: null })
+        )
+      );
     }
+  }
+  const allWeekResults = await Promise.all(weekFetches);
 
+  // Process week by week using fetched data
+  const collectedMatchups = {}; // week -> matchup entries
+  for (const { week, matchups } of allWeekResults) {
     if (!matchups || !matchups.length) continue;
+    collectedMatchups[week] = matchups;
 
     const isRegularWeek = (week >= 1 && week < playoffStart);
     const isPlayoffWeek = (week >= playoffStart && week <= playoffEnd);
@@ -248,15 +327,50 @@ export async function computeStandingsForLeague(leagueId) {
   const regularStandings = build(statsByRosterRegular, resultsByRosterRegular, paByRosterRegular);
   const playoffStandings = build(statsByRosterPlayoff, resultsByRosterPlayoff, paByRosterPlayoff);
 
-  // Hardcoded champion mapping
-  if (leagueSeason && HARDCODED_CHAMPIONS[leagueSeason]) {
+  // -----------------------------------------------------------
+  // FINAL STANDINGS — derived from Sleeper's winners + losers brackets.
+  // -----------------------------------------------------------
+  const { finalRanking, champion: bracketChampionId, bracketComplete } = resolveFinalStandingsFromBrackets(
+    winnersBracket,
+    losersBracket,
+    regularStandings,
+    playoffTeams
+  );
+
+  // Build a unified finalStandings array, enriched with stats + meta
+  const finalStandings = finalRanking.map((entry) => {
+    const meta = rosterMap[entry.rosterId] || {};
+    const reg = regularStandings.find((r) => r.rosterId === entry.rosterId) || {};
+    const seedIdx = regularStandings.findIndex((r) => r.rosterId === entry.rosterId);
+    return {
+      rosterId: entry.rosterId,
+      rank: entry.rank,
+      seed: seedIdx >= 0 ? seedIdx + 1 : null,
+      team_name: meta.team_name || ('Roster ' + entry.rosterId),
+      owner_name: meta.owner_name || null,
+      owner_username: meta.owner_username || null,
+      avatar: meta.team_avatar || meta.owner_avatar || null,
+      isChampion: entry.rank === 1,
+      isPlayoff: entry.rank <= playoffTeams,
+      wins: reg.wins ?? 0,
+      losses: reg.losses ?? 0,
+      pf: reg.pf ?? 0
+    };
+  });
+
+  // Stamp `champion: true` onto the matching playoffStandings row (only for completed brackets)
+  if (bracketComplete && bracketChampionId) {
+    for (const r of playoffStandings) {
+      if (String(r.rosterId) === String(bracketChampionId)) { r.champion = true; break; }
+    }
+  } else if (!bracketComplete && leagueSeason && HARDCODED_CHAMPIONS[leagueSeason]) {
+    // Fallback only if brackets weren't reachable AND we have a hardcoded fallback
     const championOwner = String(HARDCODED_CHAMPIONS[leagueSeason]).toLowerCase();
     for (const r of playoffStandings) {
       const meta = rosterMap[r.rosterId] || {};
       if (String(meta.owner_username || '').toLowerCase() === championOwner ||
           String(meta.owner_name || '').toLowerCase() === championOwner) {
-        r.champion = true;
-        break;
+        r.champion = true; break;
       }
     }
   }
@@ -267,9 +381,16 @@ export async function computeStandingsForLeague(leagueId) {
     leagueName,
     regularStandings,
     playoffStandings,
+    finalStandings,
+    bracketChampionId,
+    bracketComplete,
     rosterMap,
     playoffStart,
-    playoffEnd
+    playoffEnd,
+    playoffTeams,
+    winnersBracket,
+    losersBracket,
+    collectedMatchups // expose so callers can avoid re-fetching
   };
 }
 

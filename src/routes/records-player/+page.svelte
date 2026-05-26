@@ -67,42 +67,6 @@
     return byPlayer;
   }
 
-  async function fetchAllSeasonMatchups(leagueId, leagueSeason, playoffStart, playoffEnd) {
-    // Returns { regular: { week -> [entries] }, playoff: { week -> [entries] } }
-    const out = { regular: {}, playoff: {} };
-    for (let week = 1; week <= 22; week++) {
-      let entries = null;
-      // try static
-      if (leagueSeason && ['2022','2023','2024'].includes(leagueSeason)) {
-        const sm = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
-        if (sm && sm[String(week)]) {
-          entries = sm[String(week)].flatMap((m, i) => {
-            const mid = m.matchup_id ?? i;
-            return [
-              m.teamA ? {
-                matchup_id: mid, roster_id: String(m.teamA.rosterId),
-                starters: m.teamA.starters || [], starters_points: m.teamA.starters_points || m.teamA.player_points,
-                player_points: m.teamA.player_points
-              } : null,
-              m.teamB ? {
-                matchup_id: mid, roster_id: String(m.teamB.rosterId),
-                starters: m.teamB.starters || [], starters_points: m.teamB.starters_points || m.teamB.player_points,
-                player_points: m.teamB.player_points
-              } : null
-            ].filter(Boolean);
-          });
-        }
-      }
-      if (!entries) {
-        try { entries = await getMatchupsForWeek(leagueId, week); } catch (e) { continue; }
-      }
-      if (!Array.isArray(entries) || !entries.length) continue;
-      const bucket = (week >= playoffStart && week <= playoffEnd) ? out.playoff : out.regular;
-      bucket[week] = entries;
-    }
-    return out;
-  }
-
   async function loadAll() {
     loading = true; error = null;
     try {
@@ -115,41 +79,39 @@
       // Fetch players map (~5MB, cached aggressively client-side via fetchWithCache + localStorage)
       const playersPromise = getPlayersNba().catch(() => ({}));
 
-      // For each season, fetch matchups & compute MVPs
+      // For each season, compute standings (which already collects matchups) then derive MVPs
       const allResults = await Promise.all(chain.map(async (s) => {
-        const league = await getLeague(s.league_id).catch(() => null);
-        let playoffStart = league?.settings?.playoff_week_start ? Number(league.settings.playoff_week_start) : 15;
-        if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-        const playoffEnd = playoffStart + 2;
-        const rosterMap = await getRosterMapWithOwners(s.league_id).catch(() => ({}));
-        const matchups = await fetchAllSeasonMatchups(s.league_id, s.season ? String(s.season) : null, playoffStart, playoffEnd);
+        const standings = await computeStandingsForLeague(s.league_id);
+        const playoffStart = standings.playoffStart;
+        const playoffEnd = standings.playoffEnd;
+        const rosterMap = standings.rosterMap || {};
 
-        // Overall MVP = top scorer across full season
-        const fullEntries = [...Object.values(matchups.regular).flat(), ...Object.values(matchups.playoff).flat()];
-        const playoffOnly = Object.values(matchups.playoff).flat();
+        // Use the already-collected matchups (no extra fetches)
+        const collected = standings.collectedMatchups || {};
+        const regularEntries = [];
+        const playoffEntries = [];
+        for (const wk of Object.keys(collected)) {
+          const week = Number(wk);
+          const arr = collected[wk] || [];
+          if (week >= playoffStart && week <= playoffEnd) playoffEntries.push(...arr);
+          else if (week >= 1 && week < playoffStart) regularEntries.push(...arr);
+        }
+        const fullEntries = [...regularEntries, ...playoffEntries];
+
         const fullByPlayer = aggregatePlayerPoints(fullEntries);
-        const playoffByPlayer = aggregatePlayerPoints(playoffOnly);
+        const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
 
-        const overallList = Object.values(fullByPlayer).sort((a,b) => b.points - a.points);
-        const finalsList = Object.values(playoffByPlayer).sort((a,b) => b.points - a.points);
+        const overallList = Object.values(fullByPlayer).sort((a, b) => b.points - a.points);
+        const finalsList = Object.values(playoffByPlayer).sort((a, b) => b.points - a.points);
 
-        // Filter Finals MVP to champion's roster (using hardcoded champ if season matches)
+        // Restrict Finals MVP to the actual bracket-determined champion's roster
         let finalsMvp = finalsList[0] || null;
-        if (s.season && HARDCODED_CHAMPIONS[String(s.season)]) {
-          const championOwner = String(HARDCODED_CHAMPIONS[String(s.season)]).toLowerCase();
-          // find roster IDs belonging to that owner
-          const champRosterIds = Object.keys(rosterMap).filter(rid => {
-            const m = rosterMap[rid];
-            return String(m.owner_username || '').toLowerCase() === championOwner ||
-                   String(m.owner_name || '').toLowerCase() === championOwner;
-          });
-          if (champRosterIds.length) {
-            const champFinalsList = finalsList.filter(p => champRosterIds.includes(p.rosterId));
-            if (champFinalsList.length) finalsMvp = champFinalsList[0];
-          }
+        if (standings.bracketChampionId && standings.bracketComplete) {
+          const champFinals = finalsList.filter((p) => String(p.rosterId) === String(standings.bracketChampionId));
+          if (champFinals.length) finalsMvp = champFinals[0];
         }
 
-        // team leaders (top scorer per roster)
+        // team leaders (top scorer per roster, full season)
         const teamLeaders = [];
         const seenRosters = new Set();
         for (const p of overallList) {
@@ -166,8 +128,12 @@
         return {
           season: s.season ?? s.league_id,
           leagueId: s.league_id,
-          overallMvp: overallList[0] ? { ...overallList[0], playerName: null, roster_meta: rosterMap[overallList[0].rosterId] } : null,
-          finalsMvp: finalsMvp ? { ...finalsMvp, playerName: null, roster_meta: rosterMap[finalsMvp.rosterId] } : null,
+          overallMvp: overallList[0]
+            ? { ...overallList[0], playerName: null, roster_meta: rosterMap[overallList[0].rosterId] }
+            : null,
+          finalsMvp: finalsMvp
+            ? { ...finalsMvp, playerName: null, roster_meta: rosterMap[finalsMvp.rosterId] }
+            : null,
           teamLeaders,
           rosterMap,
           fullByPlayer,

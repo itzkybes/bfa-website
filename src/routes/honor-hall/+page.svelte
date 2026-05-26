@@ -65,29 +65,9 @@
     return byPlayer;
   }
 
-  async function fetchAllSeasonMatchups(leagueId, leagueSeason, playoffStart, playoffEnd) {
-    const out = { regular: {}, playoff: {} };
-    for (let week = 1; week <= 22; week++) {
-      let entries = null;
-      if (leagueSeason && ['2022','2023','2024'].includes(leagueSeason)) {
-        const sm = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
-        if (sm && sm[String(week)]) {
-          entries = sm[String(week)].flatMap((m, i) => {
-            const mid = m.matchup_id ?? i;
-            return [
-              m.teamA ? { matchup_id: mid, roster_id: String(m.teamA.rosterId), starters: m.teamA.starters || [], starters_points: m.teamA.starters_points || m.teamA.player_points, player_points: m.teamA.player_points } : null,
-              m.teamB ? { matchup_id: mid, roster_id: String(m.teamB.rosterId), starters: m.teamB.starters || [], starters_points: m.teamB.starters_points || m.teamB.player_points, player_points: m.teamB.player_points } : null
-            ].filter(Boolean);
-          });
-        }
-      }
-      if (!entries) { try { entries = await getMatchupsForWeek(leagueId, week); } catch (e) { continue; } }
-      if (!Array.isArray(entries) || !entries.length) continue;
-      const bucket = (week >= playoffStart && week <= playoffEnd) ? out.playoff : out.regular;
-      bucket[week] = entries;
-    }
-    return out;
-  }
+  async function fetchAllSeasonMatchups() { return { regular: {}, playoff: {} }; }
+  // (legacy helper kept as no-op for backwards compatibility — actual matchups come from
+  // computeStandingsForLeague's collectedMatchups now)
 
   async function computeSeason(leagueIdOrSeason) {
     // resolve season -> leagueId
@@ -102,47 +82,42 @@
       return;
     }
 
-    const league = await getLeague(target.league_id).catch(() => null);
-    let playoffStart = league?.settings?.playoff_week_start ? Number(league.settings.playoff_week_start) : 15;
-    if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-    const playoffEnd = playoffStart + 2;
-
     const standings = await computeStandingsForLeague(target.league_id);
-    const matchups = await fetchAllSeasonMatchups(target.league_id, target.season ? String(target.season) : null, playoffStart, playoffEnd);
+    const playoffStart = standings.playoffStart;
+    const playoffEnd = standings.playoffEnd;
 
-    // Final standings: use playoff standings (champion pinned) as a proxy
-    const finalList = (standings.playoffStandings || []).slice();
-    // sort with champion first, then by wins+pf
-    finalList.sort((a, b) => {
-      if (a.champion && !b.champion) return -1;
-      if (b.champion && !a.champion) return 1;
-      return (b.wins - a.wins) || (b.pf - a.pf);
-    });
-    finalList.forEach((row, idx) => {
-      row.rank = idx + 1;
-      row.seed = standings.regularStandings.findIndex(r => r.rosterId === row.rosterId) + 1 || null;
+    // ---- Bracket-derived final standings (1st → last) ----
+    const finalList = (standings.finalStandings || []).slice();
+    // Already sorted by rank ascending. Enrich with seed if needed.
+    finalList.forEach((row) => {
+      if (row.seed == null) {
+        const idx = standings.regularStandings.findIndex(r => r.rosterId === row.rosterId);
+        row.seed = idx >= 0 ? idx + 1 : null;
+      }
     });
 
-    // MVPs
-    const fullEntries = [...Object.values(matchups.regular).flat(), ...Object.values(matchups.playoff).flat()];
-    const playoffOnly = Object.values(matchups.playoff).flat();
-    const overallList = Object.values(aggregatePlayerPoints(fullEntries)).sort((a,b) => b.points - a.points);
-    const finalsList = Object.values(aggregatePlayerPoints(playoffOnly)).sort((a,b) => b.points - a.points);
+    // ---- MVPs ----
+    // Use the matchups we already collected during standings calc (no re-fetch).
+    const collected = standings.collectedMatchups || {};
+    const regularEntries = [];
+    const playoffEntries = [];
+    for (const wk of Object.keys(collected)) {
+      const week = Number(wk);
+      const arr = collected[wk] || [];
+      if (week >= playoffStart && week <= playoffEnd) playoffEntries.push(...arr);
+      else if (week >= 1 && week < playoffStart) regularEntries.push(...arr);
+    }
+    const fullEntries = [...regularEntries, ...playoffEntries];
+
+    const overallList = Object.values(aggregatePlayerPoints(fullEntries)).sort((a, b) => b.points - a.points);
+    const finalsList = Object.values(aggregatePlayerPoints(playoffEntries)).sort((a, b) => b.points - a.points);
 
     const om = overallList[0] || null;
     let fm = finalsList[0] || null;
-    // restrict finals to champion roster if known
-    if (target.season && HARDCODED_CHAMPIONS[String(target.season)]) {
-      const championOwner = String(HARDCODED_CHAMPIONS[String(target.season)]).toLowerCase();
-      const champRosterIds = Object.keys(standings.rosterMap).filter(rid => {
-        const m = standings.rosterMap[rid];
-        return String(m.owner_username || '').toLowerCase() === championOwner ||
-               String(m.owner_name || '').toLowerCase() === championOwner;
-      });
-      if (champRosterIds.length) {
-        const champFinals = finalsList.filter(p => champRosterIds.includes(p.rosterId));
-        if (champFinals.length) fm = champFinals[0];
-      }
+    // Restrict Finals MVP to the actual bracket-determined champion's roster
+    if (standings.bracketChampionId) {
+      const champFinals = finalsList.filter(p => String(p.rosterId) === String(standings.bracketChampionId));
+      if (champFinals.length) fm = champFinals[0];
     }
 
     const result = {
