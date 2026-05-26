@@ -1,0 +1,81 @@
+{
+  "theme_and_archetype": {
+    "theme": "Dark",
+    "archetype": "Archetype 2: The Performance Pro",
+    "vibe": "High-energy, tactical, authoritative. Deep Obsidian anchor with Electric Blaze (Court Orange) accent. Designed for a competitive fantasy sports environment."
+  },
+  "color_palette": {
+    "background_base": "#0A0A0A",
+    "surface_level_1": "#121214",
+    "surface_level_2": "#1A1A1E",
+    "border_subtle": "#27272A",
+    "border_highlight": "#3F3F46",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#A1A1AA",
+    "accent_primary": "#FF4500",
+    "accent_primary_hover": "#FF6326",
+    "win_green": "#10B981",
+    "loss_red": "#EF4444"
+  },
+  "typography": {
+    "display_font": "'Bebas Neue', sans-serif",
+    "body_font": "'Outfit', sans-serif",
+    "heading_font": "'Outfit', sans-serif",
+    "rules": "Bebas Neue MUST be used for huge numbers, hero text, table rankings, and major metrics to give an authentic athletic feel. Outfit is for all UI body text, navigation, and subheadings. Strictly prohibit the use of Inter, Roboto, or standard system fonts."
+  },
+  "spacing_scale": {
+    "philosophy": "Generous spacing for layouts, but high-density for data tables.",
+    "marketing_blocks": "gap-8 md:gap-12, p-8 to p-12",
+    "data_tables": "px-4 py-3 for table cells, tight layouts to maximize visible data on screen",
+    "borders": "Use sharp edges (rounded-none) or very subtle radii (rounded-sm) to maintain the tactical 'Performance Pro' aesthetic."
+  },
+  "motion_and_interaction": {
+    "hover_states": "Interactive cards should slightly lift (hover:-translate-y-1) and gain an accent-colored border or subtle shadow (hover:border-[#FF4500]).",
+    "table_hover": "Row hover states should be simple: hover:bg-white/5.",
+    "transitions": "Use transition-all duration-300 ease-in-out for all micro-interactions."
+  },
+  "components_and_surfaces": {
+    "cards": "Cardless or flat design. Background #121214, 1px solid #27272A border. Avoid heavy drop shadows in dark mode; use inner strokes or light borders to define boundaries.",
+    "buttons": "Sharp corners, aggressive. Primary: pure Court Orange (#FF4500) background, pure white text. Secondary: Transparent with #27272A border and white text.",
+    "tables": "Minimalist 'Grid Borders' approach. border-b border-white/10 for rows. Strip vertical borders to reduce visual noise."
+  },
+  "page_specific_layouts": {
+    "home": {
+      "hero": "Immersive hero section using the basketball_hero_bg with a bg-black/60 overlay. Massive Bebas Neue H1. Include league branding prominently.",
+      "rando_player": "A tactical 'spotlight' card with neon orange highlights, displaying the headshot, name, position, team, and roster tightly.",
+      "matchups": "Current-week matchups presented in a bento grid or tight horizontal scroll. Use sharp cards displaying team vs team logic clearly. Include a distinct 'week pill'."
+    },
+    "rosters": {
+      "layout": "Grid of team cards. Each card must support expanding/collapsing.",
+      "content": "Owner avatar, name. Tightly stacked pills for Starters, Bench, Taxi squad. Use position-specific color dots (PG, SG, SF, PF, C) inside pills."
+    },
+    "standings": {
+      "layout": "Tabular layout. High-contrast data. Highlight the 'Champion' row with a gold accent or trophy icon. Season dropdown selector at the top right.",
+      "typography": "Use Bebas Neue for the rank number. Emphasize PF (Points For) as it's a key metric."
+    },
+    "matchups": {
+      "layout": "Filters (Season + Week) at the top. Grid of 1v1 matchup scorecards.",
+      "scorecards": "Display both owners. Highlight the winning score in win_green (#10B981) and use bold formatting."
+    },
+    "records_team_and_player": {
+      "layout": "Toggle/tabs for Team vs Player records. Aggregated stats requiring dense, highly scannable tables. Include the H2H matrix selector."
+    },
+    "honor_hall": {
+      "layout": "Showcase page. Visual, bento-style layout. Prominent Champion and Biggest Loser cards, plus MVPs. Use the champion_trophy image as a texture or overlay for the Champion card."
+    }
+  },
+  "image_urls": {
+    "basketball_hero_bg": "https://static.prod-images.emergentagent.com/jobs/4a5ef219-0860-4d0b-acab-2656b7bfde18/images/39ad76910893384a6efa474a23744c2769bbc6f8c923315fe34768408f30b67d.png",
+    "champion_trophy": "https://static.prod-images.emergentagent.com/jobs/4a5ef219-0860-4d0b-acab-2656b7bfde18/images/cf22feeea23f0a96d67debc5d7c7d75bc174d798717ccba20da1ac9e5c7989b5.png",
+    "dark_court_texture": "https://images.pexels.com/photos/27462718/pexels-photo-27462718.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "existing_bfa_logo": "/static/bfa-logo.png"
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: This is a SvelteKit application using Svelte 5 (or compatible Svelte 4). DO NOT USE REACT. You must write native HTML/Tailwind inside .svelte files.",
+    "Do not alter or delete the existing JSON data in /static/ (e.g., /static/early2023.json, /static/week-ranges.json, etc.).",
+    "Maintain all existing route structures and SSR/load mechanisms (+page.js / +page.server.js). Update only the UI and markup (+page.svelte).",
+    "Inject Google Fonts ('Bebas Neue' and 'Outfit') directly into the src/app.html <head>.",
+    "Define the color palette as CSS variables within /app/src/app.css.",
+    "ALL interactive elements (buttons, links, selects, dropdowns, expand/collapse toggles) MUST have a `data-testid` attribute in kebab-case."
+  ]
+}
