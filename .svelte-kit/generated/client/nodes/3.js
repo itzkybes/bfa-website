@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/generate-season-matchups/+page.svelte";
+export { default as component } from "../../../../src/routes/_minimal/+page.svelte";

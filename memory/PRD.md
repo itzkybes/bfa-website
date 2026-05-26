@@ -36,22 +36,20 @@ User followed up confirming:
 8. **Admin tool** — Generate season_matchups JSON from Sleeper data (read-only, copy to clipboard)
 
 ## What's Been Implemented (2026-01-26)
-- ✅ Full redesign of all 8 routes with the BFA-themed "Performance Pro" aesthetic — consistent across every page (verified: every page reads `--bg-base: #07070d`, `--brand: #3831DB` for eyebrows/identity, `--accent: #E3772F` for action elements)
-- ✅ All Sleeper API server-load functions preserved (zero behavior change)
-- ✅ Fixed corrupted `lib/cache.js` + `routes/+page.svelte` (had garbage doc prefix breaking the build)
-- ✅ Sticky responsive header with Records dropdown + mobile hamburger
-- ✅ Dual-accent color system using BFA logo colors: Blue (`#3831DB`) for identity, Orange (`#E3772F`) for action
-- ✅ Custom Bebas Neue + Outfit typography (no Inter/Roboto)
+- ✅ Full BFA-themed redesign across all 8 routes (Blue `#3831DB` brand + Orange `#E3772F` accent, Bebas Neue + Outfit)
+- ✅ Fixed corrupted `lib/cache.js` + home `+page.svelte` (had garbage doc prefix)
 - ✅ Fixed two season-selector navigation bugs (Honor Hall + Records-Player) via `data-sveltekit-reload`
-- ✅ Vercel Node 22 build error resolved (pinned `@sveltejs/adapter-vercel@^6.3.3` with explicit `runtime: 'nodejs22.x'`)
-- ✅ Fixed Vercel `/rosters` 500 error — Sleeper `/players/nba` was 5MB, exceeding the 4.5MB serverless response limit. Slimmed playersMap to only roster-relevant players (~250 entries, 256KB total response).
-- ✅ Refactored all 7 `+page.server.js` files to lazy `getSleeperClient()` singletons to avoid cold-start crashes
-- ✅ **REMOVED ALL `fs/promises` + `path` filesystem usage** from all server-load files. Vercel serverless functions don't have `/app/static/` bundled into the function — static files are only served by the CDN. The fallback `readFile()` calls were throwing on Vercel and (apparently in some routes) crashing the function before the try/catch could catch them. Replaced with `event.fetch('/season_matchups/<year>.json')` which goes through SvelteKit's smart fetch (works identically on local dev + Vercel CDN).
-- ✅ Added `/app/vercel.json` to force yarn install + strip any stale pnpm-lock.yaml
-- ✅ Normalized CRLF→LF in all server files
-- ✅ Frontend supervisor wrapper at `/app/frontend/package.json` so local preview works
-- ✅ SITE_FILE_COMPARISON.md document with file-by-file summary
-- ✅ Verified: directly invoking the Vercel-built `catchall.func/index.js` locally returns 200 on all 7 server-rendered routes
+- ✅ Slimmed rosters players-map payload (5MB → 256KB) under Vercel's 4.5MB response limit
+- ✅ Refactored ALL 7 `+page.server.js` files to lazy `getSleeperClient()` singletons (no module-init crashes)
+- ✅ Removed all `fs/promises` + `path` imports — static `season_matchups/*.json` are now fetched via origin HTTP (works on Vercel CDN) instead of read from disk (not bundled in Vercel function)
+- ✅ Vercel adapter explicitly pinned to `@sveltejs/adapter-vercel@^6.3.3` with `runtime: 'nodejs20.x'` (most battle-tested LTS, avoids Node 22 edge cases)
+- ✅ `package.json` `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
+- ✅ `vercel.json` `installCommand: "rm -f pnpm-lock.yaml package-lock.json && yarn install"` defeats stale pnpm-lock issues
+- ✅ `vite.config.js` sets `server.allowedHosts: true` + `preview.allowedHosts: true` for Emergent preview environment
+- ✅ Added `/_diag` and `/_minimal` debug endpoints for live Vercel diagnostics
+- ✅ CRLF→LF normalized across all server files
+- ✅ Verified: directly invoking the Vercel-built `catchall.func/index.js` returns 200 on every route (including with `/static` removed to simulate Vercel filesystem)
+- ✅ All 10 routes (8 production + 2 diagnostic) return 200 locally on the dev server
 
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P1** — Per-team season trends chart (PF/week over time) for Standings page

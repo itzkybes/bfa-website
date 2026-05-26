@@ -2,6 +2,12 @@
 	"/": [
 		"src/routes/+page.js"
 	],
+	"/_diag": [
+		"src/routes/_diag/+server.js"
+	],
+	"/_minimal": [
+		"src/routes/_minimal/+page.server.js"
+	],
 	"/admin/generate-season-matchups": [
 		"src/routes/admin/generate-season-matchups/+page.server.js"
 	],

@@ -12,20 +12,22 @@ export const nodes = [
 	() => import('./nodes/6'),
 	() => import('./nodes/7'),
 	() => import('./nodes/8'),
-	() => import('./nodes/9')
+	() => import('./nodes/9'),
+	() => import('./nodes/10')
 ];
 
 export const server_loads = [];
 
 export const dictionary = {
 		"/": [2],
-		"/admin/generate-season-matchups": [~3],
-		"/honor-hall": [~4],
-		"/matchups": [~5],
-		"/records-player": [~6],
-		"/records-team": [~7],
-		"/rosters": [~8],
-		"/standings": [~9]
+		"/_minimal": [~3],
+		"/admin/generate-season-matchups": [~4],
+		"/honor-hall": [~5],
+		"/matchups": [~6],
+		"/records-player": [~7],
+		"/records-team": [~8],
+		"/rosters": [~9],
+		"/standings": [~10]
 	};
 
 export const hooks = {

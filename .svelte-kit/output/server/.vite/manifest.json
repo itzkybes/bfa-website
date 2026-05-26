@@ -160,6 +160,27 @@
       "_app/immutable/assets/_page.HlXSUN_e.css"
     ]
   },
+  "src/routes/_diag/+server.js": {
+    "file": "entries/endpoints/_diag/_server.js",
+    "name": "entries/endpoints/_diag/_server",
+    "src": "src/routes/_diag/+server.js",
+    "isEntry": true
+  },
+  "src/routes/_minimal/+page.server.js": {
+    "file": "entries/pages/_minimal/_page.server.js",
+    "name": "entries/pages/_minimal/_page.server",
+    "src": "src/routes/_minimal/+page.server.js",
+    "isEntry": true
+  },
+  "src/routes/_minimal/+page.svelte": {
+    "file": "entries/pages/_minimal/_page.svelte.js",
+    "name": "entries/pages/_minimal/_page.svelte",
+    "src": "src/routes/_minimal/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_renderer.js"
+    ]
+  },
   "src/routes/admin/generate-season-matchups/+page.server.js": {
     "file": "entries/pages/admin/generate-season-matchups/_page.server.js",
     "name": "entries/pages/admin/generate-season-matchups/_page.server",
