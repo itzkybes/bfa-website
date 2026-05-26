@@ -54,7 +54,7 @@
         <h1 class="page-title">Honor Hall</h1>
         <p class="page-sub">Final placements derived from bracket simulation across the playoff window.</p>
       </div>
-      <form id="filters" method="get">
+      <form id="filters" method="get" data-sveltekit-reload>
         <label for="season-select" class="visually-hidden">Season</label>
         <select id="season-select" name="season" on:change={submitForm} data-testid="honor-season-select">
           {#each seasons as s}

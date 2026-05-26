@@ -74,7 +74,7 @@
         <div class="eyebrow">All-Time · Player Records</div>
         <h1 class="page-title">Player Records</h1>
       </div>
-      <form id="filters" method="get">
+      <form id="filters" method="get" data-sveltekit-reload>
         <label for="season-select" class="visually-hidden">Season</label>
         <select id="season-select" name="season" on:change={submitFilters} data-testid="player-season-select">
           {#each seasons as s}
