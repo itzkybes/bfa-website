@@ -1,11 +1,20 @@
+📄 FULL FILE: src/routes/+page.svelte
+✏️ MODIFIED - Complete File Content
 <!-- src/routes/+page.svelte -->
 <script>
   import { onMount } from 'svelte';
+  import { fetchWithCache } from '$lib/cache';
+  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
   const CONFIG_PATH = '/week-ranges.json';
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const forcedWeek = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
   const leagueId = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || '1219816671624048640';
+
+  // Cache TTLs
+  const CACHE_5_MIN = 5 * 60 * 1000;
+  const CACHE_10_MIN = 10 * 60 * 1000;
 
   let loading = true;
   let error = null;
@@ -470,7 +479,7 @@
      Lifecycle
      ------------------------- */
 
-  onMount(async function() {
+  async function loadData() {
     loading = true;
     error = null;
     matchupPairs = [];
@@ -488,26 +497,38 @@
 
       fetchWeek = computeEffectiveWeekFromRanges(weekRanges || []);
 
-      const mRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/matchups/' + fetchWeek);
-      if (!mRes.ok) throw new Error('matchups fetch failed: ' + mRes.status);
-      const matchupsRaw = await mRes.json();
+      // Use cached fetches with 5 minute TTL
+      const matchupsRaw = await fetchWithCache(
+        'https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/matchups/' + fetchWeek,
+        {},
+        CACHE_5_MIN
+      );
 
-      const rRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/rosters');
-      if (rRes.ok) rosters = await rRes.json();
+      rosters = await fetchWithCache(
+        'https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/rosters',
+        {},
+        CACHE_10_MIN
+      );
 
-      const uRes = await fetch('https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/users');
-      if (uRes.ok) users = await uRes.json();
+      users = await fetchWithCache(
+        'https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/users',
+        {},
+        CACHE_10_MIN
+      );
 
       matchupPairs = normalizeMatchups(matchupsRaw);
 
       // choose a rando player after rosters are available
       await pickPlayerOfTheWeek();
     } catch (err) {
-      error = String(err && err.message ? err.message : err);
+      error = err;
+      console.error('[Home Page] Error:', err);
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(loadData);
 </script>
 
 <main class="home-page">
@@ -587,9 +608,9 @@
     </div>
 
     {#if loading}
-      <div class="notice">Loading matchups for week {fetchWeek || '...' }...</div>
+      <SkeletonLoader variant="matchup" count={5} />
     {:else if error}
-      <div class="notice error">Error fetching matchups: {error}</div>
+      <ErrorBoundary {error} onRetry={loadData} context="matchups" />
     {:else if matchupPairs && matchupPairs.length > 0}
       <div class="matchups">
         {#each matchupPairs as p}
