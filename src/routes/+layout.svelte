@@ -1,19 +1,15 @@
 <script>
-	import Header from '$lib/header/Header.svelte';
-	import { webVitals } from '$lib/vitals';
-	import { browser } from '$app/environment';
-	import { page } from '$app/stores';
-	import '../app.css';
+  import Header from '$lib/header/Header.svelte';
+  import { webVitals } from '$lib/vitals';
+  import { browser } from '$app/environment';
+  import { page } from '$app/stores';
+  import '../app.css';
 
-	let analyticsId = import.meta.env.VERCEL_ANALYTICS_ID;
+  const analyticsId = import.meta.env.VERCEL_ANALYTICS_ID;
 
-	$: if (browser && analyticsId) {
-		webVitals({
-			path: $page.url.pathname,
-			params: $page.params,
-			analyticsId
-		});
-	}
+  $: if (browser && analyticsId) {
+    webVitals({ path: $page.url.pathname, params: $page.params, analyticsId });
+  }
 </script>
 
 <a class="skip-link" href="#content">Skip to content</a>
@@ -21,221 +17,141 @@
 <Header />
 
 <main id="content">
-	<slot />
+  <slot />
 </main>
 
-<footer>
-	<div class="wrap footer-inner">
-		<div class="footer-left">
-			<p class="org">Badger Fantasy Association</p>
-			<p class="small muted">© {new Date().getFullYear()}</p>
-		</div>
+<footer class="site-footer" role="contentinfo">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <div class="footer-mark">BFA</div>
+      <div class="footer-meta">
+        <div class="footer-title">Badger Fantasy Association</div>
+        <div class="footer-sub">Fantasy Basketball · Powered by Sleeper · © {new Date().getFullYear()}</div>
+      </div>
+    </div>
 
-		<nav class="footer-nav" aria-label="Footer links">
-			<a href="/" aria-label="Home">Home</a>
-			<a href="/rosters" aria-label="Rosters">Rosters</a>
-			<a href="/standings" aria-label="Standings">Standings</a>
-			<a href="/matchups" aria-label="Matchups">Matchups</a>
-			<!-- replaced /records with concrete team/player routes -->
-			<a href="/records-team" aria-label="Team Records">Team Records</a>
-			<a href="/records-player" aria-label="Player Records">Player Records</a>
-			<a href="https://sleeper.com/" target="_blank" rel="noreferrer" aria-label="Open Sleeper">Sleeper</a>
-			<a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer" aria-label="Open Sleeper API docs">Sleeper API</a>
-		</nav>
-	</div>
+    <nav class="footer-nav" aria-label="Footer">
+      <div class="footer-col">
+        <div class="col-title">League</div>
+        <a href="/" data-testid="footer-link-home">Home</a>
+        <a href="/rosters" data-testid="footer-link-rosters">Rosters</a>
+        <a href="/standings" data-testid="footer-link-standings">Standings</a>
+        <a href="/matchups" data-testid="footer-link-matchups">Matchups</a>
+      </div>
+      <div class="footer-col">
+        <div class="col-title">Records</div>
+        <a href="/records-team" data-testid="footer-link-records-team">Team Records</a>
+        <a href="/records-player" data-testid="footer-link-records-player">Player Records</a>
+        <a href="/honor-hall" data-testid="footer-link-honor-hall">Honor Hall</a>
+      </div>
+      <div class="footer-col">
+        <div class="col-title">External</div>
+        <a href="https://sleeper.com/" target="_blank" rel="noreferrer" data-testid="footer-link-sleeper">Sleeper ↗</a>
+        <a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer" data-testid="footer-link-sleeper-api">Sleeper API ↗</a>
+      </div>
+    </nav>
+  </div>
 </footer>
 
 <style>
-	/* Base wrapper */
-	.wrap {
-		max-width: 1100px;
-		margin: 0 auto;
-		padding: 0 1rem;
-		box-sizing: border-box;
-	}
+  main#content {
+    min-height: calc(100vh - 360px);
+    padding-bottom: 3rem;
+  }
 
-	/* Skip link — hidden until focused */
-	.skip-link {
-		position: absolute;
-		left: -9999px;
-		top: auto;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
-	}
-	.skip-link:focus,
-	.skip-link:active {
-		position: fixed;
-		left: 1rem;
-		top: 1rem;
-		width: auto;
-		height: auto;
-		padding: 8px 12px;
-		background: rgba(0,0,0,0.9);
-		color: #fff;
-		z-index: 9999;
-		border-radius: 6px;
-		text-decoration: none;
-	}
+  .site-footer {
+    background: var(--surface-1);
+    border-top: 1px solid var(--border-subtle);
+    margin-top: 4rem;
+  }
 
-	main#content {
-		min-height: calc(100vh - 220px); /* keeps footer from overlapping on short pages */
-	}
+  .footer-inner {
+    display: grid;
+    grid-template-columns: 1.2fr 2fr;
+    gap: 3rem;
+    padding: 3rem var(--s-5);
+    max-width: 1200px;
+    margin: 0 auto;
+  }
 
-	/* Footer layout */
-	footer {
-		margin-top: 2.5rem;
-		padding: 28px 0;
-		background: transparent;
-	}
+  .footer-brand {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
 
-	.footer-inner {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-		flex-wrap: wrap;
-	}
+  .footer-mark {
+    width: 60px;
+    height: 60px;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    letter-spacing: 0.06em;
+    border-radius: var(--r-sm);
+  }
 
-	.footer-left {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
+  .footer-title {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+  }
 
-	footer .org {
-		margin: 0;
-		font-weight: 800;
-		color: var(--nav-text, #e6eef6);
-		font-size: 1rem;
-	}
+  .footer-sub {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
 
-	footer .small {
-		margin: 0;
-		color: var(--muted, #9fb0c4);
-		font-size: 0.9rem;
-	}
+  .footer-nav {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
 
-	/* Footer nav links */
-	.footer-nav {
-		display: flex;
-		gap: 12px;
-		align-items: center;
-		flex-wrap: wrap;
-		justify-content: flex-end;
-	}
+  .footer-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 
-	/* Make links clearly visible and touch-friendly */
-	.footer-nav a {
-		display: inline-block;
-		padding: 10px 14px;
-		border-radius: 10px;
-		text-decoration: none;
-		font-weight: 800;
-		color: var(--nav-text, #e6eef6);           /* high contrast */
-		background: rgba(255,255,255,0.03);       /* subtle pill */
-		transition: background-color 140ms ease, transform 140ms ease, color 140ms ease;
-		box-shadow: 0 2px 8px rgba(2,6,10,0.15);
-	}
+  .col-title {
+    font-family: var(--font-body);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
 
-	.footer-nav a:hover,
-	.footer-nav a:focus {
-		background: linear-gradient(90deg, var(--accent, #00c6d8), var(--accent-dark, #008fa6));
-		color: #071122;
-		transform: translateY(-2px);
-		outline: none;
-		text-decoration: none;
-	}
+  .footer-col a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color var(--t-fast), padding-left var(--t-fast);
+  }
 
-	/* Make sure the external links have a subtle icon affordance (visual only) */
-	.footer-nav a[target="_blank"]::after {
-		content: " ↗";
-		font-size: 0.85em;
-		opacity: 0.9;
-		margin-left: 6px;
-	}
+  .footer-col a:hover {
+    color: var(--accent);
+    padding-left: 0.25rem;
+  }
 
-	/* Mobile first adjustments */
-	@media (max-width: 700px) {
-		footer {
-			padding: 18px 0;
-		}
+  @media (max-width: 820px) {
+    .footer-inner {
+      grid-template-columns: 1fr;
+      padding: 2.5rem var(--s-4);
+      gap: 2.5rem;
+    }
+    .footer-nav { gap: 1.5rem; }
+  }
 
-		.footer-inner {
-			flex-direction: column;
-			align-items: center;
-			text-align: center;
-		}
-
-		.footer-nav {
-			justify-content: center;
-			gap: 10px;
-		}
-
-		.footer-nav a {
-			padding: 12px 14px;
-			font-size: 0.95rem;
-		}
-	}
-
-	/* Global roster styles (preserved) */
-	:global(.teams) {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-		gap: 3rem;
-		justify-content: center;
-		padding: 1rem 2rem;
-	}
-
-	:global(.team-card) {
-		background: #0f1724;
-		border-radius: 12px;
-		padding: 1.5rem 1.5rem 2rem 1.5rem;
-		box-shadow: 0 6px 18px rgba(3, 10, 20, 0.5);
-		color: #fff;
-		width: 100%;
-	}
-
-	:global(.player-top .left) {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	:global(.pos-head) {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	:global(.pos-pill) {
-		min-width: 38px;
-		height: 38px;
-		border-radius: 10px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 700;
-		color: #071122;
-		box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-		font-size: 0.85rem;
-	}
-
-	:global(.headshot) {
-		width: 44px;
-		height: 44px;
-		border-radius: 8px;
-		object-fit: cover;
-		box-shadow: 0 2px 6px rgba(0,0,0,0.6);
-		border: 1px solid rgba(255,255,255,0.03);
-	}
-
-	@media (max-width: 520px) {
-		:global(.teams) {
-			padding: 0.5rem 1rem;
-			gap: 1.5rem;
-		}
-	}
+  @media (max-width: 520px) {
+    .footer-nav { grid-template-columns: 1fr 1fr; }
+  }
 </style>

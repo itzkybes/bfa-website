@@ -1,57 +1,35 @@
-<!-- src/routes/honor-hall/+page.svelte -->
+<!-- src/routes/honor-hall/+page.svelte — Final standings & season outcomes -->
 <script>
   export let data;
 
-  // seasons list and selection
   const seasons = data?.seasons ?? [];
-  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
+  let selectedSeason = data?.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : null);
 
-  // finalStandingsBySeason mapping returned by server
   const finalStandingsBySeason = data?.finalStandingsBySeason ?? {};
-  // top-level fallbacks
   const finalStandingsFallback = Array.isArray(data?.finalStandings) ? data.finalStandings : [];
 
-  // pick the season result
-  $: selectedSeasonKey = String(selectedSeason);
-  $: selectedSeasonResult = finalStandingsBySeason[selectedSeasonKey] ?? { finalStandings: finalStandingsFallback, debug: data?.debug ?? [] };
-  $: finalStandings = Array.isArray(selectedSeasonResult.finalStandings) ? selectedSeasonResult.finalStandings : [];
-  $: debugLines = Array.isArray(selectedSeasonResult.debug) ? selectedSeasonResult.debug : [];
+  $: selectedKey = String(selectedSeason);
+  $: selectedResult = finalStandingsBySeason[selectedKey] ?? { finalStandings: finalStandingsFallback };
+  $: finalStandings = Array.isArray(selectedResult.finalStandings) ? selectedResult.finalStandings : [];
 
-  // helper to build player headshot URL (NFL fallback, then NBA)
-  function playerHeadshot(playerId, size = 56) {
-    if (!playerId) return '';
-    // use NBA player headshots (Sleeper CDN)
-    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
-  }
-
-  // format points to a single decimal place safely
-  function formatPts(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    return (Math.round(n * 10) / 10).toFixed(1);
-  }
-
-  // also expose MVPs from top-level (computed for the selected league/season by server)
   const finalsMvp = data?.finalsMvp ?? null;
   const overallMvp = data?.overallMvp ?? null;
 
-  // computed champion/biggest loser from finalStandings
-  $: champion = finalStandings && finalStandings.length ? finalStandings[0] : null;
-  $: biggestLoser = finalStandings && finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
+  $: champion = finalStandings.length ? finalStandings[0] : null;
+  $: biggestLoser = finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
 
-  // messages & other
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
+  function headshot(pid) { return pid ? `https://sleepercdn.com/content/nba/players/${pid}.jpg` : ''; }
 
-  function submitFilters(e) {
-    const form = e.currentTarget.form || document.getElementById('filters');
-    if (form?.requestSubmit) form.requestSubmit();
-    else form?.submit();
+  function avatarOrPh(url, name) {
+    if (url) return url;
+    const ch = name ? name[0].toUpperCase() : 'T';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
   }
 
-  function avatarOrPlaceholder(url, name, size = 64) {
-    if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(letter)}&background=0d1320&color=ffffff&size=${size}`;
+  function fmt(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return '—';
+    return (Math.round(n * 10) / 10).toFixed(1);
   }
 
   function placeEmoji(rank) {
@@ -61,273 +39,449 @@
     return '';
   }
 
-  // Filter debug lines: remove seed reassignment traces
-  function filteredDebug(lines) {
-    if (!Array.isArray(lines)) return [];
-    return lines.filter(l => {
-      if (!l) return false;
-      const s = String(l);
-      if (s.startsWith('Assign place')) return false;
-      if (s.startsWith('Fallback assign')) return false;
-      if (s.includes('Assign place ')) return false;
-      if (s.includes('Fallback assign')) return false;
-      // keep everything else
-      return true;
-    });
+  function submitForm(e) {
+    const form = e.currentTarget.form || document.getElementById('filters');
+    if (form?.requestSubmit) form.requestSubmit();
+    else form?.submit();
   }
-
-  $: visibleDebug = filteredDebug(debugLines);
 </script>
 
-<style>
-  /* Keep host page background but use light text so header/nav remains visible on dark backgrounds */
-  :global(body) { color: #e6eef8; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
-
-  /* Container centers content */
-  .container {
-    max-width: 1180px;
-    margin: 24px auto;
-    padding: 20px;
-    display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: 20px;
-    align-items: start;
-  }
-
-  .header { grid-column: 1 / span 2; display:flex; justify-content:space-between; align-items:center; gap:12px; }
-  h1 { font-size: 1.6rem; margin:0; color: #e6eef8; }
-  .subtitle { color: rgba(230,238,248,0.6); margin-top:6px; font-size:.95rem; }
-
-  /* translucent dark cards (no bright white) */
-  .main, .side {
-    background: rgba(6,8,12,0.65);
-    border-radius: 12px;
-    padding: 16px;
-    border: 1px solid rgba(255,255,255,0.04);
-    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
-    backdrop-filter: blur(6px);
-    color: inherit;
-  }
-
-  /* filters */
-  .filters { display:flex; align-items:center; gap:.75rem; }
-  .season-label { color: #cbd5e1; font-weight:700; margin-right:.4rem; }
-
-  /* Make the dropdown match the Standings page exactly */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: #e6eef8;
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
-
-  /* caret spacing helper (keeps a tidy right padding for the native caret) */
-  .select-wrap { position: relative; display:inline-block; }
-  .select-wrap::after {
-    content: "▾";
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: rgba(161,180,196,0.95);
-    font-size: 0.92rem;
-    text-shadow: 0 1px 0 rgba(0,0,0,0.25);
-  }
-
-  select.select option { background: rgba(6,8,12,0.95); color: #e6eef8; }
-
-  /* debug box (kept but hidden by default) */
-  .debug { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:12px; border-radius:10px; margin-bottom:12px; color:#cbd5e1; max-height:260px; overflow:auto; }
-  .debug ul { margin:0; padding-left:18px; }
-
-  /* final standings list */
-  .standings-list { list-style:none; margin:0; padding:0; }
-  .stand-row { display:flex; align-items:center; gap:14px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.03); }
-  .rank { width:56px; font-weight:800; display:flex; align-items:center; gap:8px; color:#e6eef8; justify-content:flex-start; }
-  .player { display:flex; align-items:center; gap:12px; min-width:0; }
-  .avatar { width:56px; height:56px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid rgba(255,255,255,0.04); }
-  .teamName { font-weight:800; color:#e6eef8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:420px; }
-  .teamMeta { color: #9aa3ad; font-size:.9rem; margin-top:4px; }
-  .seedCol { margin-left:auto; color:#9aa3ad; font-weight:700; min-width:56px; text-align:right; }
-
-  .outcome-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
-  .outcome-name { font-weight:700; color:#e6eef8; }
-  .small { color:#9aa3ad; font-size:.9rem; }
-
-  .no-debug { color:#9aa3ad; }
-
-  @media (max-width: 980px) {
-    .container { grid-template-columns: 1fr; padding:12px; }
-    .side { order: 2; }
-  }
-</style>
-
-<div class="container">
-  <div class="header">
-    <div>
-      <h1>Honors Hall</h1>
-      <div class="subtitle">Final placements computed from playoff results — season {selectedSeason}</div>
-    </div>
-
-    <form id="filters" method="get" class="filters" aria-hidden="false">
-      <label class="season-label" for="season-select">Season</label>
-      <div class="select-wrap">
-        <select id="season-select" name="season" class="select" on:change={submitFilters}>
-          {#if seasons && seasons.length}
-            {#each seasons as s}
-              <option value={s.season ?? s.league_id} selected={(s.season ?? s.league_id) === String(selectedSeason)}>
-                {s.season ?? s.name ?? s.league_id}
-              </option>
-            {/each}
-          {:else}
-            <option value={selectedSeason}>{selectedSeason}</option>
-          {/if}
-        </select>
+<div class="page wrap">
+  <header class="page-head rise">
+    <div class="head-row">
+      <div>
+        <div class="eyebrow">Honors · Season {selectedSeason}</div>
+        <h1 class="page-title">Honor Hall</h1>
+        <p class="page-sub">Final placements derived from bracket simulation across the playoff window.</p>
       </div>
-    </form>
-  </div>
-
-  <div class="main">
-    <!-- debug intentionally hidden; remove the element below if you want it shown -->
-    <div class="debug" aria-live="polite" style="display:none;">
-      <ul>
-        {#if visibleDebug && visibleDebug.length}
-          {#each visibleDebug as d}
-            <li>{@html d.replace(/</g,'&lt;')}</li>
+      <form id="filters" method="get">
+        <label for="season-select" class="visually-hidden">Season</label>
+        <select id="season-select" name="season" on:change={submitForm} data-testid="honor-season-select">
+          {#each seasons as s}
+            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>
+              {s.season ?? s.name ?? s.league_id}
+            </option>
           {/each}
-        {:else}
-          <li>No debug trace available.</li>
-        {/if}
-      </ul>
+        </select>
+      </form>
     </div>
+  </header>
 
-    <h3 style="margin:0 0 12px 0">Final Standings</h3>
-    <ul class="standings-list" role="list" aria-label="Final standings">
-      {#if finalStandings && finalStandings.length}
-        {#each finalStandings as row (row.rosterId)}
-          <li class="stand-row" role="listitem">
-            <div class="rank" aria-hidden="true">
-              <span>{row.rank}</span>
-              <span>{placeEmoji(row.rank)}</span>
-            </div>
-
-            <div class="player" style="min-width:0;">
-              <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="team avatar">
-              <div style="min-width:0;">
-                <div class="teamName">{row.team_name}</div>
-                <div class="teamMeta">
-                  {#if row.owner_name}
-                    {row.owner_name}
-                  {:else}
-                    {`Roster ${row.rosterId}`}
-                  {/if}
-                </div>
-              </div>
-            </div>
-
-            <div class="seedCol">Seed #{row.seed ?? '—'}</div>
-          </li>
-        {/each}
-      {:else}
-        <li class="no-debug">No final standings available.</li>
-      {/if}
-    </ul>
-  </div>
-
-  <aside class="side" aria-labelledby="outcomes-title">
-    <h3 id="outcomes-title" style="margin-top:0">Season outcomes</h3>
-
+  <!-- Hero: Champion + Biggest Loser + MVPs (bento) -->
+  <section class="bento">
     {#if champion}
-      <div class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt="champion avatar" style="width:64px;height:64px">
-        <div>
-          <div class="outcome-name">Champion <span style="margin-left:6px">🏆</span></div>
-          <div class="small">{champion.team_name} • {champion.owner_name ?? `Roster ${champion.rosterId}`} • Seed #{champion.seed}</div>
+      <div class="bento-card champion-card" data-testid="champion-card">
+        <div class="card-corner">
+          <span class="rank-tag num">#1</span>
+        </div>
+        <div class="champion-trophy">🏆</div>
+        <div class="card-eyebrow">Champion</div>
+        <img class="champion-avatar" src={avatarOrPh(champion.avatar, champion.team_name)} alt={champion.team_name} />
+        <div class="champion-name">{champion.team_name}</div>
+        <div class="champion-owner">
+          {#if champion.owner_name}{champion.owner_name} · {/if}Seed #{champion.seed ?? '—'}
         </div>
       </div>
     {/if}
 
-    {#if biggestLoser}
-      <div style="margin-top:8px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt="biggest loser avatar" style="width:64px;height:64px">
-        <div>
-          <div class="outcome-name">Biggest loser <span style="margin-left:6px">😵‍💫</span></div>
-          <div class="small">{biggestLoser.team_name} • {biggestLoser.owner_name ?? `Roster ${biggestLoser.rosterId}`} • Seed #{biggestLoser.seed}</div>
+    {#if biggestLoser && biggestLoser !== champion}
+      <div class="bento-card loser-card" data-testid="biggest-loser-card">
+        <div class="card-corner">
+          <span class="rank-tag num">#{biggestLoser.rank ?? finalStandings.length}</span>
+        </div>
+        <div class="loser-icon">😵‍💫</div>
+        <div class="card-eyebrow">Biggest Loser</div>
+        <img class="champion-avatar" src={avatarOrPh(biggestLoser.avatar, biggestLoser.team_name)} alt={biggestLoser.team_name} />
+        <div class="champion-name dim">{biggestLoser.team_name}</div>
+        <div class="champion-owner">
+          {#if biggestLoser.owner_name}{biggestLoser.owner_name} · {/if}Seed #{biggestLoser.seed ?? '—'}
         </div>
       </div>
     {/if}
 
     {#if finalsMvp}
-      <div style="margin-top:12px" class="outcome-row">
+      <div class="bento-card mvp-card" data-testid="finals-mvp-card">
+        <div class="card-eyebrow accent">Finals MVP</div>
         <img
-          class="avatar"
-          src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName)}
-          alt="finals mvp avatar"
-          style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.owner_avatar, finalsMvp.playerName); }}
+          class="mvp-headshot"
+          src={headshot(finalsMvp.playerId) || avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName)}
+          alt={finalsMvp.playerName}
+          on:error={(e) => (e.currentTarget.src = avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName))}
         />
-        <div>
-          <div class="outcome-name">Finals MVP</div>
-          <div class="small">
-            {finalsMvp.playerName ?? finalsMvp.playerObj?.full_name ?? '—'}
-            • {formatPts(finalsMvp.points ?? finalsMvp.score ?? finalsMvp.pts ?? 0)} pts
-            • {finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId ?? '—'}`}
-          </div>
-        </div>
-      </div>
-    {:else}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(null, 'M')} alt="finals mvp placeholder" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Finals MVP</div>
-          <div class="small">No player-level data available.</div>
-        </div>
+        <div class="mvp-name">{finalsMvp.playerName ?? '—'}</div>
+        <div class="mvp-pts num">{fmt(finalsMvp.points)}<span class="pts-suffix"> PTS</span></div>
+        <div class="mvp-sub">{finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId ?? '—'}`}</div>
       </div>
     {/if}
 
     {#if overallMvp}
-      <div style="margin-top:12px" class="outcome-row">
+      <div class="bento-card mvp-card" data-testid="overall-mvp-card">
+        <div class="card-eyebrow accent">Overall MVP</div>
         <img
-          class="avatar"
-          src={playerHeadshot(overallMvp.playerId || overallMvp.topPlayerId) || avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName)}
-          alt="overall mvp avatar"
-          style="width:56px;height:56px"
-          on:error={(e) => { e.currentTarget.src = avatarOrPlaceholder(overallMvp.roster_meta?.owner_avatar, overallMvp.playerName); }}
+          class="mvp-headshot"
+          src={headshot(overallMvp.playerId) || avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName)}
+          alt={overallMvp.playerName}
+          on:error={(e) => (e.currentTarget.src = avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName))}
         />
-        <div>
-          <div class="outcome-name">Overall MVP</div>
-          <div class="small">
-            {overallMvp.playerName ?? overallMvp.playerObj?.full_name ?? '—'}
-            • {formatPts(overallMvp.points ?? overallMvp.total ?? overallMvp.score ?? 0)} pts
-            • {overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId ?? '—'}`}
-          </div>
-        </div>
-      </div>
-    {:else}
-      <div style="margin-top:12px" class="outcome-row">
-        <img class="avatar" src={avatarOrPlaceholder(null, 'M')} alt="overall mvp placeholder" style="width:56px;height:56px">
-        <div>
-          <div class="outcome-name">Overall MVP</div>
-          <div class="small">No player-level data available.</div>
-        </div>
+        <div class="mvp-name">{overallMvp.playerName ?? '—'}</div>
+        <div class="mvp-pts num">{fmt(overallMvp.points)}<span class="pts-suffix"> PTS</span></div>
+        <div class="mvp-sub">{overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? overallMvp.topRosterId ?? '—'}`}</div>
       </div>
     {/if}
+  </section>
 
-    <div style="margin-top:12px; color:#9aa3ad; font-size:.9rem">
-      Final standings are derived from server-scrubbed matchups and the bracket simulation logic. The debug trace above shows the decisions used to construct the bracket (matchups & tiebreaks).
+  <!-- Final standings list -->
+  <section class="block">
+    <div class="block-head">
+      <h2 class="block-title">Final Standings</h2>
+      <span class="block-sub">Computed from bracket simulation</span>
     </div>
-  </aside>
+
+    {#if finalStandings.length}
+      <ol class="standings-list" data-testid="honor-standings-list">
+        {#each finalStandings as row, idx (row.rosterId)}
+          <li class="standings-row" class:gold={row.rank === 1}>
+            <div class="rank-col num">
+              {row.rank}
+              {#if placeEmoji(row.rank)}
+                <span class="medal">{placeEmoji(row.rank)}</span>
+              {/if}
+            </div>
+            <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+            <div class="team-meta">
+              <div class="team-name">{row.team_name}</div>
+              <div class="team-owner">{row.owner_name ?? `Roster ${row.rosterId}`}</div>
+            </div>
+            <div class="seed-col">
+              <span class="num">#{row.seed ?? '—'}</span>
+              <span class="seed-label">Seed</span>
+            </div>
+          </li>
+        {/each}
+      </ol>
+    {:else}
+      <div class="empty-card">No standings available.</div>
+    {/if}
+  </section>
 </div>
+
+<style>
+  .page { padding: 2.5rem 0 4rem; }
+  .page-head { margin-bottom: 2rem; }
+
+  .head-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0.4rem 0 0.5rem;
+  }
+
+  .page-sub { color: var(--text-secondary); max-width: 60ch; }
+
+  /* Bento grid */
+  .bento {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.85rem;
+    margin-bottom: 2rem;
+  }
+
+  .bento-card {
+    position: relative;
+    padding: 1.75rem 1.5rem;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    transition: border-color var(--t-fast), transform var(--t-fast);
+  }
+
+  .bento-card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+  }
+
+  .champion-card {
+    grid-row: span 2;
+    background:
+      radial-gradient(600px 200px at 100% 0%, rgba(245, 180, 0, 0.18), transparent 60%),
+      linear-gradient(180deg, var(--surface-1), var(--surface-2));
+    border-color: var(--gold);
+    border-left: 4px solid var(--gold);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 320px;
+  }
+
+  .champion-trophy {
+    font-size: 4rem;
+    margin-bottom: 0.5rem;
+    line-height: 1;
+  }
+
+  .loser-card {
+    border-color: var(--loss);
+    border-left: 4px solid var(--loss);
+  }
+
+  .loser-icon {
+    font-size: 2rem;
+    margin-bottom: 0.4rem;
+    line-height: 1;
+  }
+
+  .card-corner {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+  }
+
+  .rank-tag {
+    font-size: 1.4rem;
+    color: var(--text-tertiary);
+  }
+
+  .card-eyebrow {
+    font-family: var(--font-body);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    margin-bottom: 0.75rem;
+  }
+
+  .card-eyebrow.accent { color: var(--accent); }
+
+  .champion-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    margin-bottom: 0.85rem;
+  }
+
+  .champion-name {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 3vw, 2.4rem);
+    line-height: 1;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5rem;
+    word-break: break-word;
+  }
+
+  .champion-name.dim { color: var(--text-secondary); font-size: 1.6rem; }
+
+  .champion-owner {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+  }
+
+  .mvp-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mvp-headshot {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    margin-bottom: 0.6rem;
+  }
+
+  .mvp-name {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .mvp-pts {
+    font-size: 1.5rem;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .pts-suffix {
+    font-family: var(--font-body);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--text-tertiary);
+  }
+
+  .mvp-sub {
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+  }
+
+  /* Final standings */
+  .block {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+
+  .block-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 1rem;
+  }
+
+  .block-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
+  .block-sub {
+    color: var(--text-tertiary);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+  }
+
+  .standings-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .standings-row {
+    display: grid;
+    grid-template-columns: 70px 56px 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background var(--t-fast);
+  }
+
+  .standings-row:last-child { border-bottom: none; }
+  .standings-row:hover { background: rgba(255, 255, 255, 0.03); }
+
+  .standings-row.gold {
+    background: linear-gradient(90deg, rgba(245, 180, 0, 0.08), transparent);
+    border-left: 3px solid var(--gold);
+    padding-left: calc(1.25rem - 3px);
+  }
+
+  .rank-col {
+    font-size: 1.4rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .medal {
+    font-family: var(--font-body);
+    font-size: 1rem;
+  }
+
+  .team-avatar.small {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .team-meta { min-width: 0; }
+
+  .team-name {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+    line-height: 1.15;
+  }
+
+  .team-owner {
+    color: var(--text-tertiary);
+    font-size: 0.8rem;
+    margin-top: 0.2rem;
+  }
+
+  .seed-col {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .seed-col .num {
+    font-size: 1.2rem;
+    color: var(--accent);
+  }
+
+  .seed-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-tertiary);
+    font-weight: 700;
+  }
+
+  .empty-card {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 980px) {
+    .bento {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto;
+    }
+    .champion-card {
+      grid-row: span 1;
+      grid-column: span 2;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .bento { grid-template-columns: 1fr; }
+    .champion-card { grid-column: span 1; }
+
+    .standings-row {
+      grid-template-columns: 50px 44px 1fr auto;
+      padding: 0.7rem 0.85rem;
+      gap: 0.6rem;
+    }
+    .team-avatar.small { width: 44px; height: 44px; }
+    .team-name { font-size: 1rem; }
+  }
+</style>

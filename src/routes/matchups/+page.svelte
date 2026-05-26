@@ -1,326 +1,347 @@
+<!-- src/routes/matchups/+page.svelte -->
 <script>
   export let data;
 
-  // page data
   const seasons = data.seasons || [];
-  // keep 'weeks' for backward compat; weekOptions contains grouped lists
   const weeks = data.weeks || [];
   const weekOptions = data.weekOptions || { regular: [], playoffs: [] };
-  const playoffWeeks = data.playoffWeeks || [];
-  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length-1].season ?? seasons[seasons.length-1].league_id) : null);
-  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[weeks.length-1] : 1));
+
+  let selectedSeason = data.selectedSeason ?? (seasons.length ? (seasons[seasons.length - 1].season ?? seasons[seasons.length - 1].league_id) : null);
+  let selectedWeek = Number(data.selectedWeek ?? (weeks.length ? weeks[0] : 1));
+
   const matchupsRows = data.matchupsRows || [];
-  const originalRecords = data.originalRecords || {};
 
-  // server messages / jsonLinks (new)
-  const messages = Array.isArray(data?.messages) ? data.messages : [];
-  const jsonLinks = Array.isArray(data?.jsonLinks) ? data.jsonLinks : [];
-
-  // helpers
-  function avatarOrPlaceholder(url, name, size = 64) {
+  function avatarOrPh(url, name) {
     if (url) return url;
-    const letter = name ? name[0] : 'T';
-    return `https://via.placeholder.com/${size}?text=${encodeURIComponent(letter)}`;
+    const ch = name ? name[0].toUpperCase() : 'T';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
   }
 
   function fmt2(n) { return Number(n ?? 0).toFixed(2); }
 
-  // used by the filter selects to submit the GET form
   function submitFilters(e) {
     const form = e.currentTarget.form || document.getElementById('filters');
-    if (form && form.requestSubmit) form.requestSubmit();
-    else if (form) form.submit();
+    if (form?.requestSubmit) form.requestSubmit();
+    else form?.submit();
   }
 </script>
 
-<style>
-  :global(body) {
-    /* keep dark page but do not force global background changes here */
-  }
-
-  :root{
-    --card-bg: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
-    --card-border: rgba(255,255,255,0.03);
-    --muted: #9ca3af;
-    --text: #e6eef8;
-  }
-
-  .page { max-width: 1100px; margin: 1.2rem auto; padding: 0 1rem; }
-  .card { background: var(--card-bg); border:1px solid var(--card-border); padding:14px; border-radius:10px; margin-bottom:1rem; }
-  .filters { display:flex; gap:.6rem; align-items:center; margin-bottom: .8rem; flex-wrap:wrap; }
-  /* improved select styling for visibility (copied from other pages) */
-  .select {
-    padding:.6rem .8rem;
-    border-radius:8px;
-    background: #07101a;
-    color: var(--text);
-    border: 1px solid rgba(99,102,241,0.25);
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.01);
-    min-width: 160px;
-    font-weight: 600;
-    outline: none;
-  }
-  .select:focus {
-    border-color: rgba(99,102,241,0.6);
-    box-shadow: 0 6px 20px rgba(2,6,23,0.6), 0 0 0 4px rgba(99,102,241,0.06);
-  }
-
-  table { width:100%; border-collapse:collapse; }
-  thead th { text-align:left; padding:8px 10px; font-size:.85rem; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--card-border); }
-  td { padding:12px 10px; border-bottom:1px solid var(--card-border); vertical-align:middle; color:var(--text); }
-  .team-cell { display:flex; gap:.6rem; align-items:center; width:100%; min-width:0; }
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 320px; }
-  .muted { color: var(--muted); font-size:.9rem; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#081018; flex-shrink:0; }
-  .score { margin-left:auto; font-weight:600; white-space:nowrap; padding:6px 10px; border-radius:10px; display:inline-block; min-width:72px; text-align:center; }
-  .score.winner {
-    background: linear-gradient(180deg, rgba(99,102,241,0.16), rgba(99,102,241,0.22));
-    color: #f8fbff;
-    font-weight:900;
-    font-size:1.05rem;
-    box-shadow: 0 6px 18px rgba(99,102,241,0.08), 0 1px 0 rgba(255,255,255,0.02) inset;
-    border: 1px solid rgba(99,102,241,0.36);
-  }
-  .score.tie {
-    background: rgba(255,255,255,0.02);
-    color: var(--text);
-    font-weight:700;
-  }
-
-  .inner-table { width:100%; border-collapse:collapse; margin-top:.6rem; }
-  .inner-table th { text-align:left; color:var(--muted); font-size:.82rem; padding:6px 8px; border-bottom:1px solid var(--card-border); }
-  .inner-table td { padding:8px 8px; }
-
-  /* messages/jsonLinks block */
-  .debug {
-    margin-bottom: 1rem;
-    color: var(--muted);
-    font-size: 0.95rem;
-  }
-  .json-links { margin-top: 0.5rem; display:flex; flex-direction:column; gap:6px; }
-  .json-links a { color: #9fb0ff; font-weight:600; text-decoration: none; }
-  .json-links a:hover { text-decoration: underline; }
-
-  /* Small-screen friendly tweaks */
-  @media (max-width:900px) {
-    .filters { flex-direction:column; align-items:stretch; gap:0.5rem; }
-    .select { min-width: 100%; width:100%; }
-    .card { padding:12px; }
-
-    thead { display:none; }
-    tbody { display:block; }
-    tbody tr { display:block; margin-bottom:12px; border-radius:10px; background: rgba(255,255,255,0.006); border:1px solid var(--card-border); padding:10px; }
-    tbody tr td { display:block; padding:8px 0; border-bottom:none; }
-    .team-cell { align-items:center; justify-content:space-between; }
-    .avatar { width:48px; height:48px; }
-    .team-name { max-width: 60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .score { min-width:auto; padding:6px 8px; margin-left:auto; }
-  }
-
-  @media (max-width:520px) {
-    .avatar { width:40px; height:40px; }
-    .team-name { font-size:0.98rem; max-width: 55%; }
-    .score { padding:5px 8px; font-size:0.95rem; }
-  }
-</style>
-
-<div class="page">
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: .6rem; gap:1rem; flex-wrap:wrap;">
-      <div style="min-width:0;">
-        <h2 style="margin:0 0 2px 0;">Matchups</h2>
-        <div class="muted" style="font-size:.95rem;">Choose a season and week to view matchups</div>
+<div class="page wrap">
+  <header class="page-head rise">
+    <div class="head-row">
+      <div>
+        <div class="eyebrow">League · Week-by-Week</div>
+        <h1 class="page-title">Matchups</h1>
       </div>
 
-      <form id="filters" method="get" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap;">
-        <label class="muted" for="season">Season</label>
-        <select id="season" name="season" class="select" on:change={submitFilters} aria-label="Select season">
+      <form id="filters" method="get" class="filters">
+        <label for="season" class="visually-hidden">Season</label>
+        <select id="season" name="season" on:change={submitFilters} data-testid="matchups-season-select">
           {#each seasons as s}
-            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>{s.season ?? s.name}</option>
+            <option value={s.season ?? s.league_id} selected={String(s.season ?? s.league_id) === String(selectedSeason)}>
+              {s.season ?? s.name}
+            </option>
           {/each}
         </select>
 
-        <label class="muted" for="week">Week</label>
-
-        {#if (weekOptions && (weekOptions.regular?.length || weekOptions.playoffs?.length))}
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
-            {#if weekOptions.regular && weekOptions.regular.length}
+        <label for="week" class="visually-hidden">Week</label>
+        {#if (weekOptions.regular?.length || weekOptions.playoffs?.length)}
+          <select id="week" name="week" on:change={submitFilters} data-testid="matchups-week-select">
+            {#if weekOptions.regular?.length}
               <optgroup label="Regular Season">
                 {#each weekOptions.regular as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+                  <option value={w} selected={w === Number(selectedWeek)}>Week {w}</option>
                 {/each}
               </optgroup>
             {/if}
-            {#if weekOptions.playoffs && weekOptions.playoffs.length}
+            {#if weekOptions.playoffs?.length}
               <optgroup label="Playoffs">
                 {#each weekOptions.playoffs as w}
-                  <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+                  <option value={w} selected={w === Number(selectedWeek)}>Week {w}</option>
                 {/each}
               </optgroup>
             {/if}
           </select>
         {:else}
-          <select id="week" name="week" class="select" on:change={submitFilters} aria-label="Select week">
+          <select id="week" name="week" on:change={submitFilters} data-testid="matchups-week-select">
             {#each weeks as w}
-              <option value={w} selected={w === Number(selectedWeek)}>{w}</option>
+              <option value={w} selected={w === Number(selectedWeek)}>Week {w}</option>
             {/each}
           </select>
         {/if}
 
-        <noscript>
-          <button type="submit" class="select" style="cursor:pointer;">Go</button>
-        </noscript>
+        <noscript><button type="submit" class="btn sm">Go</button></noscript>
       </form>
     </div>
+  </header>
 
-    {#if messages && messages.length}
-      <div class="debug">
-        <strong>Info</strong>
-        <div style="margin-top:.35rem;">
-          {#each messages as m, i}
-            <div>{i + 1}. {m}</div>
-          {/each}
+  {#if matchupsRows.length}
+    <div class="matchups-list" data-testid="matchups-list">
+      {#each matchupsRows as row, idx}
+        {#if row.participantsCount === 2}
+          <div class="match-row rise" style="animation-delay: {idx * 40}ms;">
+            <div class="m-team" class:winner={row.teamA?.points > row.teamB?.points}>
+              <img class="m-avatar" src={avatarOrPh(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+              <div class="m-meta">
+                <div class="m-name">{row.teamA.name}</div>
+                {#if row.teamA.ownerName}<div class="m-owner">{row.teamA.ownerName}</div>{/if}
+              </div>
+              <div class="m-score" class:win={row.teamA.points > row.teamB.points} class:tie={row.teamA.points === row.teamB.points}>
+                <span class="num">{fmt2(row.teamA.points)}</span>
+              </div>
+            </div>
 
-          {#if jsonLinks && jsonLinks.length}
-            <div style="margin-top:.5rem; font-weight:700; color:inherit">Loaded JSON files:</div>
-            <div class="json-links" aria-live="polite">
-              {#each jsonLinks as jl}
-                {#if typeof jl === 'string'}
-                  <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
-                {:else}
-                  <a href={jl.url} target="_blank" rel="noopener noreferrer">{jl.title ?? jl.url}</a>
-                {/if}
+            <div class="m-divider">
+              <span class="vs">VS</span>
+            </div>
+
+            <div class="m-team right" class:winner={row.teamB?.points > row.teamA?.points}>
+              <div class="m-score" class:win={row.teamB.points > row.teamA.points} class:tie={row.teamA.points === row.teamB.points}>
+                <span class="num">{fmt2(row.teamB.points)}</span>
+              </div>
+              <div class="m-meta right">
+                <div class="m-name">{row.teamB.name}</div>
+                {#if row.teamB.ownerName}<div class="m-owner">{row.teamB.ownerName}</div>{/if}
+              </div>
+              <img class="m-avatar" src={avatarOrPh(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+            </div>
+          </div>
+        {:else if row.participantsCount === 1}
+          <div class="match-row bye rise" style="animation-delay: {idx * 40}ms;">
+            <div class="m-team">
+              <img class="m-avatar" src={avatarOrPh(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} />
+              <div class="m-meta">
+                <div class="m-name">{row.teamA.name}</div>
+                {#if row.teamA.ownerName}<div class="m-owner">{row.teamA.ownerName}</div>{/if}
+              </div>
+              {#if row.teamA.points != null}
+                <div class="m-score"><span class="num">{fmt2(row.teamA.points)}</span></div>
+              {/if}
+            </div>
+            <div class="bye-flag">BYE WEEK</div>
+          </div>
+        {:else}
+          <div class="match-row multi rise">
+            <div class="multi-head">
+              <span class="multi-label">Multi-team ({row.participantsCount})</span>
+              <span class="multi-sub">Week {row.week ?? '-'}</span>
+            </div>
+            <div class="multi-list">
+              {#each row.combinedParticipants as p (p.rosterId)}
+                <div class="multi-row">
+                  <img class="m-avatar small" src={avatarOrPh(p.avatar, p.name)} alt={p.name} />
+                  <div class="m-name">{p.name}</div>
+                  <div class="m-score"><span class="num">{fmt2(p.points)}</span></div>
+                </div>
               {/each}
             </div>
-          {/if}
-        </div>
-      </div>
-    {/if}
-
-    {#if matchupsRows.length}
-      <table aria-label="Matchups table">
-        <thead>
-          <tr>
-            <th style="width:50%;">Team A</th>
-            <th style="width:50%;">Team B</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {#each matchupsRows as row}
-            {#if row.participantsCount === 2}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      {#if row.teamA.points > row.teamB.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamA.points)}</div>
-                      {:else if row.teamA.points === row.teamB.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamA.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamB.avatar, row.teamB.name)} alt={row.teamB.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamB.name}</div>
-                      {#if row.teamB.ownerName}<div class="muted">{row.teamB.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamB.points != null}
-                      {#if row.teamB.points > row.teamA.points}
-                        <div class="score winner" title="Winning score">{fmt2(row.teamB.points)}</div>
-                      {:else if row.teamB.points === row.teamA.points}
-                        <div class="score tie" title="Tie">{fmt2(row.teamB.points)}</div>
-                      {:else}
-                        <div class="score" title="Score">{fmt2(row.teamB.points)}</div>
-                      {/if}
-                    {/if}
-                  </div>
-                </td>
-              </tr>
-
-            {:else if row.participantsCount === 1}
-              <tr>
-                <td>
-                  <div class="team-cell">
-                    <img class="avatar" src={avatarOrPlaceholder(row.teamA.avatar, row.teamA.name)} alt={row.teamA.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">{row.teamA.name}</div>
-                      {#if row.teamA.ownerName}<div class="muted">{row.teamA.ownerName}</div>{/if}
-                    </div>
-
-                    {#if row.teamA.points != null}
-                      <div class="score" title="Score">{fmt2(row.teamA.points)}</div>
-                    {/if}
-                  </div>
-                </td>
-
-                <td>
-                  <div class="team-cell">
-                    <div class="avatar" style="display:flex; align-items:center; justify-content:center; background:transparent; border:1px dashed var(--card-border); color:var(--muted); font-weight:700;">
-                      BYE
-                    </div>
-                    <div class="team-meta" style="min-width:0;">
-                      <div class="team-name">Bye</div>
-                      <div class="muted">Bye week</div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-
-            {:else}
-              <tr>
-                <td colspan="2">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-weight:700;">Multi-team matchup ({row.participantsCount})</div>
-                    <div class="muted">Week {row.week ?? '-'} • Season {row.season ?? '-'}</div>
-                  </div>
-
-                  <table class="inner-table" aria-label="Multi-match participants">
-                    <thead>
-                      <tr><th>Team</th><th style="text-align:right">Points</th></tr>
-                    </thead>
-                    <tbody>
-                      {#each row.combinedParticipants as p}
-                        <tr>
-                          <td>
-                            <div style="display:flex; gap:.6rem; align-items:center;">
-                              <img class="avatar" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} style="width:40px;height:40px;border-radius:8px;" on:error={(e)=>e.target.style.visibility='hidden'} />
-                              <div style="font-weight:700;">{p.name}</div>
-                            </div>
-                          </td>
-                          <td style="text-align:right;">
-                            {#if p.points === row.combinedWinnerPoints}
-                              <span class="score winner" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {:else}
-                              <span class="score" style="display:inline-block;">{fmt2(p.points)}</span>
-                            {/if}
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {/if}
-          {/each}
-        </tbody>
-      </table>
-    {:else}
-      <div class="muted">No matchups found for the selected season/week or this week is outside the available window.</div>
-    {/if}
-  </div>
+          </div>
+        {/if}
+      {/each}
+    </div>
+  {:else}
+    <div class="empty-card" data-testid="matchups-empty">
+      No matchups for the selected season/week.
+    </div>
+  {/if}
 </div>
+
+<style>
+  .page { padding: 2.5rem 0 4rem; }
+  .page-head { margin-bottom: 2rem; }
+  .head-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1;
+    margin: 0.4rem 0 0;
+    text-transform: uppercase;
+  }
+
+  .filters {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .filters select {
+    min-width: 120px;
+  }
+
+  .matchups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .match-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    transition: border-color var(--t-fast);
+  }
+
+  .match-row:hover {
+    border-color: var(--border-strong);
+  }
+
+  .m-team {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+  }
+
+  .m-team.right {
+    justify-content: flex-end;
+  }
+
+  .m-team.winner .m-name {
+    color: var(--win);
+  }
+
+  .m-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .m-avatar.small { width: 36px; height: 36px; }
+
+  .m-meta { min-width: 0; }
+  .m-meta.right { text-align: right; }
+
+  .m-name {
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 260px;
+  }
+
+  .m-owner {
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+  }
+
+  .m-score {
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    padding: 0.45rem 0.85rem;
+    border-radius: var(--r-sm);
+    min-width: 80px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .m-score .num {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--text-secondary);
+  }
+
+  .m-score.win {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: var(--win);
+  }
+  .m-score.win .num { color: var(--win); }
+  .m-score.tie { border-color: var(--accent); }
+
+  .m-divider {
+    display: grid;
+    place-items: center;
+  }
+
+  .vs {
+    font-family: var(--font-display);
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    font-size: 0.85rem;
+  }
+
+  .match-row.bye {
+    grid-template-columns: 1fr auto;
+  }
+
+  .bye-flag {
+    font-family: var(--font-display);
+    color: var(--text-tertiary);
+    letter-spacing: 0.18em;
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-sm);
+  }
+
+  .match-row.multi {
+    display: block;
+  }
+
+  .multi-head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+  }
+
+  .multi-label { color: var(--text-primary); }
+  .multi-sub { color: var(--text-tertiary); font-size: 0.85rem; }
+
+  .multi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .multi-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--surface-2);
+    border-radius: var(--r-sm);
+  }
+
+  .multi-row .m-name { flex: 1; }
+
+  .empty-card {
+    padding: 2rem;
+    text-align: center;
+    background: var(--surface-1);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 720px) {
+    .head-row { align-items: stretch; }
+    .filters { flex: 1; }
+    .filters select { flex: 1; min-width: 0; }
+
+    .match-row {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+    .m-team, .m-team.right { justify-content: flex-start; flex-direction: row; }
+    .m-meta.right { text-align: left; }
+    .m-divider { display: none; }
+  }
+</style>

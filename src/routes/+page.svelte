@@ -1,6 +1,4 @@
-📄 FULL FILE: src/routes/+page.svelte
-✏️ MODIFIED - Complete File Content
-<!-- src/routes/+page.svelte -->
+<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + current-week matchups -->
 <script>
   import { onMount } from 'svelte';
   import { fetchWithCache } from '$lib/cache';
@@ -12,7 +10,6 @@
   const forcedWeek = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
   const leagueId = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || '1219816671624048640';
 
-  // Cache TTLs
   const CACHE_5_MIN = 5 * 60 * 1000;
   const CACHE_10_MIN = 10 * 60 * 1000;
 
@@ -23,160 +20,78 @@
   let users = [];
   let weekRanges = null;
   let fetchWeek = null;
+  let potw = null;
 
-  // Rando Player state (kept variable name potw for minimal disruption)
-  let potw = null; // { playerId, playerInfo, roster, rosterName, ownerName }
+  function parseYMD(ymd) { return new Date(ymd + 'T00:00:00'); }
 
-  /* -------------------------
-     Utility & helper methods
-     ------------------------- */
-
-  function parseLocalDateYMD(ymd) {
-    return new Date(ymd + 'T00:00:00');
-  }
-
-  function computeEffectiveWeekFromRanges(ranges) {
+  function computeEffectiveWeek(ranges) {
     if (forcedWeek && !isNaN(forcedWeek)) return forcedWeek;
     if (!Array.isArray(ranges) || ranges.length === 0) return 1;
     const now = new Date();
-
     for (let i = 0; i < ranges.length; i++) {
       const r = ranges[i];
-      const start = parseLocalDateYMD(r.start);
-      const end = parseLocalDateYMD(r.end);
+      const start = parseYMD(r.start);
+      const end = parseYMD(r.end);
       const endInclusive = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
       if (now >= start && now <= endInclusive) {
         const rotateAt = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12, 0, 0, 0);
-        rotateAt.setDate(rotateAt.getDate() + 1); // rotate the week at noon the day after
+        rotateAt.setDate(rotateAt.getDate() + 1);
         if (now >= rotateAt) {
           const next = (i + 1 < ranges.length) ? ranges[i + 1] : null;
           return next ? next.week : r.week;
-        } else {
-          return r.week;
         }
+        return r.week;
       }
     }
-
-    // If before first start, return first week
-    const first = ranges[0];
-    const firstStart = parseLocalDateYMD(first.start);
-    if (now < firstStart) return first.week;
-
-    // If after last rotate, return last week
-    const last = ranges[ranges.length - 1];
-    const lastEnd = parseLocalDateYMD(last.end);
-    const lastRotateAt = new Date(lastEnd.getFullYear(), lastEnd.getMonth(), lastEnd.getDate(), 12, 0, 0, 0);
-    lastRotateAt.setDate(lastRotateAt.getDate() + 1);
-    if (now >= lastRotateAt) return last.week;
-
-    // Otherwise, fallback: find last range that ended and return its week
-    for (let j = ranges.length - 1; j >= 0; j--) {
-      const rr = ranges[j];
-      const rrEnd = parseLocalDateYMD(rr.end);
-      const rrEndInclusive = new Date(rrEnd.getFullYear(), rrEnd.getMonth(), rrEnd.getDate(), 23, 59, 59, 999);
-      if (now > rrEndInclusive) {
-        const rotateAtPast = new Date(rrEnd.getFullYear(), rrEnd.getMonth(), rrEnd.getDate(), 12, 0, 0, 0);
-        rotateAtPast.setDate(rotateAtPast.getDate() + 1);
-        if (now >= rotateAtPast) {
-          const nx = (j + 1 < ranges.length) ? ranges[j + 1] : null;
-          return nx ? nx.week : rr.week;
-        } else {
-          return rr.week;
-        }
-      }
-    }
-
-    return first.week;
+    if (now < parseYMD(ranges[0].start)) return ranges[0].week;
+    return ranges[ranges.length - 1].week;
   }
 
   function findRoster(id) {
-    if (!rosters) return null;
-    for (let i = 0; i < rosters.length; i++) {
-      const r = rosters[i];
-      if (String(r.roster_id) === String(id) || r.roster_id === id) return r;
-    }
-    return null;
+    if (!rosters || !id) return null;
+    return rosters.find((r) => String(r.roster_id) === String(id)) || null;
   }
 
   function findUserByOwner(ownerId) {
-    if (!users) return null;
-    for (let i = 0; i < users.length; i++) {
-      const u = users[i];
-      if (String(u.user_id) === String(ownerId) || u.user_id === ownerId) return u;
-    }
-    return null;
+    if (!users || !ownerId) return null;
+    return users.find((u) => String(u.user_id) === String(ownerId)) || null;
   }
 
-  function avatarForRoster(rosterOrId) {
-    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
+  function avatarForRoster(roster) {
     if (!roster) return null;
     const md = roster.metadata || {};
     const settings = roster.settings || {};
-    let candidate = null;
-    if (md && md.team_avatar) candidate = md.team_avatar;
-    if (!candidate && md && md.avatar) candidate = md.avatar;
-    if (!candidate && settings && settings.team_avatar) candidate = settings.team_avatar;
-    if (!candidate && settings && settings.avatar) candidate = settings.avatar;
+    let candidate = md.team_avatar || md.avatar || settings.team_avatar || settings.avatar;
     if (!candidate) {
       const u = findUserByOwner(roster.owner_id);
-      if (u) {
-        if (u.metadata && u.metadata.avatar) candidate = u.metadata.avatar;
-        else if (u.avatar) candidate = u.avatar;
-      }
+      if (u) candidate = (u.metadata && u.metadata.avatar) || u.avatar;
     }
     if (!candidate) return null;
-    if (typeof candidate === 'string' && (candidate.indexOf('http://') === 0 || candidate.indexOf('https://') === 0)) {
-      return candidate;
-    }
+    if (String(candidate).startsWith('http')) return candidate;
     return 'https://sleepercdn.com/avatars/' + encodeURIComponent(String(candidate));
   }
 
-  function displayNameForRoster(rosterOrId) {
-    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
-    if (roster) {
-      const md = roster.metadata || {};
-      const settings = roster.settings || {};
-      const nameCandidates = [
-        md.team_name, md.teamName, md.team, md.name,
-        settings.team_name, settings.teamName, settings.team, settings.name
-      ];
-      for (let i = 0; i < nameCandidates.length; i++) {
-        const cand = nameCandidates[i];
-        if (cand && typeof cand === 'string' && cand.trim() !== '') {
-          return cand.trim();
-        }
-      }
-      if (roster.name && typeof roster.name === 'string' && roster.name.trim() !== '') {
-        return roster.name.trim();
-      }
+  function displayNameForRoster(roster) {
+    if (!roster) return 'Roster';
+    const md = roster.metadata || {};
+    const settings = roster.settings || {};
+    const candidates = [
+      md.team_name, md.teamName, md.team, md.name,
+      settings.team_name, settings.teamName, settings.team, settings.name
+    ];
+    for (const c of candidates) if (c && String(c).trim()) return String(c).trim();
+    const u = findUserByOwner(roster.owner_id);
+    if (u) {
+      if (u.metadata && u.metadata.team_name) return u.metadata.team_name;
+      if (u.display_name) return u.display_name;
+      if (u.username) return u.username;
     }
-
-    let ownerId = null;
-    if (roster && roster.owner_id) ownerId = roster.owner_id;
-    if (!ownerId && roster) ownerId = roster.user_id || roster.owner || roster.user;
-
-    if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
-
-    if (ownerId) {
-      const u = findUserByOwner(ownerId);
-      if (u) {
-        if (u.metadata && u.metadata.team_name && u.metadata.team_name.trim() !== '') return u.metadata.team_name.trim();
-        if (u.display_name && u.display_name.trim() !== '') return u.display_name.trim();
-        if (u.username && u.username.trim() !== '') return u.username.trim();
-      }
-    }
-
-    if (roster && roster.roster_id != null) return 'Roster ' + roster.roster_id;
-    if (typeof rosterOrId === 'string' || typeof rosterOrId === 'number') return 'Roster ' + rosterOrId;
-    return 'Roster';
+    return 'Roster ' + roster.roster_id;
   }
 
-  function ownerNameForRoster(rosterOrId) {
-    const roster = rosterOrId && typeof rosterOrId === 'object' ? rosterOrId : findRoster(rosterOrId);
-    let ownerId = roster && (roster.owner_id || roster.user_id || roster.owner || roster.user);
-    if (!ownerId && typeof rosterOrId !== 'object') ownerId = rosterOrId;
-    if (!ownerId) return null;
-    const u = findUserByOwner(ownerId);
+  function ownerNameForRoster(roster) {
+    if (!roster) return null;
+    const u = findUserByOwner(roster.owner_id);
     if (!u) return null;
     return u.display_name || u.username || (u.metadata && u.metadata.team_name) || null;
   }
@@ -190,120 +105,47 @@
   function normalizeMatchups(raw) {
     const pairs = [];
     if (!raw) return pairs;
-
     if (Array.isArray(raw)) {
       const map = {};
       for (let i = 0; i < raw.length; i++) {
         const e = raw[i];
-        const mid = e.matchup_id != null ? String(e.matchup_id) : null;
-        if (mid) {
-          if (!map[mid]) map[mid] = [];
-          map[mid].push(e);
-        } else if (e.opponent_roster_id != null) {
-          let attached = false;
-          const keys = Object.keys(map);
-          for (let k = 0; k < keys.length && !attached; k++) {
-            const arr = map[keys[k]];
-            for (let j = 0; j < arr.length; j++) {
-              if (String(arr[j].roster_id) === String(e.opponent_roster_id) || String(arr[j].roster_id) === String(e.roster_id)) {
-                arr.push(e);
-                attached = true;
-                break;
-              }
-            }
-          }
-          if (!attached) map['p_' + i] = [e];
-        } else {
-          map['p_' + i] = [e];
-        }
+        const mid = e.matchup_id != null ? String(e.matchup_id) : 'p_' + i;
+        if (!map[mid]) map[mid] = [];
+        map[mid].push(e);
       }
-
-      const mids = Object.keys(map);
-      for (let m = 0; m < mids.length; m++) {
-        const bucket = map[mids[m]];
-        if (bucket.length === 2) {
-          pairs.push({ matchup_id: mids[m], home: normalizeEntry(bucket[0]), away: normalizeEntry(bucket[1]) });
-        } else if (bucket.length === 1) {
-          pairs.push({ matchup_id: mids[m], home: normalizeEntry(bucket[0]), away: null });
-        } else if (bucket.length > 2) {
-          for (let s = 0; s < bucket.length; s += 2) {
-            pairs.push({ matchup_id: mids[m] + '_' + s, home: normalizeEntry(bucket[s]), away: normalizeEntry(bucket[s + 1] || null) });
-          }
-        }
-      }
-    } else if (typeof raw === 'object') {
-      const arrFromObj = [];
-      Object.keys(raw).forEach(k => {
-        const v = raw[k];
-        if (v && typeof v === 'object') arrFromObj.push(v);
-      });
-      if (arrFromObj.length > 0) {
-        const grouping = {};
-        for (let ii = 0; ii < arrFromObj.length; ii++) {
-          const ee = arrFromObj[ii];
-          const gm = ee.matchup_id != null ? String(ee.matchup_id) : 'p_' + ii;
-          if (!grouping[gm]) grouping[gm] = [];
-          grouping[gm].push(ee);
-        }
-        const gkeys = Object.keys(grouping);
-        for (let g = 0; g < gkeys.length; g++) {
-          const b = grouping[gkeys[g]];
-          if (b.length >= 2) {
-            for (let z = 0; z < b.length; z += 2) {
-              pairs.push({ matchup_id: gkeys[g] + '_' + z, home: normalizeEntry(b[z]), away: normalizeEntry(b[z + 1] || null) });
-            }
-          } else {
-            pairs.push({ matchup_id: gkeys[g], home: normalizeEntry(b[0]), away: null });
-          }
-        }
+      for (const mid of Object.keys(map)) {
+        const bucket = map[mid];
+        if (bucket.length === 2) pairs.push({ matchup_id: mid, home: normalizeEntry(bucket[0]), away: normalizeEntry(bucket[1]) });
+        else if (bucket.length === 1) pairs.push({ matchup_id: mid, home: normalizeEntry(bucket[0]), away: null });
       }
     }
     return pairs;
 
-    function normalizeEntry(rawEntry) {
-      if (!rawEntry) return null;
-      const entry = {
-        roster_id: rawEntry.roster_id != null ? rawEntry.roster_id : (rawEntry.roster || rawEntry.owner_id || null),
-        points: rawEntry.points != null ? rawEntry.points : (rawEntry.points_for != null ? rawEntry.points_for : (rawEntry.starters_points != null ? rawEntry.starters_points : null)),
-        matchup_id: rawEntry.matchup_id != null ? rawEntry.matchup_id : null,
-        raw: rawEntry
+    function normalizeEntry(e) {
+      if (!e) return null;
+      return {
+        roster_id: e.roster_id ?? null,
+        points: e.points ?? e.points_for ?? e.starters_points ?? null,
+        matchup_id: e.matchup_id ?? null
       };
-      if (rawEntry.opponent_roster_id != null) entry.opponent_roster_id = rawEntry.opponent_roster_id;
-      return entry;
     }
   }
 
-  function weekDateRangeLabel(weekNum) {
+  function weekDateRange(weekNum) {
     if (!Array.isArray(weekRanges)) return null;
-    for (let i = 0; i < weekRanges.length; i++) {
-      if (weekRanges[i] && Number(weekRanges[i].week) === Number(weekNum)) {
-        const s = weekRanges[i].start;
-        const e = weekRanges[i].end;
-        try {
-          const sd = new Date(s + 'T00:00:00');
-          const ed = new Date(e + 'T00:00:00');
-          const opts = { month: 'short', day: 'numeric' };
-          const sdStr = sd.toLocaleDateString(undefined, opts);
-          const edStr = ed.toLocaleDateString(undefined, opts);
-          return sdStr + ' — ' + edStr;
-        } catch (err) {
-          return s + ' — ' + e;
-        }
-      }
+    const found = weekRanges.find((r) => Number(r.week) === Number(weekNum));
+    if (!found) return null;
+    try {
+      const opts = { month: 'short', day: 'numeric' };
+      const sd = new Date(found.start + 'T00:00:00').toLocaleDateString(undefined, opts);
+      const ed = new Date(found.end + 'T00:00:00').toLocaleDateString(undefined, opts);
+      return sd + ' — ' + ed;
+    } catch (_) {
+      return found.start + ' — ' + found.end;
     }
-    return null;
   }
 
-  /* -------------------------
-     POTW / Rando Player helpers (robust resolution)
-     ------------------------- */
-
-  function chooseRandom(arr) {
-    if (!Array.isArray(arr) || arr.length === 0) return null;
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
-
-  function getPlayerHeadshot(playerId) {
+  function getHeadshot(playerId) {
     if (!playerId) return '';
     return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
   }
@@ -312,217 +154,70 @@
     if (!id) return '';
     let s = String(id).replace(/[_-]+/g, ' ').replace(/\d+/g, '').trim();
     if (!s) return id;
-    return s.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    return s.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
-  function normalizeForCompare(s) {
-    if (!s) return '';
-    return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+  function getPlayerName(info, id) {
+    if (!info) return prettyNameFromId(id);
+    if (info.full_name) return info.full_name;
+    if (info.first_name || info.last_name) return `${info.first_name ?? ''} ${info.last_name ?? ''}`.trim();
+    return prettyNameFromId(id);
   }
 
-  function getPlayerName(playerInfo, playerId) {
-    if (!playerInfo) return prettyNameFromId(playerId);
-    if (playerInfo.full_name && String(playerInfo.full_name).trim() !== '') return playerInfo.full_name;
-    if ((playerInfo.first_name || playerInfo.last_name) &&
-        ((playerInfo.first_name || '').trim() !== '' || (playerInfo.last_name || '').trim() !== '')) {
-      const first = playerInfo.first_name ? String(playerInfo.first_name).trim() : '';
-      const last = playerInfo.last_name ? String(playerInfo.last_name).trim() : '';
-      return (first + ' ' + last).trim();
-    }
-    return prettyNameFromId(playerId);
+  function chooseRandom(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  // robust resolver: various key checks and value scans
-  function resolvePlayerInfo(playerId, playersMap) {
-    if (!playersMap || !playerId) return null;
-
-    // direct lookups by key
-    if (playersMap[playerId]) return playersMap[playerId];
-    const lower = String(playerId).toLowerCase();
-    if (playersMap[lower]) return playersMap[lower];
-    const upper = String(playerId).toUpperCase();
-    if (playersMap[upper]) return playersMap[upper];
-    if (playersMap[String(playerId)]) return playersMap[String(playerId)];
-
-    // prefer exact match on player_id field (numeric or string)
-    const vals = Object.values(playersMap);
-    const targetStr = String(playerId).trim();
-
-    // 1) exact player_id string/number match
-    for (let i = 0; i < vals.length; i++) {
-      const p = vals[i];
-      if (!p) continue;
-      if (p.player_id != null && String(p.player_id) === targetStr) return p;
-      if (p.player_id != null && String(p.player_id) === String(parseInt(targetStr, 10))) return p;
-    }
-
-    // 2) exact full_name or search_full_name match (case-insensitive)
-    const normTarget = normalizeForCompare(targetStr);
-    for (let i = 0; i < vals.length; i++) {
-      const p = vals[i];
-      if (!p) continue;
-      if (p.full_name && normalizeForCompare(p.full_name) === normTarget) return p;
-      if (p.search_full_name && normalizeForCompare(p.search_full_name) === normTarget) return p;
-    }
-
-    // 3) try contains / partial match of name parts (e.g. "lebron james" vs "lebron-james-23")
-    const parts = targetStr.split(/[\s-_]+/).filter(Boolean).map(s => s.toLowerCase());
-    if (parts.length > 0) {
-      for (let i = 0; i < vals.length; i++) {
-        const p = vals[i];
-        if (!p) continue;
-        const fullLower = (p.full_name || '').toLowerCase();
-        let allMatch = true;
-        for (let j = 0; j < parts.length; j++) {
-          if (parts[j] === '') continue;
-          if (fullLower.indexOf(parts[j]) === -1) {
-            allMatch = false;
-            break;
-          }
-        }
-        if (allMatch) return p;
-      }
-    }
-
-    // 4) normalized match: strip non-alphanumerics and compare
-    for (let i = 0; i < vals.length; i++) {
-      const p = vals[i];
-      if (!p) continue;
-      if (normalizeForCompare(p.full_name || '') === normalizeForCompare(targetStr)) return p;
-      if (normalizeForCompare(p.search_full_name || '') === normalizeForCompare(targetStr)) return p;
-    }
-
-    return null;
-  }
-
-  // small helper: returns true if a string is numeric-only (e.g. "2463")
-  function looksNumericOnly(s) {
-    if (!s) return false;
-    return /^[0-9]+$/.test(String(s).trim());
-  }
-
-  async function pickPlayerOfTheWeek() {
+  async function pickRandoPlayer() {
     potw = null;
     try {
-      const candidates = (rosters || []).filter(r => Array.isArray(r.players) && r.players.length > 0);
-      if (!candidates || candidates.length === 0) return;
-
-      const randomRoster = chooseRandom(candidates);
-      const playerId = chooseRandom(randomRoster.players);
-      if (!playerId) return;
-
-      // Attempt 1: fetch local players map (served by the app, like rosters page does)
-      let playersMap = null;
-      try {
-        const resp = await fetch('/players/nba');
-        if (resp.ok) playersMap = await resp.json();
-      } catch (e) {
-        // ignore; we'll try other fallbacks
-      }
-
-      // Try to resolve from the local map
+      const candidates = (rosters || []).filter((r) => Array.isArray(r.players) && r.players.length > 0);
+      if (!candidates.length) return;
+      const r = chooseRandom(candidates);
+      const pid = chooseRandom(r.players);
+      if (!pid) return;
       let playerInfo = null;
-      if (playersMap) {
-        playerInfo = resolvePlayerInfo(playerId, playersMap);
-      }
-
-      // Fallback 1: try direct Sleeper API players map (absolute URL)
-      if (!playerInfo) {
-        try {
-          const resp2 = await fetch('https://api.sleeper.app/v1/players/nba');
-          if (resp2.ok) {
-            const remoteMap = await resp2.json();
-            playerInfo = resolvePlayerInfo(playerId, remoteMap);
-            // if we found it, keep remoteMap as playersMap for later if needed
-            if (playerInfo && !playersMap) playersMap = remoteMap;
-          }
-        } catch (e) {
-          // ignore
+      try {
+        const res = await fetch('https://api.sleeper.app/v1/players/nba');
+        if (res.ok) {
+          const map = await res.json();
+          playerInfo = map[pid] || null;
         }
-      }
-
-      // If we still don't have friendly info, create a safe fallback object.
-      // But prefer to provide a readable name: if prettyNameFromId yields only digits or empty,
-      // we instead show "Player <id>" to avoid raw numeric id UI.
-      if (!playerInfo) {
-        const pretty = prettyNameFromId(playerId);
-        if (!pretty || looksNumericOnly(pretty) || String(pretty).trim() === String(playerId).trim()) {
-          playerInfo = { player_id: playerId, full_name: 'Player ' + String(playerId), position: null, team: '' };
-        } else {
-          playerInfo = { player_id: playerId, full_name: pretty, position: null, team: '' };
-        }
-      } else {
-        // Ensure we have a friendly full_name (rosters page ensures this too)
-        if (!playerInfo.full_name || String(playerInfo.full_name).trim() === '') {
-          playerInfo.full_name = getPlayerName(playerInfo, playerId);
-        }
-        // if the resolved full_name somehow is numeric-only, replace with safer label
-        if (looksNumericOnly(playerInfo.full_name)) {
-          playerInfo.full_name = 'Player ' + String(playerId);
-        }
-      }
-
+      } catch (_) { /* noop */ }
+      if (!playerInfo) playerInfo = { player_id: pid, full_name: prettyNameFromId(pid) || ('Player ' + pid), team: '', position: '' };
       potw = {
-        playerId,
+        playerId: pid,
         playerInfo,
-        roster: randomRoster,
-        rosterName: displayNameForRoster(randomRoster),
-        ownerName: ownerNameForRoster(randomRoster)
+        roster: r,
+        rosterName: displayNameForRoster(r),
+        ownerName: ownerNameForRoster(r)
       };
-    } catch (err) {
-      console.warn('POTW error', err);
-      potw = null;
+    } catch (e) {
+      console.warn('rando player error', e);
     }
   }
-
-  /* -------------------------
-     Lifecycle
-     ------------------------- */
 
   async function loadData() {
     loading = true;
     error = null;
-    matchupPairs = [];
-    rosters = [];
-    users = [];
-    potw = null;
-
     try {
       const cfgRes = await fetch(CONFIG_PATH);
-      if (!cfgRes.ok) {
-        weekRanges = null;
-      } else {
-        weekRanges = await cfgRes.json();
-      }
+      weekRanges = cfgRes.ok ? await cfgRes.json() : null;
+      fetchWeek = computeEffectiveWeek(weekRanges || []);
 
-      fetchWeek = computeEffectiveWeekFromRanges(weekRanges || []);
-
-      // Use cached fetches with 5 minute TTL
-      const matchupsRaw = await fetchWithCache(
-        'https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/matchups/' + fetchWeek,
-        {},
-        CACHE_5_MIN
-      );
-
-      rosters = await fetchWithCache(
-        'https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/rosters',
-        {},
-        CACHE_10_MIN
-      );
-
-      users = await fetchWithCache(
-        'https://api.sleeper.app/v1/league/' + encodeURIComponent(leagueId) + '/users',
-        {},
-        CACHE_10_MIN
-      );
-
+      const [matchupsRaw, _rosters, _users] = await Promise.all([
+        fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/matchups/${fetchWeek}`, {}, CACHE_5_MIN),
+        fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`, {}, CACHE_10_MIN),
+        fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`, {}, CACHE_10_MIN)
+      ]);
+      rosters = _rosters;
+      users = _users;
       matchupPairs = normalizeMatchups(matchupsRaw);
-
-      // choose a rando player after rosters are available
-      await pickPlayerOfTheWeek();
+      await pickRandoPlayer();
     } catch (err) {
       error = err;
-      console.error('[Home Page] Error:', err);
+      console.error('[Home] load error:', err);
     } finally {
       loading = false;
     }
@@ -531,305 +226,536 @@
   onMount(loadData);
 </script>
 
-<main class="home-page">
-  <!-- HERO: Rando Player card placed to the right of the hero text -->
-  <section class="hero">
-    <div class="wrap hero-row">
-      <div class="hero-left">
-        <h1 class="hero-title">Welcome to the Badger Bowl</h1>
-        <p class="hero-sub">Quickly browse tabs such as rosters, standings, and player lineups. Below is the current matchup for the week. Scores may or may not be accurate.</p>
-        <div class="actions">
-          <a class="btn primary" href="/rosters">View Rosters</a>
-          <a class="btn" href="/standings">View Standings</a>
-        </div>
+<section class="hero" data-testid="hero-section">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="hero-grid-overlay" aria-hidden="true"></div>
+
+  <div class="wrap hero-inner">
+    <div class="hero-copy rise">
+      <div class="eyebrow">Season 2025 / 26 · Live</div>
+      <h1 class="hero-title">
+        Welcome to the<br />
+        <span class="title-accent">Badger Bowl</span>
+      </h1>
+      <p class="hero-sub">
+        Track rosters, standings, matchups, and league records. Real-time data straight from Sleeper —
+        no fluff, just the cold hard buckets.
+      </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="/rosters" data-testid="hero-cta-rosters">View Rosters →</a>
+        <a class="btn" href="/standings" data-testid="hero-cta-standings">See Standings</a>
+      </div>
+    </div>
+
+    <aside class="rando rise" aria-label="Rando Player spotlight" data-testid="rando-card">
+      <div class="rando-label">
+        <span class="rando-dot"></span>
+        Rando Player
       </div>
 
-      <!-- HERO-RIGHT: Rando Player card (two-line layout: name + meta) -->
-      <div class="hero-right" aria-hidden={potw ? 'false' : 'true'}>
-        {#if potw}
-          <div class="potw-hero" role="region" aria-label="Rando Player">
-            <div class="potw-left">
-              {#if potw.playerInfo && potw.playerInfo.player_id}
-                <img
-                  class="headshot potw-headshot"
-                  src={getPlayerHeadshot(potw.playerInfo.player_id)}
-                  alt={"Headshot of " + getPlayerName(potw.playerInfo, potw.playerId)}
-                  on:error={(e) => (e.target.style.visibility = 'hidden')}
-                  loading="lazy"
-                />
-              {:else}
-                <div class="potw-avatar">🏆</div>
-              {/if}
+      {#if potw}
+        <div class="rando-body">
+          {#if potw.playerInfo.player_id}
+            <img
+              class="rando-headshot"
+              src={getHeadshot(potw.playerInfo.player_id)}
+              alt={getPlayerName(potw.playerInfo, potw.playerId)}
+              on:error={(e) => (e.currentTarget.style.opacity = '0')}
+              loading="lazy"
+              data-testid="rando-headshot"
+            />
+          {:else}
+            <div class="rando-headshot placeholder">🏀</div>
+          {/if}
+
+          <div class="rando-info">
+            <div class="rando-name" title={getPlayerName(potw.playerInfo, potw.playerId)} data-testid="rando-name">
+              {getPlayerName(potw.playerInfo, potw.playerId)}
             </div>
-
-            <!-- TWO-LINE: player name on its own line; metadata on the line below -->
-            <div class="potw-body">
-              <div class="potw-name-row">
-                <div class="potw-player-name" title={getPlayerName(potw.playerInfo, potw.playerId)}>
-                  {getPlayerName(potw.playerInfo, potw.playerId)}
-                </div>
-              </div>
-
-              <div class="potw-meta-row" aria-hidden="true">
-                <div class="potw-inline-meta">
-                  {#if potw.playerInfo.position}
-                    <span class="meta-item">{potw.playerInfo.position}</span>
-                  {/if}
-                  {#if potw.playerInfo.team}
-                    <span class="meta-item">• {potw.playerInfo.team}</span>
-                  {/if}
-                  <span class="meta-item">• {potw.rosterName}</span>
-                  {#if potw.ownerName}
-                    <span class="meta-item">• {potw.ownerName}</span>
-                  {/if}
-                </div>
-              </div>
+            <div class="rando-meta">
+              {#if potw.playerInfo.position}<span class="meta-tag">{potw.playerInfo.position}</span>{/if}
+              {#if potw.playerInfo.team}<span class="meta-sep">·</span><span>{potw.playerInfo.team}</span>{/if}
             </div>
-
-            <div class="potw-actions">
-              <a class="btn small" href={"/rosters?owner=" + (potw.roster && potw.roster.roster_id ? potw.roster.roster_id : '')}>View Roster</a>
-              <button class="btn small" on:click={pickPlayerOfTheWeek} aria-label="Pick a different player">Shuffle</button>
+            <div class="rando-owner" title={potw.rosterName}>
+              {potw.rosterName}
+              {#if potw.ownerName}<span class="meta-sep">·</span><span>{potw.ownerName}</span>{/if}
             </div>
           </div>
-        {/if}
-      </div>
+        </div>
+
+        <div class="rando-actions">
+          <a class="btn sm" href={`/rosters?owner=${potw.roster.roster_id ?? ''}`} data-testid="rando-view-roster">Roster</a>
+          <button class="btn sm primary" on:click={pickRandoPlayer} data-testid="rando-shuffle" aria-label="Shuffle">
+            ⟲ Shuffle
+          </button>
+        </div>
+      {:else if loading}
+        <div class="rando-body">
+          <div class="shimmer rando-headshot" style="opacity:0.5"></div>
+          <div style="flex:1;">
+            <div class="shimmer" style="height:18px; width:60%; margin-bottom:8px;"></div>
+            <div class="shimmer" style="height:12px; width:40%;"></div>
+          </div>
+        </div>
+      {:else}
+        <div class="rando-empty">No player available.</div>
+      {/if}
+    </aside>
+  </div>
+</section>
+
+<section class="wrap matchups-section" aria-labelledby="matchups-h">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">This Week</div>
+      <h2 id="matchups-h" class="section-title">Matchups</h2>
     </div>
-  </section>
-
-  <section class="wrap matchups-section" aria-labelledby="matchups-heading">
-    <div class="matchups-header">
-      <h2 id="matchups-heading" class="section-title">This week's matchups</h2>
-      <div class="week-pill">
-        Week {fetchWeek || '?'}
-        {#if weekRanges}
-          <span class="week-range-label">{weekDateRangeLabel(fetchWeek)}</span>
-        {/if}
-      </div>
+    <div class="week-pill" data-testid="current-week-pill">
+      <span class="week-num">W{fetchWeek || '?'}</span>
+      {#if weekRanges && fetchWeek}<span class="week-range">{weekDateRange(fetchWeek)}</span>{/if}
     </div>
+  </div>
 
-    {#if loading}
-      <SkeletonLoader variant="matchup" count={5} />
-    {:else if error}
-      <ErrorBoundary {error} onRetry={loadData} context="matchups" />
-    {:else if matchupPairs && matchupPairs.length > 0}
-      <div class="matchups">
-        {#each matchupPairs as p}
-          <a class="matchup-card" href={'/rosters?owner=' + (p.home && p.home.roster_id ? p.home.roster_id : '')} >
-            <!-- LEFT TEAM -->
-            <div class="side team-left">
-              {#if p.home}
-                {#if findRoster(p.home.roster_id)}
-                  {#if avatarForRoster(findRoster(p.home.roster_id))}
-                    <img class="team-avatar" src={avatarForRoster(findRoster(p.home.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.home.roster_id))} loading="lazy">
-                  {:else}
-                    <div class="team-avatar placeholder" aria-hidden="true"></div>
-                  {/if}
-                  <div class="team-meta">
-                    <div class="team-name" title={displayNameForRoster(findRoster(p.home.roster_id))}>{displayNameForRoster(findRoster(p.home.roster_id))}</div>
-                    <div class="team-sub">{ownerNameForRoster(findRoster(p.home.roster_id)) || ('Roster ' + p.home.roster_id)}</div>
-                  </div>
-                {:else}
-                  <div class="team-avatar placeholder" aria-hidden="true"></div>
-                  <div class="team-meta">
-                    <div class="team-name">Roster {p.home.roster_id}</div>
-                    <div class="team-sub"></div>
-                  </div>
-                {/if}
+  {#if loading}
+    <SkeletonLoader variant="matchup" count={5} />
+  {:else if error}
+    <ErrorBoundary {error} onRetry={loadData} context="matchups" />
+  {:else if matchupPairs && matchupPairs.length}
+    <div class="matchups-grid" data-testid="matchups-grid">
+      {#each matchupPairs as p, idx}
+        <a
+          class="matchup-card rise"
+          style="animation-delay: {idx * 50}ms;"
+          href={`/rosters?owner=${p.home && p.home.roster_id ? p.home.roster_id : ''}`}
+          data-testid={`matchup-card-${idx}`}
+        >
+          <div class="m-side m-left">
+            {#if p.home && findRoster(p.home.roster_id)}
+              {@const r = findRoster(p.home.roster_id)}
+              {#if avatarForRoster(r)}
+                <img class="m-avatar" src={avatarForRoster(r)} alt={displayNameForRoster(r)} loading="lazy" />
               {:else}
-                <div class="team-avatar placeholder" aria-hidden="true"></div>
-                <div class="team-meta"><div class="team-name">TBD</div><div class="team-sub"></div></div>
+                <div class="m-avatar placeholder"></div>
               {/if}
-            </div>
-
-            <!-- SCORES -->
-            <div class="score-pair" aria-hidden="true">
-              <div class="score-left">
-                <div class="score-number">{fmt(p.home && p.home.points)}</div>
-                <div class="score-label">PTS</div>
+              <div class="m-meta">
+                <div class="m-name">{displayNameForRoster(r)}</div>
+                <div class="m-owner">{ownerNameForRoster(r) || ''}</div>
               </div>
-              <div class="score-divider">—</div>
-              <div class="score-right">
-                <div class="score-number">{fmt(p.away && p.away.points)}</div>
-                <div class="score-label">PTS</div>
-              </div>
-            </div>
+            {:else}
+              <div class="m-avatar placeholder"></div>
+              <div class="m-meta"><div class="m-name">TBD</div></div>
+            {/if}
+          </div>
 
-            <!-- RIGHT TEAM -->
-            <div class="side team-right">
-              {#if p.away}
-                {#if findRoster(p.away.roster_id)}
-                  {#if avatarForRoster(findRoster(p.away.roster_id))}
-                    <img class="team-avatar" src={avatarForRoster(findRoster(p.away.roster_id))} alt={"Avatar for " + displayNameForRoster(findRoster(p.away.roster_id))} loading="lazy">
-                  {:else}
-                    <div class="team-avatar placeholder" aria-hidden="true"></div>
-                  {/if}
-                  <div class="team-meta">
-                    <div class="team-name" title={displayNameForRoster(findRoster(p.away.roster_id))}>{displayNameForRoster(findRoster(p.away.roster_id))}</div>
-                    <div class="team-sub">{ownerNameForRoster(findRoster(p.away.roster_id)) || ('Roster ' + p.away.roster_id)}</div>
-                  </div>
-                {:else}
-                  <div class="team-avatar placeholder" aria-hidden="true"></div>
-                  <div class="team-meta"><div class="team-name">Roster {p.away.roster_id}</div><div class="team-sub"></div></div>
-                {/if}
+          <div class="m-score">
+            <span class="score-num" class:winner={p.home && p.away && Number(p.home.points) > Number(p.away.points)}>{fmt(p.home && p.home.points)}</span>
+            <span class="score-vs">vs</span>
+            <span class="score-num" class:winner={p.home && p.away && Number(p.away.points) > Number(p.home.points)}>{fmt(p.away && p.away.points)}</span>
+          </div>
+
+          <div class="m-side m-right">
+            {#if p.away && findRoster(p.away.roster_id)}
+              {@const r = findRoster(p.away.roster_id)}
+              <div class="m-meta right">
+                <div class="m-name">{displayNameForRoster(r)}</div>
+                <div class="m-owner">{ownerNameForRoster(r) || ''}</div>
+              </div>
+              {#if avatarForRoster(r)}
+                <img class="m-avatar" src={avatarForRoster(r)} alt={displayNameForRoster(r)} loading="lazy" />
               {:else}
-                <div class="team-avatar placeholder" aria-hidden="true"></div>
-                <div class="team-meta"><div class="team-name">TBD</div><div class="team-sub"></div></div>
+                <div class="m-avatar placeholder"></div>
               {/if}
-            </div>
-          </a>
-        {/each}
-      </div>
-    {:else}
-      <div class="notice">No matchups found for week {fetchWeek}. Try a different week via <code>?week=</code>.</div>
-    {/if}
-  </section>
-</main>
+            {:else}
+              <div class="m-meta right"><div class="m-name">TBD</div></div>
+              <div class="m-avatar placeholder"></div>
+            {/if}
+          </div>
+        </a>
+      {/each}
+    </div>
+  {:else}
+    <div class="empty-card" data-testid="matchups-empty">
+      No matchups found for week {fetchWeek}. Try a different week via <code>?week=N</code>.
+    </div>
+  {/if}
+</section>
 
 <style>
-  :root{
-    --nav-text: #e6eef6;
-    --muted: #9fb0c4;
-    --muted-bg: rgba(255,255,255,0.02);
-    --accent: #00c6d8;
-    --accent-dark: #008fa6;
-    --bg-card: rgba(255,255,255,0.02);
+  /* ----- HERO ----- */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-top: 4rem;
+    padding-bottom: 4rem;
   }
 
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
-  .home-page { padding: 2rem 0 4rem; min-height: 100vh; display: flex; flex-direction: column; gap: 1.25rem; }
-
-  /* HERO (cleaner) */
-  .hero { padding: 1.25rem 0 0; }
-  .hero-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:0.75rem 0; }
-  /* allow left column to shrink but keep a reasonable min-width,
-     and allow right column to dynamically take a percentage of the page */
-  .hero-left { flex:1 1 40%; min-width:220px; max-width: 680px; }
-  .hero-right { flex:0 1 60%; max-width:60%; display:flex; justify-content:flex-end; align-items:flex-start; }
-
-  .hero-title { font-size: clamp(1.6rem, 3.6vw, 2.6rem); line-height:1.02; margin:0 0 0.4rem 0; color:var(--nav-text); font-weight:800; letter-spacing:-0.02em; }
-  .hero-sub { margin:0 0 0.9rem 0; color:var(--muted); font-size:0.98rem; max-width:52ch; }
-
-  .actions { display:flex; gap:0.6rem; flex-wrap:wrap; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; padding:0.46rem 0.9rem; border-radius:8px; font-weight:700; text-decoration:none; color:var(--nav-text); background:transparent; border:1px solid rgba(255,255,255,0.03); }
-  .btn.primary { background: linear-gradient(90deg,var(--accent),var(--accent-dark)); color:#fff; border:none; }
-  .btn.small { padding:0.35rem 0.6rem; font-size:0.88rem; }
-
-  /* Rando Player hero card (kept as-is from last update) */
-  .potw-hero {
-    display:flex;
-    align-items:center;
-    gap:16px;
-    background: var(--bg-card);
-    padding: 14px;
-    border-radius: 12px;
-    width:100%;
-    max-width:100%;
-    box-shadow: none;
-    border: 1px solid rgba(255,255,255,0.03);
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(800px 400px at 80% 30%, rgba(255, 69, 0, 0.18), transparent 70%),
+      radial-gradient(600px 500px at 10% 90%, rgba(255, 69, 0, 0.08), transparent 70%);
+    z-index: 0;
   }
-  .potw-left{ width:120px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-  .headshot.potw-headshot { width:120px; height:120px; border-radius:10px; object-fit:cover; background:#0b1220; }
-  .potw-avatar{ width:120px; height:120px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:34px; background: linear-gradient(180deg,#ffd891,#fff3d1); }
 
-  .potw-body { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:6px; }
-  .potw-name-row { display:block; }
-  .potw-player-name { font-size:1.12rem; font-weight:800; color:var(--nav-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-  .potw-meta-row { display:block; }
-  .potw-inline-meta { color:var(--muted); font-weight:700; font-size:0.92rem; display:inline-flex; gap:10px; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .meta-item { opacity:0.95; }
+  .hero-grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 80%);
+    -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 80%);
+    z-index: 0;
+  }
 
-  .potw-actions { display:flex; gap:8px; align-items:center; margin-left:8px; }
-
-  /* Matchups header */
-  .matchups-section { margin-top:0.6rem; }
-  .matchups-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:0.7rem; }
-  .section-title{ font-size:1.02rem; color:var(--nav-text); margin:0; font-weight:800; }
-  .week-pill{ background:var(--muted-bg); padding:6px 10px; border-radius:999px; font-weight:700; color:var(--nav-text); font-size:0.88rem; display:inline-flex; align-items:center; gap:8px; }
-  .week-range-label{ color:var(--muted); font-weight:600; font-size:0.82rem; margin-left:6px; }
-
-  .notice { padding:10px 12px; background: rgba(255,255,255,0.01); border-radius:8px; margin-bottom:1rem; color:var(--muted); font-size:0.95rem; text-align:center; }
-  .notice.error { background: rgba(255,80,80,0.04); color:#ffb6b6; }
-
-  /* ---------- MATCHUPS: wider, responsive cards ---------- */
-  /* Use auto-fit so cards expand on wide viewports; each column will be at least 480px */
-  .matchups {
+  .hero-inner {
+    position: relative;
+    z-index: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
-    gap: 16px;
-    align-items: start;
-    justify-content: center;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 3rem;
+    align-items: center;
   }
 
-  /* Let cards use the full column width (no tiny hard max-width) */
+  .hero-copy { max-width: 640px; }
+
+  .eyebrow {
+    margin-bottom: 1.2rem;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 7vw, 6rem);
+    line-height: 0.9;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-bottom: 1.25rem;
+  }
+
+  .title-accent {
+    color: var(--accent);
+    display: inline-block;
+    position: relative;
+  }
+
+  .title-accent::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -8px;
+    height: 4px;
+    background: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.75rem;
+    max-width: 52ch;
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  /* ----- RANDO ----- */
+  .rando {
+    position: relative;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--accent);
+    padding: 1.5rem;
+    border-radius: var(--r-sm);
+  }
+
+  .rando-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-body);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    margin-bottom: 1.25rem;
+  }
+
+  .rando-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .rando-body {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .rando-headshot {
+    width: 100px;
+    height: 100px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    flex-shrink: 0;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .rando-headshot.placeholder {
+    display: grid;
+    place-items: center;
+    font-size: 2.5rem;
+  }
+
+  .rando-info { min-width: 0; flex: 1; }
+
+  .rando-name {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+    word-break: break-word;
+  }
+
+  .rando-meta {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
+    font-weight: 500;
+  }
+
+  .meta-tag {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--r-sm);
+    font-weight: 800;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+  }
+
+  .meta-sep { opacity: 0.5; }
+
+  .rando-owner {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rando-actions {
+    margin-top: 1.25rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .rando-empty {
+    color: var(--text-secondary);
+    padding: 2rem 0;
+    text-align: center;
+  }
+
+  /* ----- MATCHUPS ----- */
+  .matchups-section {
+    padding-top: 3rem;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 3rem);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-top: 0.4rem;
+  }
+
+  .week-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.55rem 0.9rem;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    font-size: 0.85rem;
+  }
+
+  .week-num {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  .week-range {
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.8rem;
+  }
+
+  .matchups-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 0.85rem;
+  }
+
   .matchup-card {
-    display:flex;
-    align-items:center;
-    gap:16px;
-    text-decoration:none;
-    background:var(--bg-card);
-    border-radius:12px;
-    padding:16px;
-    width:100%;
-    /* allow card to fill column width */
-    max-width:100%;
-    box-sizing: border-box;
-    border: 1px solid rgba(255,255,255,0.03);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: border-color var(--t-fast), transform var(--t-fast), background var(--t-fast);
+    cursor: pointer;
   }
-  .matchup-card:hover { transform: translateY(-4px); transition: transform 160ms ease; }
 
-  /* make the last child follow the same column sizing; no special grid-column */
-  .matchups > .matchup-card:last-child { justify-self:center; }
+  .matchup-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    background: var(--surface-2);
+  }
 
-  .side { display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 0; }
-  .team-left { justify-content:flex-start; }
-  .team-right { justify-content:flex-end; flex-direction:row-reverse; text-align:right; }
+  .m-side {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
 
-  /* Slightly larger avatar so the spacing feels balanced on wider cards */
-  .team-avatar { width:64px; height:64px; border-radius:999px; object-fit:cover; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
-  .team-avatar.placeholder { background: var(--muted-bg); }
+  .m-right {
+    justify-content: flex-end;
+  }
 
-  /* Allow team names to wrap across multiple lines (no ellipsis) so the full name is readable */
-  .team-meta { display:flex; flex-direction:column; min-width:0; }
-  .team-name {
-    font-weight:800;
-    color:var(--nav-text);
-    font-size:1.05rem;
-    /* allow wrapping so long names are fully visible */
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
+  .m-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    flex-shrink: 0;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .m-avatar.placeholder { background: var(--surface-2); }
+
+  .m-meta { min-width: 0; }
+  .m-meta.right { text-align: right; }
+
+  .m-name {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
     line-height: 1.15;
-  }
-  .team-sub { font-size:0.87rem; color:var(--muted); font-weight:600; margin-top:6px; }
-
-  /* keep the score area compact and fixed width so teams get more room */
-  .score-pair { display:flex; align-items:center; gap:8px; margin:0 10px; width:140px; justify-content:center; text-align:center; flex-shrink:0; }
-  .score-number { font-weight:900; font-size:1.18rem; color:var(--nav-text); }
-  .score-label { font-size:0.74rem; color:var(--muted); font-weight:700; }
-  .score-divider { font-size:1rem; color:var(--muted); margin:0 6px; }
-
-  /* small tweaks for very wide screens to give extra breathing room */
-  @media (min-width:1400px) {
-    .matchups { gap: 20px; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); }
-    .team-avatar { width:72px; height:72px; }
-    .score-pair { width:160px; }
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  /* responsive: single column below 900px */
-  @media (max-width:900px){
-    .matchups{ grid-template-columns: 1fr; }
-    .team-avatar{ width:56px; height:56px; }
-    .score-pair{ width:120px; }
-    .matchup-card { padding:12px; gap:12px; }
-    .team-sub { margin-top:4px; font-size:0.82rem; }
+  .m-owner {
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+    margin-top: 0.15rem;
   }
 
-  @media (max-width:520px){
-    .wrap{ padding:0 0.75rem; }
-    .hero-row{ flex-direction:column; align-items:flex-start; gap:0.6rem; }
-    .team-avatar{ width:44px; height:44px; }
-    .score-pair{ width:92px; }
-    /* make sure team name doesn't dominate on tiny screens — allow two lines */
-    .team-name { font-size:1rem; }
+  .m-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  .score-num {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-num.winner { color: var(--win); }
+
+  .score-vs {
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-tertiary);
+    margin: 0.1rem 0;
+  }
+
+  .empty-card {
+    padding: 2rem;
+    text-align: center;
+    background: var(--surface-1);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+  }
+
+  .empty-card code {
+    color: var(--accent);
+    background: var(--surface-2);
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--r-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+
+  /* Score flipped layout for compact matchup: switch to row on small screens */
+  @media (max-width: 980px) {
+    .hero-inner { grid-template-columns: 1fr; gap: 2rem; }
+    .rando { max-width: 100%; }
+  }
+
+  @media (max-width: 720px) {
+    .hero { padding: 2.5rem 0 3rem; }
+    .matchups-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+    .matchup-card { grid-template-columns: 1fr 1fr; padding: 0.9rem 1rem; }
+    .m-score { grid-column: 1 / -1; flex-direction: row; gap: 0.75rem; justify-content: center; padding-top: 0.5rem; border-top: 1px solid var(--border-subtle); }
+    .score-num { font-size: 1.3rem; }
+    .m-avatar { width: 40px; height: 40px; }
   }
 </style>

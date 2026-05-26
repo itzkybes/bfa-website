@@ -2,147 +2,94 @@
   export let error = null;
   export let onRetry = null;
   export let context = 'data';
-  
+
   function handleRetry() {
-    if (onRetry && typeof onRetry === 'function') {
-      onRetry();
-    }
+    if (typeof onRetry === 'function') onRetry();
   }
 </script>
 
-<style>
-  .error-container {
-    background: rgba(255, 80, 80, 0.04);
-    border: 1px solid rgba(255, 80, 80, 0.2);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin: 1rem 0;
-    text-align: center;
-  }
-
-  .error-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.8;
-  }
-
-  .error-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #ffb6b6;
-    margin-bottom: 0.5rem;
-  }
-
-  .error-message {
-    color: #ffd4d4;
-    margin-bottom: 1rem;
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
-
-  .error-actions {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    padding: 0.6rem 1.2rem;
-    border-radius: 8px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 140ms ease;
-    border: none;
-    font-size: 0.95rem;
-  }
-
-  .btn-primary {
-    background: linear-gradient(90deg, #ff6b6b, #ff5252);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(255, 82, 82, 0.3);
-  }
-
-  .btn-secondary {
-    background: rgba(255,255,255,0.03);
-    color: #e6eef8;
-    border: 1px solid rgba(255,255,255,0.1);
-  }
-
-  .btn-secondary:hover {
-    background: rgba(255,255,255,0.06);
-  }
-
-  .error-details {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: rgba(0,0,0,0.2);
-    border-radius: 8px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    color: #ffb6b6;
-    text-align: left;
-    overflow-x: auto;
-  }
-</style>
-
-<div class="error-container" role="alert" aria-live="assertive">
-  <div class="error-icon" aria-hidden="true">⚠️</div>
-  
-  <div class="error-title">
+<div class="err" role="alert" aria-live="assertive" data-testid="error-boundary">
+  <div class="err-icon" aria-hidden="true">!</div>
+  <div class="err-title">
     {#if error?.message?.includes('fetch') || error?.message?.includes('network')}
-      Network Error
+      Network error
     {:else if error?.message?.includes('404')}
-      Not Found
+      Not found
     {:else if error?.message?.includes('500')}
-      Server Error
+      Server error
     {:else}
-      Something Went Wrong
+      Something went wrong
     {/if}
   </div>
-
-  <div class="error-message">
+  <div class="err-msg">
     {#if error?.message}
       {#if error.message.includes('fetch') || error.message.includes('Failed to fetch')}
-        Unable to load {context}. Please check your internet connection and try again.
+        Unable to load {context}. Check your connection and try again.
       {:else if error.message.includes('404')}
         The requested {context} could not be found.
       {:else if error.message.includes('500')}
-        The server encountered an error. Please try again later.
+        The server encountered an error. Try again shortly.
       {:else}
         {error.message}
       {/if}
     {:else}
-      We encountered an unexpected error while loading {context}. Please try again.
+      We hit an unexpected error loading {context}. Please retry.
     {/if}
   </div>
 
-  <div class="error-actions">
+  <div class="err-actions">
     {#if onRetry}
-      <button class="btn btn-primary" on:click={handleRetry}>
-        🔄 Retry
-      </button>
+      <button class="btn primary" on:click={handleRetry} data-testid="error-retry">↻ Retry</button>
     {/if}
-    
-    <button class="btn btn-secondary" on:click={() => window.location.reload()}>
-      ↻ Refresh Page
-    </button>
-    
-    <a class="btn btn-secondary" href="/">
-      🏠 Go Home
-    </a>
+    <a class="btn" href="/" data-testid="error-go-home">Go Home</a>
   </div>
-
-  {#if error?.stack && import.meta.env.DEV}
-    <details>
-      <summary style="cursor: pointer; margin-top: 1rem; color: #ffd4d4;">Show Error Details (Dev Mode)</summary>
-      <div class="error-details">
-        <pre>{error.stack}</pre>
-      </div>
-    </details>
-  {/if}
 </div>
+
+<style>
+  .err {
+    margin: 1.5rem 0;
+    padding: 2rem 1.5rem;
+    background: var(--surface-1);
+    border: 1px solid var(--loss);
+    border-left: 4px solid var(--loss);
+    border-radius: var(--r-sm);
+    text-align: center;
+  }
+
+  .err-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--loss);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    margin-bottom: 1rem;
+  }
+
+  .err-title {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .err-msg {
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+    max-width: 60ch;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .err-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>

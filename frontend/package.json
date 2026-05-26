@@ -1,0 +1,9 @@
+{
+  "name": "bfa-frontend-wrapper",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Wrapper so supervisor (which expects /app/frontend with `yarn start` on port 3000) can launch the SvelteKit dev server living at the project root /app",
+  "scripts": {
+    "start": "cd /app && exec node ./node_modules/.bin/vite dev --host 0.0.0.0 --port 3000 --strictPort"
+  }
+}

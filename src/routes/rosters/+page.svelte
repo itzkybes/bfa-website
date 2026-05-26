@@ -1,539 +1,504 @@
+<!-- src/routes/rosters/+page.svelte — Team rosters grid -->
 <script>
-  // src/routes/rosters/+page.svelte
   import { onMount } from 'svelte';
   export let data;
 
-  // collapsed state per roster — default false (expanded)
   let collapsed = {};
-
-  // detect mobile to default-collapse on small screens
   let isMobile = false;
+
   onMount(() => {
     isMobile = (typeof window !== 'undefined') && window.innerWidth <= 760;
     if (isMobile && data?.data) {
-      const keys = [];
-      for (const league of (data.data || [])) {
-        if (!league || !Array.isArray(league.rosters)) continue;
-        for (const r of league.rosters) if (r && (r.rosterId ?? r.roster_id)) keys.push(r.rosterId ?? r.roster_id);
-      }
-      if (keys.length) {
-        const m = { ...collapsed };
-        for (const k of keys) {
-          if (typeof m[k] !== 'boolean') m[k] = true; // default collapsed on mobile
+      const m = { ...collapsed };
+      for (const league of data.data) {
+        if (!Array.isArray(league.rosters)) continue;
+        for (const r of league.rosters) {
+          const id = r.rosterId ?? r.roster_id;
+          if (id != null && typeof m[id] !== 'boolean') m[id] = true;
         }
-        collapsed = m;
       }
+      collapsed = m;
     }
   });
 
-  // Initialize collapsed map to include roster IDs (preserve user toggles)
-  $: if (data && data.data && data.data.length) {
-    const map = {};
-    for (const league of data.data) {
-      if (!league || !Array.isArray(league.rosters)) continue;
-      for (const r of league.rosters) {
-        if (!r) continue;
-        const id = r.rosterId ?? r.roster_id;
-        map[id] = (typeof collapsed[id] === 'boolean') ? collapsed[id] : !!isMobile;
-      }
-    }
-    const a = Object.keys(map).join(',');
-    const b = Object.keys(collapsed).join(',');
-    if (a !== b) collapsed = map;
+  function toggle(id) {
+    collapsed = { ...collapsed, [id]: !collapsed[id] };
   }
 
-  function toggleCollapsed(id) {
-    collapsed[id] = !collapsed[id];
-    collapsed = { ...collapsed };
-  }
-
-  // --- Helpers (kept from your original implementation) ---
   function getPlayerInfo(id) {
     if (!id) return { name: 'Empty', team: '', positions: [], player_id: null };
-    const players = data && data.players;
-    let p = null;
-    if (players) p = players[id] || players[id.toUpperCase()] || players[String(id)];
+    const players = data?.players;
+    const p = players ? (players[id] || players[id.toUpperCase?.()] || players[String(id)]) : null;
     if (!p) return { name: id, team: '', positions: [], player_id: id };
-    const fullName = p.full_name || `${(p.first_name || '')} ${(p.last_name || '')}`.trim() || p.display_name || id;
+    const fullName = p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.display_name || id;
     const positions = Array.isArray(p.fantasy_positions) ? p.fantasy_positions : (p.position ? [p.position] : []);
     return { name: fullName, team: p.team || p.team_abbreviation || 'FA', positions, player_id: p.player_id || id };
   }
 
-  function getPlayerHeadshot(playerId) {
-    if (!playerId) return '';
-    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+  function headshot(pid) {
+    return pid ? `https://sleepercdn.com/content/nba/players/${pid}.jpg` : '';
   }
 
   function _ro(r) { return r && r.raw ? r.raw : r || {}; }
 
-  function getTaxiPlayers(roster) {
-    const r = _ro(roster);
-    return r?.taxi || r?.taxi_squad || r?.taxi_players || r?.taxiSquad || r?.taxi_roster || r?.taxiRoster || r?.taxi_list || r?.taxiPlayers || [];
+  function getTaxi(r) {
+    const x = _ro(r);
+    return x?.taxi || x?.taxi_squad || x?.taxi_players || x?.taxiSquad || x?.taxi_roster || x?.taxi_list || [];
   }
 
-  function getStartersRaw(roster) {
-    const r = _ro(roster);
+  function getStarters(r) {
+    const x = _ro(r);
+    if (Array.isArray(x?.starters) && x.starters.length) return x.starters;
     if (Array.isArray(r?.starters) && r.starters.length) return r.starters;
-    if (Array.isArray(roster?.starters) && roster.starters.length) return roster.starters;
-    if (Array.isArray(r?.starting_lineup) && r.starting_lineup.length) return r.starting_lineup;
-    if (Array.isArray(r?.starters_list) && r.starters_list.length) return r.starters_list;
-    const players = roster.player_ids || r?.players || [];
-    let N = 9;
-    if (r?.metadata && r.metadata.lineup_positions_count) N = Number(r.metadata.lineup_positions_count) || N;
-    if (Array.isArray(players)) return players.slice(0, N);
-    return [];
+    if (Array.isArray(x?.starting_lineup) && x.starting_lineup.length) return x.starting_lineup;
+    const players = r.player_ids || x?.players || [];
+    return Array.isArray(players) ? players.slice(0, 9) : [];
   }
 
-  function getBenchPlayers(roster) {
-    const players = (roster.player_ids || _ro(roster)?.players || []).slice();
-    const starters = getStartersRaw(roster) || [];
-    const taxi = getTaxiPlayers(roster) || [];
-    const exclude = new Set((starters || []).map(String).concat((taxi || []).map(String)));
-    return players.filter(p => p && !exclude.has(String(p)));
+  function getBench(r) {
+    const all = (r.player_ids || _ro(r)?.players || []).slice();
+    const exclude = new Set([
+      ...(getStarters(r) || []).map(String),
+      ...(getTaxi(r) || []).map(String)
+    ]);
+    return all.filter((p) => p && !exclude.has(String(p)));
   }
 
-  // fixed starter ordering
-  const STARTER_SLOTS = ['PG','SG','G','SF','PF','F','C','UTIL','UTIL'];
+  const STARTER_SLOTS = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'UTIL'];
 
-  // badge colors
-  const posColor = {
-    PG: '#FF6B6B',
-    SG: '#FF8C42',
-    G:  '#FFB86B',
-    SF: '#6BCB77',
-    PF: '#4D96FF',
-    F:  '#4D96FF',
-    C:  '#A78BFA',
-    UTIL: '#94A3B8',
-    BN: '#0b1220',
-    TX: '#F472B6'
-  };
-
-  function posBadgeStyle(pos) {
-    const background = posColor[pos] || '#64748B';
-    return `background:${background}; color: white; padding: .12rem .45rem; border-radius: 999px; font-size: .72rem; font-weight:600; margin-right:.25rem;`;
-  }
-
-  function slotLeftBadgeStyle(type) {
-    const bg = type === 'BN' ? '#0b1220' : (posColor[type] || '#64748B');
-    const color = type === 'BN' ? '#94a3b8' : 'white';
-    return `background:${bg}; color:${color}; padding:.12rem .45rem; border-radius: 8px; font-weight:700; font-size:.72rem; margin-right:.45rem;`;
-  }
-
-  // --- Derived / enhanced data: compute player objects for starters/bench/taxi per roster ---
-  $: enhancedData = (data && Array.isArray(data.data))
-    ? data.data.map(league => {
-        const rosters = (Array.isArray(league.rosters) ? league.rosters : []).map(r => {
-          // map starters for each STARTER_SLOTS position
-          const starterRaw = getStartersRaw(r);
-          const starters = STARTER_SLOTS.map((slot, idx) => {
-            const pid = starterRaw && starterRaw.length > idx ? starterRaw[idx] : null;
+  $: enhanced = data?.data && Array.isArray(data.data)
+    ? data.data.map((league) => {
+        const rosters = (league.rosters || []).map((r) => {
+          const startersRaw = getStarters(r);
+          const _starters = STARTER_SLOTS.map((slot, idx) => {
+            const pid = startersRaw[idx] || null;
             return pid ? { slot, pid, player: getPlayerInfo(pid) } : { slot, pid: null, player: null };
           });
-
-          // bench & taxi arrays (pre-resolved)
-          const benchIds = getBenchPlayers(r);
-          const bench = benchIds.map(pid => ({ pid, player: getPlayerInfo(pid) }));
-
-          const taxiIds = getTaxiPlayers(r);
-          const taxi = taxiIds.map(pid => ({ pid, player: getPlayerInfo(pid) }));
-
-          return {
-            ...r,
-            _starters: starters,
-            _bench: bench,
-            _taxi: taxi
-          };
+          const benchIds = getBench(r);
+          const _bench = benchIds.map((pid) => ({ pid, player: getPlayerInfo(pid) }));
+          const taxiIds = getTaxi(r);
+          const _taxi = taxiIds.map((pid) => ({ pid, player: getPlayerInfo(pid) }));
+          return { ...r, _starters, _bench, _taxi };
         });
         return { ...league, rosters };
       })
     : [];
-
-  // utility shortName (kept for compatibility)
-  function shortName(fullName) {
-    if (!fullName) return '';
-    return fullName.split(' ')[0];
-  }
 </script>
 
-<style>
-  :global(body) { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color: #e6eef8; background: transparent; }
-  .page { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
+<div class="page wrap">
+  <header class="page-head rise">
+    <div class="eyebrow">League Rosters</div>
+    <h1 class="page-title">Team Rosters</h1>
+    <p class="page-sub">Current season starting lineups, bench, and taxi squads.</p>
+  </header>
 
-  h1 { margin: 0 0 .5rem 0; font-size: 1.6rem; }
-  h2 { margin: .5rem 0 0.75rem 0; font-size: 1.05rem; color:#e6eef8; }
-
-  .teams-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-  @media (min-width: 900px) {
-    .teams-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 1.25rem;
-    }
-  }
-
-  .team-card {
-    background: rgba(255,255,255,0.02);
-    border-radius: 10px;
-    padding: 0.9rem;
-    display:flex;
-    gap:0.4rem;
-    align-items:flex-start;
-    position:relative;
-    transition: padding .18s ease, max-height .18s ease, box-shadow .18s ease;
-    overflow: visible;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
-  }
-
-  .team-card.collapsed {
-    padding: 0.45rem 0.6rem;
-    align-items:center;
-    max-height:82px;
-    box-shadow: none;
-  }
-
-  .team-card.collapsed .team-body {
-    display: none !important;
-  }
-
-  /* reduce header width so players are closer */
-  .team-side {
-    display:flex;
-    flex-direction:row;
-    gap:.5rem;
-    align-items:center;
-    min-width:0;
-    flex: 0 0 220px; /* tightened to 220px to bring players closer */
-  }
-  .team-card.collapsed .team-side { flex: 0 1 auto; }
-
-  .team-meta { display:flex; flex-direction:column; gap:.25rem; transition: opacity .12s ease, transform .18s ease; min-width:0; max-width:200px; }
-  .team-name { font-weight:700; font-size:1.05rem; transition: font-size .18s ease; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .team-owner { color:#94a3b8; font-size:.95rem; }
-  .muted { font-size:.9rem; margin-top:.25rem; color:#9ca3af; }
-
-  .team-body { flex:1 1 auto; display:flex; flex-direction:column; gap:1rem; min-width:0; }
-
-  .section { background: rgba(255,255,255,0.01); padding:.45rem; border-radius:8px; }
-
-  /* STARTERS: use pill style (same as bench/taxi) but stack vertically */
-  .starters-list {
-    display:flex;
-    flex-direction:column;
-    gap:0.75rem; /* space between starter pills */
-    align-items:stretch;
-  }
-
-  .starter-pill {
-    display:flex;
-    gap:.6rem;
-    align-items:center;
-    padding:.38rem .6rem; /* similar to bench/taxi pills but full-width */
-    border-radius:999px;
-    background: rgba(255,255,255,0.01);
-    color: #e6eef8;
-    font-weight:600;
-    min-width: 0;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .starter-pill .left-badge {
-    min-width:44px;
-    height:32px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:.12rem .6rem;
-    border-radius:8px;
-    font-weight:700;
-    font-size:.78rem;
-    flex-shrink:0;
-  }
-
-  .starter-pill .thumb {
-    width:44px;
-    height:44px;
-    border-radius:8px;
-    object-fit:cover;
-    background:#0b1220;
-    flex-shrink:0;
-  }
-
-  /* Make meta flexible so player names can wrap and never be overlapped */
-  .starter-pill .meta {
-    display:flex;
-    flex-direction:column;
-    min-width:0;
-    overflow:visible;
-    flex: 1 1 auto;
-    margin-right: 8px; /* ensure separation from pos-badges */
-  }
-
-  .starter-pill .meta .name {
-    font-weight:700;
-    white-space:normal; /* allow wrap so full name is visible */
-    overflow:visible;
-    text-overflow:clip;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    font-size:0.98rem;
-  }
-
-  .starter-pill .meta .team { color:#9ca3af; font-size:.82rem; margin-top:2px; }
-
-  /* pos-badges never shrink and sit to the right */
-  .starter-pill .pos-badges { display:flex; gap:.25rem; flex-shrink:0; align-items:center; margin-left:auto; }
-
-  /* bench/taxi pills */
-  .pill-grid { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-start; }
-  .pill {
-    display:flex;
-    gap:.5rem;
-    align-items:center;
-    padding:.4rem .6rem;
-    border-radius:999px;
-    background: rgba(255,255,255,0.02);
-    color: #e6eef8;
-    font-weight:600;
-    min-width: 140px;
-    max-width: 100%;
-    overflow: visible;
-    flex: 0 1 auto;
-  }
-  .pill .left-badge { height:28px; display:flex; align-items:center; justify-content:center; padding:.12rem .6rem; border-radius:8px; font-weight:700; font-size:.72rem; flex-shrink:0; }
-  .pill .thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; background:#0b1220; flex-shrink:0; }
-  .pill .meta { display:flex; flex-direction:column; line-height:1; font-size:.95rem; min-width:0; overflow:visible; flex: 1 1 auto; margin-right: 8px; }
-  .pill .meta .name { font-weight:700; white-space:normal; overflow:visible; text-overflow:clip; word-break: break-word; overflow-wrap: anywhere; }
-  .pill .meta .team { color:#9ca3af; font-size:.78rem; margin-top:2px; }
-
-  .pos-badges { display:flex; gap:.25rem; margin-left:.35rem; flex-wrap:wrap; flex-shrink:0; }
-
-  .headshot { width:52px; height:52px; border-radius:8px; object-fit:cover; background:#0b1220; border:1px solid rgba(255,255,255,0.03); flex-shrink:0; }
-  .player-meta { display:flex; flex-direction:column; min-width:0; overflow:visible; }
-  .player-name { font-weight:700; overflow:visible; text-overflow:clip; white-space:normal; }
-  .player-team { color:#9ca3af; font-size:.85rem; margin-top:2px; }
-
-  .compact-toggle {
-    position:absolute;
-    right:.5rem;
-    top:.5rem;
-    background: rgba(255,255,255,0.03);
-    border: none;
-    color:#cbd5e1;
-    padding:.4rem .6rem;
-    border-radius:8px;
-    cursor:pointer;
-    font-weight:700;
-    z-index:3;
-    font-size:0.9rem;
-  }
-
-  .empty { color:#9ca3af; font-style:italic; padding:.6rem; }
-
-  @media (max-width: 760px) {
-    .page { padding: 0.75rem 0.9rem; }
-    .team-side { flex: 0 0 auto; }
-    .team-avatar { width:56px; height:56px; }
-    .team-card.collapsed { max-height:78px; }
-    .headshot { width:40px; height:40px; }
-    .pill { min-width: 110px; padding:.3rem .45rem; }
-    .compact-toggle { padding:.35rem .5rem; font-size:0.85rem; }
-    .starters-list { gap:.5rem; }
-    .starter-pill { padding:.3rem .45rem; gap:.45rem; }
-    .starter-pill .thumb { width:40px; height:40px; }
-    .starter-pill .left-badge { min-width:40px; }
-    .pill-grid { gap:.6rem; }
-
-    /* MOBILE: force pills to wrap so pos-badges drop below the player meta */
-    .starter-pill,
-    .pill {
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    /* Position badges: full-width row below name/team on mobile */
-    .starter-pill .pos-badges,
-    .pill .pos-badges {
-      order: 4;
-      width: 100%;
-      margin-left: 0;
-      margin-top: 6px;
-      justify-content: flex-start;
-      gap: 8px;
-    }
-
-    /* ensure meta comes before badges in visual order */
-    .starter-pill .meta,
-    .pill .meta {
-      order: 3;
-      margin-right: 0;
-    }
-
-    /* allow badges to wrap to next line on very small screens */
-    .starter-pill .pos-badges,
-    .pill .pos-badges {
-      flex-wrap: wrap;
-    }
-  }
-
-  @media (min-width: 1200px) {
-    .team-avatar { width:88px; height:88px; }
-    .headshot { width:56px; height:56px; }
-    .teams-grid { gap: 1.25rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-
-  a:focus, button:focus {
-    outline: 3px solid rgba(0,198,216,0.18);
-    outline-offset: 2px;
-    border-radius: 6px;
-  }
-</style>
-
-<div class="page">
-  <h1>Team Rosters — Current Season</h1>
-
-  {#if enhancedData && enhancedData.length}
-    {#each enhancedData as league (league.leagueId)}
-      <div style="margin-bottom:1rem;">
-        <h2>{league.leagueName ?? `Season ${league.season ?? league.leagueId}`}</h2>
+  {#if enhanced && enhanced.length}
+    {#each enhanced as league (league.leagueId)}
+      <div class="league-block">
+        {#if league.leagueName}
+          <div class="league-name">{league.leagueName} · <span class="season-tag">{league.season ?? ''}</span></div>
+        {/if}
 
         {#if league.rosters && league.rosters.length}
-          <div class="teams-grid">
-            {#each league.rosters as roster (roster.rosterId)}
-              <article class="team-card" class:collapsed={collapsed[roster.rosterId]} aria-labelledby={"team-" + roster.rosterId}>
-                <button class="compact-toggle"
-                  aria-pressed={!collapsed[roster.rosterId]}
-                  on:click={() => toggleCollapsed(roster.rosterId)}>
-                  {collapsed[roster.rosterId] ? 'Expand' : 'Collapse'}
-                </button>
-
-                <div class="team-side">
-                  <img class="team-avatar"
-                    src={roster.team_avatar || roster.owner_avatar || 'https://via.placeholder.com/72?text=?'}
+          <div class="teams-grid" data-testid="rosters-grid">
+            {#each league.rosters as roster, idx (roster.rosterId)}
+              <article
+                class="team-card rise"
+                class:collapsed={collapsed[roster.rosterId]}
+                style="animation-delay: {idx * 30}ms;"
+                data-testid={`team-card-${roster.rosterId}`}
+              >
+                <div class="team-head">
+                  <img
+                    class="team-avatar"
+                    src={roster.team_avatar || roster.owner_avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 56 56%22%3E%3C/svg%3E'}
                     alt={roster.team_name}
-                    on:error={(e)=>e.target.style.visibility='hidden'} />
-
-                  <div class="team-meta">
-                    <div class="team-name" id={"team-" + roster.rosterId} title={roster.team_name}>{roster.team_name}</div>
+                    on:error={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                  />
+                  <div class="team-info">
+                    <div class="team-name" title={roster.team_name}>{roster.team_name}</div>
                     {#if roster.owner_name}
-                      <div class="team-owner" title={roster.owner_name}>{roster.owner_name}</div>
+                      <div class="team-owner">{roster.owner_name}</div>
                     {/if}
-                    <div class="muted">
-                      Bench: {roster._bench.length} • Taxi: {roster._taxi.length}
+                    <div class="team-stats">
+                      <span class="stat-pill"><b>{roster._starters.filter((s) => s.pid).length}</b> Starters</span>
+                      <span class="stat-pill"><b>{roster._bench.length}</b> Bench</span>
+                      <span class="stat-pill"><b>{roster._taxi.length}</b> Taxi</span>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    class="collapse-btn"
+                    aria-pressed={!collapsed[roster.rosterId]}
+                    on:click={() => toggle(roster.rosterId)}
+                    data-testid={`team-collapse-${roster.rosterId}`}
+                  >
+                    {collapsed[roster.rosterId] ? '+' : '−'}
+                  </button>
                 </div>
 
-                <div class="team-body" aria-hidden={collapsed[roster.rosterId]}>
-                  <!-- Starters (precomputed starter objects) -->
-                  <section class="section" aria-labelledby={"starters-" + roster.rosterId}>
-                    <h3 id={"starters-" + roster.rosterId}>Starters</h3>
-                    <div class="starters-list">
-                      {#each roster._starters as st (st.slot)}
-                        {#if st && st.pid}
-                          <div class="starter-pill" title={st.player?.name}>
-                            <div class="left-badge" style={slotLeftBadgeStyle(st.slot)}>{st.slot}</div>
-                            <img class="thumb" src={getPlayerHeadshot(st.player?.player_id)} alt={st.player?.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                            <div class="meta">
-                              <div class="name" title={st.player?.name}>{st.player?.name}</div>
-                              <div class="team">{st.player?.team}</div>
+                {#if !collapsed[roster.rosterId]}
+                  <section class="team-body">
+                    <div class="section-label">Starters</div>
+                    <div class="starters">
+                      {#each roster._starters as st, i (i)}
+                        <div class="player-pill" title={st.player?.name}>
+                          <span class="slot-badge pos-pill {st.slot}">{st.slot}</span>
+                          {#if st.pid}
+                            <img class="player-headshot" src={headshot(st.player?.player_id)} alt={st.player?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            <div class="player-info">
+                              <div class="player-name">{st.player?.name}</div>
+                              <div class="player-team">{st.player?.team}</div>
                             </div>
-                            <div class="pos-badges" aria-hidden="true">
-                              {#if st.player && st.player.positions && st.player.positions.length}
+                            <div class="pos-tags">
+                              {#if st.player?.positions?.length}
                                 {#each st.player.positions as pos}
-                                  <span style={posBadgeStyle(pos)}>{pos}</span>
+                                  <span class="pos-pill {pos}">{pos}</span>
                                 {/each}
                               {:else}
-                                <span style={posBadgeStyle('UTIL')}>UTIL</span>
+                                <span class="pos-pill UTIL">UTIL</span>
                               {/if}
                             </div>
-                          </div>
-                        {:else}
-                          <div class="starter-pill">
-                            <div class="left-badge" style={slotLeftBadgeStyle(st.slot)}>{st.slot}</div>
-                            <div class="meta">
-                              <div class="name">Empty</div>
-                            </div>
-                          </div>
-                        {/if}
+                          {:else}
+                            <div class="player-info"><div class="player-name empty">— Empty —</div></div>
+                          {/if}
+                        </div>
                       {/each}
                     </div>
-                  </section>
 
-                  <!-- Bench -->
-                  <section class="section" aria-labelledby={"bench-" + roster.rosterId}>
-                    <h3 id={"bench-" + roster.rosterId}>Bench</h3>
-                    {#if roster._bench && roster._bench.length}
-                      <div class="pill-grid">
+                    <div class="section-label">Bench</div>
+                    {#if roster._bench.length}
+                      <div class="bench-grid">
                         {#each roster._bench as b (b.pid)}
-                          <div class="pill" title={b.player?.name}>
-                            <div class="left-badge" style={slotLeftBadgeStyle('BN')}>BN</div>
-                            <img class="thumb" src={getPlayerHeadshot(b.player?.player_id)} alt={b.player?.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                            <div class="meta">
-                              <div class="name" title={b.player?.name}>{b.player?.name}</div>
-                              <div class="team">{b.player?.team}</div>
+                          <div class="player-pill compact" title={b.player?.name}>
+                            <span class="slot-badge pos-pill BN">BN</span>
+                            <img class="player-headshot small" src={headshot(b.player?.player_id)} alt={b.player?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            <div class="player-info">
+                              <div class="player-name">{b.player?.name}</div>
+                              <div class="player-team">{b.player?.team}</div>
                             </div>
-                            <div class="pos-badges" aria-hidden="true">
-                              {#if b.player && b.player.positions && b.player.positions.length}
+                            <div class="pos-tags">
+                              {#if b.player?.positions?.length}
                                 {#each b.player.positions as pos}
-                                  <span style={posBadgeStyle(pos)}>{pos}</span>
+                                  <span class="pos-pill {pos}">{pos}</span>
                                 {/each}
-                              {:else}
-                                <span style={posBadgeStyle('BN')}>BN</span>
                               {/if}
                             </div>
                           </div>
                         {/each}
                       </div>
                     {:else}
-                      <div class="empty">Bench is empty (players may be starters or on taxi).</div>
+                      <div class="empty-row">Bench is empty.</div>
                     {/if}
-                  </section>
 
-                  <!-- Taxi -->
-                  <section class="section" aria-labelledby={"taxi-" + roster.rosterId}>
-                    <h3 id={"taxi-" + roster.rosterId}>Taxi Squad</h3>
-                    {#if roster._taxi && roster._taxi.length}
-                      <div class="pill-grid">
+                    <div class="section-label">Taxi Squad</div>
+                    {#if roster._taxi.length}
+                      <div class="bench-grid">
                         {#each roster._taxi as t (t.pid)}
-                          <div class="pill" title={t.player?.name}>
-                            <div class="left-badge" style={slotLeftBadgeStyle('TX')}>TX</div>
-                            <img class="thumb" src={getPlayerHeadshot(t.player?.player_id)} alt={t.player?.name} on:error={(e)=>e.target.style.visibility='hidden'} />
-                            <div class="meta">
-                              <div class="name" title={t.player?.name}>{t.player?.name}</div>
-                              <div class="team">{t.player?.team}</div>
+                          <div class="player-pill compact" title={t.player?.name}>
+                            <span class="slot-badge pos-pill TX">TX</span>
+                            <img class="player-headshot small" src={headshot(t.player?.player_id)} alt={t.player?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            <div class="player-info">
+                              <div class="player-name">{t.player?.name}</div>
+                              <div class="player-team">{t.player?.team}</div>
                             </div>
-                            <div class="pos-badges" aria-hidden="true">
-                              {#if t.player && t.player.positions && t.player.positions.length}
+                            <div class="pos-tags">
+                              {#if t.player?.positions?.length}
                                 {#each t.player.positions as pos}
-                                  <span style={posBadgeStyle(pos)}>{pos}</span>
+                                  <span class="pos-pill {pos}">{pos}</span>
                                 {/each}
-                              {:else}
-                                <span style={posBadgeStyle('TX')}>TX</span>
                               {/if}
                             </div>
                           </div>
                         {/each}
                       </div>
                     {:else}
-                      <div class="empty">Taxi squad is empty.</div>
+                      <div class="empty-row">Taxi squad empty.</div>
                     {/if}
                   </section>
-                </div>
+                {/if}
               </article>
             {/each}
           </div>
         {:else}
-          <div class="empty">No rosters available.</div>
+          <div class="empty-card">No rosters available for this league.</div>
         {/if}
       </div>
     {/each}
   {:else}
-    <div class="empty">No rosters available.</div>
+    <div class="empty-card" data-testid="rosters-empty">No rosters available.</div>
   {/if}
 </div>
+
+<style>
+  .page {
+    padding: 2.5rem 0 4rem;
+  }
+
+  .page-head {
+    margin-bottom: 2rem;
+  }
+
+  .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin: 0.4rem 0 0.5rem;
+  }
+
+  .page-sub {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    max-width: 60ch;
+  }
+
+  .league-block {
+    margin-bottom: 2rem;
+  }
+
+  .league-name {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .season-tag {
+    color: var(--accent);
+  }
+
+  .teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    gap: 1rem;
+  }
+
+  .team-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    transition: border-color var(--t-fast);
+  }
+
+  .team-card:hover {
+    border-color: var(--border-strong);
+  }
+
+  .team-head {
+    display: flex;
+    gap: 0.85rem;
+    align-items: center;
+    padding: 1rem;
+    background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .team-card.collapsed .team-head {
+    border-bottom: none;
+  }
+
+  .team-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .team-info { flex: 1; min-width: 0; }
+
+  .team-name {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.1;
+  }
+
+  .team-owner {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 0.2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .team-stats {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .stat-pill {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    padding: 0.18rem 0.45rem;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .stat-pill b {
+    color: var(--accent);
+    font-family: var(--font-display);
+    font-weight: 400;
+    margin-right: 0.2rem;
+  }
+
+  .collapse-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: var(--r-sm);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color var(--t-fast), background var(--t-fast);
+    flex-shrink: 0;
+  }
+
+  .collapse-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .team-body {
+    padding: 0.5rem 1rem 1rem;
+  }
+
+  .section-label {
+    font-family: var(--font-body);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin: 1rem 0 0.5rem;
+  }
+
+  .section-label:first-child { margin-top: 0.5rem; }
+
+  .starters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .bench-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.4rem;
+  }
+
+  .player-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.45rem 0.6rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    transition: border-color var(--t-fast);
+  }
+
+  .player-pill:hover {
+    border-color: var(--border-strong);
+  }
+
+  .player-pill.compact {
+    padding: 0.4rem 0.55rem;
+  }
+
+  .slot-badge {
+    min-width: 40px;
+  }
+
+  .player-headshot {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--bg-base);
+    flex-shrink: 0;
+  }
+
+  .player-headshot.small {
+    width: 30px;
+    height: 30px;
+  }
+
+  .player-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .player-name {
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    line-height: 1.15;
+    word-break: break-word;
+  }
+
+  .player-name.empty {
+    color: var(--text-tertiary);
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .player-team {
+    color: var(--text-tertiary);
+    font-size: 0.72rem;
+    margin-top: 0.15rem;
+  }
+
+  .pos-tags {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .empty-row {
+    color: var(--text-tertiary);
+    font-style: italic;
+    padding: 0.6rem 0;
+    font-size: 0.9rem;
+  }
+
+  .empty-card {
+    padding: 2rem;
+    text-align: center;
+    background: var(--surface-1);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 720px) {
+    .teams-grid { grid-template-columns: 1fr; }
+    .player-pill { flex-wrap: wrap; }
+    .pos-tags { width: 100%; margin-top: 0.3rem; }
+  }
+</style>

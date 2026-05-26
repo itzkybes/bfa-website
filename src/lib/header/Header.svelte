@@ -1,21 +1,17 @@
-<!-- src/lib/header/Header.svelte -->
+<!-- src/lib/header/Header.svelte — BFA "Performance Pro" header -->
 <script>
-  import { page } from "$app/stores";
-  import { onMount } from "svelte";
+  import { page } from '$app/stores';
+  import { onMount } from 'svelte';
 
-  let open = false;
+  let open = false;        // mobile menu
+  let recordsOpen = false; // desktop records dropdown
   let mounted = false;
 
-  let logoVisible = true;
-  let logoSrcs = ["/bfa-logo.png"];
-  let currentLogo = logoSrcs[0];
-
-  // element refs for outside-click detection
-  let mobileMenu;
-  let hamburgerBtn;
+  let mobileMenuEl;
+  let hamburgerEl;
   let recordsDropdownEl;
 
-  // close mobile menu & desktop dropdown on route change
+  // close menus on route change
   $: if (mounted) {
     $page;
     open = false;
@@ -25,158 +21,89 @@
   onMount(() => {
     mounted = true;
 
-    // click outside handler
-    const handleDocClick = (e) => {
-      const target = e.target;
-
-      // MOBILE: close mobile menu when clicking outside it/hamburger
-      if (open) {
-        if (
-          mobileMenu &&
-          !mobileMenu.contains(target) &&
-          !(hamburgerBtn && hamburgerBtn.contains(target))
-        ) {
-          open = false;
-        }
-      }
-
-      // DESKTOP: close records dropdown if click outside
-      if (recordsOpen) {
-        if (recordsDropdownEl && !recordsDropdownEl.contains(target)) {
-          recordsOpen = false;
-        }
-      }
-    };
-
-    // escape key to close
-    const handleKey = (e) => {
-      if (e.key === "Escape" || e.key === "Esc") {
+    const onDocClick = (e) => {
+      const t = e.target;
+      if (open && mobileMenuEl && !mobileMenuEl.contains(t) && !(hamburgerEl && hamburgerEl.contains(t))) {
         open = false;
+      }
+      if (recordsOpen && recordsDropdownEl && !recordsDropdownEl.contains(t)) {
         recordsOpen = false;
       }
-
-      // Close dropdown on Tab out
-      if (e.key === "Tab" && recordsOpen) {
-        setTimeout(() => {
-          if (
-            recordsDropdownEl &&
-            !recordsDropdownEl.contains(document.activeElement)
-          ) {
-            recordsOpen = false;
-          }
-        }, 0);
-      }
     };
-
-    document.addEventListener("click", handleDocClick, true);
-    document.addEventListener("keydown", handleKey, true);
-
+    const onKey = (e) => {
+      if (e.key === 'Escape') { open = false; recordsOpen = false; }
+    };
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onKey, true);
     return () => {
-      document.removeEventListener("click", handleDocClick, true);
-      document.removeEventListener("keydown", handleKey, true);
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('keydown', onKey, true);
     };
   });
 
   const links = [
-    { href: "/", label: "Home" },
-    { href: "/rosters", label: "Rosters" },
-    { href: "/matchups", label: "Matchups" },
-    { href: "/standings", label: "Standings" },
+    { href: '/', label: 'Home' },
+    { href: '/rosters', label: 'Rosters' },
+    { href: '/matchups', label: 'Matchups' },
+    { href: '/standings', label: 'Standings' },
     {
-      href: "/records",
-      label: "Records",
+      href: '/records',
+      label: 'Records',
       children: [
-        { href: "/records-team", label: "Team records" },
-        { href: "/records-player", label: "Player records" },
-      ],
+        { href: '/records-team', label: 'Team Records' },
+        { href: '/records-player', label: 'Player Records' }
+      ]
     },
-    { href: "/honor-hall", label: "Honor Hall" },
+    { href: '/honor-hall', label: 'Honor Hall' }
   ];
 
   function isActive(path, href) {
     if (!path) return false;
-    if (href === "/" && (path === "/" || path === "")) return true;
-    if (href !== "/" && path.startsWith(href)) return true;
-    return path === href;
+    if (href === '/') return path === '/' || path === '';
+    return path === href || path.startsWith(href + '/');
   }
 
-  function onLogoError() {
-    const next = logoSrcs.indexOf(currentLogo) + 1;
-    if (next < logoSrcs.length) {
-      currentLogo = logoSrcs[next];
-    } else {
-      logoVisible = false;
-    }
-  }
-
-  let recordsOpen = false;
-  function toggleRecords(e) {
-    e.stopPropagation();
-    recordsOpen = !recordsOpen;
-  }
-
-  $: if (open) {
-    recordsOpen = false;
-  }
-
-  function onDropdownLinkClick() {
-    recordsOpen = false;
-  }
-
-  function onMobileLinkClick() {
-    open = false;
-  }
-
-  function onBrandClick() {
-    open = false;
-    recordsOpen = false;
+  function isRecordsActive(path) {
+    return path && (path.startsWith('/records-team') || path.startsWith('/records-player'));
   }
 </script>
 
 <header class="site-header" role="banner">
-  <div class="wrap header-inner" role="navigation" aria-label="Main navigation">
-    <a
-      class="brand"
-      href="/"
-      aria-label="Badger Fantasy Association home"
-      on:click={onBrandClick}
-    >
-      {#if logoVisible}
-        <img
-          src={currentLogo}
-          alt="Badger Fantasy Association"
-          class="brand-logo"
-          width="96"
-          height="96"
-          on:error={onLogoError}
-          loading="eager"
-        />
-      {:else}
-        <span class="logo-emoji" aria-hidden="true">🦡</span>
-      {/if}
-
-      <span class="brand-text" title="Badger Fantasy Association"
-        >Badger Fantasy Association</span
-      >
+  <div class="wrap header-inner">
+    <a class="brand" href="/" data-testid="brand-home-link" aria-label="Badger Fantasy Association home">
+      <img
+        src="/bfa-logo.png"
+        alt="BFA"
+        class="brand-logo"
+        width="56"
+        height="56"
+        on:error={(e) => (e.currentTarget.style.display = 'none')}
+        loading="eager"
+      />
+      <span class="brand-text">
+        <span class="brand-line-1">Badger</span>
+        <span class="brand-line-2">Fantasy Association</span>
+      </span>
     </a>
 
-    <nav class="nav-desktop" aria-label="Primary navigation">
+    <nav class="nav-desktop" aria-label="Primary">
       {#each links as l}
         {#if l.children}
           <div
-            class="nav-item has-children {isActive($page.url.pathname, l.href)
-              ? 'active'
-              : ''}"
+            class="nav-item has-children"
+            class:active={isRecordsActive($page.url.pathname)}
             bind:this={recordsDropdownEl}
           >
             <button
-              class="nav-link record-button"
+              type="button"
+              class="nav-link records-btn"
               aria-haspopup="true"
               aria-expanded={recordsOpen}
-              on:click={toggleRecords}
-              type="button"
+              on:click={(e) => { e.stopPropagation(); recordsOpen = !recordsOpen; }}
+              data-testid="nav-records-toggle"
             >
-              {l.label} <span class="caret" aria-hidden="true">▾</span>
+              {l.label}
+              <span class="caret" aria-hidden="true">▾</span>
             </button>
 
             {#if recordsOpen}
@@ -184,11 +111,11 @@
                 {#each l.children as c}
                   <a
                     href={c.href}
-                    class="dropdown-link {isActive($page.url.pathname, c.href)
-                      ? 'active'
-                      : ''}"
                     role="menuitem"
-                    on:click={onDropdownLinkClick}
+                    class="dropdown-link"
+                    class:active={isActive($page.url.pathname, c.href)}
+                    on:click={() => (recordsOpen = false)}
+                    data-testid={`nav-dropdown-${c.href.replace(/\//g, '-').replace(/^-/, '')}`}
                   >
                     {c.label}
                   </a>
@@ -199,13 +126,10 @@
         {:else}
           <a
             href={l.href}
-            class="nav-link {isActive($page.url.pathname, l.href)
-              ? 'active'
-              : ''}"
-            aria-current={isActive($page.url.pathname, l.href)
-              ? "page"
-              : undefined}
-            on:click={() => (recordsOpen = false)}
+            class="nav-link"
+            class:active={isActive($page.url.pathname, l.href)}
+            aria-current={isActive($page.url.pathname, l.href) ? 'page' : undefined}
+            data-testid={`nav-link-${l.label.toLowerCase().replace(/\s+/g, '-')}`}
           >
             {l.label}
           </a>
@@ -213,30 +137,25 @@
       {/each}
     </nav>
 
-    <div class="mobile-controls">
-      <button
-        class="hamburger"
-        bind:this={hamburgerBtn}
-        on:click={() => (open = !open)}
-        aria-expanded={open}
-        aria-controls="mobile-menu"
-        aria-label={open ? "Close menu" : "Open menu"}
-      >
-        <span class="hamburger-box" aria-hidden="true">
-          <span class="hamburger-inner" />
-        </span>
-      </button>
-    </div>
+    <button
+      type="button"
+      class="hamburger"
+      bind:this={hamburgerEl}
+      on:click={() => (open = !open)}
+      aria-expanded={open}
+      aria-controls="mobile-menu"
+      aria-label={open ? 'Close menu' : 'Open menu'}
+      data-testid="mobile-menu-toggle"
+    >
+      <span class="bar" class:open></span>
+      <span class="bar" class:open></span>
+      <span class="bar" class:open></span>
+    </button>
   </div>
 
   {#if open}
-    <div
-      id="mobile-menu"
-      bind:this={mobileMenu}
-      class="mobile-menu"
-      aria-hidden={!open}
-    >
-      <div class="mobile-links">
+    <div id="mobile-menu" bind:this={mobileMenuEl} class="mobile-menu" data-testid="mobile-menu">
+      <div class="mobile-inner">
         {#each links as l}
           {#if l.children}
             <div class="mobile-section">
@@ -244,13 +163,10 @@
               {#each l.children as c}
                 <a
                   href={c.href}
-                  class="mobile-link {isActive($page.url.pathname, c.href)
-                    ? 'active'
-                    : ''}"
-                  on:click={onMobileLinkClick}
-                  aria-current={isActive($page.url.pathname, c.href)
-                    ? "page"
-                    : undefined}
+                  class="mobile-link"
+                  class:active={isActive($page.url.pathname, c.href)}
+                  on:click={() => (open = false)}
+                  data-testid={`mobile-link-${c.href.replace(/\//g, '-').replace(/^-/, '')}`}
                 >
                   {c.label}
                 </a>
@@ -259,13 +175,10 @@
           {:else}
             <a
               href={l.href}
-              class="mobile-link {isActive($page.url.pathname, l.href)
-                ? 'active'
-                : ''}"
-              on:click={onMobileLinkClick}
-              aria-current={isActive($page.url.pathname, l.href)
-                ? "page"
-                : undefined}
+              class="mobile-link"
+              class:active={isActive($page.url.pathname, l.href)}
+              on:click={() => (open = false)}
+              data-testid={`mobile-link-${l.label.toLowerCase().replace(/\s+/g, '-')}`}
             >
               {l.label}
             </a>
@@ -277,407 +190,270 @@
 </header>
 
 <style>
-  :root {
-    --nav-text: #e6eef6;
-    --muted: #9fb0c4;
-    --accent: #00c6d8;
-    --accent-dark: #008fa6;
-    --transition-fast: 140ms ease;
-    --transition-base: 180ms ease;
-  }
-
   .site-header {
     position: sticky;
     top: 0;
     z-index: 60;
-    backdrop-filter: blur(6px);
-    background: linear-gradient(
-      180deg,
-      rgba(6, 10, 15, 0.6),
-      rgba(6, 10, 15, 0.45)
-    );
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: saturate(140%) blur(12px);
+    -webkit-backdrop-filter: saturate(140%) blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .header-inner {
     display: flex;
     align-items: center;
-    gap: 0.9rem;
     justify-content: space-between;
-    padding: 0.5rem 1rem;
-    max-width: 1100px;
+    gap: 1.5rem;
+    padding: 0.85rem var(--s-5);
+    max-width: 1200px;
     margin: 0 auto;
   }
 
+  /* Brand */
   .brand {
     display: inline-flex;
-    gap: 0.9rem;
     align-items: center;
+    gap: 0.75rem;
+    color: var(--text-primary);
     text-decoration: none;
-    color: var(--nav-text);
-    flex: 0 1 auto;
-    min-width: 0;
-    transition: opacity var(--transition-fast);
   }
 
-  .brand:hover {
-    opacity: 0.9;
-  }
-
-  .brand:focus-visible {
-    outline: 3px solid rgba(0, 198, 216, 0.5);
-    outline-offset: 2px;
-    border-radius: 8px;
-  }
+  .brand:hover { color: var(--accent); }
 
   .brand-logo {
-    width: 96px;
-    height: 96px;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    flex-shrink: 0;
-  }
-
-  .logo-emoji {
-    display: inline-flex;
-    width: 96px;
-    height: 96px;
-    font-size: 2.2rem;
-    line-height: 1;
-    background: transparent;
-    border-radius: 0;
-    align-items: center;
-    justify-content: center;
     flex-shrink: 0;
   }
 
   .brand-text {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 800;
-    font-size: clamp(0.95rem, 2.2vw, 1.2rem);
-    color: var(--nav-text);
-    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 0.9;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
+  .brand-line-1 {
+    font-size: 1.4rem;
+    color: var(--accent);
+  }
+
+  .brand-line-2 {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.14em;
+  }
+
+  /* Desktop nav */
   .nav-desktop {
     display: flex;
-    gap: 0.6rem;
     align-items: center;
-    margin-left: 0.5rem;
+    gap: 0.25rem;
   }
 
   .nav-link,
-  .record-button {
-    padding: 8px 12px;
-    border-radius: 10px;
+  .records-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.6rem 0.95rem;
+    border-radius: var(--r-sm);
+    font-family: var(--font-body);
     font-weight: 700;
-    color: var(--nav-text);
-    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
     background: transparent;
-    transition:
-      background var(--transition-fast),
-      color var(--transition-fast),
-      transform var(--transition-fast);
     border: none;
     cursor: pointer;
-    font-size: 0.95rem;
-    line-height: 1;
+    transition: color var(--t-fast), background var(--t-fast);
   }
 
   .nav-link:hover,
-  .record-button:hover {
-    background: rgba(255, 255, 255, 0.05);
-    transform: translateY(-1px);
-  }
-
-  .nav-link:focus-visible,
-  .record-button:focus-visible {
-    outline: 3px solid rgba(0, 198, 216, 0.5);
-    outline-offset: 2px;
-    background: rgba(255, 255, 255, 0.03);
+  .records-btn:hover {
+    color: var(--text-primary);
+    background: var(--surface-1);
   }
 
   .nav-link.active,
-  .nav-item.has-children.active > .record-button {
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-    color: #071122;
+  .nav-item.has-children.active > .records-btn {
+    color: var(--accent);
+    position: relative;
   }
 
-  .nav-item {
-    position: relative;
+  .nav-link.active::after,
+  .nav-item.has-children.active > .records-btn::after {
+    content: '';
+    position: absolute;
+    left: 0.95rem;
+    right: 0.95rem;
+    bottom: 0.25rem;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .nav-item { position: relative; }
+
+  .caret {
+    font-size: 0.7em;
+    transition: transform var(--t-fast);
+  }
+
+  .records-btn[aria-expanded='true'] .caret {
+    transform: rotate(180deg);
   }
 
   .dropdown {
     position: absolute;
     right: 0;
-    top: 100%;
-    margin-top: 4px;
-    background: linear-gradient(
-      180deg,
-      rgba(15, 23, 36, 0.98),
-      rgba(7, 14, 26, 0.98)
-    );
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 8px;
-    min-width: 180px;
-    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.7);
+    top: calc(100% + 6px);
+    min-width: 200px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    padding: 0.25rem;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
     z-index: 70;
-    animation: dropdownFade 200ms ease-out;
+    animation: dd-fade 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  @keyframes dropdownFade {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  @keyframes dd-fade {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
   .dropdown-link {
-    padding: 10px 14px;
-    border-radius: 8px;
+    display: block;
+    padding: 0.7rem 0.85rem;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
     text-decoration: none;
-    color: var(--nav-text);
-    font-weight: 700;
-    font-size: 0.95rem;
-    transition:
-      background var(--transition-fast),
-      color var(--transition-fast);
+    border-radius: var(--r-sm);
+    transition: color var(--t-fast), background var(--t-fast);
   }
 
   .dropdown-link:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .dropdown-link:focus-visible {
-    outline: 3px solid rgba(0, 198, 216, 0.5);
-    outline-offset: -2px;
+    background: var(--surface-2);
+    color: var(--text-primary);
   }
 
   .dropdown-link.active {
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-    color: #071122;
+    color: var(--accent);
+    background: var(--accent-soft);
   }
 
-  .caret {
-    margin-left: 4px;
-    font-size: 0.75em;
-    transition: transform var(--transition-fast);
-  }
-
-  .record-button[aria-expanded="true"] .caret {
-    transform: rotate(180deg);
-  }
-
-  .mobile-controls {
-    display: none;
-    align-items: center;
-    gap: 8px;
-  }
-
+  /* Hamburger */
   .hamburger {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
     background: transparent;
-    border: none;
-    padding: 8px;
-    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
     cursor: pointer;
-    color: var(--nav-text);
-    transition: background var(--transition-fast);
+    transition: border-color var(--t-fast);
   }
 
-  .hamburger:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
+  .hamburger:hover { border-color: var(--accent); }
 
-  .hamburger:focus-visible {
-    outline: 3px solid rgba(0, 198, 216, 0.5);
-    outline-offset: 2px;
-  }
-
-  .hamburger-box {
-    width: 22px;
-    height: 16px;
-    display: inline-block;
-    position: relative;
-  }
-
-  .hamburger-inner,
-  .hamburger-inner::before,
-  .hamburger-inner::after {
+  .bar {
     display: block;
-    background-color: currentColor;
     height: 2px;
-    border-radius: 2px;
-    position: absolute;
-    left: 0;
-    right: 0;
-    transition:
-      transform 200ms ease,
-      opacity 200ms ease;
-  }
-
-  .hamburger-inner {
-    top: 50%;
-    transform: translateY(-50%);
-  }
-
-  .hamburger-inner::before {
-    content: "";
-    top: -7px;
-  }
-
-  .hamburger-inner::after {
-    content: "";
-    top: 7px;
-  }
-
-  .hamburger[aria-expanded="true"] .hamburger-inner {
-    transform: rotate(45deg);
-  }
-
-  .hamburger[aria-expanded="true"] .hamburger-inner::before {
-    transform: rotate(90deg) translateX(-1px);
-    top: 0;
-    opacity: 0;
-  }
-
-  .hamburger[aria-expanded="true"] .hamburger-inner::after {
-    transform: rotate(-90deg) translateX(-1px);
-    top: 0;
-    opacity: 0;
-  }
-
-  .mobile-menu {
-    background: linear-gradient(
-      180deg,
-      rgba(6, 10, 15, 0.98),
-      rgba(6, 10, 15, 0.99)
-    );
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
-    animation: slideDown 250ms ease-out;
-  }
-
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .mobile-links {
-    max-width: 1100px;
+    width: 22px;
+    background: var(--text-primary);
     margin: 0 auto;
-    padding: 16px 20px;
+    transition: transform var(--t-base), opacity var(--t-base);
+  }
+
+  .bar.open:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .bar.open:nth-child(2) { opacity: 0; }
+  .bar.open:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* Mobile menu */
+  .mobile-menu {
+    background: var(--surface-1);
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    animation: slide 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slide {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .mobile-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0.85rem var(--s-5);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0.25rem;
   }
 
   .mobile-link,
   .mobile-section-title {
-    display: block;
-    padding: 14px 16px;
-    border-radius: 10px;
-    font-weight: 800;
-    color: var(--nav-text);
+    padding: 0.85rem 0.85rem;
+    font-family: var(--font-body);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-left: 2px solid transparent;
     text-decoration: none;
-    background: rgba(255, 255, 255, 0.03);
-    font-size: 0.95rem;
-    transition:
-      background var(--transition-fast),
-      transform var(--transition-fast);
+    transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
   }
 
   .mobile-link:hover {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateX(4px);
-  }
-
-  .mobile-link:focus-visible {
-    outline: 3px solid rgba(0, 198, 216, 0.5);
-    outline-offset: -2px;
-  }
-
-  .mobile-section-title {
-    font-weight: 900;
-    opacity: 0.95;
-    background: rgba(255, 255, 255, 0.05);
-    pointer-events: none;
+    color: var(--text-primary);
+    background: var(--surface-2);
+    border-color: var(--border-strong);
   }
 
   .mobile-link.active {
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-    color: #071122;
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .mobile-section-title {
+    color: var(--accent);
+    font-size: 0.72rem;
+    pointer-events: none;
+    padding-top: 1.1rem;
   }
 
   .mobile-section {
     display: flex;
     flex-direction: column;
-    gap: 6px;
   }
 
+  /* Breakpoints */
   @media (max-width: 980px) {
-    .nav-desktop {
-      display: none;
-    }
-
-    .mobile-controls {
-      display: inline-flex;
-    }
-
-    .brand-logo,
-    .logo-emoji {
-      width: 72px;
-      height: 72px;
-    }
-
-    .brand-text {
-      font-size: clamp(0.9rem, 3vw, 1rem);
-    }
-
-    .header-inner {
-      padding: 0.45rem 0.75rem;
-      gap: 0.6rem;
-    }
-
-    .mobile-menu {
-      max-height: calc(100vh - 80px);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
+    .nav-desktop { display: none; }
+    .hamburger { display: inline-flex; }
+    .brand-logo { width: 40px; height: 40px; }
+    .brand-line-1 { font-size: 1.15rem; }
+    .brand-line-2 { font-size: 0.7rem; }
+    .header-inner { padding: 0.7rem var(--s-4); }
   }
 
-  @media (min-width: 981px) {
-    .mobile-menu {
-      display: none !important;
-    }
-  }
-
-  @media (max-width: 520px) {
-    .brand-logo,
-    .logo-emoji {
-      width: 56px;
-      height: 56px;
-    }
-
-    .brand-text {
-      font-size: 0.85rem;
-    }
+  @media (max-width: 480px) {
+    .brand-line-2 { display: none; }
+    .brand-line-1 { font-size: 1.4rem; }
   }
 </style>

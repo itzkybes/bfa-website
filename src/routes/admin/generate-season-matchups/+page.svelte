@@ -1,88 +1,161 @@
+<!-- src/routes/admin/generate-season-matchups/+page.svelte -->
 <script>
   export let data;
-
   const messages = data?.messages ?? [];
   const outputs = data?.outputs ?? [];
 
-  // copy helper for a pre block
   function copyJSON(jsonStr) {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(jsonStr).then(() => {
-        // small visual feedback could be added; keep simple
-        alert('JSON copied to clipboard — paste into GitHub file.');
-      }).catch(err => {
-        alert('Copy failed: ' + String(err));
-      });
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(jsonStr).then(
+        () => alert('JSON copied to clipboard — paste into GitHub file.'),
+        (err) => alert('Copy failed: ' + String(err))
+      );
     } else {
-      // fallback: open a prompt with the text so user can copy manually
       window.prompt('Copy the JSON below (Ctrl+C / Cmd+C):', jsonStr);
     }
   }
 </script>
 
-<style>
-  :global(body) { background:#07101a; color:#e6eef8; font-family: Inter, system-ui, sans-serif; }
-  .page { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
-  .card { background: #071025; border:1px solid rgba(255,255,255,0.03); border-radius:10px; padding:1rem; margin-bottom:1rem; }
-  .muted { color: #9ca3af; font-size:0.95rem; }
-  pre.jsonblob { background:#031220; padding:12px; border-radius:6px; overflow:auto; max-height:520px; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
-  .btn {
-    background: linear-gradient(180deg, rgba(99,102,241,0.14), rgba(99,102,241,0.06));
-    border: 1px solid rgba(99,102,241,0.16);
-    padding: .45rem .65rem;
-    border-radius: 8px;
-    color: #e6eef8;
-    font-weight:600;
-    cursor:pointer;
-  }
-  .year-block { margin-top: .8rem; }
-</style>
+<div class="page wrap">
+  <header class="page-head rise">
+    <div class="eyebrow">Admin · Tooling</div>
+    <h1 class="page-title">Generate Season Matchups JSON</h1>
+    <p class="page-sub">
+      Fetches matchups & roster metadata from Sleeper and produces JSON payloads mirroring
+      <code>/season_matchups/&lt;year&gt;.json</code>. Files are NOT written — copy the JSON into GitHub.
+    </p>
+  </header>
 
-<div class="page">
-  <h1>Generate season_matchups JSON (display-only)</h1>
-
-  <div class="card">
-    <div class="muted">This page fetches matchups & roster metadata from Sleeper and produces JSON payloads mirroring <code>/season_matchups/&lt;year&gt;.json</code>. Files are NOT written — the JSON is shown below for you to copy into GitHub.</div>
-    <div class="muted" style="margin-top:.5rem;">Max weeks used for fetching: <strong>23</strong></div>
-  </div>
-
-  <div class="card">
-    <h3>Messages</h3>
-    {#if messages && messages.length}
-      <ul>
+  <section class="block">
+    <div class="block-head">
+      <h2 class="block-title">Messages</h2>
+    </div>
+    {#if messages.length}
+      <ol class="msg-list">
         {#each messages as m}
-          <li class="muted">{m}</li>
+          <li>{m}</li>
         {/each}
-      </ul>
+      </ol>
     {:else}
-      <div class="muted">No messages.</div>
+      <div class="empty-card">No messages.</div>
     {/if}
-  </div>
+  </section>
 
-  {#if outputs && outputs.length}
+  {#if outputs.length}
     {#each outputs as out}
-      <div class="card year-block">
-        <div class="row">
+      <section class="block">
+        <div class="block-head">
           <div>
-            <h2 style="margin:.2rem 0;">Season JSON — {out.year}</h2>
-            <div class="muted">Playoff week start (discovered): {out.meta.playoff_week_start ?? '15'}</div>
-            <div class="muted" style="margin-top:.3rem;">Weeks produced: {Object.keys(out.weeks).length}</div>
+            <h2 class="block-title">Season {out.year}</h2>
+            <div class="meta-line">
+              Playoff start: <strong>{out.meta.playoff_week_start ?? '15'}</strong>
+              · Weeks: <strong>{Object.keys(out.weeks).length}</strong>
+            </div>
           </div>
-          <div>
-            <button class="btn" on:click={() => copyJSON(JSON.stringify(out.weeks, null, 2))}>Copy JSON</button>
-          </div>
+          <button class="btn primary sm" on:click={() => copyJSON(JSON.stringify(out.weeks, null, 2))} data-testid={`admin-copy-${out.year}`}>
+            Copy JSON
+          </button>
         </div>
-
-        <div style="margin-top:.6rem;">
-          <div class="muted" style="margin-bottom:.4rem;">Preview (expandable):</div>
+        <div class="block-body">
           <pre class="jsonblob">{JSON.stringify(out.weeks, null, 2)}</pre>
         </div>
-      </div>
+      </section>
     {/each}
   {:else}
-    <div class="card">
-      <div class="muted">No outputs produced.</div>
-    </div>
+    <section class="block">
+      <div class="empty-card">No outputs produced.</div>
+    </section>
   {/if}
 </div>
+
+<style>
+  .page { padding: 2.5rem 0 4rem; }
+  .page-head { margin-bottom: 2rem; }
+
+  .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0.4rem 0 0.5rem;
+  }
+
+  .page-sub {
+    color: var(--text-secondary);
+    max-width: 70ch;
+  }
+
+  .page-sub code {
+    background: var(--surface-2);
+    color: var(--accent);
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--r-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+  }
+
+  .block {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+
+  .block-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .block-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
+  .meta-line {
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
+
+  .meta-line strong { color: var(--accent); }
+
+  .block-body { padding: 1rem 1.25rem; }
+
+  .msg-list {
+    padding: 1rem 2.25rem;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .jsonblob {
+    background: var(--bg-base);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    padding: 1rem;
+    overflow: auto;
+    max-height: 480px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .empty-card {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+</style>

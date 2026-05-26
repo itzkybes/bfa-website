@@ -1,345 +1,147 @@
+<!-- src/routes/records-team/+page.svelte — Team aggregated records, H2H, margins -->
 <script>
-  // Standings page (aggregated regular / playoff)
   export let data;
 
-  // helper for placeholders
-  function avatarOrPlaceholder(url, name) {
-    return url || `https://via.placeholder.com/56?text=${encodeURIComponent(name ? name[0] : 'T')}`;
+  function avatarOrPh(url, name) {
+    if (url) return url;
+    const ch = name ? name[0].toUpperCase() : 'T';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
   }
 
-  // aggregated lists from server
-  $: aggregatedRegular = (data && data.aggregatedRegular && Array.isArray(data.aggregatedRegular)) ? data.aggregatedRegular : [];
-  $: aggregatedPlayoff = (data && data.aggregatedPlayoff && Array.isArray(data.aggregatedPlayoff)) ? data.aggregatedPlayoff : [];
+  $: aggregatedRegular = data?.aggregatedRegular ?? [];
+  $: aggregatedPlayoff = data?.aggregatedPlayoff ?? [];
+  $: ownershipNotes = data?.ownershipNotes ?? [];
+  $: h2hOwners = data?.h2hOwners ?? [];
+  $: h2hRecords = data?.h2hRecords ?? {};
+  $: marginsLargest = data?.marginsLargest ?? [];
+  $: marginsSmallest = data?.marginsSmallest ?? [];
 
-  // debug messages and json links
-  $: debugMessages = (data && data.messages && Array.isArray(data.messages)) ? data.messages : [];
-  $: jsonLinks = (data && data.jsonLinks && Array.isArray(data.jsonLinks)) ? data.jsonLinks : [];
-
-  // ownership notes from server (e.g. remapping owners)
-  $: ownershipNotes = (data && data.ownershipNotes && Array.isArray(data.ownershipNotes)) ? data.ownershipNotes : [];
-
-  // H2H
-  $: h2hOwners = (data && data.h2hOwners && Array.isArray(data.h2hOwners)) ? data.h2hOwners : [];
-  $: h2hRecords = (data && data.h2hRecords && typeof data.h2hRecords === 'object') ? data.h2hRecords : {};
-
-  // margins
-  $: marginsLargest = (data && data.marginsLargest && Array.isArray(data.marginsLargest)) ? data.marginsLargest : [];
-  $: marginsSmallest = (data && data.marginsSmallest && Array.isArray(data.marginsSmallest)) ? data.marginsSmallest : [];
-
-  // UI state
-  // default selected H2H to first owner if available
   let selectedH2H = null;
-  $: if ((!selectedH2H || selectedH2H === '') && h2hOwners && h2hOwners.length) selectedH2H = h2hOwners[0].key;
+  $: if ((!selectedH2H || selectedH2H === '') && h2hOwners.length) selectedH2H = h2hOwners[0].key;
 
-  function formatLast(season, week) {
-    if (!season) return '';
-    return `${season} / W${week || ''}`;
+  function lastLabel(season, week) {
+    if (!season) return '—';
+    return `${season} · W${week || ''}`;
   }
 </script>
 
-<style>
-  :global(body) {
-    --bg: #0b1220;
-    --card: #071025;
-    --muted: #9ca3af;
-    --accent: rgba(99,102,241,0.08);
-    --text: #e6eef8;
-    color-scheme: dark;
-  }
+<div class="page wrap">
+  <header class="page-head rise">
+    <div class="eyebrow">All-Time · Team Records</div>
+    <h1 class="page-title">Team Records</h1>
+    <p class="page-sub">Aggregated stats across every available season — head-to-head matchups, biggest blowouts and nailbiters.</p>
+  </header>
 
-  .page {
-    max-width: 1100px;
-    margin: 1.5rem auto;
-    padding: 0 1rem;
-  }
-
-  h1 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.5rem;
-  }
-
-  .debug {
-    margin-bottom: 1rem;
-    color: var(--muted);
-    font-size: 0.95rem;
-  }
-
-  .ownership-note {
-    background: rgba(99,102,241,0.04);
-    border: 1px solid rgba(99,102,241,0.08);
-    padding: 10px 12px;
-    margin: 8px 0 14px 0;
-    border-radius: 8px;
-    color: var(--muted);
-    font-size: 0.95rem;
-  }
-
-  .card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.006));
-    border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 12px;
-    padding: 14px;
-    box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-    overflow: hidden;
-  }
-
-  .card-header {
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:1rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .section-title {
-    font-size:1.05rem;
-    font-weight:700;
-    margin:0;
-  }
-  .section-sub {
-    color: var(--muted);
-    font-size: .9rem;
-  }
-
-  /* Table styling */
-  .table-wrap {
-    width:100%;
-    overflow:auto;
-    -webkit-overflow-scrolling: touch;
-    margin-top: .5rem;
-  }
-
-  .tbl {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.95rem;
-    overflow: hidden;
-    border-radius: 8px;
-    min-width: 740px;
-    table-layout: auto;
-  }
-
-  thead th {
-    text-align:left;
-    padding: 10px 12px;
-    font-size: 0.85rem;
-    color: var(--muted);
-    background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.004));
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-  }
-
-  tbody td {
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-    color: #e6eef8;
-    vertical-align: middle;
-    overflow: hidden;
-  }
-
-  tbody tr:nth-child(odd) {
-    background: rgba(255,255,255,0.005);
-  }
-
-  tbody tr:hover {
-    background: rgba(99,102,241,0.06);
-    transform: translateZ(0);
-  }
-
-  .team-row { display:flex; align-items:center; gap:0.75rem; }
-  .avatar { width:56px; height:56px; border-radius:10px; object-fit:cover; background:#111; flex-shrink:0; display:block; }
-  .team-cell { display:flex; flex-direction:column; min-width:220px; max-width: 42%; }
-  .team-name { font-weight:700; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .owner { color: var(--muted); font-size:.9rem; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-  .col-numeric { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
-
-  .trophies { margin-left:.4rem; font-size:0.98rem; }
-  .small-muted { color: var(--muted); font-size: .88rem; }
-
-  .rank {
-    width:48px;
-    text-align:right;
-    font-weight:700;
-    padding-right:12px;
-    color: #e6eef8;
-  }
-
-  .h2h-controls { display:flex; align-items:center; gap:12px; }
-  .team-select { padding:8px 10px; border-radius:8px; background:#06101a; color:var(--text); border:1px solid rgba(255,255,255,0.04); }
-
-  @media (max-width: 900px) {
-    .avatar { width:44px; height:44px; }
-    thead th, tbody td { padding: 8px; }
-    .team-name { font-size: .95rem; }
-  }
-
-  @media (max-width: 520px) {
-    .avatar { width:40px; height:40px; }
-    thead th, tbody td { padding: 6px 8px; }
-    .team-name { font-size: .98rem; }
-    .team-cell { max-width: 60%; }
-  }
-
-  .json-links a {
-    display:block;
-    color: var(--muted);
-    text-decoration: underline;
-    margin-top: .25rem;
-    word-break:break-all;
-  }
-</style>
-
-<div class="page">
-  {#if debugMessages && debugMessages.length}
-    <div class="debug">
-      <strong>Debug</strong>
-      <div style="margin-top:.35rem;">
-        {#each debugMessages as m, i}
-          <div>{i + 1}. {m}</div>
-        {/each}
-
-        {#if jsonLinks && jsonLinks.length}
-          <div style="margin-top:.5rem; font-weight:700; color:inherit">Loaded JSON files:</div>
-          <div class="json-links" aria-live="polite">
-            {#each jsonLinks as jl}
-              <a href={jl} target="_blank" rel="noopener noreferrer">{jl}</a>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    </div>
-  {/if}
-
-  <h1>Standings (Aggregated)</h1>
-
-  {#if ownershipNotes && ownershipNotes.length}
-    <div class="ownership-note" role="note" aria-live="polite">
+  {#if ownershipNotes.length}
+    <div class="note rise">
       {#each ownershipNotes as on}
         <div>{on}</div>
       {/each}
     </div>
   {/if}
 
-  <div class="small-muted" style="margin-bottom:.6rem;">
-    Aggregated rows — regular: <strong>{aggregatedRegular.length}</strong>, playoffs: <strong>{aggregatedPlayoff.length}</strong>
-  </div>
-
-  <!-- Regular Season -->
-  <div class="card" aria-labelledby="regular-title" style="margin-bottom:1rem;">
-    <div class="card-header">
-      <div>
-        <div id="regular-title" class="section-title">Regular Season (Aggregated)</div>
-        <div class="section-sub">Combined across available seasons</div>
-      </div>
-      <div class="small-muted">Sorted by Wins → PF</div>
+  <!-- Aggregated Regular Season -->
+  <section class="block">
+    <div class="block-head">
+      <h2 class="block-title">Regular Season — Aggregated</h2>
+      <span class="block-sub">Sorted by Wins → PF</span>
     </div>
-
-    {#if aggregatedRegular && aggregatedRegular.length}
-      <div class="table-wrap" role="region" aria-label="Aggregated regular season standings table scrollable">
-        <table class="tbl" role="table" aria-label="Aggregated regular season standings">
+    {#if aggregatedRegular.length}
+      <div class="table-wrap">
+        <table class="bfa-table">
           <thead>
             <tr>
-              <th>Team / Owner</th>
-              <th class="col-numeric">W</th>
-              <th class="col-numeric">L</th>
-              <th class="col-numeric">Longest W-Str</th>
-              <th class="col-numeric">Longest L-Str</th>
-              <th class="col-numeric">PF</th>
-              <th class="col-numeric">PA</th>
+              <th>Team</th>
+              <th class="col-num">W</th>
+              <th class="col-num">L</th>
+              <th class="col-num">Win Str</th>
+              <th class="col-num">Lose Str</th>
+              <th class="col-num">PF</th>
+              <th class="col-num">PA</th>
             </tr>
           </thead>
           <tbody>
-            {#each aggregatedRegular as row, idx}
+            {#each aggregatedRegular as row}
               <tr>
                 <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                    <div class="team-cell">
-                      <div class="team-name">{row.team_name}</div>
-                      {#if row.owner_name}
-                        <div class="owner">{row.owner_name}</div>
-                      {/if}
+                  <div class="team-cell">
+                    <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+                    <div>
+                      <div class="team-name-cell">{row.team_name}</div>
+                      {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
                     </div>
                   </div>
                 </td>
-                <td class="col-numeric">{row.wins}</td>
-                <td class="col-numeric">{row.losses}</td>
-                <td class="col-numeric">{row.maxWinStreak ?? (row.maxWinStreak === 0 ? 0 : '')}</td>
-                <td class="col-numeric">{row.maxLoseStreak ?? (row.maxLoseStreak === 0 ? 0 : '')}</td>
-                <td class="col-numeric">{row.pf}</td>
-                <td class="col-numeric">{row.pa}</td>
+                <td class="col-num"><span class="num">{row.wins}</span></td>
+                <td class="col-num"><span class="num">{row.losses}</span></td>
+                <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
+                <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
+                <td class="col-num pf"><span class="num">{row.pf}</span></td>
+                <td class="col-num"><span class="num muted">{row.pa}</span></td>
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
     {:else}
-      <div class="small-muted" style="padding:.5rem 0;">No regular season results to show.</div>
+      <div class="empty-card">No regular season results to show.</div>
     {/if}
-  </div>
+  </section>
 
-  <!-- Playoffs -->
-  <div class="card" aria-labelledby="playoff-title">
-    <div class="card-header">
-      <div>
-        <div id="playoff-title" class="section-title">Playoffs (Aggregated)</div>
-        <div class="section-sub">Combined playoff window across available seasons</div>
-      </div>
-      <div class="small-muted">Champion seasons pinned to top where applicable</div>
+  <!-- Aggregated Playoffs -->
+  <section class="block">
+    <div class="block-head">
+      <h2 class="block-title">Playoffs — Aggregated</h2>
+      <span class="block-sub">Champion seasons pinned 🏆</span>
     </div>
-
-    {#if aggregatedPlayoff && aggregatedPlayoff.length}
-      <div class="table-wrap" role="region" aria-label="Aggregated playoff standings table scrollable">
-        <table class="tbl" role="table" aria-label="Aggregated playoff standings">
+    {#if aggregatedPlayoff.length}
+      <div class="table-wrap">
+        <table class="bfa-table">
           <thead>
             <tr>
-              <th>Team / Owner</th>
-              <th class="col-numeric">W</th>
-              <th class="col-numeric">L</th>
-              <th class="col-numeric">PF</th>
-              <th class="col-numeric">PA</th>
+              <th>Team</th>
+              <th class="col-num">W</th>
+              <th class="col-num">L</th>
+              <th class="col-num">PF</th>
+              <th class="col-num">PA</th>
             </tr>
           </thead>
           <tbody>
             {#each aggregatedPlayoff as row}
-              <tr aria-current={row.champion === true ? 'true' : undefined}>
+              <tr class:champion-row={row.champion === true}>
                 <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                    <div class="team-cell">
-                      <div class="team-name">{row.team_name}</div>
-                      {#if row.owner_name}
-                        <div class="owner">{row.owner_name}</div>
-                      {/if}
+                  <div class="team-cell">
+                    <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+                    <div>
+                      <div class="team-name-cell">
+                        {row.team_name}
+                        {#if row.champion === true}<span class="trophy">🏆</span>{/if}
+                      </div>
+                      {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
                     </div>
                   </div>
                 </td>
-                <td class="col-numeric">{row.wins}</td>
-                <td class="col-numeric">{row.losses}</td>
-                <td class="col-numeric">{row.pf}</td>
-                <td class="col-numeric">{row.pa}</td>
+                <td class="col-num"><span class="num">{row.wins}</span></td>
+                <td class="col-num"><span class="num">{row.losses}</span></td>
+                <td class="col-num pf"><span class="num">{row.pf}</span></td>
+                <td class="col-num"><span class="num muted">{row.pa}</span></td>
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
     {:else}
-      <div class="small-muted" style="padding:.5rem 0;">No playoff results to show.</div>
+      <div class="empty-card">No playoff results.</div>
     {/if}
-  </div>
+  </section>
 
-  <!-- Head-to-Head -->
-  <div class="card" aria-labelledby="h2h-title" style="margin-top:1rem;">
-    <div class="card-header">
-      <div>
-        <div id="h2h-title" class="section-title">Head-to-Head</div>
-        <div class="section-sub">Select a team to view aggregated head-to-head records vs all opponents</div>
-      </div>
-      <div class="h2h-controls">
-        <label for="h2h-select" class="small-muted">Team</label>
-        <select id="h2h-select" class="team-select" bind:value={selectedH2H}>
+  <!-- H2H -->
+  <section class="block">
+    <div class="block-head">
+      <h2 class="block-title">Head-to-Head</h2>
+      <div class="h2h-select">
+        <label for="h2h-select" class="visually-hidden">Team</label>
+        <select id="h2h-select" bind:value={selectedH2H} data-testid="h2h-team-select">
           {#each h2hOwners as o}
             <option value={o.key}>{o.team ? o.team : o.display}</option>
           {/each}
@@ -347,176 +149,316 @@
       </div>
     </div>
 
-    {#if selectedH2H && h2hRecords[selectedH2H] && h2hRecords[selectedH2H].length}
-      <div class="table-wrap" role="region" aria-label="H2H table scrollable">
-        <table class="tbl" role="table" aria-label="Head to Head records">
+    {#if selectedH2H && h2hRecords[selectedH2H]?.length}
+      <div class="table-wrap">
+        <table class="bfa-table">
           <thead>
             <tr>
               <th>Opponent</th>
-              <th class="col-numeric">W</th>
-              <th class="col-numeric">L</th>
-              <th class="col-numeric">Games</th>
-              <th class="col-numeric">PF</th>
-              <th class="col-numeric">PA</th>
-              <th class="col-numeric">Last</th>
+              <th class="col-num">W</th>
+              <th class="col-num">L</th>
+              <th class="col-num">Games</th>
+              <th class="col-num">PF</th>
+              <th class="col-num">PA</th>
+              <th class="col-num">Last</th>
             </tr>
           </thead>
           <tbody>
             {#each h2hRecords[selectedH2H] as r}
               <tr>
                 <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(r.opponentAvatar, r.opponentTeam || r.opponentDisplay)} alt={r.opponentTeam || r.opponentDisplay} />
-                    <div class="team-cell">
-                      <div class="team-name">{r.opponentTeam ? r.opponentTeam : r.opponentDisplay}</div>
-                      {#if r.opponentDisplay}
-                        <div class="owner">{r.opponentDisplay}</div>
+                  <div class="team-cell">
+                    <img class="team-avatar small" src={avatarOrPh(r.opponentAvatar, r.opponentTeam || r.opponentDisplay)} alt={r.opponentTeam || r.opponentDisplay} />
+                    <div>
+                      <div class="team-name-cell">{r.opponentTeam || r.opponentDisplay}</div>
+                      {#if r.opponentDisplay && r.opponentTeam}
+                        <div class="team-owner-cell">{r.opponentDisplay}</div>
                       {/if}
                     </div>
                   </div>
                 </td>
-                <td class="col-numeric">{r.wins}</td>
-                <td class="col-numeric">{r.losses}</td>
-                <td class="col-numeric">{r.games}</td>
-                <td class="col-numeric">{r.pf}</td>
-                <td class="col-numeric">{r.pa}</td>
-                <td class="col-numeric">{formatLast(r.lastSeason, r.lastWeek)}</td>
+                <td class="col-num"><span class="num win-color">{r.wins}</span></td>
+                <td class="col-num"><span class="num loss-color">{r.losses}</span></td>
+                <td class="col-num"><span class="num muted">{r.games}</span></td>
+                <td class="col-num"><span class="num">{r.pf}</span></td>
+                <td class="col-num"><span class="num muted">{r.pa}</span></td>
+                <td class="col-num"><span class="num muted">{lastLabel(r.lastSeason, r.lastWeek)}</span></td>
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
     {:else}
-      <div class="small-muted" style="padding:.5rem 0;">No head-to-head data available for selected team.</div>
+      <div class="empty-card">No head-to-head data for selected team.</div>
     {/if}
+  </section>
+
+  <!-- Margins -->
+  <div class="margins-grid">
+    <section class="block">
+      <div class="block-head">
+        <h2 class="block-title">Largest Margins</h2>
+        <span class="block-sub">Top 10 blowouts</span>
+      </div>
+      {#if marginsLargest.length}
+        <div class="margin-list">
+          {#each marginsLargest as row}
+            <div class="margin-row">
+              <div class="margin-rank num">#{row.rank}</div>
+              <div class="margin-teams">
+                <div class="m-side">
+                  <img class="team-avatar small" src={avatarOrPh(row.avatarA, row.teamAName)} alt={row.teamAName} />
+                  <div class="m-mini">
+                    <div class="m-mini-name">{row.teamAName}</div>
+                    <div class="m-mini-score num">{row.scoreA}</div>
+                  </div>
+                </div>
+                <div class="margin-value num">+{row.margin}</div>
+                <div class="m-side right">
+                  <div class="m-mini">
+                    <div class="m-mini-name">{row.teamBName}</div>
+                    <div class="m-mini-score num">{row.scoreB}</div>
+                  </div>
+                  <img class="team-avatar small" src={avatarOrPh(row.avatarB, row.teamBName)} alt={row.teamBName} />
+                </div>
+              </div>
+              <div class="margin-meta">S{row.season} · W{row.week}</div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-card">No margin data.</div>
+      {/if}
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2 class="block-title">Smallest Margins</h2>
+        <span class="block-sub">Top 10 nailbiters</span>
+      </div>
+      {#if marginsSmallest.length}
+        <div class="margin-list">
+          {#each marginsSmallest as row}
+            <div class="margin-row">
+              <div class="margin-rank num">#{row.rank}</div>
+              <div class="margin-teams">
+                <div class="m-side">
+                  <img class="team-avatar small" src={avatarOrPh(row.avatarA, row.teamAName)} alt={row.teamAName} />
+                  <div class="m-mini">
+                    <div class="m-mini-name">{row.teamAName}</div>
+                    <div class="m-mini-score num">{row.scoreA}</div>
+                  </div>
+                </div>
+                <div class="margin-value tight num">{row.margin}</div>
+                <div class="m-side right">
+                  <div class="m-mini">
+                    <div class="m-mini-name">{row.teamBName}</div>
+                    <div class="m-mini-score num">{row.scoreB}</div>
+                  </div>
+                  <img class="team-avatar small" src={avatarOrPh(row.avatarB, row.teamBName)} alt={row.teamBName} />
+                </div>
+              </div>
+              <div class="margin-meta">S{row.season} · W{row.week}</div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-card">No margin data.</div>
+      {/if}
+    </section>
   </div>
-
-  <!-- Margins: Largest -->
-  <div class="card" style="margin-top:1rem;">
-    <div class="card-header">
-      <div>
-        <div class="section-title">Top 10 — Largest Margin of Victory</div>
-        <div class="section-sub">Year and week shown for each matchup</div>
-      </div>
-      <div class="small-muted">Sorted by margin (descending)</div>
-    </div>
-
-    {#if marginsLargest && marginsLargest.length}
-      <div class="table-wrap">
-        <table class="tbl" role="table" aria-label="Largest margins">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th class="col-numeric">Margin</th>
-              <th>Season</th>
-              <th>Week</th>
-              <th>Team A</th>
-              <th class="col-numeric">Score</th>
-              <th>Team B</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each marginsLargest as row}
-              <tr>
-                <td class="col-numeric">{row.rank}</td>
-                <td class="col-numeric">{row.margin}</td>
-                <td class="col-numeric">{row.season}</td>
-                <td class="col-numeric">{row.week}</td>
-                <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatarA, row.teamAName)} alt={row.teamAName} />
-                    <div class="team-cell">
-                      <div class="team-name">{row.teamAName}</div>
-                      <div class="owner">{row.ownerA}</div>
-                    </div>
-                  </div>
-                </td>
-                <td class="col-numeric">{row.scoreA} - {row.scoreB}</td>
-                <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatarB, row.teamBName)} alt={row.teamBName} />
-                    <div class="team-cell">
-                      <div class="team-name">{row.teamBName}</div>
-                      <div class="owner">{row.ownerB}</div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {:else}
-      <div class="small-muted" style="padding:.5rem 0;">No margin data available.</div>
-    {/if}
-  </div>
-
-  <!-- Margins: Smallest -->
-  <div class="card" style="margin-top:1rem;">
-    <div class="card-header">
-      <div>
-        <div class="section-title">Top 10 — Smallest Margin of Victory</div>
-        <div class="section-sub">Year and week shown for each matchup</div>
-      </div>
-      <div class="small-muted">Sorted by margin (ascending, non-zero)</div>
-    </div>
-
-    {#if marginsSmallest && marginsSmallest.length}
-      <div class="table-wrap">
-        <table class="tbl" role="table" aria-label="Smallest margins">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th class="col-numeric">Margin</th>
-              <th>Season</th>
-              <th>Week</th>
-              <th>Team A</th>
-              <th class="col-numeric">Score</th>
-              <th>Team B</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each marginsSmallest as row}
-              <tr>
-                <td class="col-numeric">{row.rank}</td>
-                <td class="col-numeric">{row.margin}</td>
-                <td class="col-numeric">{row.season}</td>
-                <td class="col-numeric">{row.week}</td>
-                <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatarA, row.teamAName)} alt={row.teamAName} />
-                    <div class="team-cell">
-                      <div class="team-name">{row.teamAName}</div>
-                      <div class="owner">{row.ownerA}</div>
-                    </div>
-                  </div>
-                </td>
-                <td class="col-numeric">{row.scoreA} - {row.scoreB}</td>
-                <td>
-                  <div class="team-row">
-                    <img class="avatar" src={avatarOrPlaceholder(row.avatarB, row.teamBName)} alt={row.teamBName} />
-                    <div class="team-cell">
-                      <div class="team-name">{row.teamBName}</div>
-                      <div class="owner">{row.ownerB}</div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {:else}
-      <div class="small-muted" style="padding:.5rem 0;">No margin data available.</div>
-    {/if}
-  </div>
-
-  <!-- Ownership note repeated at bottom (user asked for bottom) -->
-  {#if ownershipNotes && ownershipNotes.length}
-    <div class="ownership-note" role="note" style="margin-top:1rem;">
-      {#each ownershipNotes as on}
-        <div>{on}</div>
-      {/each}
-    </div>
-  {/if}
 </div>
+
+<style>
+  .page { padding: 2.5rem 0 4rem; }
+
+  .page-head { margin-bottom: 2rem; }
+
+  .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0.4rem 0 0.5rem;
+  }
+
+  .page-sub { color: var(--text-secondary); max-width: 60ch; }
+
+  .note {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--r-sm);
+    padding: 0.75rem 1rem;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .block {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+
+  .block-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .block-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+  }
+
+  .block-sub {
+    color: var(--text-tertiary);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+  }
+
+  .table-wrap { overflow-x: auto; }
+  .bfa-table { min-width: 700px; }
+
+  .team-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .team-avatar.small { width: 42px; height: 42px; }
+
+  .team-name-cell {
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.15;
+  }
+
+  .team-owner-cell {
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+    margin-top: 0.15rem;
+  }
+
+  .trophy { margin-left: 0.35rem; }
+  .pf .num { font-weight: 800; }
+  .num.muted { color: var(--text-tertiary); }
+  .win-color { color: var(--win); }
+  .loss-color { color: var(--loss); }
+
+  .empty-card {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .h2h-select select { min-width: 200px; }
+
+  /* Margins */
+  .margins-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .margin-list {
+    padding: 0.5rem 0;
+  }
+
+  .margin-row {
+    display: grid;
+    grid-template-columns: 50px 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .margin-row:last-child { border-bottom: none; }
+
+  .margin-rank {
+    font-size: 1.1rem;
+    color: var(--accent);
+  }
+
+  .margin-teams {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .m-side {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .m-side.right { justify-content: flex-end; flex-direction: row; }
+
+  .m-mini { min-width: 0; }
+  .m-side.right .m-mini { text-align: right; }
+
+  .m-mini-name {
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .m-mini-score {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+
+  .margin-value {
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    padding: 0.25rem 0.55rem;
+    border-radius: var(--r-sm);
+    color: var(--accent);
+    font-size: 1.1rem;
+  }
+
+  .margin-value.tight {
+    color: var(--win);
+    border-color: var(--win);
+  }
+
+  .margin-meta {
+    color: var(--text-tertiary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 980px) {
+    .margins-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 720px) {
+    .margin-row { grid-template-columns: 40px 1fr; }
+    .margin-meta { grid-column: 2; }
+    .margin-teams { grid-template-columns: 1fr; gap: 0.4rem; }
+    .m-side.right { justify-content: flex-start; flex-direction: row-reverse; }
+    .margin-value { justify-self: start; }
+  }
+</style>
