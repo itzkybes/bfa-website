@@ -83,16 +83,39 @@ export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket,
 
   for (const m of wbBrackets) placeFromMatch(m);
 
-  // Losers bracket: `p` may be relative (1 = top non-playoff) or absolute. Detect heuristically.
+  // Losers bracket = Toilet Bowl.
+  // In a Toilet Bowl, the team that WINS the bracket is the "Toilet Bowl Champion"
+  // — i.e., the absolute LAST place team in the league. Whichever team keeps
+  // advancing through the losers bracket (game-winner each round) ends up at the
+  // bottom; the team eliminated FIRST (the game-loser) gets the BEST losers-bracket
+  // placement. So we INVERT placement assignment compared to the winners bracket.
+  //
+  // Sleeper's `p` for the losers bracket: relative (1 = championship of toilet bowl
+  // = absolute last place; higher `p` = consolation games closer to playoff cutoff).
+  const totalRosters = Array.isArray(regularStandings) ? regularStandings.length : (playoffTeamCount + lbBrackets.length);
   const lbPs = lbBrackets.map((x) => Number(x.p)).filter((n) => isFinite(n) && n >= 1);
   const lbIsRelative = lbPs.length === 0 || Math.min(...lbPs) <= 2;
   for (const m of lbBrackets) {
     if (!m || m.p == null) continue;
     const pRaw = Number(m.p);
     if (!isFinite(pRaw)) continue;
-    const p = lbIsRelative ? (playoffTeamCount + pRaw) : pRaw;
-    if (m.w != null && !ranking.has(String(m.w))) ranking.set(String(m.w), p);
-    if (m.l != null && !ranking.has(String(m.l))) ranking.set(String(m.l), p + 1);
+    // Two adjacent placements determined by this match (worsePlace > betterPlace).
+    let worsePlace, betterPlace;
+    if (lbIsRelative) {
+      // pRaw=1 → covers (last, 2nd-to-last); pRaw=3 → covers (3rd-to-last, 4th-to-last); etc.
+      worsePlace = totalRosters - pRaw + 1;
+      betterPlace = totalRosters - pRaw;
+    } else {
+      // Absolute placement label. The match still flips winner ↔ loser under
+      // toilet-bowl rules: game-loser gets the better label (pRaw), game-winner
+      // gets the worse label (pRaw + 1).
+      betterPlace = pRaw;
+      worsePlace = pRaw + 1;
+    }
+    // Game-winner (`w`) gets the WORSE placement (continues advancing through
+    // the toilet bowl). Game-loser (`l`) gets the BETTER placement (escapes).
+    if (m.w != null && !ranking.has(String(m.w))) ranking.set(String(m.w), worsePlace);
+    if (m.l != null && !ranking.has(String(m.l))) ranking.set(String(m.l), betterPlace);
   }
 
   // Fallback for any roster the brackets didn't cover — use regular-season order.
