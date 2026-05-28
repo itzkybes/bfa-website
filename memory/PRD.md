@@ -47,6 +47,10 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
+## What's Been Implemented (2026-02-28)
+- ✅ **Fixed Toilet Bowl final standings 9–14** (`src/lib/leagueCompute.client.js`). In Sleeper's `losers_bracket`, the team that keeps WINNING advances toward the "Toilet Bowl Champion" slot = ABSOLUTE LAST place. The previous code mirrored the winners-bracket convention (game-winner = better placement). Now: for each loser-bracket match, the game-WINNER receives the WORSE placement and the game-LOSER receives the BETTER placement. Placement labels for relative `p` are inverted via `totalRosters - pRaw + 1` (winner) and `totalRosters - pRaw` (loser).
+- ✅ Verified on 2024 season: Biggest Loser is now correctly **PACT NICELY (WillMichael)** — the team that "won" the toilet bowl bracket. Records-Team aggregated playoff table still shows correct championship trophies (Fraggle Rock 9: 2, armyjunior: 1, JFK4312: 1).
+
 ## How It Works Now (vs broken approach)
 - **Before**: Each route had `+page.server.js`. Vercel serverless function was invoked for every page view. Function was crashing with `FUNCTION_INVOCATION_FAILED` for inscrutable Vercel-side reasons.
 - **After**: Each route is a static HTML shell + browser-side fetch. The Vercel serverless function is **never invoked**. The home page already worked this way (using the Rando Player client-side fetch) — now every page follows the same pattern.
