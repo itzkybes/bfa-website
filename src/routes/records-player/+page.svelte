@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getMatchupsForWeek, getRosterMapWithOwners, getPlayersNba, playerHeadshot, getLeague } from '$lib/sleeperClient.client';
-  import { fetchStaticJson, HARDCODED_CHAMPIONS } from '$lib/leagueCompute.client';
+  import { computeStandingsForLeague, fetchStaticJson, HARDCODED_CHAMPIONS } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
