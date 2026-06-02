@@ -1068,5 +1068,15 @@
     .m-avatar { width: 40px; height: 40px; }
     .trade-sides { grid-template-columns: 1fr; }
     .trade-swap { transform: rotate(90deg); justify-self: center; padding: 0.25rem 0; }
+    /* Buttons stack full-width on phones so they never overflow the viewport */
+    .hero-actions { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+    .hero-actions :global(.btn) { width: 100%; }
+    .hero-sub { font-size: 0.95rem; }
+    .section-head { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  }
+
+  @media (max-width: 480px) {
+    .hero-title { font-size: clamp(2.2rem, 10vw, 3rem); }
+    .hero-sub { font-size: 0.9rem; }
   }
 </style>

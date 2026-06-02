@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
@@ -60,9 +60,12 @@
       const { seasons: chain } = await getSeasonsChain(BASE_LEAGUE_ID);
       seasons = chain;
 
-      // Resolve selected season from URL
+      // Resolve selected season from URL — default to the active league
+      // (in_season → complete → newest) so we don't land on a not-yet-drafted
+      // pre-draft 2026 league with empty tables.
       const urlParam = $page.url.searchParams.get('season');
-      const latest = chain.length ? chain[chain.length - 1] : null;
+      const active = pickActiveLeague(chain);
+      const latest = active || (chain.length ? chain[chain.length - 1] : null);
       selectedSeasonId = urlParam || (latest?.season != null ? String(latest.season) : String(latest?.league_id || BASE_LEAGUE_ID));
 
       // Compute standings for ALL seasons (so dropdown can switch without refetching)

@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
@@ -15,7 +15,8 @@
   let seasonsResults = [];   // [{ season, overallMvp, finalsMvp, teamLeaders[] }]
   let allTimePlayoff = [];
   let allTimeFull = [];
-  let allTimePlayoffsLeaderboard = []; // NEW: cumulative playoff points across every season, per player
+  let allTimePlayoffsLeaderboard = []; // cumulative playoff points across every season, per player
+  let allTimeBestByTeam = [];          // per team: best reg-season player + best playoff player
   let playersMap = {};
 
   function avatarOrPh(url, name) {
@@ -75,7 +76,8 @@
       const { seasons: chain } = await getSeasonsChain(BASE_LEAGUE_ID);
       seasons = chain;
       const urlSeason = $page.url.searchParams.get('season');
-      const latest = chain.length ? chain[chain.length - 1] : null;
+      const active = pickActiveLeague(chain);
+      const latest = active || (chain.length ? chain[chain.length - 1] : null);
       selectedSeason = urlSeason || (latest?.season != null ? String(latest.season) : String(latest?.league_id || BASE_LEAGUE_ID));
 
       // Fetch players map (~5MB, cached aggressively client-side via fetchWithCache + localStorage)
@@ -102,6 +104,7 @@
 
         const fullByPlayer = aggregatePlayerPoints(fullEntries);
         const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
+        const regularByPlayer = aggregatePlayerPoints(regularEntries);
 
         // ---- Finals MVP = top scorer in the championship GAME only ----
         // (not the champion's top scorer across the whole playoff window)
@@ -153,7 +156,8 @@
           teamLeaders,
           rosterMap,
           fullByPlayer,
-          playoffByPlayer
+          playoffByPlayer,
+          regularByPlayer
         };
       }));
 
@@ -236,6 +240,69 @@
         }))
         .sort((a, b) => b.totalPoints - a.totalPoints)
         .slice(0, 25); // top 25 — keeps the table digestible
+
+      // -- All-Time Best Single-Season Player BY TEAM (reg vs playoff) ------
+      // One row per team (keyed by owner_username, the only stable identifier
+      // across seasons). Two columns: best regular-season scorer + best
+      // playoff scorer, with the season they did it. Latest roster meta is
+      // used for the team-name / avatar columns (so re-themes and new logos
+      // show up here too).
+      const stableKey = (m) => {
+        if (!m) return null;
+        const k = m.owner_username || m.owner_name || m.owner_id;
+        return k ? String(k).toLowerCase() : null;
+      };
+      const bestByTeam = {}; // key -> { meta, reg: {...}, playoff: {...} }
+      // seasonsResults is sorted oldest → newest by the chain order, so the
+      // "last write" naturally lands on the most recent meta.
+      for (const r of seasonsResults) {
+        for (const rid of Object.keys(r.rosterMap || {})) {
+          const meta = r.rosterMap[rid];
+          const key = stableKey(meta);
+          if (!key) continue;
+          if (!bestByTeam[key]) bestByTeam[key] = { key, meta, reg: null, playoff: null };
+          // Always overlay with the latest team_name + avatar we've seen.
+          bestByTeam[key].meta = meta;
+        }
+        // Regular-season pass
+        for (const [pid, info] of Object.entries(r.regularByPlayer || {})) {
+          if (!info?.points || info.points <= 0) continue;
+          const meta = r.rosterMap[info.rosterId];
+          const key = stableKey(meta);
+          if (!key) continue;
+          if (!bestByTeam[key]) bestByTeam[key] = { key, meta, reg: null, playoff: null };
+          const cur = bestByTeam[key].reg;
+          if (!cur || info.points > cur.points) {
+            bestByTeam[key].reg = {
+              playerId: pid,
+              playerName: playerName(pid),
+              points: Math.round(info.points * 100) / 100,
+              season: r.season
+            };
+          }
+        }
+        // Playoff pass
+        for (const [pid, info] of Object.entries(r.playoffByPlayer || {})) {
+          if (!info?.points || info.points <= 0) continue;
+          const meta = r.rosterMap[info.rosterId];
+          const key = stableKey(meta);
+          if (!key) continue;
+          if (!bestByTeam[key]) bestByTeam[key] = { key, meta, reg: null, playoff: null };
+          const cur = bestByTeam[key].playoff;
+          if (!cur || info.points > cur.points) {
+            bestByTeam[key].playoff = {
+              playerId: pid,
+              playerName: playerName(pid),
+              points: Math.round(info.points * 100) / 100,
+              season: r.season
+            };
+          }
+        }
+      }
+      // Sort by team name for a stable, alphabetical readout
+      allTimeBestByTeam = Object.values(bestByTeam)
+        .filter((r) => r.reg || r.playoff)
+        .sort((a, b) => String(a.meta?.team_name || '').localeCompare(String(b.meta?.team_name || '')));
     } catch (e) {
       console.error('[Records-Player] failed', e);
       error = e;
@@ -269,12 +336,6 @@
         <h1 class="page-title">Player Records</h1>
         <p class="page-sub">Per-season MVP awards and the all-time single-season scoring leaders by team.</p>
       </div>
-      <div>
-        <label for="season-select" class="visually-hidden">Season</label>
-        <select id="season-select" on:change={onSeasonChange} value={selectedSeason} data-testid="player-season-select">
-          {#each seasons as s}<option value={s.season ?? s.league_id}>{s.season ?? s.name}</option>{/each}
-        </select>
-      </div>
     </div>
   </header>
 
@@ -284,7 +345,18 @@
     <ErrorBoundary {error} onRetry={loadAll} context="player records" />
   {:else}
     <section class="block">
-      <div class="block-head"><h2 class="block-title">Season MVPs · {selectedSeason}</h2><span class="block-sub">Overall · Playoffs · Finals</span></div>
+      <div class="block-head">
+        <div class="block-head-text">
+          <h2 class="block-title">Season MVPs · {selectedSeason}</h2>
+          <span class="block-sub">Overall · Playoffs · Finals</span>
+        </div>
+        <div class="block-head-select">
+          <label for="season-select" class="visually-hidden">Season</label>
+          <select id="season-select" on:change={onSeasonChange} value={selectedSeason} data-testid="player-season-select">
+            {#each seasons as s}<option value={s.season ?? s.league_id}>{s.season ?? s.name}</option>{/each}
+          </select>
+        </div>
+      </div>
       <div class="mvp-grid">
         <div class="mvp-card" data-testid="mvp-overall">
           <div class="mvp-label">Overall MVP</div>
@@ -356,6 +428,71 @@
           </table>
         </div>
       {:else}<div class="empty-card">No playoff data.</div>{/if}
+    </section>
+
+    <section class="block" data-testid="all-time-best-by-team">
+      <div class="block-head">
+        <h2 class="block-title">All-Time Best Player · By Team</h2>
+        <span class="block-sub">Highest single-season scorer ever · regular vs playoffs</span>
+      </div>
+      {#if allTimeBestByTeam.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Best · Regular Season</th>
+                <th class="col-num">PTS</th>
+                <th>Best · Playoffs</th>
+                <th class="col-num">PTS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each allTimeBestByTeam as row (row.key)}
+                <tr>
+                  <td>
+                    <div class="team-cell">
+                      <img class="team-avatar small" src={avatarOrPh(row.meta?.team_avatar || row.meta?.owner_avatar, row.meta?.team_name)} alt={row.meta?.team_name} />
+                      <div>
+                        {#if row.meta?.owner_username}
+                          <a class="team-name-link" href={`/team/${encodeURIComponent(row.meta.owner_username)}`}>{row.meta?.team_name || `Roster ${row.key}`}</a>
+                        {:else}
+                          <div class="team-name-cell">{row.meta?.team_name || `Roster ${row.key}`}</div>
+                        {/if}
+                        {#if row.meta?.owner_name}<div class="team-owner-cell">{row.meta.owner_name}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {#if row.reg}
+                      <div class="player-cell">
+                        <img class="headshot" src={playerHeadshot(row.reg.playerId)} alt={row.reg.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                        <div>
+                          <div class="player-name-cell">{row.reg.playerName ?? `Player ${row.reg.playerId}`}</div>
+                          <div class="player-meta-cell">'{String(row.reg.season).slice(-2)} season</div>
+                        </div>
+                      </div>
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
+                  <td class="col-num">{#if row.reg}<span class="num bigpts">{fmt(row.reg.points)}</span>{:else}<span class="muted">—</span>{/if}</td>
+                  <td>
+                    {#if row.playoff}
+                      <div class="player-cell">
+                        <img class="headshot" src={playerHeadshot(row.playoff.playerId)} alt={row.playoff.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                        <div>
+                          <div class="player-name-cell">{row.playoff.playerName ?? `Player ${row.playoff.playerId}`}</div>
+                          <div class="player-meta-cell">'{String(row.playoff.season).slice(-2)} playoffs</div>
+                        </div>
+                      </div>
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
+                  <td class="col-num">{#if row.playoff}<span class="num bigpts">{fmt(row.playoff.points)}</span>{:else}<span class="muted">—</span>{/if}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}<div class="empty-card">No team data yet.</div>{/if}
     </section>
 
     <section class="block" data-testid="all-time-playoffs-leaderboard">
@@ -441,8 +578,15 @@
 
   .block { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 1.25rem; }
   .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; flex-wrap: wrap; }
+  .block-head-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+  .block-head-select { flex-shrink: 0; }
+  .block-head-select select { min-width: 130px; }
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
+
+  .team-name-link { font-weight: 700; color: var(--text-primary); line-height: 1.15; text-decoration: none; }
+  .team-name-link:hover { color: var(--accent); }
+  .player-meta-cell { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
 
   .mvp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
   .mvp-card { padding: 1.5rem; border-right: 1px solid var(--border-subtle); }

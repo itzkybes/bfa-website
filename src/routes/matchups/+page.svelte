@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
   import { computeMatchupsForLeagueWeek } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
@@ -39,7 +39,10 @@
       }
     }
     if (!selectedSeason && chain.length) {
-      const latest = chain[chain.length - 1];
+      // Default to the active league (in_season → complete → newest) so the
+      // dropdown doesn't open on a not-yet-drafted future season with no data.
+      const active = pickActiveLeague(chain);
+      const latest = active || chain[chain.length - 1];
       selectedSeason = latest.season ?? latest.league_id;
       selectedLeagueId = latest.league_id;
     }
