@@ -48,6 +48,12 @@ User followed up confirming:
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
 ## What's Been Implemented (2026-02-28)
+- ✅ **Fixed Vercel build failure** ("Unsupported Node.js version: v22.x — please use Node 18 or Node 20"). Root cause: previous `package.json` still had `@sveltejs/adapter-auto` as a fallback, which on Vercel auto-installed an older `@sveltejs/adapter-vercel` that only accepted Node 18/20. Vercel's default build runtime is now Node 22.x, so the older adapter rejected the build. Fix:
+  - Removed `@sveltejs/adapter-auto` from `devDependencies` entirely (we explicitly import `@sveltejs/adapter-vercel` in `svelte.config.js` so adapter-auto served no purpose and only invited regressions).
+  - Bumped `runtime` to `nodejs22.x` in `svelte.config.js` to match Vercel's current default.
+  - `.nvmrc` → `22`, `engines.node` → `">=20"` so local sandbox (Node 20) and Vercel (Node 22) both build successfully.
+  - Verified locally with `yarn build` → `✓ built in 5.71s` and `Using @sveltejs/adapter-vercel`.
+- ✅ **Fixed `/records-player` crash** — `computeStandingsForLeague` was used on line 84 but missing from the imports; added it. All season MVP cards and the all-time playoff table now render with real Sleeper data.
 - ✅ **Fixed Toilet Bowl final standings 9–14** (`src/lib/leagueCompute.client.js`). In Sleeper's `losers_bracket`, the team that keeps WINNING advances toward the "Toilet Bowl Champion" slot = ABSOLUTE LAST place. The previous code mirrored the winners-bracket convention (game-winner = better placement). Now: for each loser-bracket match, the game-WINNER receives the WORSE placement and the game-LOSER receives the BETTER placement. Placement labels for relative `p` are inverted via `totalRosters - pRaw + 1` (winner) and `totalRosters - pRaw` (loser).
 - ✅ Verified on 2024 season: Biggest Loser is now correctly **PACT NICELY (WillMichael)** — the team that "won" the toilet bowl bracket. Records-Team aggregated playoff table still shows correct championship trophies (Fraggle Rock 9: 2, armyjunior: 1, JFK4312: 1).
 

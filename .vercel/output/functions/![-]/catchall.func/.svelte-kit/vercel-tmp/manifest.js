@@ -10,7 +10,7 @@ return {
 	assets: new Set(["bfa-logo.png","early2023.json","robots.txt","season_matchups/2022.json","season_matchups/2023.json","season_matchups/2024.json","svelte-welcome.webp","week-ranges.json"]),
 	mimeTypes: {".png":"image/png",".json":"application/json",".txt":"text/plain",".webp":"image/webp"},
 	_: {
-		client: {start:"_app/immutable/entry/start.U0QsZg6D.js",app:"_app/immutable/entry/app.CkQBJ9jm.js",imports:["_app/immutable/entry/start.U0QsZg6D.js","_app/immutable/chunks/C5WyGLd2.js","_app/immutable/chunks/rirFhRDB.js","_app/immutable/entry/app.CkQBJ9jm.js","_app/immutable/chunks/rirFhRDB.js","_app/immutable/chunks/DT0STw8n.js","_app/immutable/chunks/BKpfD0_n.js","_app/immutable/chunks/--KYK204.js","_app/immutable/chunks/hTadKceH.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
+		client: {start:"_app/immutable/entry/start.azqO64Ox.js",app:"_app/immutable/entry/app.COvSK-fG.js",imports:["_app/immutable/entry/start.azqO64Ox.js","_app/immutable/chunks/DKlG3nJI.js","_app/immutable/chunks/rirFhRDB.js","_app/immutable/entry/app.COvSK-fG.js","_app/immutable/chunks/rirFhRDB.js","_app/immutable/chunks/DT0STw8n.js","_app/immutable/chunks/BKpfD0_n.js","_app/immutable/chunks/--KYK204.js","_app/immutable/chunks/hTadKceH.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
 		nodes: [
 			__memo(() => import('../output/server/nodes/0.js')),
 			__memo(() => import('../output/server/nodes/1.js')),

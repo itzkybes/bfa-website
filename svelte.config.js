@@ -3,13 +3,15 @@ import adapter from '@sveltejs/adapter-vercel';
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
   kit: {
-    // Explicit Vercel adapter. Node 20 is the most battle-tested LTS runtime
-    // on Vercel right now (Node 22 is supported but has caused unexplained
-    // FUNCTION_INVOCATION_FAILED on some projects — see sveltejs/kit issues).
+    // Vercel's default build runtime is Node 22.x as of late 2025. Pin to
+    // nodejs22.x explicitly so the adapter doesn't have to guess (and so
+    // any stale adapter-auto fallback can't downgrade us to an unsupported
+    // older runtime).
     adapter: adapter({
-      runtime: 'nodejs20.x'
+      runtime: 'nodejs22.x'
     })
   }
 };
 
 export default config;
+
