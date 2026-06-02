@@ -75,8 +75,8 @@
         src="/bfa-logo.png"
         alt="BFA"
         class="brand-logo"
-        width="56"
-        height="56"
+        width="80"
+        height="80"
         on:error={(e) => (e.currentTarget.style.display = 'none')}
         loading="eager"
       />
@@ -222,8 +222,8 @@
   .brand:hover { color: var(--accent); }
 
   .brand-logo {
-    width: 48px;
-    height: 48px;
+    width: 72px;
+    height: 72px;
     object-fit: contain;
     flex-shrink: 0;
   }
@@ -238,12 +238,12 @@
   }
 
   .brand-line-1 {
-    font-size: 1.4rem;
+    font-size: 1.7rem;
     color: var(--brand);
   }
 
   .brand-line-2 {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--text-secondary);
     letter-spacing: 0.14em;
   }
@@ -446,14 +446,14 @@
   @media (max-width: 980px) {
     .nav-desktop { display: none; }
     .hamburger { display: inline-flex; }
-    .brand-logo { width: 40px; height: 40px; }
-    .brand-line-1 { font-size: 1.15rem; }
-    .brand-line-2 { font-size: 0.7rem; }
+    .brand-logo { width: 56px; height: 56px; }
+    .brand-line-1 { font-size: 1.3rem; }
+    .brand-line-2 { font-size: 0.78rem; }
     .header-inner { padding: 0.7rem var(--s-4); }
   }
 
   @media (max-width: 480px) {
     .brand-line-2 { display: none; }
-    .brand-line-1 { font-size: 1.4rem; }
+    .brand-line-1 { font-size: 1.5rem; }
   }
 </style>

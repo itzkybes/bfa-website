@@ -24,7 +24,7 @@
   <div class="wrap footer-inner">
     <div class="footer-brand">
       <a href="/" class="footer-mark-link" aria-label="Badger Fantasy Association home">
-        <img src="/bfa-logo.png" alt="BFA" class="footer-mark-img" width="60" height="60" />
+        <img src="/bfa-logo.png" alt="BFA" class="footer-mark-img" width="96" height="96" />
       </a>
       <div class="footer-meta">
         <div class="footer-title">Badger Fantasy Association</div>
@@ -97,8 +97,8 @@
   }
 
   .footer-mark-img {
-    width: 60px;
-    height: 60px;
+    width: 88px;
+    height: 88px;
     object-fit: contain;
     display: block;
   }

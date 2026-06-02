@@ -355,8 +355,8 @@
 
   .mvp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
   .mvp-card { padding: 1.5rem; border-right: 1px solid var(--border-subtle); }
-  .mvp-card.playoffs { background: linear-gradient(180deg, rgba(56, 49, 219, 0.06), transparent); }
-  .mvp-card.finals { border-right: none; background: linear-gradient(180deg, rgba(227, 119, 47, 0.05), transparent); }
+  .mvp-card.playoffs { background: linear-gradient(180deg, rgba(52, 50, 200, 0.07), transparent); }
+  .mvp-card.finals { border-right: none; background: linear-gradient(180deg, rgba(200, 114, 50, 0.06), transparent); }
   .mvp-label { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 1.25rem; }
   .mvp-label.playoffs { color: var(--brand); }
   .mvp-label.finals { color: var(--accent); }

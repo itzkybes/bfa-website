@@ -286,7 +286,7 @@
   .card-eyebrow { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 0.75rem; }
   .card-eyebrow.accent { color: var(--accent); }
   .card-eyebrow.brand { color: var(--brand); }
-  .mvp-card.playoffs { border-left: 4px solid var(--brand); background: linear-gradient(180deg, rgba(56, 49, 219, 0.08), transparent 70%); }
+  .mvp-card.playoffs { border-left: 4px solid var(--brand); background: linear-gradient(180deg, rgba(52, 50, 200, 0.1), transparent 70%); }
   .mvp-pts.brand { color: var(--brand); }
   .champion-avatar { width: 80px; height: 80px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); margin-bottom: 0.85rem; }
   .champion-name { font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; word-break: break-word; }

@@ -47,6 +47,13 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
+## What's Been Implemented (2026-03-02 — brand pass)
+- ✅ **Recolored the whole site to match the BFA logo exactly.** Sampled the actual logo PNG pixel-by-pixel — the dominant colors are `#3432c8` (royal blue, the circle background) and `#c87232` (burnt basketball orange), which are noticeably deeper than the previous brighter tokens. Updated CSS variables (`--brand`, `--brand-hover`, `--brand-soft`, `--brand-glow`, `--accent`, `--accent-hover`, `--accent-soft`, `--accent-glow`, `--border-accent`) in `app.css`, plus replaced the remaining hardcoded `rgba(56,49,219)` / `rgba(227,119,47)` references in the body background and the MVP card gradients across Honor Hall and Player Records.
+- ✅ **Bumped the BFA logo size everywhere it appears.**
+  - Header: `48px → 72px` (and `40px → 56px` on mobile). Brand-line text scaled up to match (`1.4rem → 1.7rem` for "BADGER", `0.85rem → 1rem` for "FANTASY ASSOCIATION").
+  - Footer: `60px → 88px`.
+- ✅ Verified visually: home hero "BADGER BOWL" title now uses the deeper royal blue from the circle; the basketball-orange accent on buttons, eyebrows, and active nav reads warmer and more on-brand.
+
 ## What's Been Implemented (2026-03-02 — cleanup pass)
 - ✅ **Repo cleanup**: deleted dead code — `src/lib/server/` (old SSR module, now unused), `src/lib/actions/clickOutside.js`, `src/lib/form.js`, `src/lib/LazyImage.svelte`, `src/hooks.js`, `static/svelte-welcome.webp`, plus stale top-level docs `SITE_FILE_COMPARISON.md` / `UPGRADE_SUMMARY.md` / `design_guidelines.json`. Removed unused `cookie`, `@types/cookie`, and `@fontsource/fira-mono` from `package.json`.
 - ✅ **Tightened public surface** of `leagueCompute.client.js` — `HARDCODED_CHAMPIONS`, `fetchStaticJson`, `computeStreaks`, `MAX_WEEKS` are now module-internal; only the actually-used helpers are exported.

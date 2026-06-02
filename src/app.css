@@ -13,24 +13,24 @@
   /* Borders */
   --border-subtle: #262635;
   --border-strong: #3b3b52;
-  --border-accent: #e3772f;
+  --border-accent: #c87232;
 
   /* Text */
   --text-primary: #ffffff;
   --text-secondary: #a8a8c0;
   --text-tertiary: #6f6f88;
 
-  /* BFA brand colors lifted from the logo */
-  --brand: #3831db;          /* BFA Blue — circle background of the logo */
-  --brand-hover: #4e47ec;
-  --brand-soft: rgba(56, 49, 219, 0.16);
-  --brand-glow: rgba(56, 49, 219, 0.45);
+  /* BFA brand colors sampled straight from the logo */
+  --brand: #3432c8;          /* royal blue — the logo's circle background */
+  --brand-hover: #4f4ddb;
+  --brand-soft: rgba(52, 50, 200, 0.18);
+  --brand-glow: rgba(52, 50, 200, 0.48);
 
-  /* Action accent — basketball orange from the logo */
-  --accent: #e3772f;
-  --accent-hover: #f2893e;
-  --accent-soft: rgba(227, 119, 47, 0.14);
-  --accent-glow: rgba(227, 119, 47, 0.4);
+  /* Action accent — the burnt basketball orange in the logo */
+  --accent: #c87232;
+  --accent-hover: #df8240;
+  --accent-soft: rgba(200, 114, 50, 0.16);
+  --accent-glow: rgba(200, 114, 50, 0.42);
 
   /* Semantic */
   --win: #10b981;
@@ -89,8 +89,8 @@ html, body {
   font-weight: 400;
   color: var(--text-primary);
   background:
-    radial-gradient(1200px 600px at 50% -200px, rgba(56, 49, 219, 0.16), transparent 60%),
-    radial-gradient(700px 400px at 110% 110%, rgba(227, 119, 47, 0.08), transparent 65%),
+    radial-gradient(1200px 600px at 50% -200px, rgba(52, 50, 200, 0.18), transparent 60%),
+    radial-gradient(700px 400px at 110% 110%, rgba(200, 114, 50, 0.09), transparent 65%),
     var(--bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
