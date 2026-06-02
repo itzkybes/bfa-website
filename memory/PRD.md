@@ -47,6 +47,14 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
+## What's Been Implemented (2026-03-02 — feature batch: leaderboard + trends + team history)
+- ✅ **Playoffs MVP All-Time Leaderboard** on `/records-player`. New section below the per-season MVP cards: top 25 players by **cumulative playoff points across every season**. Columns: rank, player headshot + name, total PTS, best single run (with year stamp), # of seasons appeared, most-recent team. Verified live — Nikola Jokić leads at 515.69 cumulative playoff points, best run 153.50 in 2025.
+- ✅ **Per-team season trends chart** on `/standings`. New "PF / Week" column in the regular-season table with an inline SVG sparkline per team — the actual PF curve across every regular-season week of the selected season. Uses a new dependency-free `Sparkline.svelte` component (~50 lines, zero deps). Falls back to an em-dash placeholder for seasons that haven't started yet (2026). Verified live — 14 sparklines rendered with real path data on the 2024 standings.
+- ✅ **Per-roster matchup history page** at `/team/[username]`. New route showing one season block per year the owner appears in, with a full week-by-week table (week #, opponent w/ avatar + link, my PTS, opp PTS, margin, W/L/T pill). Playoff weeks get a "PO" badge + tinted row background. Champion seasons get the 🏆 badge in the section header. Verified live — `/team/riguy506` renders 5 season blocks across 2022 → 2026, all rows populated with real Sleeper data.
+- ✅ Team-name on every roster card on `/rosters` is now a deep link to that owner's matchup history page (with a subtle chevron + hover treatment).
+- ✅ Fixed `getRosterMapWithOwners` to fall back `owner_username` to `display_name` when Sleeper's privacy settings null out the username field (which is the case for all BFA users). Without this fix, the team-history URLs would have been broken.
+- ✅ Extended `computeStandingsForLeague` to also return `weeklyPfByRoster` — `{ rosterId: [{ week, pf }, ...] }` for the regular season — so the sparkline doesn't trigger any extra Sleeper fetches.
+
 ## What's Been Implemented (2026-03-02 — forward auto-discovery)
 - ✅ **Future-season auto-discovery.** `getSeasonsChain()` now walks in BOTH directions: backwards via `previous_league_id` (existing) AND forwards via Sleeper's `/user/{user_id}/leagues/nba/{season}` endpoint. Probes a handful of seed users from the anchor league for each year `> latest known`, and adopts any league whose `previous_league_id` chains back to a discovered one. Confirmed working against the live API — `node scripts/test-auto-discovery.mjs` now discovers all 5 seasons (2022–2026) without `BASE_LEAGUE_ID` being bumped.
 - ✅ **`getLatestOwnerAvatars()` now uses the truly-latest discovered season** (not the hardcoded BASE), so when 2026 arrives every historical season picks up 2026 team art automatically.
@@ -99,11 +107,8 @@ User followed up confirming:
 - **After**: Each route is a static HTML shell + browser-side fetch. The Vercel serverless function is **never invoked**. The home page already worked this way (using the Rando Player client-side fetch) — now every page follows the same pattern.
 
 ## Prioritized Backlog (P0/P1/P2 features remaining)
-- **P2** — "Playoffs MVP All-Time Leaderboard" table below per-season cards on `/records-player`
 - **P2** — "Championship Game Boxscore" mini-section on Honor Hall (top 3 scorers per finalist)
 - **P2** — `CONTRIBUTING.md` runbook for adding a new season / yearly migration
-- **P1** — Per-team season trends chart (PF/week over time) for Standings page
-- **P1** — Per-roster matchup history page (deep link from /rosters)
 - **P2** — "Power Rankings" computed from Sleeper performance over rolling 4-week window
 - **P2** — Trade ledger page (Sleeper transactions API)
 - **P2** — Mobile FAB to jump to "This Week" matchups from any page
@@ -111,5 +116,5 @@ User followed up confirming:
 - **P3** — User-controlled theme switch (light + light-on-blue variants)
 
 ## Next Tasks
-- User verification of forward auto-discovery (2026 season should now appear in every season dropdown automatically; home page should default to 2026 matchups).
+- User verification of: (a) Playoffs MVP All-Time Leaderboard on records-player, (b) sparkline trends on Standings, (c) team-history page at `/team/{username}` + deep links from /rosters.
 - If satisfied → push to GitHub via the "Save to GitHub" feature in chat input.

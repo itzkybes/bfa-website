@@ -303,12 +303,16 @@ export async function computeStandingsForLeague(leagueId) {
 
   const statsByRosterRegular = {}, resultsByRosterRegular = {}, paByRosterRegular = {};
   const statsByRosterPlayoff = {}, resultsByRosterPlayoff = {}, paByRosterPlayoff = {};
+  // Per-roster per-week PF for the regular season — used by the standings
+  // trends chart (sparkline of PF/week).
+  const weeklyPfByRoster = {};
 
   for (const rk of Object.keys(rosterMap)) {
     statsByRosterRegular[rk] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: rosterMap[rk].roster_raw || null };
     resultsByRosterRegular[rk] = []; paByRosterRegular[rk] = 0;
     statsByRosterPlayoff[rk] = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, roster: rosterMap[rk].roster_raw || null };
     resultsByRosterPlayoff[rk] = []; paByRosterPlayoff[rk] = 0;
+    weeklyPfByRoster[rk] = [];
   }
 
   // Try seasonMatchups + early2023 in parallel
@@ -433,6 +437,10 @@ export async function computeStandingsForLeague(leagueId) {
         }
         if (pts == null) pts = computeParticipantPoints(only);
         statsByRoster[ridOnly].pf += pts;
+        if (isRegularWeek) {
+          weeklyPfByRoster[ridOnly] = weeklyPfByRoster[ridOnly] || [];
+          weeklyPfByRoster[ridOnly].push({ week, pf: Math.round(pts * 100) / 100 });
+        }
         continue;
       }
 
@@ -453,6 +461,10 @@ export async function computeStandingsForLeague(leagueId) {
         resultsByRoster[pid] = resultsByRoster[pid] || [];
         paByRoster[pid] = paByRoster[pid] || 0;
         statsByRoster[pid].pf += ppts;
+        if (isRegularWeek) {
+          weeklyPfByRoster[pid] = weeklyPfByRoster[pid] || [];
+          weeklyPfByRoster[pid].push({ week, pf: Math.round(ppts * 100) / 100 });
+        }
       }
 
       for (let pi = 0; pi < participants.length; pi++) {
@@ -552,6 +564,13 @@ export async function computeStandingsForLeague(leagueId) {
   // from just that single match.
   const championshipGame = getChampionshipGame(winnersBracket, playoffStart);
 
+  // Make sure every roster's weekly array is sorted chronologically — Sleeper
+  // returns matchups roughly in order but `Promise.all` resolves them by
+  // completion, so the entries can land out of order.
+  for (const rid of Object.keys(weeklyPfByRoster)) {
+    weeklyPfByRoster[rid].sort((a, b) => a.week - b.week);
+  }
+
   return {
     leagueId: String(leagueId),
     season: leagueSeason,
@@ -568,6 +587,7 @@ export async function computeStandingsForLeague(leagueId) {
     playoffTeams,
     winnersBracket,
     losersBracket,
+    weeklyPfByRoster, // { rosterId: [{ week, pf }, ...] } — regular season only
     collectedMatchups // expose so callers can avoid re-fetching
   };
 }

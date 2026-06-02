@@ -7,6 +7,7 @@
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import Sparkline from '$lib/Sparkline.svelte';
 
   let loading = true;
   let error = null;
@@ -26,6 +27,18 @@
     if (found) return found;
     found = seasonsResults.find((r) => String(r.leagueId) === String(selectedSeasonId));
     return found || seasonsResults[seasonsResults.length - 1];
+  })();
+
+  // Map of rosterId -> [pf, pf, ...] in week order, for sparklines next to
+  // each regular-season row. Pulled out of `weeklyPfByRoster` (built inside
+  // `computeStandingsForLeague`) so the chart doesn't need its own data fetch.
+  $: weeklyByRoster = (() => {
+    const out = {};
+    const src = selectedResult?.weeklyPfByRoster || {};
+    for (const rid of Object.keys(src)) {
+      out[rid] = (src[rid] || []).map((p) => p.pf);
+    }
+    return out;
   })();
 
   $: playoffDisplay = (() => {
@@ -115,6 +128,7 @@
                 <th class="col-num">Lose Str</th>
                 <th class="col-num">PF</th>
                 <th class="col-num">PA</th>
+                <th class="col-trend">PF / Week</th>
               </tr>
             </thead>
             <tbody>
@@ -136,6 +150,15 @@
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
                   <td class="col-num"><span class="num muted">{row.pa}</span></td>
+                  <td class="col-trend" data-testid={`trend-${row.rosterId}`}>
+                    <Sparkline
+                      points={weeklyByRoster[row.rosterId] || []}
+                      width={140}
+                      height={32}
+                      stroke="var(--accent)"
+                      ariaLabel={`${row.team_name} PF by week`}
+                    />
+                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -207,7 +230,8 @@
   .block-title { font-family: var(--font-display); font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600; }
   .table-wrap { width: 100%; overflow-x: auto; }
-  .bfa-table { min-width: 780px; }
+  .bfa-table { min-width: 940px; }
+  .col-trend { width: 160px; min-width: 160px; padding-right: 0.75rem; }
   .rank-cell { width: 60px; }
   .rank-num { font-size: 1.4rem; color: var(--accent); }
   .team-cell { display: flex; align-items: center; gap: 0.75rem; }

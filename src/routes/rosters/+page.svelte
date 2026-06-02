@@ -85,6 +85,7 @@
         list.push({
           rosterId: rid,
           owner_name: meta.owner_name,
+          owner_username: meta.owner_username,
           team_name: meta.team_name,
           team_avatar: meta.team_avatar,
           owner_avatar: meta.owner_avatar,
@@ -143,7 +144,14 @@
               on:error={(e) => (e.currentTarget.style.visibility = 'hidden')}
             />
             <div class="team-info">
-              <div class="team-name" title={roster.team_name}>{roster.team_name}</div>
+              {#if roster.owner_username}
+                <a class="team-name" href={`/team/${encodeURIComponent(roster.owner_username)}`} title={`${roster.team_name} — see matchup history`} data-testid={`team-history-link-${roster.rosterId}`}>
+                  {roster.team_name}
+                  <span class="link-chevron" aria-hidden="true">→</span>
+                </a>
+              {:else}
+                <div class="team-name" title={roster.team_name}>{roster.team_name}</div>
+              {/if}
               {#if roster.owner_name}
                 <div class="team-owner">{roster.owner_name}</div>
               {/if}
@@ -308,7 +316,17 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.1;
+    display: block;
+    text-decoration: none;
   }
+  a.team-name { display: inline-flex; align-items: center; gap: 0.4rem; }
+  a.team-name:hover { color: var(--accent); }
+  .link-chevron {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    transition: transform var(--t-fast), color var(--t-fast);
+  }
+  a.team-name:hover .link-chevron { color: var(--accent); transform: translateX(2px); }
   .team-owner {
     color: var(--text-secondary);
     font-size: 0.85rem;

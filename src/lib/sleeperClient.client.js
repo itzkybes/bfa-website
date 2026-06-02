@@ -159,7 +159,10 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
       owner_id: ownerId != null ? String(ownerId) : null,
       team_name: teamName,
       owner_name: uobj ? (uobj.display_name || uobj.username || null) : null,
-      owner_username: uobj ? (uobj.username || null) : null,
+      // Sleeper privacy settings can null out `username`. For our purposes the
+      // `display_name` is the stable handle (it's what owners are known by in
+      // the league chat and what the URLs use), so fall back to it.
+      owner_username: uobj ? (uobj.username || uobj.display_name || null) : null,
       team_avatar: teamAvatar,
       owner_avatar: ownerAvatar,
       roster_raw: r,

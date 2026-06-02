@@ -15,6 +15,7 @@
   let seasonsResults = [];   // [{ season, overallMvp, finalsMvp, teamLeaders[] }]
   let allTimePlayoff = [];
   let allTimeFull = [];
+  let allTimePlayoffsLeaderboard = []; // NEW: cumulative playoff points across every season, per player
   let playersMap = {};
 
   function avatarOrPh(url, name) {
@@ -197,6 +198,44 @@
         }
       }
       allTimeFull = Object.values(allTimeFullMap).sort((a,b) => b.points - a.points);
+
+      // -- All-Time Playoffs MVP Leaderboard --------------------------------
+      // Sum each player's playoff points across EVERY season they appeared in.
+      // Track best-single-season + # appearances so the table can show context.
+      const playoffsByPlayer = {}; // pid -> { playerId, totalPoints, appearances, best, bestSeason, latestRoster, latestSeason }
+      for (const r of seasonsResults) {
+        for (const [pid, info] of Object.entries(r.playoffByPlayer || {})) {
+          if (!info?.points || info.points <= 0) continue;
+          const slot = playoffsByPlayer[pid] || {
+            playerId: pid,
+            totalPoints: 0,
+            appearances: 0,
+            best: 0,
+            bestSeason: null,
+            latestRoster: null,
+            latestSeason: null
+          };
+          slot.totalPoints += info.points;
+          slot.appearances += 1;
+          if (info.points > slot.best) {
+            slot.best = info.points;
+            slot.bestSeason = r.season;
+          }
+          // Track most recent appearance (chain is sorted oldest → newest)
+          slot.latestRoster = r.rosterMap[info.rosterId] || slot.latestRoster;
+          slot.latestSeason = r.season;
+          playoffsByPlayer[pid] = slot;
+        }
+      }
+      allTimePlayoffsLeaderboard = Object.values(playoffsByPlayer)
+        .map((p) => ({
+          ...p,
+          playerName: playerName(p.playerId),
+          totalPoints: Math.round(p.totalPoints * 100) / 100,
+          best: Math.round(p.best * 100) / 100
+        }))
+        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .slice(0, 25); // top 25 — keeps the table digestible
     } catch (e) {
       console.error('[Records-Player] failed', e);
       error = e;
@@ -319,6 +358,58 @@
       {:else}<div class="empty-card">No playoff data.</div>{/if}
     </section>
 
+    <section class="block" data-testid="all-time-playoffs-leaderboard">
+      <div class="block-head">
+        <h2 class="block-title">Playoffs MVP · All-Time Leaderboard</h2>
+        <span class="block-sub">Cumulative playoff points · every season</span>
+      </div>
+      {#if allTimePlayoffsLeaderboard.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead>
+              <tr>
+                <th style="width:60px;">#</th>
+                <th>Player</th>
+                <th class="col-num">Total PTS</th>
+                <th class="col-num">Best Run</th>
+                <th class="col-num">Seasons</th>
+                <th>Most Recent Team</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each allTimePlayoffsLeaderboard as row, idx (row.playerId)}
+                <tr>
+                  <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
+                  <td>
+                    <div class="player-cell">
+                      <img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                      <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
+                    </div>
+                  </td>
+                  <td class="col-num"><span class="num bigpts">{fmt(row.totalPoints)}</span></td>
+                  <td class="col-num"><span class="num">{fmt(row.best)} <span class="best-season">'{String(row.bestSeason).slice(-2)}</span></span></td>
+                  <td class="col-num"><span class="num">{row.appearances}</span></td>
+                  <td>
+                    {#if row.latestRoster}
+                      <div class="team-cell">
+                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
+                        <div>
+                          <div class="team-name-cell">{row.latestRoster.team_name}</div>
+                          <div class="team-owner-cell">{row.latestRoster.owner_name}</div>
+                        </div>
+                      </div>
+                    {:else}
+                      <span class="muted">—</span>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}<div class="empty-card">No playoff data yet.</div>{/if}
+    </section>
+
     <section class="block">
       <div class="block-head"><h2 class="block-title">All-Time Single-Season Full-Season Best</h2><span class="block-sub">Per team · regular + playoffs</span></div>
       {#if allTimeFull.length}
@@ -379,6 +470,10 @@
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
   .bigpts { font-size: 1.15rem; color: var(--accent); font-weight: 700; }
   .accent-text { color: var(--accent); }
+  .best-season { color: var(--text-tertiary); font-size: 0.75rem; font-weight: 700; margin-left: 0.25rem; }
+  .rank-cell { width: 60px; }
+  .rank-num { font-size: 1.4rem; color: var(--accent); font-family: var(--font-display); }
+  .muted { color: var(--text-tertiary); }
   .empty-card { padding: 1.5rem; text-align: center; color: var(--text-secondary); }
   @media (max-width: 980px) {
     .mvp-grid { grid-template-columns: 1fr; }
