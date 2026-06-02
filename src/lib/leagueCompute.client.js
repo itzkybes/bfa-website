@@ -9,7 +9,8 @@
 
 import {
   safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek,
-  getPlayersNba, getWinnersBracket, getLosersBracket, getSeasonsChain
+  getPlayersNba, getWinnersBracket, getLosersBracket, getSeasonsChain,
+  pickActiveLeague
 } from './sleeperClient.client';
 import { BASE_LEAGUE_ID } from './sleeperClient.client';
 
@@ -221,7 +222,13 @@ export function getLatestOwnerAvatars() {
       let latestLeagueId = BASE_LEAGUE_ID;
       try {
         const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
-        if (Array.isArray(seasons) && seasons.length > 0) {
+        // Prefer the "live" league (in_season > complete > newest) so the
+        // overlay uses real team branding, not a not-yet-drafted league's
+        // empty defaults.
+        const active = pickActiveLeague(seasons);
+        if (active?.league_id) {
+          latestLeagueId = String(active.league_id);
+        } else if (Array.isArray(seasons) && seasons.length > 0) {
           latestLeagueId = String(seasons[seasons.length - 1].league_id || BASE_LEAGUE_ID);
         }
       } catch (e) { /* fall back to BASE_LEAGUE_ID */ }

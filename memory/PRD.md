@@ -47,6 +47,14 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
+## What's Been Implemented (2026-03-02 — power rankings + trade ledger + matchup fix)
+- ✅ **Fixed home page matchups** showing empty grid. Root cause: forward-discovery picked the 2026 league as "latest", but 2026 is `status: "pre_draft"` (hasn't drafted yet) — Sleeper returns empty matchup arrays for it. Added a new `pickActiveLeague()` helper that walks the chain newest → oldest and picks the first league with `status: "in_season"`, falling back to most recent `complete`, then any. So now the home page shows the 2025 league's **championship week (W22)** with 8 real matchup cards (Gilbert Arenas 254.8 vs I could gopher a beer 301.0 — the actual final). The eyebrow auto-adjusts: "FINAL · CHAMPIONSHIP WEEK" for complete leagues, "THIS WEEK" for live ones.
+- ✅ **Smart current-week detection** via new `getCurrentWeekForLeague()` helper. Prefers Sleeper's own `settings.last_scored_leg` field (the canonical "which week was last scored") and falls back to scanning weeks 25 → 1 with a min-average-points threshold so it skips consolation-bracket dust like W23–25 of completed leagues.
+- ✅ **Trade Ledger** on home page. New section below matchups showing the 10 most-recent **completed trades** across the live league. Each card shows: week badge, relative time ("3mo ago"), both team avatars + names (linkable to `/team/{username}`), what each side **receives** — players with headshots/position/team, draft picks, FAAB. Built on top of two new helpers: `getTransactionsForWeek(leagueId, week)` and `getRecentTrades(leagueId, opts)`. Verified live — pulling 10 actual completed trades from the 2025 BFA season including the Jonathan Kuminga + 2x 2026 picks for Norman Powell + $4 FAAB deal.
+- ✅ **Power Rankings page** at `/power-rankings`. Rolling 4-week window composite ranking using a 60/40 blend of (avg PF rank) and (W-L rank, with margin as tiebreaker). Pulls weekly PF + W-L from the existing `weeklyPfByRoster` + `collectedMatchups` outputs of `computeStandingsForLeague` — no extra Sleeper calls. Each row shows L4 W-L, L4 Avg PF, cumulative margin, a sparkline of the 4 weekly PF values, and a **movement pill** (▲▼ vs the prior 4-week window). Team names link through to the per-roster history page. Verified live — top 4: Codfather 302.0 avgPF (—), Emperors ▲2, Corey's Shower ▼1, DAMN!!! ▲2.
+- ✅ Added "Power" link to the global header nav.
+- ✅ `getSeasonsChain` now captures `status` per season so callers can branch on it without re-fetching league metadata.
+
 ## What's Been Implemented (2026-03-02 — feature batch: leaderboard + trends + team history)
 - ✅ **Playoffs MVP All-Time Leaderboard** on `/records-player`. New section below the per-season MVP cards: top 25 players by **cumulative playoff points across every season**. Columns: rank, player headshot + name, total PTS, best single run (with year stamp), # of seasons appeared, most-recent team. Verified live — Nikola Jokić leads at 515.69 cumulative playoff points, best run 153.50 in 2025.
 - ✅ **Per-team season trends chart** on `/standings`. New "PF / Week" column in the regular-season table with an inline SVG sparkline per team — the actual PF curve across every regular-season week of the selected season. Uses a new dependency-free `Sparkline.svelte` component (~50 lines, zero deps). Falls back to an em-dash placeholder for seasons that haven't started yet (2026). Verified live — 14 sparklines rendered with real path data on the 2024 standings.
@@ -109,12 +117,10 @@ User followed up confirming:
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P2** — "Championship Game Boxscore" mini-section on Honor Hall (top 3 scorers per finalist)
 - **P2** — `CONTRIBUTING.md` runbook for adding a new season / yearly migration
-- **P2** — "Power Rankings" computed from Sleeper performance over rolling 4-week window
-- **P2** — Trade ledger page (Sleeper transactions API)
 - **P2** — Mobile FAB to jump to "This Week" matchups from any page
 - **P3** — Subtle owner avatar fallback on hover for team logos
 - **P3** — User-controlled theme switch (light + light-on-blue variants)
 
 ## Next Tasks
-- User verification of: (a) Playoffs MVP All-Time Leaderboard on records-player, (b) sparkline trends on Standings, (c) team-history page at `/team/{username}` + deep links from /rosters.
+- User verification of: (a) home page matchups now show real W22 championship data instead of an empty grid, (b) Trade Ledger section on home page, (c) `/power-rankings` rolling 4-week page.
 - If satisfied → push to GitHub via the "Save to GitHub" feature in chat input.

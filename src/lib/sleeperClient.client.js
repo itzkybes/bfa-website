@@ -220,7 +220,8 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
   seasons.push({
     league_id: String(mainLeague.league_id || baseLeagueId),
     season: mainLeague.season || null,
-    name: mainLeague.name || null
+    name: mainLeague.name || null,
+    status: mainLeague.status || null
   });
   prevChain.push(String(mainLeague.league_id || baseLeagueId));
 
@@ -235,7 +236,8 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
       seasons.push({
         league_id: String(prev.league_id || curr),
         season: prev.season || null,
-        name: prev.name || null
+        name: prev.name || null,
+        status: prev.status || null
       });
       prevChain.push(String(prev.league_id || curr));
       curr = prev.previous_league_id ? String(prev.previous_league_id) : null;
@@ -295,7 +297,8 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
       seasons.push({
         league_id: String(next.league_id),
         season: next.season || String(yr),
-        name: next.name || null
+        name: next.name || null,
+        status: next.status || null
       });
       prevChain.push(String(next.league_id));
       latestId = String(next.league_id);
@@ -313,6 +316,115 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
   });
 
   return { seasons, prevChain };
+}
+
+/**
+ * Pick the "live" league out of a seasons chain — the one we should default
+ * to for current-week matchups, power rankings, trade ledger, etc.
+ *
+ * Priority:
+ *   1. Newest league with status === 'in_season' (live games being played)
+ *   2. Newest league with status === 'complete'   (last season's final results)
+ *   3. Newest league overall                       (any state)
+ *
+ * Returns the matching `{ league_id, season, name, status }` entry — or
+ * `null` if the chain is empty.
+ */
+export function pickActiveLeague(chain) {
+  if (!Array.isArray(chain) || chain.length === 0) return null;
+  // Walk newest → oldest.
+  const reversed = [...chain].reverse();
+  let inSeason = null, complete = null;
+  for (const s of reversed) {
+    if (!inSeason && s.status === 'in_season') inSeason = s;
+    if (!complete && s.status === 'complete') complete = s;
+    if (inSeason && complete) break;
+  }
+  return inSeason || complete || reversed[0];
+}
+
+/**
+ * Find the most recent fantasy week with non-trivial scoring for a given
+ * league. We first read `settings.last_scored_leg` from league metadata
+ * (Sleeper's own canonical answer to "which week was last scored"), and
+ * fall back to walking weeks 25 → 1 finding the first week whose average
+ * points across all entries exceeds `minAvg` (a heuristic to skip empty
+ * future weeks and consolation-bracket dust).
+ *
+ * Returns `{ week, avgPoints }` or `null` if nothing matches.
+ */
+export async function getCurrentWeekForLeague(leagueId, { maxWeek = 25, minAvg = 20 } = {}) {
+  // Prefer Sleeper's own `last_scored_leg` (it's the championship week for
+  // completed leagues, and the most-recent completed week for in-season ones).
+  try {
+    const meta = await getLeague(leagueId);
+    const last = meta?.settings?.last_scored_leg;
+    const lastNum = Number(last);
+    if (last != null && !isNaN(lastNum) && lastNum > 0) {
+      // Verify the suggested week actually has scoring data before trusting it.
+      const m = await getMatchupsForWeek(leagueId, lastNum).catch(() => null);
+      if (Array.isArray(m) && m.length > 0) {
+        let total = 0;
+        for (const e of m) total += Number(e?.points ?? 0) || 0;
+        const avg = total / m.length;
+        if (avg >= minAvg) return { week: lastNum, avgPoints: avg };
+      }
+    }
+  } catch (e) { /* fall through to scan */ }
+
+  for (let wk = maxWeek; wk >= 1; wk--) {
+    const m = await getMatchupsForWeek(leagueId, wk).catch(() => null);
+    if (!Array.isArray(m) || m.length === 0) continue;
+    let total = 0, count = 0;
+    for (const e of m) {
+      const pts = Number(e?.points ?? 0) || 0;
+      total += pts;
+      count += 1;
+    }
+    const avg = count ? total / count : 0;
+    if (avg >= minAvg) return { week: wk, avgPoints: avg };
+  }
+  return null;
+}
+
+/**
+ * Fetch transactions (trades + waivers + free agent moves) for one round
+ * (a.k.a. week) of a league. Cached for 10 min — these change rarely once
+ * a week has closed.
+ */
+export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_10_MIN) {
+  try {
+    const d = await fetchWithCache(
+      `${BASE}/league/${encodeURIComponent(leagueId)}/transactions/${encodeURIComponent(week)}`,
+      {},
+      ttl
+    );
+    return Array.isArray(d) ? d : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Convenience: pull transactions across a range of weeks in parallel and
+ * filter to completed trades only (the most interesting subset for a
+ * "trade ledger" widget). Newest first.
+ */
+export async function getRecentTrades(leagueId, { weekFrom = 1, weekTo = 25, limit = 20 } = {}) {
+  const weeks = [];
+  for (let w = weekFrom; w <= weekTo; w++) weeks.push(w);
+  const lists = await Promise.all(weeks.map((w) => getTransactionsForWeek(leagueId, w)));
+  const all = [];
+  for (let i = 0; i < lists.length; i++) {
+    for (const t of (lists[i] || [])) {
+      if (t.type !== 'trade') continue;
+      if (t.status !== 'complete') continue;
+      all.push({ ...t, _week: weeks[i] });
+    }
+  }
+  // Newest first by `status_updated`
+  all.sort((a, b) => Number(b.status_updated || 0) - Number(a.status_updated || 0));
+  return all.slice(0, limit);
 }
 
 /** CDN URL for an NBA player's headshot, or an empty string if no pid. */

@@ -46,6 +46,7 @@
     { href: '/rosters', label: 'Rosters' },
     { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
+    { href: '/power-rankings', label: 'Power' },
     {
       href: '/records',
       label: 'Records',

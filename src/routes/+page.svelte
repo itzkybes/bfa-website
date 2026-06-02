@@ -2,18 +2,27 @@
 <script>
   import { onMount } from 'svelte';
   import { fetchWithCache } from '$lib/cache';
-  import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
+  import {
+    getSeasonsChain, BASE_LEAGUE_ID,
+    pickActiveLeague, getCurrentWeekForLeague, getRecentTrades,
+    getPlayersNba, getRosterMapWithOwners, playerHeadshot
+  } from '$lib/sleeperClient.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
   const CONFIG_PATH = '/week-ranges.json';
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const forcedWeek = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
-  // URL override > env override > resolved-at-runtime "latest discovered season"
-  // (set inside loadData via getSeasonsChain). Falls back to BASE_LEAGUE_ID.
+  // URL override > env override > resolved-at-runtime "live" league
+  // (resolved inside loadData via pickActiveLeague). Falls back to BASE_LEAGUE_ID.
   const leagueOverride = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || null;
   let leagueId = leagueOverride || BASE_LEAGUE_ID;
   let seasonLabel = '';
+  let leagueStatus = null;          // 'in_season' | 'complete' | 'pre_draft' | ...
+  let recentTrades = [];            // [{ ...transaction, _week, _teamA, _teamB }]
+  let tradesLoading = true;
+  let playersMap = {};
+  let rosterMap = {};               // for trade ledger team names + avatars
 
   const CACHE_5_MIN = 5 * 60 * 1000;
   const CACHE_10_MIN = 10 * 60 * 1000;
@@ -207,22 +216,38 @@
     loading = true;
     error = null;
     try {
-      // Resolve which league_id is "current" — newest discovered season unless
-      // the caller forced one via ?league= or VITE_LEAGUE_ID.
+      // Resolve which league_id is "live" — newest in_season league preferred,
+      // else newest complete league, else newest overall. This makes the home
+      // page Always Show Real Data, even when the upcoming season hasn't drafted
+      // yet (in which case we show last year's championship week + trades).
       if (!leagueOverride) {
         try {
           const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
-          if (Array.isArray(seasons) && seasons.length > 0) {
-            const latest = seasons[seasons.length - 1];
-            if (latest?.league_id) leagueId = String(latest.league_id);
-            if (latest?.season) seasonLabel = String(latest.season);
-          }
+          const active = pickActiveLeague(seasons);
+          if (active?.league_id) leagueId = String(active.league_id);
+          if (active?.season) seasonLabel = String(active.season);
+          leagueStatus = active?.status || null;
         } catch (_) { /* keep fallback leagueId */ }
       }
 
-      const cfgRes = await fetch(CONFIG_PATH);
-      weekRanges = cfgRes.ok ? await cfgRes.json() : null;
-      fetchWeek = computeEffectiveWeek(weekRanges || []);
+      // Find the current/most-recent week with real scoring data. For an
+      // in_season league this is "this week"; for a complete league it's the
+      // championship week. We skip the static week-ranges.json calendar
+      // approach because it lags whenever the season schedule shifts.
+      const cfgRes = await fetch(CONFIG_PATH).catch(() => null);
+      weekRanges = cfgRes && cfgRes.ok ? await cfgRes.json() : null;
+
+      if (forcedWeek && !isNaN(forcedWeek)) {
+        fetchWeek = forcedWeek;
+      } else {
+        const detected = await getCurrentWeekForLeague(leagueId).catch(() => null);
+        if (detected?.week) {
+          fetchWeek = detected.week;
+        } else {
+          // Last resort — use the static date-range calendar.
+          fetchWeek = computeEffectiveWeek(weekRanges || []);
+        }
+      }
 
       const [matchupsRaw, _rosters, _users] = await Promise.all([
         fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/matchups/${fetchWeek}`, {}, CACHE_5_MIN),
@@ -233,12 +258,99 @@
       users = _users;
       matchupPairs = normalizeMatchups(matchupsRaw);
       await pickRandoPlayer();
+
+      // Trade ledger loads in the background (independent of matchups). We don't
+      // block the page on it — it gets its own loading state.
+      loadTradeLedger().catch((e) => console.warn('[Home] trade ledger failed', e));
     } catch (err) {
       error = err;
       console.error('[Home] load error:', err);
     } finally {
       loading = false;
     }
+  }
+
+  /**
+   * Fetch the most recent ~10 completed trades from the live league and
+   * enrich each one with team metadata + player names so the UI can render
+   * them without any extra lookups.
+   */
+  async function loadTradeLedger() {
+    tradesLoading = true;
+    try {
+      const [trades, rmap, pmap] = await Promise.all([
+        getRecentTrades(leagueId, { weekFrom: 1, weekTo: 25, limit: 10 }),
+        getRosterMapWithOwners(leagueId).catch(() => ({})),
+        getPlayersNba().catch(() => ({}))
+      ]);
+      rosterMap = rmap;
+      playersMap = pmap;
+      recentTrades = trades.map((t) => enrichTrade(t, rmap, pmap));
+    } finally {
+      tradesLoading = false;
+    }
+  }
+
+  /** Turn one raw Sleeper transaction into the per-roster summary the UI shows. */
+  function enrichTrade(t, rmap, pmap) {
+    const sides = {}; // rosterId -> { meta, adds[], drops[], picks[], cash }
+    const ridList = (t.roster_ids || []).map(String);
+    for (const rid of ridList) {
+      sides[rid] = {
+        rosterId: rid,
+        meta: rmap[rid] || { team_name: `Roster ${rid}`, owner_name: null, team_avatar: null },
+        adds: [],
+        drops: [],
+        picks: [],
+        cash: 0
+      };
+    }
+    for (const [pid, rid] of Object.entries(t.adds || {})) {
+      const s = sides[String(rid)];
+      if (!s) continue;
+      const p = pmap[pid];
+      s.adds.push({
+        pid,
+        name: p?.full_name || `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || `Player ${pid}`,
+        team: p?.team || '',
+        position: (p?.fantasy_positions && p.fantasy_positions[0]) || p?.position || ''
+      });
+    }
+    for (const dp of (t.draft_picks || [])) {
+      const s = sides[String(dp.owner_id)];
+      if (!s) continue;
+      s.picks.push({ season: dp.season, round: dp.round, from: dp.previous_owner_id });
+    }
+    for (const wb of (t.waiver_budget || [])) {
+      const s = sides[String(wb.receiver)];
+      if (!s) continue;
+      s.cash += Number(wb.amount) || 0;
+    }
+    const sideArr = ridList.map((rid) => sides[rid]);
+    const tsMs = Number(t.status_updated) || 0;
+    return {
+      id: String(t.transaction_id || t.created || `${t._week}-${ridList.join('-')}`),
+      week: t._week,
+      timestamp: tsMs,
+      sides: sideArr
+    };
+  }
+
+  function relativeTime(ms) {
+    if (!ms) return '';
+    const now = Date.now();
+    const diff = Math.max(0, now - ms);
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const days = Math.floor(hr / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    return `${Math.floor(months / 12)}y ago`;
   }
 
   onMount(loadData);
@@ -325,12 +437,16 @@
 <section class="wrap matchups-section" aria-labelledby="matchups-h">
   <div class="section-head">
     <div>
-      <div class="eyebrow">This Week</div>
+      <div class="eyebrow">
+        {#if leagueStatus === 'complete'}Final · Championship Week
+        {:else if leagueStatus === 'in_season'}This Week
+        {:else}Latest{/if}
+      </div>
       <h2 id="matchups-h" class="section-title">Matchups</h2>
     </div>
     <div class="week-pill" data-testid="current-week-pill">
       <span class="week-num">W{fetchWeek || '?'}</span>
-      {#if weekRanges && fetchWeek}<span class="week-range">{weekDateRange(fetchWeek)}</span>{/if}
+      {#if seasonLabel}<span class="week-range">'{String(seasonLabel).slice(-2)} Season</span>{/if}
     </div>
   </div>
 
@@ -394,6 +510,84 @@
   {:else}
     <div class="empty-card" data-testid="matchups-empty">
       No matchups found for week {fetchWeek}. Try a different week via <code>?week=N</code>.
+    </div>
+  {/if}
+</section>
+
+<!--
+  Trade Ledger — most recent completed trades pulled from Sleeper's
+  /transactions/{week} endpoint, aggregated across every week of the live
+  league. Independent loading state so the matchups grid above isn't gated
+  on the slower multi-week transactions roll-up.
+-->
+<section class="wrap trades-section" aria-labelledby="trades-h" data-testid="trade-ledger">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">League Activity</div>
+      <h2 id="trades-h" class="section-title">Recent Trades</h2>
+    </div>
+    {#if !tradesLoading && recentTrades.length}
+      <div class="trades-count">{recentTrades.length} most recent</div>
+    {/if}
+  </div>
+
+  {#if tradesLoading}
+    <SkeletonLoader variant="row" count={3} />
+  {:else if !recentTrades.length}
+    <div class="empty-card" data-testid="trades-empty">No completed trades on the books yet.</div>
+  {:else}
+    <div class="trades-list" data-testid="trades-list">
+      {#each recentTrades as t (t.id)}
+        <article class="trade-card rise" data-testid={`trade-${t.id}`}>
+          <header class="trade-head">
+            <span class="trade-week">Wk {t.week}</span>
+            <span class="trade-when">{relativeTime(t.timestamp)}</span>
+          </header>
+          <div class="trade-sides">
+            {#each t.sides as side, i (side.rosterId)}
+              <div class="trade-side">
+                <div class="trade-team">
+                  <img
+                    class="trade-avatar"
+                    src={side.meta.team_avatar || side.meta.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent((side.meta.team_name || 'T')[0])}&background=1a1a1e&color=a1a1aa&size=48&format=svg`}
+                    alt={side.meta.team_name}
+                    on:error={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                  />
+                  <div class="trade-team-meta">
+                    {#if side.meta.owner_username}
+                      <a class="trade-team-name" href={`/team/${encodeURIComponent(side.meta.owner_username)}`}>{side.meta.team_name}</a>
+                    {:else}
+                      <div class="trade-team-name">{side.meta.team_name}</div>
+                    {/if}
+                    {#if side.meta.owner_name}<div class="trade-owner">{side.meta.owner_name}</div>{/if}
+                  </div>
+                </div>
+                <div class="trade-gets">
+                  <div class="gets-label">Receives</div>
+                  {#if side.adds.length || side.picks.length || side.cash > 0}
+                    {#each side.adds as a (a.pid)}
+                      <div class="trade-player">
+                        <img class="trade-player-headshot" src={playerHeadshot(a.pid)} alt={a.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                        <div class="trade-player-info">
+                          <div class="trade-player-name">{a.name}</div>
+                          <div class="trade-player-meta">{a.position}{a.team ? ` · ${a.team}` : ''}</div>
+                        </div>
+                      </div>
+                    {/each}
+                    {#each side.picks as pk (`${pk.season}-${pk.round}-${pk.from}`)}
+                      <div class="trade-pick">{pk.season} Round {pk.round} Pick</div>
+                    {/each}
+                    {#if side.cash > 0}<div class="trade-cash">+${side.cash} FAAB</div>{/if}
+                  {:else}
+                    <div class="trade-empty">—</div>
+                  {/if}
+                </div>
+              </div>
+              {#if i < t.sides.length - 1}<div class="trade-swap" aria-hidden="true">⇄</div>{/if}
+            {/each}
+          </div>
+        </article>
+      {/each}
     </div>
   {/if}
 </section>
@@ -762,6 +956,103 @@
     font-size: 0.85rem;
   }
 
+  /* ----- TRADE LEDGER ----- */
+  .trades-section { padding-top: 2rem; padding-bottom: 3rem; }
+  .trades-count { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+  .trades-list { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
+  .trade-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    padding: 1.1rem 1.25rem;
+    transition: border-color var(--t-fast);
+  }
+  .trade-card:hover { border-color: var(--border-strong); }
+  .trade-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .trade-week {
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    color: var(--brand);
+    text-transform: uppercase;
+  }
+  .trade-when { color: var(--text-tertiary); font-size: 0.78rem; }
+
+  .trade-sides {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  .trade-side { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+  .trade-team { display: flex; align-items: center; gap: 0.65rem; }
+  .trade-avatar {
+    width: 40px; height: 40px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .trade-team-name {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+    text-decoration: none;
+    line-height: 1.1;
+  }
+  a.trade-team-name:hover { color: var(--accent); }
+  .trade-owner { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; }
+  .gets-label {
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+  .trade-gets {
+    background: var(--surface-2);
+    border-radius: var(--r-sm);
+    padding: 0.65rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    flex: 1;
+  }
+  .trade-player { display: flex; align-items: center; gap: 0.6rem; }
+  .trade-player-headshot {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--surface-1);
+    flex-shrink: 0;
+  }
+  .trade-player-info { min-width: 0; line-height: 1.15; }
+  .trade-player-name { font-weight: 700; color: var(--text-primary); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trade-player-meta { color: var(--text-tertiary); font-size: 0.7rem; }
+  .trade-pick { color: var(--brand); font-weight: 700; font-size: 0.82rem; }
+  .trade-cash { color: var(--accent); font-weight: 700; font-size: 0.82rem; }
+  .trade-empty { color: var(--text-tertiary); font-size: 0.85rem; padding: 0.5rem 0; }
+  .trade-swap {
+    align-self: center;
+    font-size: 1.5rem;
+    color: var(--accent);
+    padding: 0 0.25rem;
+  }
+
   /* Score flipped layout for compact matchup: switch to row on small screens */
   @media (max-width: 980px) {
     .hero-inner { grid-template-columns: 1fr; gap: 2rem; }
@@ -775,5 +1066,7 @@
     .m-score { grid-column: 1 / -1; flex-direction: row; gap: 0.75rem; justify-content: center; padding-top: 0.5rem; border-top: 1px solid var(--border-subtle); }
     .score-num { font-size: 1.3rem; }
     .m-avatar { width: 40px; height: 40px; }
+    .trade-sides { grid-template-columns: 1fr; }
+    .trade-swap { transform: rotate(90deg); justify-self: center; padding: 0.25rem 0; }
   }
 </style>
