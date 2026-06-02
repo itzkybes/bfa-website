@@ -138,7 +138,37 @@ export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket,
   // Champion is only valid if the bracket actually crowned one (championshipMatch.w),
   // not just whoever is currently leading the regular season.
   const champion = bracketComplete ? String(championshipMatch.w) : null;
-  return { finalRanking, champion, bracketComplete };
+  return { finalRanking, champion, bracketComplete, championshipMatch };
+}
+
+/**
+ * Identify the championship game (the single bracket match where `p === 1`)
+ * and return:
+ *   - week: the week number that match was played (derived from the round `r`,
+ *           assuming each playoff round = one week)
+ *   - rosterIds: [t1, t2] — the two finalists' roster ids as strings
+ *   - winnerRosterId / loserRosterId
+ * Returns null if no such match exists (bracket incomplete).
+ *
+ * Finals MVP = top scorer in this single championship game (across BOTH finalists),
+ * NOT the champion's top scorer across the whole playoff window.
+ */
+export function getChampionshipGame(winnersBracket, playoffStart) {
+  const wb = Array.isArray(winnersBracket) ? winnersBracket : [];
+  const champMatch = wb.find((m) => m && Number(m.p) === 1 && m.w != null);
+  if (!champMatch) return null;
+  const round = Number(champMatch.r);
+  // Sleeper convention: round 1 = first playoff week. round N = playoffStart + (N-1).
+  const week = isFinite(round) && round >= 1 ? (playoffStart + (round - 1)) : null;
+  const t1 = champMatch.t1 != null ? String(champMatch.t1) : (champMatch.w != null ? String(champMatch.w) : null);
+  const t2 = champMatch.t2 != null ? String(champMatch.t2) : (champMatch.l != null ? String(champMatch.l) : null);
+  return {
+    week,
+    rosterIds: [t1, t2].filter(Boolean),
+    winnerRosterId: champMatch.w != null ? String(champMatch.w) : null,
+    loserRosterId: champMatch.l != null ? String(champMatch.l) : null,
+    match: champMatch
+  };
 }
 
 /* ============================================================
@@ -407,6 +437,10 @@ export async function computeStandingsForLeague(leagueId) {
     }
   }
 
+  // Identify the championship game once so callers can compute Finals MVP
+  // from just that single match.
+  const championshipGame = getChampionshipGame(winnersBracket, playoffStart);
+
   return {
     leagueId: String(leagueId),
     season: leagueSeason,
@@ -416,6 +450,7 @@ export async function computeStandingsForLeague(leagueId) {
     finalStandings,
     bracketChampionId,
     bracketComplete,
+    championshipGame,
     rosterMap,
     playoffStart,
     playoffEnd,

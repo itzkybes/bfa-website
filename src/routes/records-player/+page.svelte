@@ -101,15 +101,23 @@
         const fullByPlayer = aggregatePlayerPoints(fullEntries);
         const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
 
-        const overallList = Object.values(fullByPlayer).sort((a, b) => b.points - a.points);
-        const finalsList = Object.values(playoffByPlayer).sort((a, b) => b.points - a.points);
-
-        // Restrict Finals MVP to the actual bracket-determined champion's roster
-        let finalsMvp = finalsList[0] || null;
-        if (standings.bracketChampionId && standings.bracketComplete) {
-          const champFinals = finalsList.filter((p) => String(p.rosterId) === String(standings.bracketChampionId));
-          if (champFinals.length) finalsMvp = champFinals[0];
+        // ---- Finals MVP = top scorer in the championship GAME only ----
+        // (not the champion's top scorer across the whole playoff window)
+        let finalsList = [];
+        if (standings.bracketComplete && standings.championshipGame?.week != null) {
+          const champWeek = standings.championshipGame.week;
+          const champRosters = new Set((standings.championshipGame.rosterIds || []).map(String));
+          const champGameEntries = (collected[champWeek] || []).filter(
+            (e) => champRosters.has(String(e.roster_id ?? e.rosterId ?? ''))
+          );
+          finalsList = Object.values(aggregatePlayerPoints(champGameEntries))
+            .sort((a, b) => b.points - a.points);
         }
+
+        const overallList = Object.values(fullByPlayer).sort((a, b) => b.points - a.points);
+
+        // Finals MVP = top scorer in the championship game (across BOTH finalists)
+        const finalsMvp = finalsList[0] || null;
 
         // team leaders (top scorer per roster, full season)
         const teamLeaders = [];
