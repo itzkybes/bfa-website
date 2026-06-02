@@ -1,11 +1,9 @@
 <!-- src/routes/rosters/+page.svelte — Team rosters grid (client-side fetched) -->
 <script>
   import { onMount } from 'svelte';
-  import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, safeNum } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, safeNum, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
-
-  const BASE_LEAGUE_ID = '1219816671624048640';
 
   let loading = true;
   let error = null;

@@ -9,7 +9,7 @@
 
 import {
   safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek,
-  getPlayersNba, getWinnersBracket, getLosersBracket
+  getPlayersNba, getWinnersBracket, getLosersBracket, getSeasonsChain
 } from './sleeperClient.client';
 import { BASE_LEAGUE_ID } from './sleeperClient.client';
 
@@ -206,6 +206,11 @@ export function getChampionshipGame(winnersBracket, playoffStart) {
  * Owners are stable across seasons (same Sleeper user_id / username), but the
  * roster_id and team art change every year — so we key by username.
  *
+ * "Current" here is whatever `getSeasonsChain` reports as the newest season
+ * (via forward auto-discovery), so when the next year's league spins up in
+ * Sleeper the latest branding flips over automatically. Falls back to
+ * `BASE_LEAGUE_ID` if discovery fails for any reason.
+ *
  * The result is memoized for the lifetime of the page: we only hit Sleeper once.
  */
 let _latestAvatarsPromise = null;
@@ -213,7 +218,14 @@ export function getLatestOwnerAvatars() {
   if (_latestAvatarsPromise) return _latestAvatarsPromise;
   _latestAvatarsPromise = (async () => {
     try {
-      const map = await getRosterMapWithOwners(BASE_LEAGUE_ID);
+      let latestLeagueId = BASE_LEAGUE_ID;
+      try {
+        const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
+        if (Array.isArray(seasons) && seasons.length > 0) {
+          latestLeagueId = String(seasons[seasons.length - 1].league_id || BASE_LEAGUE_ID);
+        }
+      } catch (e) { /* fall back to BASE_LEAGUE_ID */ }
+      const map = await getRosterMapWithOwners(latestLeagueId);
       const out = {};
       for (const rid of Object.keys(map)) {
         const m = map[rid] || {};

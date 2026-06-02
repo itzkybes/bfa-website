@@ -12,9 +12,11 @@ import { fetchWithCache } from '$lib/cache';
 const BASE = 'https://api.sleeper.app/v1';
 const SLEEPER_CDN = 'https://sleepercdn.com';
 
-// The current (2025/26) league. When the season rolls over we just bump this
-// constant; every historical season is reachable by walking the
-// `previous_league_id` chain in `getSeasonsChain`.
+// The "anchor" league this site was built around. `getSeasonsChain` walks
+// the `previous_league_id` chain BACKWARDS from here to find historical
+// seasons, AND also walks FORWARDS via Sleeper's user-leagues endpoint to
+// pick up newly-created seasons (e.g. the 2026 league shows up automatically
+// without anyone having to bump this constant).
 export const BASE_LEAGUE_ID = '1219816671624048640';
 
 const CACHE_5_MIN = 5 * 60 * 1000;
@@ -168,9 +170,38 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
 }
 
 /**
+ * List every NBA league a given user is in for a given season year.
+ * Used by `getSeasonsChain` to discover future seasons whose
+ * `previous_league_id` chains back into our known set.
+ *
+ * Returns `[]` on any error — Sleeper sometimes 404s for empty user/season
+ * combos and we don't want one bad request to break season discovery.
+ */
+export async function getUserLeaguesForSeason(userId, season, ttl = CACHE_10_MIN) {
+  if (!userId || !season) return [];
+  try {
+    const data = await fetchWithCache(
+      `${BASE}/user/${encodeURIComponent(userId)}/leagues/nba/${encodeURIComponent(season)}`,
+      {},
+      ttl
+    );
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
  * Walk a league's `previous_league_id` chain to enumerate every season.
  * Returns `{ seasons, prevChain }` sorted oldest → newest, so the most
  * recent season is always `seasons[seasons.length - 1]`.
+ *
+ * Walks in BOTH directions:
+ *  1. Backwards via `previous_league_id` (handles 2022 → 2025 history).
+ *  2. Forwards via `/user/{user_id}/leagues/nba/{season}` against a few
+ *     seed users from the anchor league, so when a new season is created
+ *     in Sleeper (e.g. 2026, 2027, …) it shows up here automatically with
+ *     zero code changes.
  */
 export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
   const seasons = [];
@@ -190,6 +221,7 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
   });
   prevChain.push(String(mainLeague.league_id || baseLeagueId));
 
+  // -- Backwards walk via previous_league_id ---------------------------------
   let curr = mainLeague.previous_league_id ? String(mainLeague.previous_league_id) : null;
   let steps = 0;
   while (curr && steps < maxSteps) {
@@ -206,6 +238,64 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
       curr = prev.previous_league_id ? String(prev.previous_league_id) : null;
     } catch (e) {
       break;
+    }
+  }
+
+  // -- Forwards walk via user-leagues lookup --------------------------------
+  // Grab a few seed user_ids from the anchor league. We try more than one in
+  // case any single user has left the league since.
+  let seedUserIds = [];
+  try {
+    const anchorUsers = await getUsers(String(mainLeague.league_id || baseLeagueId));
+    if (Array.isArray(anchorUsers)) {
+      seedUserIds = anchorUsers
+        .map(u => u && (u.user_id || u.id || u.userId))
+        .filter(Boolean)
+        .map(String)
+        .slice(0, 4);
+    }
+  } catch (e) { /* swallow — backwards-only chain is still valid */ }
+
+  if (seedUserIds.length > 0) {
+    const anchorSeasonNum = Number(mainLeague.season);
+    // If the anchor league has no season, fall back to the current calendar
+    // year. Sleeper marks NBA seasons by the year the playoffs end in (so the
+    // 2025/26 season is `season: "2026"`).
+    const startYear = !isNaN(anchorSeasonNum) && anchorSeasonNum > 0
+      ? anchorSeasonNum
+      : new Date().getUTCFullYear();
+    const maxYear = Math.max(startYear, new Date().getUTCFullYear()) + 5;
+
+    let latestId = String(mainLeague.league_id || baseLeagueId);
+    let forwardSteps = 0;
+    for (let yr = startYear + 1; yr <= maxYear && forwardSteps < maxSteps; yr++) {
+      forwardSteps++;
+      // Probe each seed user in parallel; the first one with a matching
+      // league wins.
+      const lists = await Promise.all(
+        seedUserIds.map(uid => getUserLeaguesForSeason(uid, String(yr)))
+      );
+      const flat = [];
+      const seen = new Set();
+      for (const list of lists) {
+        for (const lg of (list || [])) {
+          if (!lg || !lg.league_id) continue;
+          const id = String(lg.league_id);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          flat.push(lg);
+        }
+      }
+      const next = flat.find(lg => String(lg.previous_league_id || '') === latestId);
+      if (!next) break;
+
+      seasons.push({
+        league_id: String(next.league_id),
+        season: next.season || String(yr),
+        name: next.name || null
+      });
+      prevChain.push(String(next.league_id));
+      latestId = String(next.league_id);
     }
   }
 

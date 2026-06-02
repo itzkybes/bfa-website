@@ -2,13 +2,18 @@
 <script>
   import { onMount } from 'svelte';
   import { fetchWithCache } from '$lib/cache';
+  import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
   const CONFIG_PATH = '/week-ranges.json';
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const forcedWeek = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
-  const leagueId = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || '1219816671624048640';
+  // URL override > env override > resolved-at-runtime "latest discovered season"
+  // (set inside loadData via getSeasonsChain). Falls back to BASE_LEAGUE_ID.
+  const leagueOverride = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || null;
+  let leagueId = leagueOverride || BASE_LEAGUE_ID;
+  let seasonLabel = '';
 
   const CACHE_5_MIN = 5 * 60 * 1000;
   const CACHE_10_MIN = 10 * 60 * 1000;
@@ -202,6 +207,19 @@
     loading = true;
     error = null;
     try {
+      // Resolve which league_id is "current" — newest discovered season unless
+      // the caller forced one via ?league= or VITE_LEAGUE_ID.
+      if (!leagueOverride) {
+        try {
+          const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
+          if (Array.isArray(seasons) && seasons.length > 0) {
+            const latest = seasons[seasons.length - 1];
+            if (latest?.league_id) leagueId = String(latest.league_id);
+            if (latest?.season) seasonLabel = String(latest.season);
+          }
+        } catch (_) { /* keep fallback leagueId */ }
+      }
+
       const cfgRes = await fetch(CONFIG_PATH);
       weekRanges = cfgRes.ok ? await cfgRes.json() : null;
       fetchWeek = computeEffectiveWeek(weekRanges || []);
@@ -232,7 +250,7 @@
 
   <div class="wrap hero-inner">
     <div class="hero-copy rise">
-      <div class="eyebrow">Season 2025 / 26 · Live</div>
+      <div class="eyebrow">{seasonLabel ? `Season ${Number(seasonLabel) - 1} / ${String(seasonLabel).slice(-2)} · Live` : 'Live'}</div>
       <h1 class="hero-title">
         Welcome to the<br />
         <span class="title-accent">Badger Bowl</span>

@@ -78,6 +78,23 @@ owner's **current** logo, not the one they had three years ago. That overlay
 lives in `getLatestOwnerAvatars()` (in `leagueCompute.client.js`) and runs
 once per page load.
 
+### New seasons show up automatically
+
+`getSeasonsChain()` walks the `previous_league_id` chain **backwards** to find
+every historical season, then walks **forwards** via Sleeper's
+`/user/{user_id}/leagues/nba/{season}` endpoint to pick up new seasons whose
+`previous_league_id` chains back to a known league. So when the commissioner
+spins up next year's league in Sleeper, every page (standings dropdown,
+records, the home page's "current week" matchups, the latest team logos)
+flips over with zero code changes. The anchor `BASE_LEAGUE_ID` only needs to
+move if the chain itself is ever broken.
+
+You can sanity-check the discovery against the live API with:
+
+```bash
+node scripts/test-auto-discovery.mjs
+```
+
 ---
 
 ## Running it locally
@@ -88,8 +105,12 @@ yarn dev          # http://localhost:5173
 ```
 
 You don't need any environment variables. The league ID is baked into
-`src/lib/sleeperClient.client.js` — change `BASE_LEAGUE_ID` to point at a
-different Sleeper league and everything else follows.
+`src/lib/sleeperClient.client.js` — `BASE_LEAGUE_ID` is just the anchor
+`getSeasonsChain` starts from; new seasons after it are picked up
+automatically via forward-discovery (see above), and historical seasons via
+the backwards `previous_league_id` walk. You only need to touch the constant
+if the league chain is ever broken (e.g. someone re-creates a season without
+linking it back to the previous one).
 
 ## Production build
 
