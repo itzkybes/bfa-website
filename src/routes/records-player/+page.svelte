@@ -570,7 +570,7 @@
                   <td>
                     {#if row.latestRoster}
                       <div class="team-cell">
-                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
+                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar || row.latestRoster.owner_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
                         <div>
                           <div class="team-name-cell">{row.latestRoster.team_name}</div>
                           <div class="team-owner-cell">{row.latestRoster.owner_name}</div>

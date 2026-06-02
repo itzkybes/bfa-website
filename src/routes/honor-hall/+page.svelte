@@ -220,7 +220,7 @@
       {/if}
 
       {#if finalsMvp}
-        <div class="bento-card mvp-card" data-testid="finals-mvp-card">
+        <div class="bento-card mvp-card finals" data-testid="finals-mvp-card">
           <div class="card-eyebrow accent">Finals MVP</div>
           <img class="mvp-headshot" src={playerHeadshot(finalsMvp.playerId) || avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName)} alt={finalsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName))} />
           <div class="mvp-name">{finalsMvp.playerName ?? '—'}</div>
@@ -240,11 +240,11 @@
       {/if}
 
       {#if overallMvp}
-        <div class="bento-card mvp-card" data-testid="overall-mvp-card">
-          <div class="card-eyebrow accent">Overall MVP</div>
+        <div class="bento-card mvp-card overall" data-testid="overall-mvp-card">
+          <div class="card-eyebrow win">Overall MVP</div>
           <img class="mvp-headshot" src={playerHeadshot(overallMvp.playerId) || avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName)} alt={overallMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName))} />
           <div class="mvp-name">{overallMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num">{fmt(overallMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-pts num win">{fmt(overallMvp.points)}<span class="pts-suffix"> PTS</span></div>
           <div class="mvp-sub">{overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
@@ -276,19 +276,72 @@
   .page-sub { color: var(--text-secondary); max-width: 60ch; }
 
   .bento { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: auto auto; gap: 0.85rem; margin-bottom: 2rem; }
-  .bento-card { position: relative; padding: 1.75rem 1.5rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; transition: border-color var(--t-fast), transform var(--t-fast); }
+  .bento-card { position: relative; padding: 1.75rem 1.5rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; transition: border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast); }
   .bento-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
-  .champion-card { grid-row: span 2; background: radial-gradient(600px 200px at 100% 0%, rgba(245, 180, 0, 0.18), transparent 60%), linear-gradient(180deg, var(--surface-1), var(--surface-2)); border-color: var(--gold); border-left: 4px solid var(--gold); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-height: 320px; }
+
+  /* Each card in the bento gets its own signature color treatment:
+     • 1px tinted border (on top of the base subtle border)
+     • 4px solid left rail in the same tint
+     • a soft radial glow in the top-right corner so the card "lights up"
+     • a hover shadow in the same tint for tactile depth */
+  .champion-card {
+    grid-row: span 2;
+    border-color: var(--gold);
+    border-left: 4px solid var(--gold);
+    background:
+      radial-gradient(620px 220px at 100% 0%, rgba(245, 180, 0, 0.22), transparent 60%),
+      linear-gradient(180deg, var(--surface-1), var(--surface-2));
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    min-height: 320px;
+  }
+  .champion-card:hover { box-shadow: 0 0 24px rgba(245, 180, 0, 0.18); }
   .champion-trophy { font-size: 4rem; margin-bottom: 0.5rem; line-height: 1; }
-  .loser-card { border-color: var(--loss); border-left: 4px solid var(--loss); }
+
+  .loser-card {
+    border-color: var(--loss);
+    border-left: 4px solid var(--loss);
+    background:
+      radial-gradient(420px 180px at 100% 0%, rgba(239, 68, 68, 0.18), transparent 65%),
+      linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  }
+  .loser-card:hover { box-shadow: 0 0 24px rgba(239, 68, 68, 0.18); }
   .loser-icon { font-size: 2rem; margin-bottom: 0.4rem; line-height: 1; }
+
+  .mvp-card.finals {
+    border-color: var(--accent);
+    border-left: 4px solid var(--accent);
+    background:
+      radial-gradient(420px 180px at 100% 0%, var(--accent-glow), transparent 65%),
+      linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  }
+  .mvp-card.finals:hover { box-shadow: 0 0 24px var(--accent-soft); }
+
+  .mvp-card.playoffs {
+    border-color: var(--brand);
+    border-left: 4px solid var(--brand);
+    background:
+      radial-gradient(420px 180px at 100% 0%, var(--brand-glow), transparent 65%),
+      linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  }
+  .mvp-card.playoffs:hover { box-shadow: 0 0 24px var(--brand-soft); }
+
+  .mvp-card.overall {
+    border-color: var(--win);
+    border-left: 4px solid var(--win);
+    background:
+      radial-gradient(420px 180px at 100% 0%, rgba(16, 185, 129, 0.20), transparent 65%),
+      linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  }
+  .mvp-card.overall:hover { box-shadow: 0 0 24px rgba(16, 185, 129, 0.18); }
+
   .card-corner { position: absolute; top: 1rem; right: 1rem; }
   .rank-tag { font-size: 1.4rem; color: var(--text-tertiary); }
   .card-eyebrow { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 0.75rem; }
   .card-eyebrow.accent { color: var(--accent); }
   .card-eyebrow.brand { color: var(--brand); }
-  .mvp-card.playoffs { border-left: 4px solid var(--brand); background: linear-gradient(180deg, rgba(52, 50, 200, 0.1), transparent 70%); }
+  .card-eyebrow.win { color: var(--win); }
   .mvp-pts.brand { color: var(--brand); }
+  .mvp-pts.win { color: var(--win); }
   .champion-avatar { width: 80px; height: 80px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); margin-bottom: 0.85rem; }
   .champion-name { font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; word-break: break-word; }
   .champion-name.dim { color: var(--text-secondary); font-size: 1.6rem; }

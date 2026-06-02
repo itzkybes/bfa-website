@@ -10,7 +10,11 @@
   let leagueName = null;
   let season = null;
   let rosters = [];   // [{ rosterId, owner_name, team_name, team_avatar, _starters, _bench, _taxi }]
-  let collapsed = {};
+  // Global accordion: at most one roster is open at a time. Default state on
+  // load is `null` → every team-card is rendered in its collapsed (head-only)
+  // form, which keeps the grid uniform and prevents one expanded card from
+  // creating a tall blank column next to a still-collapsed neighbor.
+  let expandedRosterId = null;
 
   const STARTER_SLOTS = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'UTIL'];
 
@@ -48,7 +52,9 @@
   }
 
   function toggle(id) {
-    collapsed = { ...collapsed, [id]: !collapsed[id] };
+    // Accordion: clicking an already-open card closes it; clicking any other
+    // card closes whatever was open and opens this one.
+    expandedRosterId = expandedRosterId === id ? null : id;
   }
 
   async function loadAll() {
@@ -109,10 +115,6 @@
   }
 
   onMount(() => {
-    // collapse all on mobile by default
-    if (typeof window !== 'undefined' && window.innerWidth <= 760) {
-      // collapsed state initialized AFTER data loads
-    }
     loadAll();
   });
 </script>
@@ -135,7 +137,8 @@
       {#each rosters as roster, idx (roster.rosterId)}
         <article
           class="team-card rise"
-          class:collapsed={collapsed[roster.rosterId]}
+          class:collapsed={expandedRosterId !== roster.rosterId}
+          class:expanded={expandedRosterId === roster.rosterId}
           style="animation-delay: {idx * 30}ms;"
           data-testid={`team-card-${roster.rosterId}`}
         >
@@ -167,15 +170,15 @@
             <button
               type="button"
               class="collapse-btn"
-              aria-pressed={!collapsed[roster.rosterId]}
+              aria-pressed={expandedRosterId === roster.rosterId}
               on:click={() => toggle(roster.rosterId)}
               data-testid={`team-collapse-${roster.rosterId}`}
             >
-              {collapsed[roster.rosterId] ? '+' : '−'}
+              {expandedRosterId === roster.rosterId ? '−' : '+'}
             </button>
           </div>
 
-          {#if !collapsed[roster.rosterId]}
+          {#if expandedRosterId === roster.rosterId}
             <section class="team-body">
               <div class="section-label">Starters</div>
               <div class="starters">
@@ -274,10 +277,19 @@
   }
   .page-sub { color: var(--text-secondary); font-size: 1rem; max-width: 60ch; }
 
+  /* CSS multi-column layout lets the column flow re-balance when a card
+     expands — so opening one team doesn't leave a tall blank gap next to a
+     still-collapsed neighbor. `break-inside: avoid` keeps a single card
+     intact within one column. */
   .teams-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
-    gap: 1rem;
+    column-count: 2;
+    column-gap: 1rem;
+  }
+  @media (min-width: 1400px) {
+    .teams-grid { column-count: 3; }
+  }
+  @media (max-width: 880px) {
+    .teams-grid { column-count: 1; }
   }
 
   .team-card {
@@ -286,8 +298,17 @@
     border-radius: var(--r-sm);
     overflow: hidden;
     transition: border-color var(--t-fast);
+    display: inline-block;          /* required for break-inside in columns */
+    width: 100%;
+    margin: 0 0 1rem;
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
   }
   .team-card:hover { border-color: var(--border-strong); }
+  /* When a card is the open one, lift the border slightly so it's obvious
+     which team's roster is currently being read. */
+  .team-card.expanded { border-color: var(--border-strong); box-shadow: 0 0 0 1px var(--border-accent) inset; }
 
   .team-head {
     display: flex;
@@ -439,7 +460,7 @@
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
-    .teams-grid { grid-template-columns: 1fr; }
+    .teams-grid { column-count: 1; }
     .team-head { padding: 0.85rem; gap: 0.65rem; }
     .team-avatar { width: 48px; height: 48px; }
     .team-name { font-size: 1.1rem; }
