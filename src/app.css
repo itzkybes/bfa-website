@@ -404,6 +404,7 @@ select {
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-1);
+  white-space: nowrap;
 }
 
 .bfa-table tbody td {
@@ -427,6 +428,31 @@ select {
 }
 
 .col-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Tables on phones — keep them legible inside their .table-wrap scroll
+   container without crushing whitespace. */
+@media (max-width: 720px) {
+  .bfa-table { font-size: 0.82rem; }
+  .bfa-table thead th { padding: 0.65rem 0.7rem; font-size: 0.62rem; letter-spacing: 0.08em; }
+  .bfa-table tbody td { padding: 0.7rem 0.7rem; }
+}
+
+/* Horizontal-scroll affordance: subtle right-edge shadow hints there's more
+   table off-screen on touch devices. Pages put their tables inside .table-wrap. */
+.table-wrap {
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 720px) {
+  .table-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 24px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.35));
+  }
+}
 
 /* Section divider */
 .section-divider {

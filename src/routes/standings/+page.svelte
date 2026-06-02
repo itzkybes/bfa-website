@@ -246,8 +246,16 @@
   .num.muted { color: var(--text-tertiary); }
   .empty-card { padding: 2rem; text-align: center; color: var(--text-secondary); }
   @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .head-row { flex-direction: column; align-items: stretch; }
     .season-form { display: flex; }
     .season-form select { flex: 1; }
+    .block-head { padding: 0.85rem 1rem; }
+    .block-title { font-size: 1.1rem; }
+    .col-trend { width: 96px; min-width: 96px; padding-right: 0.5rem; }
+    .team-avatar.small { width: 34px; height: 34px; }
+    .team-owner-cell { display: none; }
+    .rank-num { font-size: 1.2rem; }
   }
 </style>

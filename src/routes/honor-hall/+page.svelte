@@ -325,11 +325,23 @@
     .bento { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
     .champion-card { grid-row: span 1; grid-column: span 2; }
   }
+  @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .head-row { flex-direction: column; align-items: stretch; }
+    .head-row > div:last-child { display: flex; }
+    .head-row select { flex: 1; min-width: 0; }
+    .block-head { padding: 0.85rem 1rem; }
+    .block-title { font-size: 1.05rem; }
+  }
   @media (max-width: 600px) {
     .bento { grid-template-columns: 1fr; }
-    .champion-card { grid-column: span 1; }
-    .standings-row { grid-template-columns: 50px 44px 1fr auto; padding: 0.7rem 0.85rem; gap: 0.6rem; }
-    .team-avatar.small { width: 44px; height: 44px; }
-    .team-name { font-size: 1rem; }
+    .champion-card { grid-column: span 1; min-height: auto; }
+    .champion-trophy { font-size: 3rem; }
+    .standings-row { grid-template-columns: 44px 40px 1fr auto; padding: 0.65rem 0.75rem; gap: 0.5rem; }
+    .team-avatar.small { width: 40px; height: 40px; }
+    .team-name { font-size: 0.95rem; }
+    .team-owner { font-size: 0.72rem; }
+    .seed-col .num { font-size: 1rem; }
   }
 </style>

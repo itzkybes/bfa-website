@@ -238,12 +238,18 @@
   .multi-row .m-name { flex: 1; }
   .empty-card { padding: 2rem; text-align: center; background: var(--surface-1); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); color: var(--text-secondary); }
   @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .head-row { align-items: stretch; }
-    .filters { flex: 1; }
-    .filters select { flex: 1; min-width: 0; }
-    .match-row { grid-template-columns: 1fr; gap: 0.5rem; }
+    .filters { flex: 1; gap: 0.4rem; }
+    .filters select { flex: 1; min-width: 0; font-size: 0.85rem; }
+    .match-row { grid-template-columns: 1fr; gap: 0.5rem; padding: 0.85rem 0.95rem; }
     .m-team, .m-team.right { justify-content: flex-start; flex-direction: row; }
     .m-meta.right { text-align: left; }
     .m-divider { display: none; }
+    .m-avatar { width: 42px; height: 42px; }
+    .m-name { font-size: 0.9rem; max-width: 100%; white-space: normal; overflow: visible; }
+    .m-score { padding: 0.35rem 0.6rem; min-width: 60px; }
+    .m-score .num { font-size: 1.15rem; }
   }
 </style>

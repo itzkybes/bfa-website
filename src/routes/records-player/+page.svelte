@@ -626,4 +626,21 @@
     .mvp-body { flex-direction: column; align-items: center; text-align: center; }
     .mvp-team { justify-content: center; }
   }
+  @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .block-head { padding: 0.85rem 1rem; }
+    .block-head-text { flex: 1; }
+    .block-title { font-size: 1.05rem; }
+    .block-head-select { width: 100%; }
+    .block-head-select select { width: 100%; min-width: 0; }
+    .mvp-card { padding: 1.1rem; }
+    .mvp-headshot { width: 76px; height: 76px; }
+    .mvp-player-name { font-size: 1.3rem; }
+    .mvp-pts { font-size: 1.5rem; }
+    .team-avatar.small { width: 34px; height: 34px; }
+    .headshot { width: 36px; height: 36px; }
+    .team-owner-cell, .player-meta-cell { display: none; }
+    .bigpts { font-size: 1rem; }
+  }
 </style>

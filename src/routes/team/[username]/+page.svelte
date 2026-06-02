@@ -325,8 +325,20 @@
   .back-btn { padding: 0.5rem 0.85rem; }
 
   @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .head-row { flex-direction: column; align-items: stretch; }
-    .head-team { align-items: flex-start; }
+    .head-team { align-items: flex-start; gap: 0.85rem; }
     .head-avatar { width: 64px; height: 64px; }
+    .back-btn { align-self: flex-start; }
+    .block-head { padding: 0.85rem 1rem; }
+    .block-title { font-size: 1.1rem; }
+    .block-sub { font-size: 0.7rem; letter-spacing: 0.08em; }
+    .team-avatar.small { width: 30px; height: 30px; }
+    .team-owner-cell { display: none; }
+    .team-name-cell { font-size: 0.85rem; }
+    .wk-cell { padding: 0.55rem 0.55rem; gap: 0.35rem; }
+    .playoff-pill { font-size: 0.55rem; padding: 0.08rem 0.3rem; }
+    .result-pill { min-width: 22px; padding: 0.1rem 0.3rem; font-size: 0.7rem; }
   }
 </style>

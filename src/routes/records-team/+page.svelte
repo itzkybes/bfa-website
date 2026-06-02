@@ -347,7 +347,7 @@
     <section class="block">
       <div class="block-head">
         <h2 class="block-title">Head-to-Head</h2>
-        <div>
+        <div class="h2h-select-wrap">
           <label for="h2h-select" class="visually-hidden">Team</label>
           <select id="h2h-select" bind:value={selectedH2H} data-testid="h2h-team-select">
             {#each h2hOwners as o}<option value={o.key}>{o.team || o.display}</option>{/each}
@@ -486,7 +486,16 @@
   .margin-meta { color: var(--text-tertiary); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
   @media (max-width: 980px) { .margins-grid { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {
-    .margin-row { grid-template-columns: 40px 1fr; }
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .page-sub { font-size: 0.9rem; }
+    .block-head { padding: 0.85rem 1rem; }
+    .block-title { font-size: 1.05rem; }
+    .block-head select { width: 100%; min-width: 0; }
+    .h2h-select-wrap { width: 100%; }
+    .team-avatar.small { width: 34px; height: 34px; }
+    .team-owner-cell { display: none; }
+    .margin-row { grid-template-columns: 40px 1fr; padding: 0.55rem 0.75rem; }
     .margin-meta { grid-column: 2; }
     .margin-teams { grid-template-columns: 1fr; gap: 0.4rem; }
     .m-side.right { justify-content: flex-start; flex-direction: row-reverse; }

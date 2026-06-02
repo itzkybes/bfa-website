@@ -1068,11 +1068,20 @@
     .m-avatar { width: 40px; height: 40px; }
     .trade-sides { grid-template-columns: 1fr; }
     .trade-swap { transform: rotate(90deg); justify-self: center; padding: 0.25rem 0; }
+    .trade-card { padding: 0.9rem 0.95rem; }
+    .trade-team-name { font-size: 0.95rem; }
+    .trade-avatar { width: 36px; height: 36px; }
+    .trade-player-headshot { width: 28px; height: 28px; }
+    .trade-player-name { font-size: 0.82rem; }
+    .trade-player-meta { font-size: 0.65rem; }
     /* Buttons stack full-width on phones so they never overflow the viewport */
     .hero-actions { flex-direction: column; align-items: stretch; gap: 0.6rem; }
     .hero-actions :global(.btn) { width: 100%; }
     .hero-sub { font-size: 0.95rem; }
     .section-head { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .rando { padding: 1.1rem; }
+    .rando-headshot { width: 80px; height: 80px; }
+    .rando-name { font-size: 1.35rem; }
   }
 
   @media (max-width: 480px) {

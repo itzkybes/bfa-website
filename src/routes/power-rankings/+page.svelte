@@ -303,4 +303,16 @@
     border-radius: var(--r-sm);
     color: var(--text-secondary);
   }
+
+  @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .page-sub { font-size: 0.88rem; }
+    .col-trend { width: 90px; min-width: 90px; }
+    .col-mv { width: 78px; min-width: 78px; }
+    .mv-pill { min-width: 38px; padding: 0.15rem 0.4rem; font-size: 0.72rem; }
+    .team-avatar.small { width: 34px; height: 34px; }
+    .rank-num { font-size: 1.25rem; }
+    .team-owner-cell { display: none; }
+  }
 </style>

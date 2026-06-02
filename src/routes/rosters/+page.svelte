@@ -1,7 +1,7 @@
 <!-- src/routes/rosters/+page.svelte — Team rosters grid (client-side fetched) -->
 <script>
   import { onMount } from 'svelte';
-  import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, safeNum, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, safeNum, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
@@ -57,7 +57,10 @@
     try {
       // 1. fetch seasons chain to get current league
       const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
-      const current = seasons.length ? seasons[seasons.length - 1] : { league_id: BASE_LEAGUE_ID, season: null, name: 'BFA' };
+      // Prefer the active league (in_season → complete → newest) so an
+      // unconfigured pre-draft season doesn't render empty rosters.
+      const active = pickActiveLeague(seasons);
+      const current = active || (seasons.length ? seasons[seasons.length - 1] : { league_id: BASE_LEAGUE_ID, season: null, name: 'BFA' });
       season = current.season;
       leagueName = current.name;
 
@@ -434,8 +437,21 @@
   }
 
   @media (max-width: 720px) {
+    .page { padding: 1.75rem 0 3rem; }
+    .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .teams-grid { grid-template-columns: 1fr; }
-    .player-pill { flex-wrap: wrap; }
-    .pos-tags { width: 100%; margin-top: 0.3rem; }
+    .team-head { padding: 0.85rem; gap: 0.65rem; }
+    .team-avatar { width: 48px; height: 48px; }
+    .team-name { font-size: 1.1rem; }
+    .team-stats { gap: 0.3rem; }
+    .stat-pill { font-size: 0.65rem; padding: 0.15rem 0.4rem; }
+    .bench-grid { grid-template-columns: 1fr; }
+    .player-pill { flex-wrap: wrap; padding: 0.4rem 0.5rem; }
+    .pos-tags { width: 100%; margin-top: 0.3rem; justify-content: flex-end; }
+    .player-name { font-size: 0.82rem; }
+    .player-team { font-size: 0.68rem; }
+    .player-headshot { width: 32px; height: 32px; }
+    .player-headshot.small { width: 28px; height: 28px; }
+    .collapse-btn { width: 32px; height: 32px; font-size: 1.2rem; }
   }
 </style>
