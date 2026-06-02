@@ -190,6 +190,12 @@ export async function computeStandingsForLeague(leagueId) {
           if (ridA) transformed.push({
             week, roster_id: ridA, matchup_id: m.matchup_id ?? null,
             points: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
+            // Pass starters + per-player points through so MVP aggregator
+            // (records-player / honor-hall) can break down by player for
+            // historical seasons sourced from the static JSON.
+            starters: Array.isArray(m.teamA.starters) ? m.teamA.starters : null,
+            starters_points: Array.isArray(m.teamA.starters_points) ? m.teamA.starters_points : null,
+            player_points: m.teamA.player_points ?? null,
             __team_name: m.teamA.name ?? null, __owner_name: m.teamA.ownerName ?? null
           });
         }
@@ -198,6 +204,9 @@ export async function computeStandingsForLeague(leagueId) {
           if (ridB) transformed.push({
             week, roster_id: ridB, matchup_id: m.matchup_id ?? null,
             points: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
+            starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
+            starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,
+            player_points: m.teamB.player_points ?? null,
             __team_name: m.teamB.name ?? null, __owner_name: m.teamB.ownerName ?? null
           });
         }

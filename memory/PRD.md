@@ -47,6 +47,14 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
+## What's Been Implemented (2026-03-02)
+- ✅ **Fixed historical-season MVPs (2022/2023/2024) on `/records-player` and `/honor-hall`**. The static `/season_matchups/{year}.json` snapshots DID contain per-player `starters` + `starters_points` arrays, but `leagueCompute.client.js` was synthesizing the matchup entries WITHOUT propagating them — so the `aggregatePlayerPoints` helper had nothing to chew on for past seasons and rendered "No Overall/Finals MVP data". Now those arrays (plus `player_points`) flow through to the aggregator.
+- ✅ Verified all four seasons display MVPs:
+  - 2022 → Overall **Nikola Jokić 844.8** (JFK4312) · Finals **Domantas Sabonis 114.8** (riguy506)
+  - 2023 → Overall **Luka Dončić 1010.2** (zamt) · Finals **Jalen Green 116.2** (armyjunior)
+  - 2024 → Overall **Nikola Jokić 933.8** (JFK4312) · Finals **Josh Giddey 121.5** (riguy506)
+  - 2025 → Overall **Luka Dončić 1086.1** (zamt) · Finals **Nikola Jokić 157.5** (JFK4312)
+
 ## What's Been Implemented (2026-02-28)
 - ✅ **Fixed Vercel build failure** ("Unsupported Node.js version: v22.x — please use Node 18 or Node 20"). Root cause: previous `package.json` still had `@sveltejs/adapter-auto` as a fallback, which on Vercel auto-installed an older `@sveltejs/adapter-vercel` that only accepted Node 18/20. Vercel's default build runtime is now Node 22.x, so the older adapter rejected the build. Fix:
   - Removed `@sveltejs/adapter-auto` from `devDependencies` entirely (we explicitly import `@sveltejs/adapter-vercel` in `svelte.config.js` so adapter-auto served no purpose and only invited regressions).
