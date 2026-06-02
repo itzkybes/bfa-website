@@ -1,0 +1,35 @@
+{
+  "iteration": 3,
+  "scope": "Frontend mobile-friendliness sweep + dropdown defaults + records-player completeness for Badger Fantasy Association (SvelteKit).",
+  "test_credentials": "N/A — public Sleeper API, no auth.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "summary": {
+    "passed": [
+      "Records-Player: season dropdown moved inside Season MVPs block-head, defaults to 2025, three MVP cards render, All-Time Best By Team table present.",
+      "Standings: defaults to 2025, sparkline column renders, mobile dropdown full-width, no overflow.",
+      "Matchups: Season + Week dropdowns default to 2025/Week 1, mobile cards stack cleanly.",
+      "Honor Hall: defaults to 2025, bento + standings rows, mobile full-width dropdown.",
+      "Power Rankings: rolling 4-week window header, sparkline + movement arrows, mobile media query added (no overflow).",
+      "Rosters: now uses pickActiveLeague — eyebrow reads 'League Rosters · 2025' (not 2026 pre_draft), starters/bench/taxi pills wrap on mobile.",
+      "Team /team/JFK4312: header stacks on mobile, Season 2025 W/L table renders, Season 2026 shows 'No matchups' (pre_draft).",
+      "Records-Team: H2H dropdown full-width on mobile, aggregated tables render.",
+      "Home: hero stacks, trade-ledger sides single-column on mobile, Rando Player Shuffle works."
+    ],
+    "fixed_in_this_iteration": [
+      "BUG: Records-Player 'All-Time Best By Team' (and the two adjacent all-time tables) was rendering ui-avatars.com initial-letter placeholders for every team because seasonsResults' meta did not always carry team_avatar/owner_avatar from the latest league. Fix: added a single getRosterMapWithOwners(latest.league_id) fetch at load time, built a latestByOwnerKey lookup keyed by owner_username, and added latestMetaFor(meta) helper that all three all-time tables (allTimePlayoff, allTimeFull, allTimeBestByTeam) plus the playoffsMVP leaderboard now use to resolve historic rows back to the franchise's CURRENT branding. Verified visually: 44 of 69 team-avatar imgs on the page now resolve to sleepercdn.com real logos; remaining 25 are owners who genuinely never uploaded a Sleeper avatar (expected fallback)."
+    ]
+  },
+  "files_changed_iter_3": [
+    "/app/src/routes/records-player/+page.svelte (latestRosterMap fetch + latestMetaFor helper used in 3 all-time tables, plus mobile media @720px)",
+    "/app/src/routes/rosters/+page.svelte (pickActiveLeague to default to active season, expanded mobile @720px CSS)",
+    "/app/src/routes/standings/+page.svelte (expanded mobile @720px CSS)",
+    "/app/src/routes/matchups/+page.svelte (expanded mobile @720px CSS)",
+    "/app/src/routes/records-team/+page.svelte (h2h-select-wrap full-width, expanded mobile @720px CSS)",
+    "/app/src/routes/honor-hall/+page.svelte (split media queries @720px + @600px)",
+    "/app/src/routes/power-rankings/+page.svelte (new mobile @720px CSS — none existed before)",
+    "/app/src/routes/team/[username]/+page.svelte (expanded mobile @720px CSS)",
+    "/app/src/routes/+page.svelte (expanded mobile @720px CSS for trade-ledger + matchups)",
+    "/app/src/app.css (.bfa-table mobile font-size + .table-wrap right-edge scroll affordance)"
+  ]
+}

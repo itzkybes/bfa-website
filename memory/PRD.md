@@ -47,7 +47,23 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
-## What's Been Implemented (2026-03-02 — power rankings + trade ledger + matchup fix)
+## What's Been Implemented (2026-06-02 — records-player polish + mobile sweep)
+- ✅ **Records-Player completeness**: season dropdown lives INSIDE the "Season MVPs · {year}" block-head (not at the top of the page) so the page reads "all-time tables + one switchable season card". Added a new "All-Time Best Player · By Team" table that shows each franchise's highest single-season scorer split into **Reg Season** and **Playoffs** columns with PTS + season stamp.
+- ✅ **Most-recent logos everywhere on /records-player**. Bug fix: the three all-time tables (Playoff Best · Per Team, All-Time Best By Team, Full-Season Best · Per Team) plus the Playoffs MVP leaderboard's "latest team" column were rendering ui-avatars.com initial-letter placeholders for every team because they were reading meta from whichever historic season the record came from. Fix: load `getRosterMapWithOwners(activeLeague.league_id)` once at page mount, build a `latestByOwnerKey` lookup keyed on `owner_username`, and resolve every historic meta through it before rendering. Verified — 44 of 69 team-avatar imgs on the page now resolve to real `sleepercdn.com` franchise logos; remaining 25 are owners who genuinely never uploaded a Sleeper avatar (correct fallback).
+- ✅ **Every site-wide dropdown defaults to the active season** via `pickActiveLeague()`. Confirmed on Records-Player, Standings, Matchups, Honor Hall. **Rosters** was the lone exception — it was using `seasons[seasons.length - 1]` which during 2026 pre-draft would render an empty roster page. Now also routed through `pickActiveLeague()` so it correctly defaults to 2025.
+- ✅ **Full mobile-friendly sweep**. Every route now has a `@media (max-width: 720px)` block:
+  - Home: hero buttons stack full-width, trade-card sides single-column with rotated swap arrow, rando-player card compacts.
+  - Standings: dropdown becomes full-width, sparkline column narrows to 96px, owner column hides.
+  - Matchups: filters flex 50/50, match-row stacks into single column with scores below team names.
+  - Power Rankings: NEW mobile media query (had none) — page title shrinks, columns narrow, owner cell hides.
+  - Rosters: teams collapse to single column, player pills wrap their position tags, taxi/bench grid stacks.
+  - Records-Team: H2H select goes full-width, margin-row stacks teams vertically, owner column hides.
+  - Records-Player: MVP grid single-column, dropdown full-width inside block-head, owner/meta cells hide.
+  - Honor Hall: bento collapses (2-col @980px → 1-col @600px), dropdown becomes full-width on phones.
+  - Team History: head-row stacks (back button → avatar+name → stats), table scrolls horizontally.
+- ✅ **Global table polish in app.css**: `.bfa-table` shrinks font + padding @720px, `.table-wrap` gets a subtle right-edge gradient so horizontal-scrollable tables are visually discoverable on touch.
+
+
 - ✅ **Fixed home page matchups** showing empty grid. Root cause: forward-discovery picked the 2026 league as "latest", but 2026 is `status: "pre_draft"` (hasn't drafted yet) — Sleeper returns empty matchup arrays for it. Added a new `pickActiveLeague()` helper that walks the chain newest → oldest and picks the first league with `status: "in_season"`, falling back to most recent `complete`, then any. So now the home page shows the 2025 league's **championship week (W22)** with 8 real matchup cards (Gilbert Arenas 254.8 vs I could gopher a beer 301.0 — the actual final). The eyebrow auto-adjusts: "FINAL · CHAMPIONSHIP WEEK" for complete leagues, "THIS WEEK" for live ones.
 - ✅ **Smart current-week detection** via new `getCurrentWeekForLeague()` helper. Prefers Sleeper's own `settings.last_scored_leg` field (the canonical "which week was last scored") and falls back to scanning weeks 25 → 1 with a min-average-points threshold so it skips consolation-bracket dust like W23–25 of completed leagues.
 - ✅ **Trade Ledger** on home page. New section below matchups showing the 10 most-recent **completed trades** across the live league. Each card shows: week badge, relative time ("3mo ago"), both team avatars + names (linkable to `/team/{username}`), what each side **receives** — players with headshots/position/team, draft picks, FAAB. Built on top of two new helpers: `getTransactionsForWeek(leagueId, week)` and `getRecentTrades(leagueId, opts)`. Verified live — pulling 10 actual completed trades from the 2025 BFA season including the Jonathan Kuminga + 2x 2026 picks for Norman Powell + $4 FAAB deal.
@@ -115,6 +131,8 @@ User followed up confirming:
 - **After**: Each route is a static HTML shell + browser-side fetch. The Vercel serverless function is **never invoked**. The home page already worked this way (using the Rando Player client-side fetch) — now every page follows the same pattern.
 
 ## Prioritized Backlog (P0/P1/P2 features remaining)
+- **P2** — "Trade Impact" badge on trade-ledger cards (% PF change over next 4 weeks after each trade)
+- **P2** — "Head-to-Head" mini-block on team history pages (rival, most-played opponent, longest win streak)
 - **P2** — "Championship Game Boxscore" mini-section on Honor Hall (top 3 scorers per finalist)
 - **P2** — `CONTRIBUTING.md` runbook for adding a new season / yearly migration
 - **P2** — Mobile FAB to jump to "This Week" matchups from any page
@@ -122,5 +140,5 @@ User followed up confirming:
 - **P3** — User-controlled theme switch (light + light-on-blue variants)
 
 ## Next Tasks
-- User verification of: (a) home page matchups now show real W22 championship data instead of an empty grid, (b) Trade Ledger section on home page, (c) `/power-rankings` rolling 4-week page.
+- User verification of: (a) records-player real franchise logos on the three all-time tables, (b) dropdowns defaulting to 2025 site-wide, (c) full mobile experience across every route.
 - If satisfied → push to GitHub via the "Save to GitHub" feature in chat input.

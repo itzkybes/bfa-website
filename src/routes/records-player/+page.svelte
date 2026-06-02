@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
@@ -79,6 +79,31 @@
       const active = pickActiveLeague(chain);
       const latest = active || (chain.length ? chain[chain.length - 1] : null);
       selectedSeason = urlSeason || (latest?.season != null ? String(latest.season) : String(latest?.league_id || BASE_LEAGUE_ID));
+
+      // Fetch the most-recent league's roster map ONCE — this is the canonical
+      // source for the "current" team_name + team_avatar so every all-time
+      // table renders the franchise's latest branding regardless of which
+      // season the record came from. Keyed by owner_username so we can
+      // resolve any historic row back to today's logo/name.
+      let latestRosterMap = {};
+      if (latest?.league_id) {
+        try { latestRosterMap = await getRosterMapWithOwners(latest.league_id); }
+        catch (e) { latestRosterMap = {}; }
+      }
+      const latestByOwnerKey = {};
+      for (const rid of Object.keys(latestRosterMap)) {
+        const m = latestRosterMap[rid];
+        const k = (m?.owner_username || m?.owner_name || m?.owner_id);
+        if (k) latestByOwnerKey[String(k).toLowerCase()] = m;
+      }
+      // Given any historic roster-meta, return the latest meta for the same
+      // owner (so re-themes/avatar uploads after the fact show up everywhere).
+      const latestMetaFor = (meta) => {
+        if (!meta) return null;
+        const k = (meta.owner_username || meta.owner_name || meta.owner_id);
+        if (!k) return meta;
+        return latestByOwnerKey[String(k).toLowerCase()] || meta;
+      };
 
       // Fetch players map (~5MB, cached aggressively client-side via fetchWithCache + localStorage)
       const playersPromise = getPlayersNba().catch(() => ({}));
@@ -178,9 +203,13 @@
           const rid = info.rosterId;
           if (!allTimePlayoffMap[rid] || info.points > allTimePlayoffMap[rid].points) {
             const meta = r.rosterMap[rid] || {};
+            const latestMeta = latestMetaFor(meta) || meta;
             allTimePlayoffMap[rid] = {
               rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
-              season: r.season, teamName: meta.team_name, owner_name: meta.owner_name, teamAvatar: meta.team_avatar
+              season: r.season,
+              teamName: latestMeta.team_name || meta.team_name,
+              owner_name: latestMeta.owner_name || meta.owner_name,
+              teamAvatar: latestMeta.team_avatar || latestMeta.owner_avatar || meta.team_avatar || meta.owner_avatar
             };
           }
         }
@@ -194,9 +223,13 @@
           const rid = info.rosterId;
           if (!allTimeFullMap[rid] || info.points > allTimeFullMap[rid].points) {
             const meta = r.rosterMap[rid] || {};
+            const latestMeta = latestMetaFor(meta) || meta;
             allTimeFullMap[rid] = {
               rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
-              season: r.season, teamName: meta.team_name, owner_name: meta.owner_name, teamAvatar: meta.team_avatar
+              season: r.season,
+              teamName: latestMeta.team_name || meta.team_name,
+              owner_name: latestMeta.owner_name || meta.owner_name,
+              teamAvatar: latestMeta.team_avatar || latestMeta.owner_avatar || meta.team_avatar || meta.owner_avatar
             };
           }
         }
@@ -225,8 +258,12 @@
             slot.best = info.points;
             slot.bestSeason = r.season;
           }
-          // Track most recent appearance (chain is sorted oldest → newest)
-          slot.latestRoster = r.rosterMap[info.rosterId] || slot.latestRoster;
+          // Track most recent appearance (chain is sorted oldest → newest).
+          // Resolve to the league's latest meta so the displayed avatar/name
+          // match today's branding, not whatever the team was called the
+          // season this player happened to score.
+          const playerSeasonMeta = r.rosterMap[info.rosterId] || slot.latestRoster;
+          slot.latestRoster = latestMetaFor(playerSeasonMeta) || playerSeasonMeta;
           slot.latestSeason = r.season;
           playoffsByPlayer[pid] = slot;
         }
@@ -299,9 +336,13 @@
           }
         }
       }
-      // Sort by team name for a stable, alphabetical readout
+      // Sort by team name for a stable, alphabetical readout. Overlay each
+       // entry's meta with the latest-league meta so the avatar/name match
+       // the franchise's CURRENT branding (per user requirement: "most recent
+       // logos in every table").
       allTimeBestByTeam = Object.values(bestByTeam)
         .filter((r) => r.reg || r.playoff)
+        .map((r) => ({ ...r, meta: latestMetaFor(r.meta) || r.meta }))
         .sort((a, b) => String(a.meta?.team_name || '').localeCompare(String(b.meta?.team_name || '')));
     } catch (e) {
       console.error('[Records-Player] failed', e);
