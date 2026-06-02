@@ -14,11 +14,12 @@
   let selectedSeason = null;
   let finalStandings = []; // for current season selection
   let finalsMvp = null;
+  let playoffsMvp = null;
   let overallMvp = null;
   let playersMap = {};
 
   // Stash season results so dropdown switching is instant
-  let cache = {}; // season -> { finalStandings, finalsMvp, overallMvp }
+  let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, overallMvp }
 
   function avatarOrPh(url, name) {
     if (url) return url;
@@ -78,6 +79,7 @@
     if (cache[cacheKey]) {
       finalStandings = cache[cacheKey].finalStandings;
       finalsMvp = cache[cacheKey].finalsMvp;
+      playoffsMvp = cache[cacheKey].playoffsMvp;
       overallMvp = cache[cacheKey].overallMvp;
       return;
     }
@@ -110,6 +112,7 @@
     const fullEntries = [...regularEntries, ...playoffEntries];
 
     const overallList = Object.values(aggregatePlayerPoints(fullEntries)).sort((a, b) => b.points - a.points);
+    const playoffsList = Object.values(aggregatePlayerPoints(playoffEntries)).sort((a, b) => b.points - a.points);
 
     // Finals MVP = top scorer in the championship GAME only (both finalists),
     // NOT the champion's top scorer across the full playoff window.
@@ -125,16 +128,19 @@
     }
 
     const om = overallList[0] || null;
+    const pm = playoffsList[0] || null;
     const fm = finalsList[0] || null;
 
     const result = {
       finalStandings: finalList,
       finalsMvp: fm ? { ...fm, playerName: playerName(fm.playerId), roster_meta: standings.rosterMap[fm.rosterId] } : null,
+      playoffsMvp: pm ? { ...pm, playerName: playerName(pm.playerId), roster_meta: standings.rosterMap[pm.rosterId] } : null,
       overallMvp: om ? { ...om, playerName: playerName(om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
     };
     cache[cacheKey] = result;
     finalStandings = result.finalStandings;
     finalsMvp = result.finalsMvp;
+    playoffsMvp = result.playoffsMvp;
     overallMvp = result.overallMvp;
   }
 
@@ -226,6 +232,16 @@
         </div>
       {/if}
 
+      {#if playoffsMvp}
+        <div class="bento-card mvp-card playoffs" data-testid="playoffs-mvp-card">
+          <div class="card-eyebrow brand">Playoffs MVP</div>
+          <img class="mvp-headshot" src={playerHeadshot(playoffsMvp.playerId) || avatarOrPh(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName)} alt={playoffsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName))} />
+          <div class="mvp-name">{playoffsMvp.playerName ?? '—'}</div>
+          <div class="mvp-pts num brand">{fmt(playoffsMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-sub">{playoffsMvp.roster_meta?.owner_name ?? `Roster ${playoffsMvp.rosterId ?? '—'}`}</div>
+        </div>
+      {/if}
+
       {#if overallMvp}
         <div class="bento-card mvp-card" data-testid="overall-mvp-card">
           <div class="card-eyebrow accent">Overall MVP</div>
@@ -273,6 +289,9 @@
   .rank-tag { font-size: 1.4rem; color: var(--text-tertiary); }
   .card-eyebrow { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 0.75rem; }
   .card-eyebrow.accent { color: var(--accent); }
+  .card-eyebrow.brand { color: var(--brand); }
+  .mvp-card.playoffs { border-left: 4px solid var(--brand); background: linear-gradient(180deg, rgba(56, 49, 219, 0.08), transparent 70%); }
+  .mvp-pts.brand { color: var(--brand); }
   .champion-avatar { width: 80px; height: 80px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); margin-bottom: 0.85rem; }
   .champion-name { font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; word-break: break-word; }
   .champion-name.dim { color: var(--text-secondary); font-size: 1.6rem; }

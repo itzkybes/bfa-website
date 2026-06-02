@@ -48,8 +48,11 @@ User followed up confirming:
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
 ## What's Been Implemented (2026-03-02)
-- ✅ **🚨 CRITICAL FIX: Removed stale `.vercel/output/` precomputed build artifacts from git.** 242 build-output files (including `.vercel/output/config.json` and every chunk in `.svelte-kit/`) were committed to the repo. Vercel reads `.vercel/output/` as a fully-precomputed deployment and skips running `yarn build` entirely — so every fix shipped since that artifact was first committed was effectively ignored on the live deploy. Updated `.gitignore` to exclude `.vercel/output` and `.svelte-kit`, and ran `git rm --cached` on all 242 tracked files. From the next push on, Vercel will get fresh source and run a clean `yarn install && yarn build`.
-- ✅ **Finals MVP now correctly = top scorer in the championship GAME only** (across BOTH finalists). New helper `getChampionshipGame()` in `leagueCompute.client.js`.
+- ✅ **Added "Playoffs MVP" card** to both `/honor-hall` and `/records-player`. Definition: player with the highest cumulative points across the entire playoff window (every game in `playoff_week_start` … `playoff_week_start + 2`). Sits between Overall MVP (full season) and Finals MVP (championship game only) so the relationship between the three is intuitive.
+  - Honor Hall: rendered as a fourth small bento card with BFA brand-blue accent (`var(--brand)`).
+  - Player Records: rendered in a 3-column MVP grid; brand-blue label/background for visual differentiation from the orange Finals card.
+- ✅ **🚨 CRITICAL FIX: Removed stale `.vercel/output/` precomputed build artifacts from git.** 242 build-output files were committed; Vercel uses precomputed builds and skipped `yarn build`. `.gitignore` now excludes `.vercel/output` and `.svelte-kit`.
+- ✅ **Finals MVP now correctly = top scorer in the championship GAME only**.
 
 ## What's Been Implemented (2026-03-02 earlier)
 - ✅ Verified per-season Finals MVPs are now accurate:

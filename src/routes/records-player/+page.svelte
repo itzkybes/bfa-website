@@ -36,6 +36,7 @@
 
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
   $: om = selectedRow?.overallMvp ?? null;
+  $: pm = selectedRow?.playoffsMvp ?? null;
   $: fm = selectedRow?.finalsMvp ?? null;
 
   // Aggregate player points across multiple matchups
@@ -115,9 +116,12 @@
         }
 
         const overallList = Object.values(fullByPlayer).sort((a, b) => b.points - a.points);
+        const playoffsList = Object.values(playoffByPlayer).sort((a, b) => b.points - a.points);
 
         // Finals MVP = top scorer in the championship game (across BOTH finalists)
         const finalsMvp = finalsList[0] || null;
+        // Playoffs MVP = top cumulative scorer across the entire playoff window
+        const playoffsMvp = playoffsList[0] || null;
 
         // team leaders (top scorer per roster, full season)
         const teamLeaders = [];
@@ -139,6 +143,9 @@
           overallMvp: overallList[0]
             ? { ...overallList[0], playerName: null, roster_meta: rosterMap[overallList[0].rosterId] }
             : null,
+          playoffsMvp: playoffsMvp
+            ? { ...playoffsMvp, playerName: null, roster_meta: rosterMap[playoffsMvp.rosterId] }
+            : null,
           finalsMvp: finalsMvp
             ? { ...finalsMvp, playerName: null, roster_meta: rosterMap[finalsMvp.rosterId] }
             : null,
@@ -154,6 +161,7 @@
       // resolve player names now that playersMap is loaded
       for (const r of seasonsResults) {
         if (r.overallMvp) r.overallMvp.playerName = playerName(r.overallMvp.playerId);
+        if (r.playoffsMvp) r.playoffsMvp.playerName = playerName(r.playoffsMvp.playerId);
         if (r.finalsMvp) r.finalsMvp.playerName = playerName(r.finalsMvp.playerId);
       }
       seasonsResults = seasonsResults; // force reactivity
@@ -236,7 +244,7 @@
     <ErrorBoundary {error} onRetry={loadAll} context="player records" />
   {:else}
     <section class="block">
-      <div class="block-head"><h2 class="block-title">Season MVPs · {selectedSeason}</h2><span class="block-sub">Overall & Finals</span></div>
+      <div class="block-head"><h2 class="block-title">Season MVPs · {selectedSeason}</h2><span class="block-sub">Overall · Playoffs · Finals</span></div>
       <div class="mvp-grid">
         <div class="mvp-card" data-testid="mvp-overall">
           <div class="mvp-label">Overall MVP</div>
@@ -253,6 +261,22 @@
               </div>
             </div>
           {:else}<div class="mvp-empty">No Overall MVP data.</div>{/if}
+        </div>
+        <div class="mvp-card playoffs" data-testid="mvp-playoffs">
+          <div class="mvp-label playoffs">Playoffs MVP</div>
+          {#if pm}
+            <div class="mvp-body">
+              <img class="mvp-headshot" src={playerHeadshot(pm.playerId) || avatarOrPh(rosterInfo(pm).teamAvatar, pm.playerName)} alt={pm.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(pm).teamAvatar, pm.playerName))} />
+              <div>
+                <div class="mvp-player-name">{pm.playerName}</div>
+                <div class="mvp-pts num">{fmt(pm.points)}<span class="pts-label"> PTS</span></div>
+                <div class="mvp-team">
+                  <img class="team-mini" src={avatarOrPh(rosterInfo(pm).teamAvatar, rosterInfo(pm).teamName)} alt={rosterInfo(pm).teamName} />
+                  <div><div class="t-name">{rosterInfo(pm).teamName}</div><div class="t-owner">{rosterInfo(pm).ownerName}</div></div>
+                </div>
+              </div>
+            </div>
+          {:else}<div class="mvp-empty">No Playoffs MVP data.</div>{/if}
         </div>
         <div class="mvp-card finals" data-testid="mvp-finals">
           <div class="mvp-label finals">Finals MVP</div>
@@ -328,10 +352,12 @@
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
 
-  .mvp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .mvp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
   .mvp-card { padding: 1.5rem; border-right: 1px solid var(--border-subtle); }
+  .mvp-card.playoffs { background: linear-gradient(180deg, rgba(56, 49, 219, 0.06), transparent); }
   .mvp-card.finals { border-right: none; background: linear-gradient(180deg, rgba(227, 119, 47, 0.05), transparent); }
   .mvp-label { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 1.25rem; }
+  .mvp-label.playoffs { color: var(--brand); }
   .mvp-label.finals { color: var(--accent); }
   .mvp-body { display: flex; gap: 1rem; align-items: flex-start; }
   .mvp-headshot { width: 96px; height: 96px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
@@ -353,7 +379,7 @@
   .bigpts { font-size: 1.15rem; color: var(--accent); font-weight: 700; }
   .accent-text { color: var(--accent); }
   .empty-card { padding: 1.5rem; text-align: center; color: var(--text-secondary); }
-  @media (max-width: 720px) {
+  @media (max-width: 980px) {
     .mvp-grid { grid-template-columns: 1fr; }
     .mvp-card { border-right: none; border-bottom: 1px solid var(--border-subtle); }
     .mvp-card.finals { border-bottom: none; }
