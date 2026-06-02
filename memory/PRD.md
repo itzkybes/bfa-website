@@ -48,7 +48,10 @@ User followed up confirming:
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
 ## What's Been Implemented (2026-03-02)
-- ✅ **Finals MVP now correctly = top scorer in the championship GAME only** (across BOTH finalists), not the champion's top scorer across the full playoff window. Added `getChampionshipGame(winnersBracket, playoffStart)` helper in `leagueCompute.client.js` that finds the bracket match where `p === 1`, derives the week from the round (`playoffStart + (r-1)`), and returns the two finalists' roster ids. Both `/records-player` and `/honor-hall` now filter `collectedMatchups[champWeek]` to those two rosters before aggregating per-player points.
+- ✅ **🚨 CRITICAL FIX: Removed stale `.vercel/output/` precomputed build artifacts from git.** 242 build-output files (including `.vercel/output/config.json` and every chunk in `.svelte-kit/`) were committed to the repo. Vercel reads `.vercel/output/` as a fully-precomputed deployment and skips running `yarn build` entirely — so every fix shipped since that artifact was first committed was effectively ignored on the live deploy. Updated `.gitignore` to exclude `.vercel/output` and `.svelte-kit`, and ran `git rm --cached` on all 242 tracked files. From the next push on, Vercel will get fresh source and run a clean `yarn install && yarn build`.
+- ✅ **Finals MVP now correctly = top scorer in the championship GAME only** (across BOTH finalists). New helper `getChampionshipGame()` in `leagueCompute.client.js`.
+
+## What's Been Implemented (2026-03-02 earlier)
 - ✅ Verified per-season Finals MVPs are now accurate:
   - 2022 → **Domantas Sabonis 48.5** (riguy506)
   - 2023 → **De'Aaron Fox 39.5** (jewishhorsemen — top scorer in the championship even though armyjunior won)

@@ -5,3 +5,19 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Build output (must NOT be committed — Vercel will re-build from source)
+.vercel/output
+.svelte-kit
+
+# Dependencies
+node_modules
+frontend/node_modules
+
+# Lockfiles produced by alternate package managers
+pnpm-lock.yaml
+package-lock.json
+
+# OS / editor
+.DS_Store
+*.log
