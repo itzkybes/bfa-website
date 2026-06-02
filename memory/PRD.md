@@ -48,11 +48,10 @@ User followed up confirming:
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
 ## What's Been Implemented (2026-03-02)
-- ✅ **Added "Playoffs MVP" card** to both `/honor-hall` and `/records-player`. Definition: player with the highest cumulative points across the entire playoff window (every game in `playoff_week_start` … `playoff_week_start + 2`). Sits between Overall MVP (full season) and Finals MVP (championship game only) so the relationship between the three is intuitive.
-  - Honor Hall: rendered as a fourth small bento card with BFA brand-blue accent (`var(--brand)`).
-  - Player Records: rendered in a 3-column MVP grid; brand-blue label/background for visual differentiation from the orange Finals card.
-- ✅ **🚨 CRITICAL FIX: Removed stale `.vercel/output/` precomputed build artifacts from git.** 242 build-output files were committed; Vercel uses precomputed builds and skipped `yarn build`. `.gitignore` now excludes `.vercel/output` and `.svelte-kit`.
-- ✅ **Finals MVP now correctly = top scorer in the championship GAME only**.
+- ✅ **Footer now uses the BFA logo image** (`/static/bfa-logo.png`) instead of the plain "BFA" text box. The logo links back home and animates on hover.
+- ✅ **Most-recent team logos applied across every page**. Added `getLatestOwnerAvatars()` helper in `leagueCompute.client.js` that fetches the current (BASE_LEAGUE_ID = 2025) roster map once and builds a `{owner_username: {team_avatar, owner_avatar, team_name}}` lookup. `computeStandingsForLeague()` now overlays each historical season's rosterMap entry with these latest values (matched by `owner_username`, which is stable across seasons in Sleeper). So when viewing 2022 standings/matchups/honor-hall, every team displays its current 2025 logo and team name. Also fixed `records-team`'s aggregation to "always prefer latest" so all-time tables match.
+- ✅ **Unified page-head styling** across Standings, Matchups, Records-Team, Records-Player, Honor Hall, and Rosters. Every page now uses the same three-element header: eyebrow + display title + descriptive sub paragraph, with the season/week dropdown floated right where applicable. Removed the duplicate "The Badger Bowl" sub on Standings.
+- ✅ **Playoffs MVP card** added to both Honor Hall and Player Records (brand-blue accent).
 
 ## What's Been Implemented (2026-03-02 earlier)
 - ✅ Verified per-season Finals MVPs are now accurate:

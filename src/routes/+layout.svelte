@@ -23,7 +23,9 @@
 <footer class="site-footer" role="contentinfo">
   <div class="wrap footer-inner">
     <div class="footer-brand">
-      <div class="footer-mark">BFA</div>
+      <a href="/" class="footer-mark-link" aria-label="Badger Fantasy Association home">
+        <img src="/bfa-logo.png" alt="BFA" class="footer-mark-img" width="60" height="60" />
+      </a>
       <div class="footer-meta">
         <div class="footer-title">Badger Fantasy Association</div>
         <div class="footer-sub">Fantasy Basketball · Powered by Sleeper · © {new Date().getFullYear()}</div>
@@ -80,17 +82,25 @@
     align-items: center;
   }
 
-  .footer-mark {
+  .footer-mark-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: var(--r-sm);
+    transition: transform var(--t-fast), opacity var(--t-fast);
+  }
+
+  .footer-mark-link:hover {
+    transform: translateY(-2px);
+    opacity: 0.92;
+  }
+
+  .footer-mark-img {
     width: 60px;
     height: 60px;
-    display: grid;
-    place-items: center;
-    background: var(--brand);
-    color: #fff;
-    font-family: var(--font-display);
-    font-size: 1.5rem;
-    letter-spacing: 0.06em;
-    border-radius: var(--r-sm);
+    object-fit: contain;
+    display: block;
   }
 
   .footer-title {

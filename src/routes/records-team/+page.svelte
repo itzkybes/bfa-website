@@ -73,8 +73,9 @@
             seasons: []
           };
         }
-        // prefer non-null avatar (helps when one season has no team_avatar)
-        if (row.avatar && !agg[key].avatar) agg[key].avatar = row.avatar;
+        // Always prefer the most recently seen avatar — seasons iterate
+        // oldest → newest, so the last write wins (the current season's logo).
+        if (row.avatar) agg[key].avatar = row.avatar;
         // prefer the more "personal" team name (skip "Roster N")
         if (row.team_name && !String(row.team_name).startsWith('Roster ')) agg[key].team_name = row.team_name;
         if (row.owner_name) agg[key].owner_name = row.owner_name;

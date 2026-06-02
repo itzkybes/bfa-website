@@ -79,6 +79,7 @@
       <div>
         <div class="eyebrow">League · Standings</div>
         <h1 class="page-title">Standings</h1>
+        <p class="page-sub">Regular season and playoff records by team. Switch seasons to scrub through league history.</p>
       </div>
       <div class="season-form">
         <label for="season-select" class="visually-hidden">Season</label>
@@ -89,9 +90,6 @@
         </select>
       </div>
     </div>
-    {#if selectedResult}
-      <p class="page-sub">{selectedResult.leagueName ?? `Season ${selectedResult.season ?? selectedResult.leagueId}`}</p>
-    {/if}
   </header>
 
   {#if loading}

@@ -95,6 +95,7 @@
       <div>
         <div class="eyebrow">League · Week-by-Week</div>
         <h1 class="page-title">Matchups</h1>
+        <p class="page-sub">Head-to-head results week by week with full starter scoring.</p>
       </div>
 
       <div class="filters">

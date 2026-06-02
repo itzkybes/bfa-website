@@ -228,6 +228,7 @@
       <div>
         <div class="eyebrow">All-Time · Player Records</div>
         <h1 class="page-title">Player Records</h1>
+        <p class="page-sub">Per-season MVP awards and the all-time single-season scoring leaders by team.</p>
       </div>
       <div>
         <label for="season-select" class="visually-hidden">Season</label>

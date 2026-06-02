@@ -172,16 +172,67 @@ export function getChampionshipGame(winnersBracket, playoffStart) {
 }
 
 /* ============================================================
+ *   LATEST OWNER AVATARS (memoized)
+ *   Build a {owner_username: {team_avatar, team_name}} map from
+ *   the CURRENT base league so historical seasons can display
+ *   each owner's most recent logo / team name.
+ * ============================================================ */
+let _latestAvatarsPromise = null;
+export function getLatestOwnerAvatars() {
+  if (_latestAvatarsPromise) return _latestAvatarsPromise;
+  _latestAvatarsPromise = (async () => {
+    try {
+      const map = await getRosterMapWithOwners(BASE_LEAGUE_ID);
+      const out = {};
+      for (const rid of Object.keys(map)) {
+        const m = map[rid] || {};
+        const key = (m.owner_username || m.owner_name || '').toLowerCase();
+        if (!key) continue;
+        out[key] = {
+          team_avatar: m.team_avatar || null,
+          owner_avatar: m.owner_avatar || null,
+          team_name: m.team_name || null
+        };
+      }
+      return out;
+    } catch (e) {
+      return {};
+    }
+  })();
+  return _latestAvatarsPromise;
+}
+
+/* ============================================================
  *   STANDINGS (per league)
  * ============================================================ */
 export async function computeStandingsForLeague(leagueId) {
-  // Fetch league + rosters + brackets + static seasonal JSON in parallel.
-  const [leagueMeta, rosterMap, winnersBracket, losersBracket] = await Promise.all([
+  // Fetch league + rosters + brackets + LATEST owner avatars in parallel.
+  const [leagueMeta, rosterMap, winnersBracket, losersBracket, latestAvatars] = await Promise.all([
     getLeague(leagueId).catch(() => null),
     getRosterMapWithOwners(leagueId).catch(() => ({})),
     getWinnersBracket(leagueId).catch(() => []),
-    getLosersBracket(leagueId).catch(() => [])
+    getLosersBracket(leagueId).catch(() => []),
+    getLatestOwnerAvatars().catch(() => ({}))
   ]);
+
+  // Overlay each roster's logo + team_name with the OWNER'S CURRENT (BASE_LEAGUE_ID)
+  // values so historical seasons display the most recent branding.
+  // Matched by owner_username (Sleeper user identity is stable across seasons).
+  for (const rid of Object.keys(rosterMap)) {
+    const meta = rosterMap[rid];
+    if (!meta) continue;
+    const key = (meta.owner_username || meta.owner_name || '').toLowerCase();
+    if (!key) continue;
+    const latest = latestAvatars[key];
+    if (!latest) continue;
+    if (latest.team_avatar) meta.team_avatar = latest.team_avatar;
+    if (latest.owner_avatar && !meta.owner_avatar) meta.owner_avatar = latest.owner_avatar;
+    // Prefer latest team_name only if it looks "personal" (not a generic "Roster N").
+    if (latest.team_name && !String(latest.team_name).startsWith('Roster ')) {
+      meta.team_name = latest.team_name;
+    }
+  }
+
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   const leagueName = leagueMeta?.name ?? null;
   const playoffTeams = leagueMeta?.settings?.playoff_teams ? Number(leagueMeta.settings.playoff_teams) : 8;
