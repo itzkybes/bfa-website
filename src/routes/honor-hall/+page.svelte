@@ -3,8 +3,8 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID, getMatchupsForWeek, getRosterMapWithOwners, getPlayersNba, playerHeadshot, getLeague } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague, fetchStaticJson, HARDCODED_CHAMPIONS } from '$lib/leagueCompute.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot } from '$lib/sleeperClient.client';
+  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
@@ -65,10 +65,6 @@
     for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
     return byPlayer;
   }
-
-  async function fetchAllSeasonMatchups() { return { regular: {}, playoff: {} }; }
-  // (legacy helper kept as no-op for backwards compatibility — actual matchups come from
-  // computeStandingsForLeague's collectedMatchups now)
 
   async function computeSeason(leagueIdOrSeason) {
     // resolve season -> leagueId

@@ -1,12 +1,25 @@
 // src/lib/leagueCompute.client.js
-// Browser-safe helpers ported from the previous server-side load functions.
-// Keep these as pure functions so we can reuse them across +page.svelte components.
+//
+// Pure-ish helpers for turning raw Sleeper data into the shapes the UI needs:
+// standings (regular season + playoffs), final placements via brackets,
+// per-week matchup rows, and the championship game lookup used by Finals MVP.
+//
+// Everything is browser-safe — we call `sleeperClient.client.js` which uses
+// `fetch` + localStorage caching. No Node-only APIs, no SSR.
 
-import { safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek, getSeasonsChain, getPlayersNba, getWinnersBracket, getLosersBracket } from './sleeperClient.client';
+import {
+  safeNum, getLeague, getRosterMapWithOwners, getMatchupsForWeek,
+  getPlayersNba, getWinnersBracket, getLosersBracket
+} from './sleeperClient.client';
+import { BASE_LEAGUE_ID } from './sleeperClient.client';
 
-const BASE_LEAGUE_ID = '1219816671624048640';
+// Sleeper "season" runs for ~24 weeks; we scan a couple extra for safety.
 const MAX_WEEKS = 25;
 
+/**
+ * Given a list of "W" / "L" / "T" results in chronological order, return the
+ * longest winning and losing streaks. Ties reset both counters.
+ */
 function computeStreaks(resultsArray) {
   let maxW = 0, maxL = 0, curW = 0, curL = 0;
   if (!Array.isArray(resultsArray)) return { maxW: 0, maxL: 0 };
@@ -18,6 +31,12 @@ function computeStreaks(resultsArray) {
   return { maxW, maxL };
 }
 
+/**
+ * Score a single Sleeper matchup entry. Sleeper has gone through a few
+ * representations over the years — `starters_points` as an array, `player_points`
+ * as a map keyed by player id, and an aggregate `points` field — so we try each
+ * in turn and fall back to whatever's there.
+ */
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
@@ -37,7 +56,7 @@ function computeParticipantPoints(entry) {
   return Math.round(fallback * 100) / 100;
 }
 
-/** Try fetching a static asset (relative URL). Returns parsed JSON or null. */
+/** Fetch a static JSON asset from `/static`. Returns `null` if missing or invalid. */
 async function fetchStaticJson(path) {
   try {
     const res = await fetch(path);
@@ -46,20 +65,31 @@ async function fetchStaticJson(path) {
   } catch (e) { return null; }
 }
 
-export const HARDCODED_CHAMPIONS = {
+// Last-resort champion fallback for historical seasons where the Sleeper
+// brackets endpoint comes back incomplete. Keys are season year, values are
+// the Sleeper username of the actual champion.
+const HARDCODED_CHAMPIONS = {
   '2022': 'riguy506',
   '2023': 'armyjunior',
   '2024': 'riguy506'
 };
 
 /**
- * Resolve final standings (1st → last) using the Sleeper winners + losers brackets.
- * Each bracket entry has `p` (the placement determined by that match) and `w` (winner roster_id).
+ * Resolve the full 1st → last final standings using Sleeper's bracket data.
  *
- * Returns { finalRanking, champion, bracketComplete }
- *   - bracketComplete: true only if a real championship match (p === 1 with a winner) exists.
- *     Used to avoid counting an in-progress season's "leader" as a champion.
- *   - For unresolved positions, falls back to regular-season order.
+ * Both brackets give us per-match placements:
+ *   - winners bracket: standard logic. `w` (winner) takes placement `p`,
+ *     `l` (loser) takes `p + 1`.
+ *   - losers bracket (the Toilet Bowl): INVERTED — the team that keeps WINNING
+ *     in this bracket is the "Toilet Bowl Champion" = absolute LAST place.
+ *     So `w` takes the WORSE rank and `l` takes the BETTER rank.
+ *
+ * Anything the brackets don't cover (typical for in-progress seasons) falls
+ * back to regular-season order so the table is never empty.
+ *
+ * Returns `{ finalRanking, champion, bracketComplete, championshipMatch }`.
+ * `bracketComplete` is true only when a real `p === 1` match has a winner —
+ * we never crown a champion mid-season.
  */
 export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket, regularStandings, playoffTeamCount) {
   const ranking = new Map(); // rosterId -> rank
@@ -142,26 +172,25 @@ export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket,
 }
 
 /**
- * Identify the championship game (the single bracket match where `p === 1`)
- * and return:
- *   - week: the week number that match was played (derived from the round `r`,
- *           assuming each playoff round = one week)
- *   - rosterIds: [t1, t2] — the two finalists' roster ids as strings
- *   - winnerRosterId / loserRosterId
- * Returns null if no such match exists (bracket incomplete).
+ * Locate the championship game in a winners bracket — that's the single match
+ * tagged with `p === 1`. We use this for the "Finals MVP" calculation, which is
+ * just the top scorer in this one game (across BOTH finalists), not the
+ * champion's top scorer across the entire playoff window.
  *
- * Finals MVP = top scorer in this single championship game (across BOTH finalists),
- * NOT the champion's top scorer across the whole playoff window.
+ * Returns `null` if the bracket hasn't reached a championship match yet.
  */
 export function getChampionshipGame(winnersBracket, playoffStart) {
   const wb = Array.isArray(winnersBracket) ? winnersBracket : [];
   const champMatch = wb.find((m) => m && Number(m.p) === 1 && m.w != null);
   if (!champMatch) return null;
+
+  // Sleeper rounds: round 1 = first playoff week, so week = playoffStart + (r - 1).
   const round = Number(champMatch.r);
-  // Sleeper convention: round 1 = first playoff week. round N = playoffStart + (N-1).
   const week = isFinite(round) && round >= 1 ? (playoffStart + (round - 1)) : null;
+
   const t1 = champMatch.t1 != null ? String(champMatch.t1) : (champMatch.w != null ? String(champMatch.w) : null);
   const t2 = champMatch.t2 != null ? String(champMatch.t2) : (champMatch.l != null ? String(champMatch.l) : null);
+
   return {
     week,
     rosterIds: [t1, t2].filter(Boolean),
@@ -171,12 +200,14 @@ export function getChampionshipGame(winnersBracket, playoffStart) {
   };
 }
 
-/* ============================================================
- *   LATEST OWNER AVATARS (memoized)
- *   Build a {owner_username: {team_avatar, team_name}} map from
- *   the CURRENT base league so historical seasons can display
- *   each owner's most recent logo / team name.
- * ============================================================ */
+/**
+ * Snapshot the CURRENT league's owner → avatar / team_name map so we can
+ * back-fill every historical season with each owner's most recent branding.
+ * Owners are stable across seasons (same Sleeper user_id / username), but the
+ * roster_id and team art change every year — so we key by username.
+ *
+ * The result is memoized for the lifetime of the page: we only hit Sleeper once.
+ */
 let _latestAvatarsPromise = null;
 export function getLatestOwnerAvatars() {
   if (_latestAvatarsPromise) return _latestAvatarsPromise;
@@ -202,9 +233,26 @@ export function getLatestOwnerAvatars() {
   return _latestAvatarsPromise;
 }
 
-/* ============================================================
- *   STANDINGS (per league)
- * ============================================================ */
+/**
+ * The big one. Given a Sleeper league_id, fetch everything we need (league
+ * metadata, rosters, both brackets, historical JSON for old seasons) and
+ * produce the full standings payload the UI consumes:
+ *
+ *   {
+ *     regularStandings: [...],   // sorted by wins then PF
+ *     playoffStandings: [...],   // same but only counting playoff weeks
+ *     finalStandings: [...],     // 1st → last derived from the brackets
+ *     bracketChampionId,         // roster_id of the champion (or null)
+ *     bracketComplete,           // true if a real championship game has a winner
+ *     championshipGame,          // { week, rosterIds, ... } for Finals MVP
+ *     rosterMap,                 // { rosterId: {team_name, owner_name, avatars} }
+ *     playoffStart, playoffEnd,  // week numbers
+ *     playoffTeams,              // # of teams in the playoff bracket
+ *     winnersBracket, losersBracket,
+ *     collectedMatchups          // { week: [entries] } — reusable so callers
+ *                                //  can compute MVPs without re-fetching
+ *   }
+ */
 export async function computeStandingsForLeague(leagueId) {
   // Fetch league + rosters + brackets + LATEST owner avatars in parallel.
   const [leagueMeta, rosterMap, winnersBracket, losersBracket, latestAvatars] = await Promise.all([
@@ -512,9 +560,20 @@ export async function computeStandingsForLeague(leagueId) {
   };
 }
 
-/* ============================================================
- *   MATCHUPS (per league + week)
- * ============================================================ */
+/**
+ * Build the matchup rows for one league + week. This is the data the `/matchups`
+ * page renders.
+ *
+ * Historical seasons (2022/2023/2024) come from a static JSON snapshot under
+ * `/static/season_matchups/{year}.json` because Sleeper's per-week matchups
+ * endpoint stops returning useful data for old leagues. For everything else we
+ * call Sleeper directly.
+ *
+ * Each row is one of:
+ *   - `{ teamA, teamB, participantsCount: 2 }` — normal head-to-head
+ *   - `{ teamA, teamB: BYE, participantsCount: 1 }` — bye week
+ *   - `{ combinedParticipants: [...], participantsCount: N }` — multi-team game
+ */
 export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = null) {
   if (!rosterMap) rosterMap = await getRosterMapWithOwners(leagueId).catch(() => ({}));
   const leagueMeta = await getLeague(leagueId).catch(() => null);
@@ -523,22 +582,14 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
   const playoffEnd = playoffStart + 2;
 
-  // Try seasonMatchups static JSON first
+  // Prefer the static JSON snapshot for older seasons.
   let seasonMatchups = null;
   if (leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)) {
     seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
   }
-  let earlyData = null;
-  if (leagueSeason === '2023' && week >= 1 && week <= 3) {
-    earlyData = await fetchStaticJson('/early2023.json');
-  }
 
-  let raw = null;
-  let usedStatic = false;
-  if (seasonMatchups && seasonMatchups[String(week)] && Array.isArray(seasonMatchups[String(week)])) {
-    usedStatic = true;
+  if (seasonMatchups && Array.isArray(seasonMatchups[String(week)])) {
     const arr = seasonMatchups[String(week)];
-    // Build matchupsRows directly from JSON
     return {
       week, playoffStart, playoffEnd, leagueSeason,
       matchupsRows: arr.map(m => ({
@@ -552,10 +603,12 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     };
   }
 
+  // Live data path: Sleeper returns one entry per roster — group by matchup_id
+  // to pair them into rows.
+  let raw = null;
   try { raw = await getMatchupsForWeek(leagueId, week); } catch (e) { raw = []; }
   if (!Array.isArray(raw)) raw = [];
 
-  // group by matchup_id
   const byMatch = {};
   for (let i = 0; i < raw.length; i++) {
     const e = raw[i];
@@ -565,6 +618,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     if (!byMatch[key]) byMatch[key] = [];
     byMatch[key].push(e);
   }
+
   const rows = [];
   for (const k of Object.keys(byMatch)) {
     const entries = byMatch[k];
@@ -577,9 +631,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
         teamB: { rosterId: null, name: 'BYE', avatar: null, points: null, starters: null, starters_points: null },
         participantsCount: 1
       });
-      continue;
-    }
-    if (entries.length === 2) {
+    } else if (entries.length === 2) {
       const a = entries[0], b = entries[1];
       rows.push({
         matchup_id: k, week, season: leagueSeason,
@@ -587,18 +639,18 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
         teamB: makeTeam(String(b.roster_id ?? b.rosterId ?? ''), rosterMap, b),
         participantsCount: 2
       });
-      continue;
+    } else {
+      rows.push({
+        matchup_id: k, week, season: leagueSeason,
+        combinedParticipants: entries.map(en => makeTeam(String(en.roster_id ?? en.rosterId ?? ''), rosterMap, en)),
+        participantsCount: entries.length
+      });
     }
-    // multi
-    rows.push({
-      matchup_id: k, week, season: leagueSeason,
-      combinedParticipants: entries.map(en => makeTeam(String(en.roster_id ?? en.rosterId ?? ''), rosterMap, en)),
-      participantsCount: entries.length
-    });
   }
   return { week, playoffStart, playoffEnd, leagueSeason, matchupsRows: rows };
 }
 
+/** Shape one live Sleeper matchup entry into the row format the UI expects. */
 function makeTeam(rid, rosterMap, entry) {
   const meta = rosterMap[rid] || {};
   return {
@@ -613,6 +665,7 @@ function makeTeam(rid, rosterMap, entry) {
   };
 }
 
+/** Same as `makeTeam`, but the entry comes from our static historical JSON. */
 function normalizeTeamFromStatic(t, score, rosterMap) {
   const rid = String(t.rosterId ?? t.roster_id ?? '');
   const meta = rid && rosterMap[rid] ? rosterMap[rid] : {};
@@ -628,4 +681,6 @@ function normalizeTeamFromStatic(t, score, rosterMap) {
   };
 }
 
-export { computeStreaks, computeParticipantPoints, fetchStaticJson, BASE_LEAGUE_ID, MAX_WEEKS };
+// `computeParticipantPoints` is exported for the admin season-matchups generator.
+// Everything else stays module-internal.
+export { computeParticipantPoints };

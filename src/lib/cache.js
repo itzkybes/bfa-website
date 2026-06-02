@@ -1,13 +1,17 @@
-/**
- * Client-side caching utility for API responses.
- * Uses localStorage with TTL (time to live) support.
- */
+// src/lib/cache.js
+//
+// Tiny localStorage cache so Sleeper's public endpoints stay cheap and snappy
+// on repeat visits. Every entry stores `{ data, timestamp, ttl }` under a
+// `bfa_cache_` prefix; reads check the timestamp and skip anything stale.
+//
+// All functions are no-ops during SSR (where `window` doesn't exist) — the
+// production deploy is pure CSR anyway, but this keeps the build clean.
 
 const CACHE_PREFIX = 'bfa_cache_';
-const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_TTL = 5 * 60 * 1000;
 
-/** Get cached data if still valid */
-export function getCached(key) {
+/** Return cached data for `key` if still within TTL, otherwise `null`. */
+function getCached(key) {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
@@ -22,8 +26,8 @@ export function getCached(key) {
   }
 }
 
-/** Set cached data with TTL (ms) */
-export function setCache(key, data, ttl = DEFAULT_TTL) {
+/** Persist `data` under `key` with a TTL in ms. */
+function setCache(key, data, ttl = DEFAULT_TTL) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(
@@ -31,26 +35,14 @@ export function setCache(key, data, ttl = DEFAULT_TTL) {
       JSON.stringify({ data, timestamp: Date.now(), ttl })
     );
   } catch (err) {
-    console.warn('[Cache] write failed:', err);
-    if (err && err.name === 'QuotaExceededError') clearOldCache();
+    // If we hit the localStorage quota, sweep expired entries and bail.
+    if (err && err.name === 'QuotaExceededError') clearExpired();
+    else console.warn('[Cache] write failed:', err);
   }
 }
 
-export function clearCache(key) {
-  if (typeof window === 'undefined') return;
-  try { localStorage.removeItem(CACHE_PREFIX + key); } catch (e) { /* noop */ }
-}
-
-export function clearAllCache() {
-  if (typeof window === 'undefined') return;
-  try {
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith(CACHE_PREFIX)) localStorage.removeItem(k);
-    }
-  } catch (e) { /* noop */ }
-}
-
-export function clearOldCache() {
+/** Drop every cache entry whose TTL has elapsed. Called on quota errors. */
+function clearExpired() {
   if (typeof window === 'undefined') return;
   try {
     const now = Date.now();
@@ -66,7 +58,10 @@ export function clearOldCache() {
   } catch (e) { /* noop */ }
 }
 
-/** Fetch JSON with localStorage cache */
+/**
+ * `fetch` + JSON parse + cache, all in one. Cache key is just the URL, so
+ * different query strings get distinct entries automatically.
+ */
 export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
   const cached = getCached(url);
   if (cached) return cached;
@@ -76,16 +71,4 @@ export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
   const data = await res.json();
   setCache(url, data, ttl);
   return data;
-}
-
-export function getCacheStats() {
-  if (typeof window === 'undefined') return { count: 0, sizeKB: '0.00' };
-  try {
-    const keys = Object.keys(localStorage).filter((k) => k.startsWith(CACHE_PREFIX));
-    let total = 0;
-    for (const k of keys) total += (localStorage.getItem(k) || '').length;
-    return { count: keys.length, size: total, sizeKB: (total / 1024).toFixed(2) };
-  } catch (e) {
-    return { count: 0, sizeKB: '0.00' };
-  }
 }

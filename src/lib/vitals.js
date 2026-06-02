@@ -1,7 +1,14 @@
+// src/lib/vitals.js
+//
+// Forwards browser performance metrics (LCP / CLS / INP / FCP / TTFB) to
+// Vercel Web Analytics. We only run this when `VERCEL_ANALYTICS_ID` is set,
+// which keeps local dev quiet.
+
 import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals';
 
 const vitalsUrl = 'https://vitals.vercel-analytics.com/v1/vitals';
 
+/** Try to read the user's effective network type (e.g. "4g", "3g"). */
 function getConnectionSpeed() {
   return 'connection' in navigator &&
     navigator['connection'] &&

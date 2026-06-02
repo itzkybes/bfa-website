@@ -1,36 +1,48 @@
 // src/lib/sleeperClient.client.js
-// Browser-safe Sleeper API client. Same shape as the server one, but uses
-// browser fetch + localStorage cache (no Node-only deps). Use this in
-// +page.svelte / +page.js (NOT +page.server.js).
+//
+// Thin wrapper around Sleeper's public REST API for the browser. Everything
+// here runs client-side (we use the global `fetch` and lean on the localStorage
+// cache in `./cache.js`) — there's no Node-only code, and no env vars to set.
+//
+// The Sleeper API is read-only and unauthenticated, so it works just as well
+// for a static deploy as it does for a dev box.
 
 import { fetchWithCache } from '$lib/cache';
 
 const BASE = 'https://api.sleeper.app/v1';
 const SLEEPER_CDN = 'https://sleepercdn.com';
 
+// The current (2025/26) league. When the season rolls over we just bump this
+// constant; every historical season is reachable by walking the
+// `previous_league_id` chain in `getSeasonsChain`.
 export const BASE_LEAGUE_ID = '1219816671624048640';
 
 const CACHE_5_MIN = 5 * 60 * 1000;
 const CACHE_10_MIN = 10 * 60 * 1000;
 const CACHE_1_HOUR = 60 * 60 * 1000;
 
+/** Coerce a value to a number; anything that doesn't parse becomes 0. */
 export function safeNum(v) {
   const n = Number(v);
   return isNaN(n) ? 0 : n;
 }
 
+/** League metadata: name, season, settings (playoff week, scoring, etc.). */
 export async function getLeague(leagueId, ttl = CACHE_5_MIN) {
   return await fetchWithCache(`${BASE}/league/${encodeURIComponent(leagueId)}`, {}, ttl);
 }
 
+/** Raw roster array for a league — one entry per team with the owner_id. */
 export async function getRosters(leagueId, ttl = CACHE_10_MIN) {
   return await fetchWithCache(`${BASE}/league/${encodeURIComponent(leagueId)}/rosters`, {}, ttl);
 }
 
+/** All users in a league, including their display name and avatar id. */
 export async function getUsers(leagueId, ttl = CACHE_10_MIN) {
   return await fetchWithCache(`${BASE}/league/${encodeURIComponent(leagueId)}/users`, {}, ttl);
 }
 
+/** All matchup entries for a given week (Sleeper returns one entry per roster). */
 export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_5_MIN) {
   return await fetchWithCache(
     `${BASE}/league/${encodeURIComponent(leagueId)}/matchups/${encodeURIComponent(week)}`,
@@ -39,8 +51,11 @@ export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_5_MIN) {
   );
 }
 
-/** Winners bracket — array of matches with rounds + placements.
- * Each entry: { r: round, m: match_id, t1, t2, w (winner), l (loser), p: placement, t1_from, t2_from } */
+/**
+ * Winners bracket — array of matches across rounds. Each entry looks like:
+ * `{ r: round, m: match_id, t1, t2, w (winner roster_id), l (loser roster_id), p: placement, t1_from, t2_from }`
+ * The match with `p === 1` is the championship game.
+ */
 export async function getWinnersBracket(leagueId, ttl = CACHE_10_MIN) {
   try {
     return await fetchWithCache(
@@ -51,7 +66,10 @@ export async function getWinnersBracket(leagueId, ttl = CACHE_10_MIN) {
   } catch (e) { return []; }
 }
 
-/** Losers bracket — array of matches for the toilet bowl. Same shape. */
+/**
+ * Losers bracket — same shape as the winners bracket, but the team that keeps
+ * winning each round advances toward last place (the "Toilet Bowl Champion").
+ */
 export async function getLosersBracket(leagueId, ttl = CACHE_10_MIN) {
   try {
     return await fetchWithCache(
@@ -62,17 +80,26 @@ export async function getLosersBracket(leagueId, ttl = CACHE_10_MIN) {
   } catch (e) { return []; }
 }
 
+/**
+ * The full NBA player map keyed by Sleeper player id. The payload is ~5 MB so
+ * we cache aggressively in localStorage — subsequent page loads read straight
+ * from the cache without hitting Sleeper.
+ */
 export async function getPlayersNba(ttl = CACHE_1_HOUR) {
-  // The full players map is ~5MB. Cache aggressively (the browser pays the
-  // cost once; subsequent visits read from localStorage).
   return await fetchWithCache(`${BASE}/players/nba`, {}, ttl);
 }
 
+/**
+ * Build a `{ rosterId: { team_name, owner_name, team_avatar, owner_avatar, ... } }`
+ * map for a league. This is the "give me everything I need to render a team
+ * card" helper — it joins rosters with users and resolves avatar URLs.
+ */
 export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
   const [rosters, users] = await Promise.all([
     getRosters(leagueId, ttl),
     getUsers(leagueId, ttl)
   ]);
+
   const usersById = {};
   if (Array.isArray(users)) {
     for (const u of users) {
@@ -80,65 +107,71 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
       if (id != null) usersById[String(id)] = u;
     }
   }
+
   const map = {};
-  if (Array.isArray(rosters)) {
-    for (const r of rosters) {
-      const rid = r.roster_id ?? r.id ?? r.rosterId;
-      if (rid == null) continue;
-      const ownerId = r.owner_id ?? r.ownerId ?? r.user_id ?? null;
-      const uobj = ownerId != null ? usersById[String(ownerId)] : null;
+  if (!Array.isArray(rosters)) return map;
 
-      // team name
-      let teamName = null;
-      try { if (r.metadata && r.metadata.team_name) teamName = r.metadata.team_name; } catch (e) {}
-      if (!teamName && uobj) {
-        try {
-          if (uobj.metadata && uobj.metadata.team_name) teamName = uobj.metadata.team_name;
-          else if (uobj.display_name) teamName = `${uobj.display_name}'s Team`;
-          else if (uobj.username) teamName = `${uobj.username}'s Team`;
-        } catch (e) {}
-      }
-      if (!teamName) teamName = 'Roster ' + String(rid);
+  for (const r of rosters) {
+    const rid = r.roster_id ?? r.id ?? r.rosterId;
+    if (rid == null) continue;
+    const ownerId = r.owner_id ?? r.ownerId ?? r.user_id ?? null;
+    const uobj = ownerId != null ? usersById[String(ownerId)] : null;
 
-      // team avatar
-      let teamAvatar = null;
+    // Team name preference: explicit roster metadata > user metadata > derived
+    // from display name > fallback "Roster N".
+    let teamName = null;
+    try { if (r.metadata && r.metadata.team_name) teamName = r.metadata.team_name; } catch (e) {}
+    if (!teamName && uobj) {
       try {
-        if (r.metadata && r.metadata.team_avatar) {
-          const c = String(r.metadata.team_avatar);
-          teamAvatar = (c.indexOf('http') === 0) ? c : (SLEEPER_CDN + '/avatars/' + c);
-        }
+        if (uobj.metadata && uobj.metadata.team_name) teamName = uobj.metadata.team_name;
+        else if (uobj.display_name) teamName = `${uobj.display_name}'s Team`;
+        else if (uobj.username) teamName = `${uobj.username}'s Team`;
       } catch (e) {}
-
-      // owner avatar
-      let ownerAvatar = null;
-      if (uobj) {
-        const tryAvatar = (val) => {
-          if (!val) return null;
-          const s = String(val);
-          return s.indexOf('http') === 0 ? s : (SLEEPER_CDN + '/avatars/' + s);
-        };
-        ownerAvatar = tryAvatar(uobj.metadata?.team_avatar)
-          || tryAvatar(uobj.metadata?.avatar)
-          || tryAvatar(uobj.avatar);
-      }
-
-      map[String(rid)] = {
-        roster_id: String(rid),
-        owner_id: ownerId != null ? String(ownerId) : null,
-        team_name: teamName,
-        owner_name: uobj ? (uobj.display_name || uobj.username || null) : null,
-        owner_username: uobj ? (uobj.username || null) : null,
-        team_avatar: teamAvatar,
-        owner_avatar: ownerAvatar,
-        roster_raw: r,
-        user_raw: uobj || null
-      };
     }
+    if (!teamName) teamName = 'Roster ' + String(rid);
+
+    // Sleeper stores avatars as either a full URL or a CDN key — normalize both
+    // to absolute URLs so the UI never has to think about it.
+    let teamAvatar = null;
+    try {
+      if (r.metadata && r.metadata.team_avatar) {
+        const c = String(r.metadata.team_avatar);
+        teamAvatar = (c.indexOf('http') === 0) ? c : (SLEEPER_CDN + '/avatars/' + c);
+      }
+    } catch (e) {}
+
+    let ownerAvatar = null;
+    if (uobj) {
+      const tryAvatar = (val) => {
+        if (!val) return null;
+        const s = String(val);
+        return s.indexOf('http') === 0 ? s : (SLEEPER_CDN + '/avatars/' + s);
+      };
+      ownerAvatar = tryAvatar(uobj.metadata?.team_avatar)
+        || tryAvatar(uobj.metadata?.avatar)
+        || tryAvatar(uobj.avatar);
+    }
+
+    map[String(rid)] = {
+      roster_id: String(rid),
+      owner_id: ownerId != null ? String(ownerId) : null,
+      team_name: teamName,
+      owner_name: uobj ? (uobj.display_name || uobj.username || null) : null,
+      owner_username: uobj ? (uobj.username || null) : null,
+      team_avatar: teamAvatar,
+      owner_avatar: ownerAvatar,
+      roster_raw: r,
+      user_raw: uobj || null
+    };
   }
   return map;
 }
 
-/** Build the seasons chain (current → previous_league_id chain) from a base league. */
+/**
+ * Walk a league's `previous_league_id` chain to enumerate every season.
+ * Returns `{ seasons, prevChain }` sorted oldest → newest, so the most
+ * recent season is always `seasons[seasons.length - 1]`.
+ */
 export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
   const seasons = [];
   const prevChain = [];
@@ -175,7 +208,8 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
       break;
     }
   }
-  // sort old → new
+
+  // Sort old → new so callers can `.slice(-1)` for "current season".
   seasons.sort((a, b) => {
     if (a.season == null && b.season == null) return 0;
     if (a.season == null) return 1;
@@ -184,10 +218,11 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
     if (!isNaN(na) && !isNaN(nb)) return na - nb;
     return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
   });
+
   return { seasons, prevChain };
 }
 
-/** Player headshot URL */
+/** CDN URL for an NBA player's headshot, or an empty string if no pid. */
 export function playerHeadshot(pid) {
   return pid ? `${SLEEPER_CDN}/content/nba/players/${pid}.jpg` : '';
 }

@@ -2,8 +2,8 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { getSeasonsChain, getMatchupsForWeek, getRosterMapWithOwners, getLeague } from '$lib/sleeperClient.client';
-  import { computeParticipantPoints, BASE_LEAGUE_ID } from '$lib/leagueCompute.client';
+  import { getSeasonsChain, getMatchupsForWeek, getRosterMapWithOwners, getLeague, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
+  import { computeParticipantPoints } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 

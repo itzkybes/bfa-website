@@ -47,6 +47,13 @@ User followed up confirming:
 - ✅ `vercel.json` strips any stale `pnpm-lock.yaml` and forces yarn install
 - ✅ `engines.node: "20.x"` + `.nvmrc: 20` pin build runtime
 
+## What's Been Implemented (2026-03-02 — cleanup pass)
+- ✅ **Repo cleanup**: deleted dead code — `src/lib/server/` (old SSR module, now unused), `src/lib/actions/clickOutside.js`, `src/lib/form.js`, `src/lib/LazyImage.svelte`, `src/hooks.js`, `static/svelte-welcome.webp`, plus stale top-level docs `SITE_FILE_COMPARISON.md` / `UPGRADE_SUMMARY.md` / `design_guidelines.json`. Removed unused `cookie`, `@types/cookie`, and `@fontsource/fira-mono` from `package.json`.
+- ✅ **Tightened public surface** of `leagueCompute.client.js` — `HARDCODED_CHAMPIONS`, `fetchStaticJson`, `computeStreaks`, `MAX_WEEKS` are now module-internal; only the actually-used helpers are exported.
+- ✅ **Killed dead imports** across honor-hall, records-player, admin pages.
+- ✅ **Added human-feel JSDoc comments** to every function in `sleeperClient.client.js`, `leagueCompute.client.js`, `cache.js`, `vitals.js`.
+- ✅ **Rewrote `README.md`** from scratch — concrete project intro, route table, the three-MVP definitions, architecture notes, "why everything is CSR", local + deploy instructions, and the deploy gotchas (Node 22, `.vercel/output/` must stay git-ignored).
+
 ## What's Been Implemented (2026-03-02)
 - ✅ **Footer now uses the BFA logo image** (`/static/bfa-logo.png`) instead of the plain "BFA" text box. The logo links back home and animates on hover.
 - ✅ **Most-recent team logos applied across every page**. Added `getLatestOwnerAvatars()` helper in `leagueCompute.client.js` that fetches the current (BASE_LEAGUE_ID = 2025) roster map once and builds a `{owner_username: {team_avatar, owner_avatar, team_name}}` lookup. `computeStandingsForLeague()` now overlays each historical season's rosterMap entry with these latest values (matched by `owner_username`, which is stable across seasons in Sleeper). So when viewing 2022 standings/matchups/honor-hall, every team displays its current 2025 logo and team name. Also fixed `records-team`'s aggregation to "always prefer latest" so all-time tables match.
