@@ -12,7 +12,7 @@
   let error = null;
   let seasons = [];
   let selectedSeason = null;
-  let seasonsResults = [];   // [{ season, overallMvp, finalsMvp, teamLeaders[] }]
+  let seasonsResults = [];   // [{ season, regularMvp, finalsMvp, teamLeaders[] }]
   let allTimePlayoff = [];
   let allTimeFull = [];
   let allTimePlayoffsLeaderboard = []; // cumulative playoff points across every season, per player
@@ -37,7 +37,7 @@
   }
 
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
-  $: om = selectedRow?.overallMvp ?? null;
+  $: om = selectedRow?.regularMvp ?? null;
   $: pm = selectedRow?.playoffsMvp ?? null;
   $: fm = selectedRow?.finalsMvp ?? null;
 
@@ -131,6 +131,19 @@
         const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
         const regularByPlayer = aggregatePlayerPoints(regularEntries);
 
+        // Playoffs MVP must come from the top-N seeded teams (the actual
+        // playoff bracket). Filter losers-bracket entries out so the
+        // toilet-bowl winner can't take this trophy.
+        const playoffTeamCount = Number(standings.playoffTeams) || 8;
+        const playoffRosterSet = new Set(
+          (standings.regularStandings || [])
+            .slice(0, playoffTeamCount)
+            .map((r) => String(r.rosterId))
+        );
+        const playoffEntriesEligible = playoffEntries.filter(
+          (e) => playoffRosterSet.has(String(e.roster_id ?? e.rosterId ?? ''))
+        );
+
         // ---- Finals MVP = top scorer in the championship GAME only ----
         // (not the champion's top scorer across the whole playoff window)
         let finalsList = [];
@@ -144,15 +157,19 @@
             .sort((a, b) => b.points - a.points);
         }
 
-        const overallList = Object.values(fullByPlayer).sort((a, b) => b.points - a.points);
-        const playoffsList = Object.values(playoffByPlayer).sort((a, b) => b.points - a.points);
+        // Regular Season MVP = top scorer across regular-season weeks only.
+        const regularList = Object.values(regularByPlayer).sort((a, b) => b.points - a.points);
+        const playoffsList = Object.values(aggregatePlayerPoints(playoffEntriesEligible)).sort((a, b) => b.points - a.points);
 
         // Finals MVP = top scorer in the championship game (across BOTH finalists)
         const finalsMvp = finalsList[0] || null;
-        // Playoffs MVP = top cumulative scorer across the entire playoff window
+        // Playoffs MVP = top cumulative scorer across the playoff window for
+        // teams that actually made the playoffs (seeds 1 → playoff_teams).
         const playoffsMvp = playoffsList[0] || null;
 
-        // team leaders (top scorer per roster, full season)
+        // team leaders (top scorer per roster, full season) — still uses the
+        // full season to surface each roster's all-around best contributor.
+        const overallList = Object.values(fullByPlayer).sort((a, b) => b.points - a.points);
         const teamLeaders = [];
         const seenRosters = new Set();
         for (const p of overallList) {
@@ -169,8 +186,8 @@
         return {
           season: s.season ?? s.league_id,
           leagueId: s.league_id,
-          overallMvp: overallList[0]
-            ? { ...overallList[0], playerName: null, roster_meta: rosterMap[overallList[0].rosterId] }
+          regularMvp: regularList[0]
+            ? { ...regularList[0], playerName: null, roster_meta: rosterMap[regularList[0].rosterId] }
             : null,
           playoffsMvp: playoffsMvp
             ? { ...playoffsMvp, playerName: null, roster_meta: rosterMap[playoffsMvp.rosterId] }
@@ -194,9 +211,9 @@
       // today's team name, for historic seasons where the team has been
       // re-themed).
       for (const r of seasonsResults) {
-        if (r.overallMvp) {
-          r.overallMvp.playerName = playerName(r.overallMvp.playerId);
-          r.overallMvp.roster_meta = latestMetaFor(r.overallMvp.roster_meta) || r.overallMvp.roster_meta;
+        if (r.regularMvp) {
+          r.regularMvp.playerName = playerName(r.regularMvp.playerId);
+          r.regularMvp.roster_meta = latestMetaFor(r.regularMvp.roster_meta) || r.regularMvp.roster_meta;
         }
         if (r.playoffsMvp) {
           r.playoffsMvp.playerName = playerName(r.playoffsMvp.playerId);
@@ -402,7 +419,7 @@
       <div class="block-head">
         <div class="block-head-text">
           <h2 class="block-title">Season MVPs · {selectedSeason}</h2>
-          <span class="block-sub">Overall · Playoffs · Finals</span>
+          <span class="block-sub">Regular Season · Playoffs · Finals</span>
         </div>
         <div class="block-head-select">
           <label for="season-select" class="visually-hidden">Season</label>
@@ -413,7 +430,7 @@
       </div>
       <div class="mvp-grid">
         <div class="mvp-card" data-testid="mvp-overall">
-          <div class="mvp-label">Overall MVP</div>
+          <div class="mvp-label">Regular Season MVP</div>
           {#if om}
             <div class="mvp-body">
               <img class="mvp-headshot" src={playerHeadshot(om.playerId) || avatarOrPh(rosterInfo(om).teamAvatar, om.playerName)} alt={om.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(om).teamAvatar, om.playerName))} />
@@ -426,7 +443,7 @@
                 </div>
               </div>
             </div>
-          {:else}<div class="mvp-empty">No Overall MVP data.</div>{/if}
+          {:else}<div class="mvp-empty">No Regular Season MVP data.</div>{/if}
         </div>
         <div class="mvp-card" data-testid="mvp-playoffs">
           <div class="mvp-label">Playoffs MVP</div>

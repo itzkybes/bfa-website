@@ -15,11 +15,11 @@
   let finalStandings = []; // for current season selection
   let finalsMvp = null;
   let playoffsMvp = null;
-  let overallMvp = null;
+  let regularMvp = null;
   let playersMap = {};
 
   // Stash season results so dropdown switching is instant
-  let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, overallMvp }
+  let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, regularMvp }
 
   function avatarOrPh(url, name) {
     if (url) return url;
@@ -76,7 +76,7 @@
       finalStandings = cache[cacheKey].finalStandings;
       finalsMvp = cache[cacheKey].finalsMvp;
       playoffsMvp = cache[cacheKey].playoffsMvp;
-      overallMvp = cache[cacheKey].overallMvp;
+      regularMvp = cache[cacheKey].regularMvp;
       return;
     }
 
@@ -105,10 +105,25 @@
       if (week >= playoffStart && week <= playoffEnd) playoffEntries.push(...arr);
       else if (week >= 1 && week < playoffStart) regularEntries.push(...arr);
     }
-    const fullEntries = [...regularEntries, ...playoffEntries];
 
-    const overallList = Object.values(aggregatePlayerPoints(fullEntries)).sort((a, b) => b.points - a.points);
-    const playoffsList = Object.values(aggregatePlayerPoints(playoffEntries)).sort((a, b) => b.points - a.points);
+    // Playoffs MVP must come from a team that ACTUALLY made the playoffs —
+    // i.e. seeds 1 → playoff_teams (typically 1–8). Filter out losers-
+    // bracket entries so a toilet-bowl matchup doesn't accidentally crown
+    // the playoff MVP.
+    const playoffTeamCount = Number(standings.playoffTeams) || 8;
+    const playoffRosterSet = new Set(
+      (standings.regularStandings || [])
+        .slice(0, playoffTeamCount)
+        .map((r) => String(r.rosterId))
+    );
+    const playoffEntriesEligible = playoffEntries.filter(
+      (e) => playoffRosterSet.has(String(e.roster_id ?? e.rosterId ?? ''))
+    );
+
+    // Regular Season MVP = top scorer across regular-season weeks only
+    // (does NOT include playoff points).
+    const regularList = Object.values(aggregatePlayerPoints(regularEntries)).sort((a, b) => b.points - a.points);
+    const playoffsList = Object.values(aggregatePlayerPoints(playoffEntriesEligible)).sort((a, b) => b.points - a.points);
 
     // Finals MVP = top scorer in the championship GAME only (both finalists),
     // NOT the champion's top scorer across the full playoff window.
@@ -123,7 +138,7 @@
         .sort((a, b) => b.points - a.points);
     }
 
-    const om = overallList[0] || null;
+    const om = regularList[0] || null;
     const pm = playoffsList[0] || null;
     const fm = finalsList[0] || null;
 
@@ -131,13 +146,13 @@
       finalStandings: finalList,
       finalsMvp: fm ? { ...fm, playerName: playerName(fm.playerId), roster_meta: standings.rosterMap[fm.rosterId] } : null,
       playoffsMvp: pm ? { ...pm, playerName: playerName(pm.playerId), roster_meta: standings.rosterMap[pm.rosterId] } : null,
-      overallMvp: om ? { ...om, playerName: playerName(om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
+      regularMvp: om ? { ...om, playerName: playerName(om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
     };
     cache[cacheKey] = result;
     finalStandings = result.finalStandings;
     finalsMvp = result.finalsMvp;
     playoffsMvp = result.playoffsMvp;
-    overallMvp = result.overallMvp;
+    regularMvp = result.regularMvp;
   }
 
   async function loadAll() {
@@ -239,13 +254,13 @@
         </div>
       {/if}
 
-      {#if overallMvp}
-        <div class="bento-card mvp-card" data-testid="overall-mvp-card">
-          <div class="card-eyebrow">Overall MVP</div>
-          <img class="mvp-headshot" src={playerHeadshot(overallMvp.playerId) || avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName)} alt={overallMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName))} />
-          <div class="mvp-name">{overallMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num">{fmt(overallMvp.points)}<span class="pts-suffix"> PTS</span></div>
-          <div class="mvp-sub">{overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? '—'}`}</div>
+      {#if regularMvp}
+        <div class="bento-card mvp-card" data-testid="regular-mvp-card">
+          <div class="card-eyebrow">Regular Season MVP</div>
+          <img class="mvp-headshot" src={playerHeadshot(regularMvp.playerId) || avatarOrPh(regularMvp.roster_meta?.team_avatar, regularMvp.playerName)} alt={regularMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(regularMvp.roster_meta?.team_avatar, regularMvp.playerName))} />
+          <div class="mvp-name">{regularMvp.playerName ?? '—'}</div>
+          <div class="mvp-pts num">{fmt(regularMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-sub">{regularMvp.roster_meta?.owner_name ?? `Roster ${regularMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
     </section>
@@ -293,7 +308,7 @@
     display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
     min-height: 320px;
   }
-  .champion-card:hover { box-shadow: 0 0 24px rgba(245, 180, 0, 0.18); }
+  /* No hover state on the champion card — it stays static even on mouseover. */
   .champion-trophy { font-size: 4rem; margin-bottom: 0.5rem; line-height: 1; }
 
   .loser-card { /* neutral — no tint or glow */ }
