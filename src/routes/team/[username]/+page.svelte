@@ -238,12 +238,12 @@
             <table class="bfa-table">
               <thead>
                 <tr>
-                  <th style="width:48px;">Wk</th>
+                  <th style="width:48px;" title="Week of the regular season or playoffs">Week</th>
                   <th>Opponent</th>
-                  <th class="col-num">My PTS</th>
-                  <th class="col-num">Opp PTS</th>
-                  <th class="col-num">Margin</th>
-                  <th class="col-num">Result</th>
+                  <th class="col-num" title="This team's points scored that week">My Score</th>
+                  <th class="col-num" title="Opponent's points scored that week">Opp Score</th>
+                  <th class="col-num" title="My Score minus Opp Score">Margin</th>
+                  <th class="col-num" title="Win / Loss / Tie">Result</th>
                 </tr>
               </thead>
               <tbody>

@@ -208,13 +208,13 @@
         <table class="bfa-table" data-testid="rankings-table">
           <thead>
             <tr>
-              <th style="width:54px;">#</th>
+              <th style="width:54px;" title="Current power-ranking position">Rank</th>
               <th>Team</th>
-              <th class="col-num">L4 W-L</th>
-              <th class="col-num">L4 Avg PF</th>
-              <th class="col-num">Margin</th>
-              <th class="col-trend">Trend</th>
-              <th class="col-mv">Movement</th>
+              <th class="col-num" title="Wins minus losses across the last 4 weeks">Last 4 Record</th>
+              <th class="col-num" title="Average points scored over the last 4 weeks">Last 4 Avg Score</th>
+              <th class="col-num" title="Cumulative scoring margin (PF - PA) over the last 4 weeks">Avg Margin</th>
+              <th class="col-trend" title="Weekly scoring pattern over the last 4 weeks">Score Trend</th>
+              <th class="col-mv" title="Position change compared to the prior 4-week window">Δ vs Prior</th>
             </tr>
           </thead>
           <tbody>

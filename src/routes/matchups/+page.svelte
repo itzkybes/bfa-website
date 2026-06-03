@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague, getPlayersNba, playerHeadshot } from '$lib/sleeperClient.client';
   import { computeMatchupsForLeagueWeek } from '$lib/leagueCompute.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
@@ -18,6 +18,7 @@
   let playoffEnd = 17;
   let matchupsRows = [];
   let weekOptions = { regular: [], playoffs: [] };
+  let playersMap = {};
 
   function avatarOrPh(url, name) {
     if (url) return url;
@@ -25,6 +26,85 @@
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
   }
   function fmt2(n) { return Number(n ?? 0).toFixed(2); }
+  function fmt1(n) { return Number(n ?? 0).toFixed(1); }
+  // Reactive helper — recreated whenever `playersMap` changes so any
+  // `pname(pid)` call in the markup re-renders once the NBA-players fetch
+  // resolves. Svelte's compiler tracks the variable reference, not the
+  // function-body dependency, so we re-bind on every playersMap update.
+  $: pname = (pid) => {
+    if (!pid) return null;
+    const p = playersMap[pid];
+    if (!p) return String(pid);
+    return p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || String(pid);
+  };
+
+  // Build the week's recap stats (top scorer, biggest blowout, closest
+  // game, high/low team) reactively from `matchupsRows`. Pure derivation,
+  // no extra fetches — uses the `starters` + `starters_points` already
+  // attached to each team.
+  $: recap = (() => {
+    if (!matchupsRows.length) return null;
+    const teams = [];                 // [{ name, owner, points, avatar, rosterId }]
+    const playerScores = [];          // [{ pid, points, teamName, ownerName, teamAvatar }]
+    let biggestBlowout = null;        // { winner, loser, margin }
+    let closestGame = null;           // { teams, margin }
+    let totalPoints = 0;
+
+    for (const row of matchupsRows) {
+      const sides = [row.teamA, row.teamB].filter(t => t && t.points != null && t.name !== 'BYE');
+      for (const t of sides) {
+        teams.push({
+          name: t.name, owner: t.ownerName, points: Number(t.points), avatar: t.avatar, rosterId: t.rosterId
+        });
+        totalPoints += Number(t.points) || 0;
+        // Aggregate per-starter scoring for top-scorer leaderboard
+        const starters = Array.isArray(t.starters) ? t.starters : [];
+        const sp = t.starters_points || t.player_points;
+        if (starters.length && sp && typeof sp === 'object') {
+          for (let i = 0; i < starters.length; i++) {
+            const pid = starters[i];
+            if (!pid) continue;
+            let val = 0;
+            if (Array.isArray(sp)) val = Number(sp[i] ?? 0);
+            else val = Number(sp[String(pid)] ?? 0);
+            if (!isFinite(val) || val <= 0) continue;
+            playerScores.push({
+              pid, points: val,
+              teamName: t.name, ownerName: t.ownerName, teamAvatar: t.avatar, rosterId: t.rosterId
+            });
+          }
+        }
+      }
+      if (row.participantsCount === 2 && row.teamA?.points != null && row.teamB?.points != null) {
+        const a = Number(row.teamA.points), b = Number(row.teamB.points);
+        const margin = Math.abs(a - b);
+        const winner = a >= b ? row.teamA : row.teamB;
+        const loser  = a >= b ? row.teamB : row.teamA;
+        if (!biggestBlowout || margin > biggestBlowout.margin) {
+          biggestBlowout = { winner, loser, margin };
+        }
+        if (margin > 0.01 && (!closestGame || margin < closestGame.margin)) {
+          closestGame = { teams: [row.teamA, row.teamB].sort((x, y) => y.points - x.points), margin };
+        }
+      }
+    }
+
+    if (!teams.length) return null;
+    const sortedTeams = teams.slice().sort((a, b) => b.points - a.points);
+    const topScorer  = playerScores.sort((a, b) => b.points - a.points)[0] || null;
+    const topScorers = playerScores.slice(0, 3);   // top 3 individual performances
+
+    return {
+      topScorer,
+      topScorers,
+      biggestBlowout,
+      closestGame,
+      highTeam: sortedTeams[0] || null,
+      lowTeam: sortedTeams[sortedTeams.length - 1] || null,
+      avgScore: teams.length ? totalPoints / teams.length : 0,
+      teamCount: teams.length
+    };
+  })();
 
   async function loadSeasons() {
     const { seasons: chain } = await getSeasonsChain(BASE_LEAGUE_ID);
@@ -88,7 +168,10 @@
 
   onMount(async () => {
     await loadSeasons();
+    // Fire the players-map fetch in parallel — recap top-scorer needs names.
+    const playersPromise = getPlayersNba().catch(() => ({}));
     await loadMatchups();
+    playersMap = await playersPromise;
   });
 </script>
 
@@ -96,9 +179,9 @@
   <header class="page-head rise">
     <div class="head-row">
       <div>
-        <div class="eyebrow">League · Week-by-Week</div>
-        <h1 class="page-title">Matchups</h1>
-        <p class="page-sub">Head-to-head results week by week with full starter scoring.</p>
+        <div class="eyebrow">League · Weekly Recap</div>
+        <h1 class="page-title">Weekly Recap</h1>
+        <p class="page-sub">Top performances, biggest blowout, closest game, and every head-to-head from the selected week.</p>
       </div>
 
       <div class="filters">
@@ -135,6 +218,93 @@
   {:else if error}
     <ErrorBoundary {error} onRetry={loadMatchups} context="matchups" />
   {:else if matchupsRows.length}
+    {#if recap}
+      <section class="recap-block" data-testid="recap-block">
+        <div class="recap-head">
+          <h2 class="recap-title">Week {selectedWeek} Recap</h2>
+          <span class="recap-sub">{recap.teamCount} teams · Avg {fmt1(recap.avgScore)} PTS</span>
+        </div>
+        <div class="recap-grid">
+          {#if recap.topScorer}
+            <div class="recap-card top-scorer" data-testid="recap-top-scorer">
+              <div class="recap-eyebrow">🏀 Top Scorer</div>
+              <div class="recap-card-body">
+                <img class="recap-headshot" src={playerHeadshot(recap.topScorer.pid)} alt={playerName(recap.topScorer.pid) || ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                <div class="recap-card-meta">
+                  <div class="recap-player">{playerName(recap.topScorer.pid) ?? recap.topScorer.pid}</div>
+                  <div class="recap-card-team">
+                    {#if recap.topScorer.teamAvatar}<img class="recap-team-mini" src={recap.topScorer.teamAvatar} alt={recap.topScorer.teamName} />{/if}
+                    <span>{recap.topScorer.teamName}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="recap-stat">{fmt2(recap.topScorer.points)}<span class="recap-stat-label"> PTS</span></div>
+            </div>
+          {/if}
+
+          {#if recap.biggestBlowout}
+            <div class="recap-card" data-testid="recap-blowout">
+              <div class="recap-eyebrow">💥 Biggest Blowout</div>
+              <div class="recap-card-body">
+                <img class="recap-team-avatar" src={avatarOrPh(recap.biggestBlowout.winner.avatar, recap.biggestBlowout.winner.name)} alt={recap.biggestBlowout.winner.name} />
+                <div class="recap-card-meta">
+                  <div class="recap-player">{recap.biggestBlowout.winner.name}</div>
+                  <div class="recap-card-team muted">def. {recap.biggestBlowout.loser.name}</div>
+                </div>
+              </div>
+              <div class="recap-stat win">+{fmt1(recap.biggestBlowout.margin)}<span class="recap-stat-label"> MARGIN</span></div>
+            </div>
+          {/if}
+
+          {#if recap.closestGame}
+            <div class="recap-card" data-testid="recap-closest">
+              <div class="recap-eyebrow">🔥 Closest Game</div>
+              <div class="recap-card-body">
+                <img class="recap-team-avatar" src={avatarOrPh(recap.closestGame.teams[0].avatar, recap.closestGame.teams[0].name)} alt={recap.closestGame.teams[0].name} />
+                <div class="recap-card-meta">
+                  <div class="recap-player">{recap.closestGame.teams[0].name}</div>
+                  <div class="recap-card-team muted">vs {recap.closestGame.teams[1].name}</div>
+                </div>
+              </div>
+              <div class="recap-stat">{fmt1(recap.closestGame.margin)}<span class="recap-stat-label"> PT WIN</span></div>
+            </div>
+          {/if}
+
+          {#if recap.highTeam}
+            <div class="recap-card" data-testid="recap-high-team">
+              <div class="recap-eyebrow">📈 Highest Team Score</div>
+              <div class="recap-card-body">
+                <img class="recap-team-avatar" src={avatarOrPh(recap.highTeam.avatar, recap.highTeam.name)} alt={recap.highTeam.name} />
+                <div class="recap-card-meta">
+                  <div class="recap-player">{recap.highTeam.name}</div>
+                  {#if recap.highTeam.owner}<div class="recap-card-team muted">{recap.highTeam.owner}</div>{/if}
+                </div>
+              </div>
+              <div class="recap-stat">{fmt2(recap.highTeam.points)}<span class="recap-stat-label"> PTS</span></div>
+            </div>
+          {/if}
+
+          {#if recap.lowTeam && recap.lowTeam !== recap.highTeam}
+            <div class="recap-card" data-testid="recap-low-team">
+              <div class="recap-eyebrow">📉 Lowest Team Score</div>
+              <div class="recap-card-body">
+                <img class="recap-team-avatar" src={avatarOrPh(recap.lowTeam.avatar, recap.lowTeam.name)} alt={recap.lowTeam.name} />
+                <div class="recap-card-meta">
+                  <div class="recap-player">{recap.lowTeam.name}</div>
+                  {#if recap.lowTeam.owner}<div class="recap-card-team muted">{recap.lowTeam.owner}</div>{/if}
+                </div>
+              </div>
+              <div class="recap-stat loss">{fmt2(recap.lowTeam.points)}<span class="recap-stat-label"> PTS</span></div>
+            </div>
+          {/if}
+        </div>
+      </section>
+    {/if}
+
+    <div class="matchups-header">
+      <h2 class="recap-title">Head-to-Head Matchups</h2>
+      <span class="recap-sub">Final scores · Winner highlighted</span>
+    </div>
     <div class="matchups-list" data-testid="matchups-list">
       {#each matchupsRows as row, idx}
         {#if row.participantsCount === 2}
@@ -237,6 +407,110 @@
   .multi-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.6rem; background: var(--surface-2); border-radius: var(--r-sm); }
   .multi-row .m-name { flex: 1; }
   .empty-card { padding: 2rem; text-align: center; background: var(--surface-1); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); color: var(--text-secondary); }
+
+  /* Weekly Recap block — 5 stat cards above the matchup grid summarizing
+     the most narrative moments from the week. Uses CSS grid auto-fit so
+     it gracefully reflows from 3-up to 2-up to 1-up depending on width. */
+  .recap-block {
+    margin-bottom: 2rem;
+    padding: 1.25rem 1.25rem 1.5rem;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+  }
+  .recap-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  .recap-title { font-family: var(--font-display); font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+  .recap-sub { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600; }
+  .recap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.75rem;
+  }
+  .recap-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    padding: 0.95rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .recap-card.top-scorer { border-color: var(--accent); }
+  .recap-eyebrow {
+    font-family: var(--font-body);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-size: 0.66rem;
+    color: var(--text-tertiary);
+  }
+  .recap-card-body { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+  .recap-headshot, .recap-team-avatar {
+    width: 44px; height: 44px;
+    border-radius: var(--r-sm);
+    object-fit: cover;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .recap-card-meta { min-width: 0; flex: 1; }
+  .recap-player {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .recap-card-team {
+    display: flex; align-items: center; gap: 0.35rem;
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .recap-card-team.muted { color: var(--text-tertiary); }
+  .recap-team-mini {
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .recap-stat {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--accent);
+    line-height: 1;
+    margin-top: 0.1rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .recap-stat.win { color: var(--win); }
+  .recap-stat.loss { color: var(--loss); }
+  .recap-stat-label {
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--text-tertiary);
+    margin-left: 0.25rem;
+  }
+  .matchups-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.75rem;
+  }
+
+  @media (max-width: 720px) {
+    .recap-block { padding: 1rem; }
+    .recap-title { font-size: 1.15rem; }
+    .recap-stat { font-size: 1.35rem; }
+    .recap-headshot, .recap-team-avatar { width: 38px; height: 38px; }
+  }
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }

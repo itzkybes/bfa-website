@@ -485,7 +485,7 @@
       {#if allTimePlayoff.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th>Player</th><th>Season</th><th class="col-num">PTS</th></tr></thead>
+            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total playoff points scored that season">Playoff PTS</th></tr></thead>
             <tbody>
               {#each allTimePlayoff as row (row.rosterId)}
                 <tr>
@@ -513,9 +513,9 @@
               <tr>
                 <th>Team</th>
                 <th>Best · Regular Season</th>
-                <th class="col-num">PTS</th>
+                <th class="col-num" title="Regular-season points scored that year">Reg. Season PTS</th>
                 <th>Best · Playoffs</th>
-                <th class="col-num">PTS</th>
+                <th class="col-num" title="Playoff points scored that year">Playoff PTS</th>
               </tr>
             </thead>
             <tbody>
@@ -576,12 +576,12 @@
           <table class="bfa-table">
             <thead>
               <tr>
-                <th style="width:60px;">#</th>
+                <th style="width:60px;" title="Rank by cumulative playoff scoring">Rank</th>
                 <th>Player</th>
-                <th class="col-num">Total PTS</th>
-                <th class="col-num">Best Run</th>
-                <th class="col-num">Seasons</th>
-                <th>Most Recent Team</th>
+                <th class="col-num" title="Sum of playoff points across every season played">Total Playoff PTS</th>
+                <th class="col-num" title="Highest single-season playoff total + year it happened">Best Single Run</th>
+                <th class="col-num" title="Number of seasons this player has played in BFA playoffs">Playoffs Made</th>
+                <th title="Franchise currently rostering this player">Current Team</th>
               </tr>
             </thead>
             <tbody>
@@ -623,7 +623,7 @@
       {#if allTimeFull.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th>Player</th><th>Season</th><th class="col-num">PTS</th></tr></thead>
+            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total points (regular season + playoffs)">Total PTS</th></tr></thead>
             <tbody>
               {#each allTimeFull as row (row.rosterId)}
                 <tr>

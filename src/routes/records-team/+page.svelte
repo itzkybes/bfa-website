@@ -266,7 +266,7 @@
       {#if aggregatedRegular.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th class="col-num">W</th><th class="col-num">L</th><th class="col-num">Win Str</th><th class="col-num">Lose Str</th><th class="col-num">PF</th><th class="col-num">PA</th></tr></thead>
+            <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">Wins</th><th class="col-num" title="All-time regular-season losses">Losses</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst lose streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th></tr></thead>
             <tbody>
               {#each aggregatedRegular as row (row.key)}
                 <tr>
@@ -303,7 +303,7 @@
       {#if aggregatedPlayoff.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th class="col-num">Titles</th><th class="col-num">W</th><th class="col-num">L</th><th class="col-num">PF</th><th class="col-num">PA</th></tr></thead>
+            <thead><tr><th>Team</th><th class="col-num" title="Total championships won">Championships</th><th class="col-num" title="Playoff wins all-time">Playoff Wins</th><th class="col-num" title="Playoff losses all-time">Playoff Losses</th><th class="col-num" title="Total playoff points scored">Playoff PF</th><th class="col-num" title="Total playoff points allowed">Playoff PA</th></tr></thead>
             <tbody>
               {#each aggregatedPlayoff as row (row.key)}
                 <tr class:champion-row={(row.championships || 0) > 0}>
@@ -358,7 +358,7 @@
       {#if selectedH2H && h2hRecords[selectedH2H]?.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Opponent</th><th class="col-num">W</th><th class="col-num">L</th><th class="col-num">Games</th><th class="col-num">PF</th><th class="col-num">PA</th><th class="col-num">Last</th></tr></thead>
+            <thead><tr><th>Opponent</th><th class="col-num" title="Head-to-head wins vs this opponent">Wins</th><th class="col-num" title="Head-to-head losses vs this opponent">Losses</th><th class="col-num" title="Total times the two teams have played">Games Played</th><th class="col-num" title="Points scored against this opponent">Points For</th><th class="col-num" title="Points allowed to this opponent">Points Against</th><th class="col-num" title="Most recent season they played">Last Met</th></tr></thead>
             <tbody>
               {#each h2hRecords[selectedH2H] as r}
                 <tr>

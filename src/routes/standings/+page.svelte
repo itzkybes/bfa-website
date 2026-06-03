@@ -244,15 +244,15 @@
           <table class="bfa-table">
             <thead>
               <tr>
-                <th style="width:60px;">#</th>
+                <th style="width:60px;">Seed</th>
                 <th>Team</th>
-                <th class="col-num">W</th>
-                <th class="col-num">L</th>
-                <th class="col-num">Win Str</th>
-                <th class="col-num">Lose Str</th>
-                <th class="col-num">PF</th>
-                <th class="col-num">PA</th>
-                <th class="col-trend">PF / Week</th>
+                <th class="col-num" title="Regular-season wins">Wins</th>
+                <th class="col-num" title="Regular-season losses">Losses</th>
+                <th class="col-num" title="Longest consecutive wins this season">Best Streak</th>
+                <th class="col-num" title="Longest consecutive losses this season">Worst Streak</th>
+                <th class="col-num" title="Total points scored by this team">Points For</th>
+                <th class="col-num" title="Total points scored against this team">Points Against</th>
+                <th class="col-trend" title="Points-for trend across every regular-season week">Weekly Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -304,10 +304,10 @@
             <thead>
               <tr>
                 <th>Team</th>
-                <th class="col-num">W</th>
-                <th class="col-num">L</th>
-                <th class="col-num">PF</th>
-                <th class="col-num">PA</th>
+                <th class="col-num" title="Playoff wins">Wins</th>
+                <th class="col-num" title="Playoff losses">Losses</th>
+                <th class="col-num" title="Points scored across all playoff games">Points For</th>
+                <th class="col-num" title="Points allowed across all playoff games">Points Against</th>
               </tr>
             </thead>
             <tbody>
