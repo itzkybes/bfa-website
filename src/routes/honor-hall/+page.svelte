@@ -5,7 +5,6 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
-  import { tintFromImg } from '$lib/dominantColor';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
@@ -221,8 +220,8 @@
       {/if}
 
       {#if finalsMvp}
-        <div class="bento-card mvp-card finals" data-testid="finals-mvp-card" use:tintFromImg={finalsMvp.roster_meta?.team_avatar || finalsMvp.roster_meta?.owner_avatar}>
-          <div class="card-eyebrow accent">Finals MVP</div>
+        <div class="bento-card mvp-card" data-testid="finals-mvp-card">
+          <div class="card-eyebrow">Finals MVP</div>
           <img class="mvp-headshot" src={playerHeadshot(finalsMvp.playerId) || avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName)} alt={finalsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName))} />
           <div class="mvp-name">{finalsMvp.playerName ?? '—'}</div>
           <div class="mvp-pts num">{fmt(finalsMvp.points)}<span class="pts-suffix"> PTS</span></div>
@@ -231,21 +230,21 @@
       {/if}
 
       {#if playoffsMvp}
-        <div class="bento-card mvp-card playoffs" data-testid="playoffs-mvp-card" use:tintFromImg={playoffsMvp.roster_meta?.team_avatar || playoffsMvp.roster_meta?.owner_avatar}>
-          <div class="card-eyebrow brand">Playoffs MVP</div>
+        <div class="bento-card mvp-card" data-testid="playoffs-mvp-card">
+          <div class="card-eyebrow">Playoffs MVP</div>
           <img class="mvp-headshot" src={playerHeadshot(playoffsMvp.playerId) || avatarOrPh(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName)} alt={playoffsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName))} />
           <div class="mvp-name">{playoffsMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num brand">{fmt(playoffsMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-pts num">{fmt(playoffsMvp.points)}<span class="pts-suffix"> PTS</span></div>
           <div class="mvp-sub">{playoffsMvp.roster_meta?.owner_name ?? `Roster ${playoffsMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
 
       {#if overallMvp}
-        <div class="bento-card mvp-card overall" data-testid="overall-mvp-card" use:tintFromImg={overallMvp.roster_meta?.team_avatar || overallMvp.roster_meta?.owner_avatar}>
-          <div class="card-eyebrow win">Overall MVP</div>
+        <div class="bento-card mvp-card" data-testid="overall-mvp-card">
+          <div class="card-eyebrow">Overall MVP</div>
           <img class="mvp-headshot" src={playerHeadshot(overallMvp.playerId) || avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName)} alt={overallMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(overallMvp.roster_meta?.team_avatar, overallMvp.playerName))} />
           <div class="mvp-name">{overallMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num win">{fmt(overallMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-pts num">{fmt(overallMvp.points)}<span class="pts-suffix"> PTS</span></div>
           <div class="mvp-sub">{overallMvp.roster_meta?.owner_name ?? `Roster ${overallMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
@@ -277,14 +276,13 @@
   .page-sub { color: var(--text-secondary); max-width: 60ch; }
 
   .bento { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: auto auto; gap: 0.85rem; margin-bottom: 2rem; }
-  .bento-card { position: relative; padding: 1.75rem 1.5rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; transition: border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast); }
-  .bento-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .bento-card { position: relative; padding: 1.75rem 1.5rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; transition: box-shadow var(--t-fast); }
+  /* No hover effect on non-champion cards — they stay flat. The champion
+     card's hover shadow rule lives below. */
 
-  /* Each card in the bento gets its own signature color treatment:
-     • 1px tinted border (on top of the base subtle border)
-     • 4px solid left rail in the same tint
-     • a soft radial glow in the top-right corner so the card "lights up"
-     • a hover shadow in the same tint for tactile depth */
+  /* Only the Champion card keeps its gold treatment. Every other bento
+     card (Biggest Loser + the three MVP cards) is rendered as a neutral
+     surface — no tint, no glow, no hover lift — per design feedback. */
   .champion-card {
     grid-row: span 2;
     border-color: var(--gold);
@@ -298,64 +296,15 @@
   .champion-card:hover { box-shadow: 0 0 24px rgba(245, 180, 0, 0.18); }
   .champion-trophy { font-size: 4rem; margin-bottom: 0.5rem; line-height: 1; }
 
-  .loser-card {
-    border-color: var(--loss);
-    border-left: 4px solid var(--loss);
-    background:
-      radial-gradient(420px 180px at 100% 0%, rgba(239, 68, 68, 0.18), transparent 65%),
-      linear-gradient(180deg, var(--surface-1), var(--surface-2));
-  }
-  .loser-card:hover { box-shadow: 0 0 24px rgba(239, 68, 68, 0.18); }
+  .loser-card { /* neutral — no tint or glow */ }
   .loser-icon { font-size: 2rem; margin-bottom: 0.4rem; line-height: 1; }
 
-  /* MVP cards take their tint from the manager's logo (extracted via
-     `tintFromImg` once the image loads). If extraction fails the rules
-     below fall back to fixed brand colors so the cards still feel
-     intentional. CSS variable defaults declared inline per-card. */
-  .mvp-card.finals {
-    --card-tint: var(--accent);
-    --card-tint-soft: var(--accent-soft);
-    --card-tint-glow: var(--accent-glow);
-    border-color: var(--card-tint);
-    border-left: 4px solid var(--card-tint);
-    background:
-      radial-gradient(420px 180px at 100% 0%, var(--card-tint-glow), transparent 65%),
-      linear-gradient(180deg, var(--surface-1), var(--surface-2));
-  }
-  .mvp-card.finals:hover { box-shadow: 0 0 24px var(--card-tint-soft); }
+  .mvp-card { /* neutral — no tint or glow */ }
 
-  .mvp-card.playoffs {
-    --card-tint: var(--brand);
-    --card-tint-soft: var(--brand-soft);
-    --card-tint-glow: var(--brand-glow);
-    border-color: var(--card-tint);
-    border-left: 4px solid var(--card-tint);
-    background:
-      radial-gradient(420px 180px at 100% 0%, var(--card-tint-glow), transparent 65%),
-      linear-gradient(180deg, var(--surface-1), var(--surface-2));
-  }
-  .mvp-card.playoffs:hover { box-shadow: 0 0 24px var(--card-tint-soft); }
-
-  .mvp-card.overall {
-    --card-tint: var(--win);
-    --card-tint-soft: rgba(16, 185, 129, 0.18);
-    --card-tint-glow: rgba(16, 185, 129, 0.30);
-    border-color: var(--card-tint);
-    border-left: 4px solid var(--card-tint);
-    background:
-      radial-gradient(420px 180px at 100% 0%, var(--card-tint-glow), transparent 65%),
-      linear-gradient(180deg, var(--surface-1), var(--surface-2));
-  }
-  .mvp-card.overall:hover { box-shadow: 0 0 24px var(--card-tint-soft); }
-
-  /* Eyebrow + PTS color always tracks the live tint so it reads as one
-     cohesive piece of art. */
-  .mvp-card .card-eyebrow.accent,
-  .mvp-card .card-eyebrow.brand,
-  .mvp-card .card-eyebrow.win { color: var(--card-tint); }
-  .mvp-card .mvp-pts,
-  .mvp-card .mvp-pts.brand,
-  .mvp-card .mvp-pts.win { color: var(--card-tint); }
+  .card-corner { position: absolute; top: 1rem; right: 1rem; }
+  .rank-tag { font-size: 1.4rem; color: var(--text-tertiary); }
+  .card-eyebrow { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 0.75rem; }
+  .mvp-pts { color: var(--text-primary); }
 
   .card-corner { position: absolute; top: 1rem; right: 1rem; }
   .rank-tag { font-size: 1.4rem; color: var(--text-tertiary); }

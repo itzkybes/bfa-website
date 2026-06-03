@@ -5,7 +5,6 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
-  import { tintFromImg } from '$lib/dominantColor';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
@@ -413,7 +412,7 @@
         </div>
       </div>
       <div class="mvp-grid">
-        <div class="mvp-card" data-testid="mvp-overall" use:tintFromImg={rosterInfo(om).teamAvatar}>
+        <div class="mvp-card" data-testid="mvp-overall">
           <div class="mvp-label">Overall MVP</div>
           {#if om}
             <div class="mvp-body">
@@ -429,8 +428,8 @@
             </div>
           {:else}<div class="mvp-empty">No Overall MVP data.</div>{/if}
         </div>
-        <div class="mvp-card playoffs" data-testid="mvp-playoffs" use:tintFromImg={rosterInfo(pm).teamAvatar}>
-          <div class="mvp-label playoffs">Playoffs MVP</div>
+        <div class="mvp-card" data-testid="mvp-playoffs">
+          <div class="mvp-label">Playoffs MVP</div>
           {#if pm}
             <div class="mvp-body">
               <img class="mvp-headshot" src={playerHeadshot(pm.playerId) || avatarOrPh(rosterInfo(pm).teamAvatar, pm.playerName)} alt={pm.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(pm).teamAvatar, pm.playerName))} />
@@ -445,8 +444,8 @@
             </div>
           {:else}<div class="mvp-empty">No Playoffs MVP data.</div>{/if}
         </div>
-        <div class="mvp-card finals" data-testid="mvp-finals" use:tintFromImg={rosterInfo(fm).teamAvatar}>
-          <div class="mvp-label finals">Finals MVP</div>
+        <div class="mvp-card" data-testid="mvp-finals">
+          <div class="mvp-label">Finals MVP</div>
           {#if fm}
             <div class="mvp-body">
               <img class="mvp-headshot" src={playerHeadshot(fm.playerId) || avatarOrPh(rosterInfo(fm).teamAvatar, fm.playerName)} alt={fm.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(fm).teamAvatar, fm.playerName))} />
@@ -643,33 +642,12 @@
   .team-name-link:hover { color: var(--accent); }
   .player-meta-cell { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
 
-  /* MVP cards in records-player: each card picks up the dominant color
-     of the winning manager's logo via `tintFromImg` and exposes it as
-     `--card-tint` (+ soft + glow variants). The CSS rules below default
-     each card to a brand color so the page still looks intentional while
-     the canvas extraction is in flight. */
+  /* MVP cards: neutral flat surface, no color tint, no hover effect. */
   .mvp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
-  .mvp-card {
-    padding: 1.5rem;
-    border-right: 1px solid var(--border-subtle);
-    border-top: 3px solid transparent;
-    position: relative;
-    transition: background var(--t-fast), border-color var(--t-fast);
-  }
-  .mvp-card[data-testid="mvp-overall"]    { --card-tint: var(--win);   --card-tint-soft: rgba(16, 185, 129, 0.16); --card-tint-glow: rgba(16, 185, 129, 0.22); }
-  .mvp-card[data-testid="mvp-playoffs"]   { --card-tint: var(--brand); --card-tint-soft: var(--brand-soft);          --card-tint-glow: var(--brand-glow); }
-  .mvp-card[data-testid="mvp-finals"]     { --card-tint: var(--accent); --card-tint-soft: var(--accent-soft);         --card-tint-glow: var(--accent-glow); }
-  .mvp-card {
-    border-top-color: var(--card-tint);
-    background:
-      radial-gradient(360px 160px at 100% 0%, var(--card-tint-glow), transparent 65%),
-      linear-gradient(180deg, var(--card-tint-soft), transparent 55%);
-  }
-  .mvp-card.finals { border-right: none; }
-  .mvp-label { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--card-tint); margin-bottom: 1.25rem; }
-  .mvp-label.playoffs,
-  .mvp-label.finals { color: var(--card-tint); }
-  .mvp-pts { color: var(--card-tint); font-size: 1.8rem; margin-bottom: 0.6rem; line-height: 1; }
+  .mvp-card { padding: 1.5rem; border-right: 1px solid var(--border-subtle); }
+  .mvp-card:last-child { border-right: none; }
+  .mvp-label { font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 1.25rem; }
+  .mvp-pts { color: var(--text-primary); font-size: 1.8rem; margin-bottom: 0.6rem; line-height: 1; }
   .mvp-body { display: flex; gap: 1rem; align-items: flex-start; }
   .mvp-headshot { width: 96px; height: 96px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
   .mvp-player-name { font-family: var(--font-display); font-size: 1.6rem; line-height: 1; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-primary); margin-bottom: 0.5rem; }
