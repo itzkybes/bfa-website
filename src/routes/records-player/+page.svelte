@@ -4,9 +4,11 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
+  import { computeStandingsForLeague, starterPointsByPid } from '$lib/leagueCompute.client';
+  import { avatarOrPh, fmt2 as fmt } from '$lib/format';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import TeamBadge from '$lib/TeamBadge.svelte';
 
   let loading = true;
   let error = null;
@@ -18,16 +20,6 @@
   let allTimePlayoffsLeaderboard = []; // cumulative playoff points across every season, per player
   let allTimeBestByTeam = [];          // per team: best reg-season player + best playoff player
   let playersMap = {};
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'P';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
-  function fmt(v) {
-    const n = Number(v); if (!isFinite(n)) return '—';
-    return (Math.round(n * 100) / 100).toFixed(2);
-  }
 
   function playerName(pid) {
     if (!pid) return '';
@@ -43,27 +35,22 @@
 
   // Aggregate player points across multiple matchups
   function aggregatePlayerPoints(matchupEntries) {
-    // For each roster, sum every starter's points across all entries
-    const byPlayer = {}; // pid -> { points, rosterId }
+    // STRICT: only players who occupied a starter slot are credited, and the
+    // score used is `starters_points[slotIndex]` — the authoritative per-slot
+    // total Sleeper produces AFTER the owner's manual game-selection has
+    // been applied. Weeks missing `starters_points` are skipped entirely
+    // (rather than falling back to `player_points[pid]`, which would
+    // over-count on multi-game NBA weeks).
+    const byPlayer = {}; // pid -> { points, rosterId, gamesStarted }
     for (const entry of matchupEntries) {
-      if (!entry) continue;
+      const map = starterPointsByPid(entry);
+      if (!map) continue;
       const rid = String(entry.roster_id ?? entry.rosterId ?? '');
-      const starters = Array.isArray(entry.starters) ? entry.starters : [];
-      const pts = entry.starters_points || entry.player_points || null;
-      if (pts && typeof pts === 'object') {
-        for (const pid of starters) {
-          if (!pid) continue;
-          let val = 0;
-          if (Array.isArray(pts)) {
-            const idx = starters.indexOf(pid);
-            val = Number(pts[idx] ?? 0);
-          } else {
-            val = Number(pts[String(pid)] ?? 0);
-          }
-          if (!isFinite(val)) val = 0;
-          if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-          byPlayer[pid].points += val;
-        }
+      for (const pid of Object.keys(map)) {
+        const val = map[pid];
+        if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid, gamesStarted: 0 };
+        byPlayer[pid].points += val;
+        byPlayer[pid].gamesStarted += 1;
       }
     }
     for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
@@ -236,9 +223,11 @@
             const latestMeta = latestMetaFor(meta) || meta;
             allTimePlayoffMap[rid] = {
               rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
+              gamesStarted: info.gamesStarted || 0,
               season: r.season,
               teamName: latestMeta.team_name || meta.team_name,
               owner_name: latestMeta.owner_name || meta.owner_name,
+              owner_username: latestMeta.owner_username || meta.owner_username || null,
               teamAvatar: latestMeta.team_avatar || latestMeta.owner_avatar || meta.team_avatar || meta.owner_avatar
             };
           }
@@ -256,9 +245,11 @@
             const latestMeta = latestMetaFor(meta) || meta;
             allTimeFullMap[rid] = {
               rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
+              gamesStarted: info.gamesStarted || 0,
               season: r.season,
               teamName: latestMeta.team_name || meta.team_name,
               owner_name: latestMeta.owner_name || meta.owner_name,
+              owner_username: latestMeta.owner_username || meta.owner_username || null,
               teamAvatar: latestMeta.team_avatar || latestMeta.owner_avatar || meta.team_avatar || meta.owner_avatar
             };
           }
@@ -276,6 +267,7 @@
           const slot = playoffsByPlayer[pid] || {
             playerId: pid,
             totalPoints: 0,
+            totalGamesStarted: 0,
             appearances: 0,
             best: 0,
             bestSeason: null,
@@ -283,6 +275,7 @@
             latestSeason: null
           };
           slot.totalPoints += info.points;
+          slot.totalGamesStarted += info.gamesStarted || 0;
           slot.appearances += 1;
           if (info.points > slot.best) {
             slot.best = info.points;
@@ -303,7 +296,10 @@
           ...p,
           playerName: playerName(p.playerId),
           totalPoints: Math.round(p.totalPoints * 100) / 100,
-          best: Math.round(p.best * 100) / 100
+          best: Math.round(p.best * 100) / 100,
+          ppg: p.totalGamesStarted > 0
+            ? Math.round((p.totalPoints / p.totalGamesStarted) * 100) / 100
+            : 0
         }))
         .sort((a, b) => b.totalPoints - a.totalPoints)
         .slice(0, 25); // top 25 — keeps the table digestible
@@ -344,6 +340,10 @@
               playerId: pid,
               playerName: playerName(pid),
               points: Math.round(info.points * 100) / 100,
+              gamesStarted: info.gamesStarted || 0,
+              ppg: info.gamesStarted > 0
+                ? Math.round((info.points / info.gamesStarted) * 100) / 100
+                : 0,
               season: r.season
             };
           }
@@ -361,6 +361,10 @@
               playerId: pid,
               playerName: playerName(pid),
               points: Math.round(info.points * 100) / 100,
+              gamesStarted: info.gamesStarted || 0,
+              ppg: info.gamesStarted > 0
+                ? Math.round((info.points / info.gamesStarted) * 100) / 100
+                : 0,
               season: r.season
             };
           }
@@ -485,13 +489,15 @@
       {#if allTimePlayoff.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total playoff points scored that season">Playoff PTS</th></tr></thead>
+            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Games started (= weeks the player was in a starter slot during the playoff window)">GS</th><th class="col-num" title="Average points per game started during the playoff window">PPG (Started)</th><th class="col-num" title="Total playoff points scored that season">Playoff PTS</th></tr></thead>
             <tbody>
               {#each allTimePlayoff as row (row.rosterId)}
                 <tr>
-                  <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
+                  <td><TeamBadge meta={{ team_name: row.teamName, owner_name: row.owner_name, team_avatar: row.teamAvatar, owner_username: row.owner_username }} size="sm" href={!!row.owner_username} /></td>
                   <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
                   <td><span class="num accent-text">{row.season}</span></td>
+                  <td class="col-num"><span class="num muted">{row.gamesStarted || 0}</span></td>
+                  <td class="col-num"><span class="num">{row.gamesStarted > 0 ? fmt(row.points / row.gamesStarted) : '—'}</span></td>
                   <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
                 </tr>
               {/each}
@@ -522,17 +528,7 @@
               {#each allTimeBestByTeam as row (row.key)}
                 <tr>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.meta?.team_avatar || row.meta?.owner_avatar, row.meta?.team_name)} alt={row.meta?.team_name} />
-                      <div>
-                        {#if row.meta?.owner_username}
-                          <a class="team-name-link" href={`/team/${encodeURIComponent(row.meta.owner_username)}`}>{row.meta?.team_name || `Roster ${row.key}`}</a>
-                        {:else}
-                          <div class="team-name-cell">{row.meta?.team_name || `Roster ${row.key}`}</div>
-                        {/if}
-                        {#if row.meta?.owner_name}<div class="team-owner-cell">{row.meta.owner_name}</div>{/if}
-                      </div>
-                    </div>
+                    <TeamBadge meta={row.meta} size="md" href={!!row.meta?.owner_username} />
                   </td>
                   <td>
                     {#if row.reg}
@@ -545,7 +541,12 @@
                       </div>
                     {:else}<span class="muted">—</span>{/if}
                   </td>
-                  <td class="col-num">{#if row.reg}<span class="num bigpts">{fmt(row.reg.points)}</span>{:else}<span class="muted">—</span>{/if}</td>
+                  <td class="col-num">
+                    {#if row.reg}
+                      <span class="num bigpts">{fmt(row.reg.points)}</span>
+                      <div class="ppg-sub">{row.reg.gamesStarted || 0} GS · {row.reg.ppg ? fmt(row.reg.ppg) : '—'} PPG</div>
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
                   <td>
                     {#if row.playoff}
                       <div class="player-cell">
@@ -557,7 +558,12 @@
                       </div>
                     {:else}<span class="muted">—</span>{/if}
                   </td>
-                  <td class="col-num">{#if row.playoff}<span class="num bigpts">{fmt(row.playoff.points)}</span>{:else}<span class="muted">—</span>{/if}</td>
+                  <td class="col-num">
+                    {#if row.playoff}
+                      <span class="num bigpts">{fmt(row.playoff.points)}</span>
+                      <div class="ppg-sub">{row.playoff.gamesStarted || 0} GS · {row.playoff.ppg ? fmt(row.playoff.ppg) : '—'} PPG</div>
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -566,7 +572,7 @@
       {:else}<div class="empty-card">No team data yet.</div>{/if}
     </section>
 
-    <section class="block" data-testid="all-time-playoffs-leaderboard">
+    <section class="block" id="all-time-playoffs-leaderboard" data-testid="all-time-playoffs-leaderboard">
       <div class="block-head">
         <h2 class="block-title">Playoffs MVP · All-Time Leaderboard</h2>
         <span class="block-sub">Cumulative playoff points · every season</span>
@@ -579,6 +585,7 @@
                 <th style="width:60px;" title="Rank by cumulative playoff scoring">Rank</th>
                 <th>Player</th>
                 <th class="col-num" title="Sum of playoff points across every season played">Total Playoff PTS</th>
+                <th class="col-num" title="Average points per playoff game started across every season">PPG (Started)</th>
                 <th class="col-num" title="Highest single-season playoff total + year it happened">Best Single Run</th>
                 <th class="col-num" title="Number of seasons this player has played in BFA playoffs">Playoffs Made</th>
                 <th title="Franchise currently rostering this player">Current Team</th>
@@ -595,17 +602,12 @@
                     </div>
                   </td>
                   <td class="col-num"><span class="num bigpts">{fmt(row.totalPoints)}</span></td>
+                  <td class="col-num"><span class="num">{row.ppg ? fmt(row.ppg) : '—'}</span></td>
                   <td class="col-num"><span class="num">{fmt(row.best)} <span class="best-season">'{String(row.bestSeason).slice(-2)}</span></span></td>
                   <td class="col-num"><span class="num">{row.appearances}</span></td>
                   <td>
                     {#if row.latestRoster}
-                      <div class="team-cell">
-                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar || row.latestRoster.owner_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
-                        <div>
-                          <div class="team-name-cell">{row.latestRoster.team_name}</div>
-                          <div class="team-owner-cell">{row.latestRoster.owner_name}</div>
-                        </div>
-                      </div>
+                      <TeamBadge meta={row.latestRoster} size="sm" href={!!row.latestRoster.owner_username} />
                     {:else}
                       <span class="muted">—</span>
                     {/if}
@@ -623,13 +625,15 @@
       {#if allTimeFull.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total points (regular season + playoffs)">Total PTS</th></tr></thead>
+            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Games started (regular + playoffs)">GS</th><th class="col-num" title="Average points per game started across the full season">PPG (Started)</th><th class="col-num" title="Total points (regular season + playoffs)">Total PTS</th></tr></thead>
             <tbody>
               {#each allTimeFull as row (row.rosterId)}
                 <tr>
-                  <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
+                  <td><TeamBadge meta={{ team_name: row.teamName, owner_name: row.owner_name, team_avatar: row.teamAvatar, owner_username: row.owner_username }} size="sm" href={!!row.owner_username} /></td>
                   <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
                   <td><span class="num accent-text">{row.season}</span></td>
+                  <td class="col-num"><span class="num muted">{row.gamesStarted || 0}</span></td>
+                  <td class="col-num"><span class="num">{row.gamesStarted > 0 ? fmt(row.points / row.gamesStarted) : '—'}</span></td>
                   <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
                 </tr>
               {/each}
@@ -655,9 +659,8 @@
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
 
-  .team-name-link { font-weight: 700; color: var(--text-primary); line-height: 1.15; text-decoration: none; }
-  .team-name-link:hover { color: var(--accent); }
   .player-meta-cell { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+  .ppg-sub { color: var(--text-tertiary); font-size: 0.7rem; margin-top: 0.15rem; letter-spacing: 0.05em; font-weight: 600; font-variant-numeric: tabular-nums; }
 
   /* MVP cards: neutral flat surface, no color tint, no hover effect. */
   .mvp-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; }
@@ -677,10 +680,8 @@
 
   .table-wrap { overflow-x: auto; }
   .bfa-table { min-width: 720px; }
-  .team-cell, .player-cell { display: flex; align-items: center; gap: 0.7rem; }
-  .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-name-cell, .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
-  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
+  .player-cell { display: flex; align-items: center; gap: 0.7rem; }
+  .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .bigpts { font-size: 1.15rem; color: var(--accent); font-weight: 700; }
   .accent-text { color: var(--accent); }
   .best-season { color: var(--text-tertiary); font-size: 0.75rem; font-weight: 700; margin-left: 0.25rem; }
@@ -707,9 +708,8 @@
     .mvp-headshot { width: 76px; height: 76px; }
     .mvp-player-name { font-size: 1.3rem; }
     .mvp-pts { font-size: 1.5rem; }
-    .team-avatar.small { width: 34px; height: 34px; }
     .headshot { width: 36px; height: 36px; }
-    .team-owner-cell, .player-meta-cell { display: none; }
+    .player-meta-cell { display: none; }
     .bigpts { font-size: 1rem; }
   }
 </style>

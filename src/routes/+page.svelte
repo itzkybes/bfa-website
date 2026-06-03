@@ -7,6 +7,7 @@
     pickActiveLeague, getCurrentWeekForLeague, getRecentTrades,
     getPlayersNba, getRosterMapWithOwners, playerHeadshot
   } from '$lib/sleeperClient.client';
+  import { fmt1 as fmt } from '$lib/format';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
@@ -108,12 +109,6 @@
     const u = findUserByOwner(roster.owner_id);
     if (!u) return null;
     return u.display_name || u.username || (u.metadata && u.metadata.team_name) || null;
-  }
-
-  function fmt(n) {
-    if (n == null) return '-';
-    if (typeof n === 'number') return (Math.round(n * 10) / 10).toFixed(1);
-    return String(n);
   }
 
   function normalizeMatchups(raw) {

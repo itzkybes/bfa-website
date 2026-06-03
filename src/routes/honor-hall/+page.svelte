@@ -4,9 +4,11 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
+  import { computeStandingsForLeague, starterPointsByPid } from '$lib/leagueCompute.client';
+  import { avatarOrPh, fmt1 as fmt } from '$lib/format';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import TeamBadge from '$lib/TeamBadge.svelte';
 
   let loading = true;
   let error = null;
@@ -21,15 +23,6 @@
   // Stash season results so dropdown switching is instant
   let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, regularMvp }
 
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
-  function fmt(v) {
-    const n = Number(v); if (!isFinite(n)) return '—';
-    return (Math.round(n * 10) / 10).toFixed(1);
-  }
   function placeEmoji(rank) {
     if (rank === 1) return '🏆'; if (rank === 2) return '🥈'; if (rank === 3) return '🥉'; return '';
   }
@@ -42,24 +35,16 @@
   }
 
   function aggregatePlayerPoints(matchupEntries) {
+    // STRICT starter-only scoring — see records-player / leagueCompute for rationale.
     const byPlayer = {};
     for (const entry of matchupEntries) {
-      if (!entry) continue;
+      const map = starterPointsByPid(entry);
+      if (!map) continue;
       const rid = String(entry.roster_id ?? entry.rosterId ?? '');
-      const starters = Array.isArray(entry.starters) ? entry.starters : [];
-      const pts = entry.starters_points || entry.player_points || null;
-      if (pts && typeof pts === 'object') {
-        for (const pid of starters) {
-          if (!pid) continue;
-          let val = 0;
-          if (Array.isArray(pts)) {
-            const idx = starters.indexOf(pid);
-            val = Number(pts[idx] ?? 0);
-          } else val = Number(pts[String(pid)] ?? 0);
-          if (!isFinite(val)) val = 0;
-          if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-          byPlayer[pid].points += val;
-        }
+      for (const pid of Object.keys(map)) {
+        const val = map[pid];
+        if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
+        byPlayer[pid].points += val;
       }
     }
     for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
@@ -272,8 +257,7 @@
           {#each finalStandings as row, idx (row.rosterId)}
             <li class="standings-row" class:gold={row.rank === 1}>
               <div class="rank-col num">{row.rank}{#if placeEmoji(row.rank)}<span class="medal">{placeEmoji(row.rank)}</span>{/if}</div>
-              <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
-              <div class="team-meta"><div class="team-name">{row.team_name}</div><div class="team-owner">{row.owner_name ?? `Roster ${row.rosterId}`}</div></div>
+              <TeamBadge meta={row} size="lg" href={!!row.owner_username} />
               <div class="seed-col"><span class="num">#{row.seed ?? '—'}</span><span class="seed-label">Seed</span></div>
             </li>
           {/each}
@@ -346,16 +330,12 @@
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
 
   .standings-list { list-style: none; margin: 0; padding: 0; }
-  .standings-row { display: grid; grid-template-columns: 70px 56px 1fr auto; gap: 1rem; align-items: center; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border-subtle); transition: background var(--t-fast); }
+  .standings-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 1rem; align-items: center; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border-subtle); transition: background var(--t-fast); }
   .standings-row:last-child { border-bottom: none; }
   .standings-row:hover { background: rgba(255, 255, 255, 0.03); }
   .standings-row.gold { background: linear-gradient(90deg, rgba(245, 180, 0, 0.08), transparent); border-left: 3px solid var(--gold); padding-left: calc(1.25rem - 3px); }
   .rank-col { font-size: 1.4rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem; }
   .medal { font-family: var(--font-body); font-size: 1rem; }
-  .team-avatar.small { width: 56px; height: 56px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-meta { min-width: 0; }
-  .team-name { font-family: var(--font-display); font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-primary); line-height: 1.15; }
-  .team-owner { color: var(--text-tertiary); font-size: 0.8rem; margin-top: 0.2rem; }
   .seed-col { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
   .seed-col .num { font-size: 1.2rem; color: var(--accent); }
   .seed-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-tertiary); font-weight: 700; }
@@ -378,10 +358,7 @@
     .bento { grid-template-columns: 1fr; }
     .champion-card { grid-column: span 1; min-height: auto; }
     .champion-trophy { font-size: 3rem; }
-    .standings-row { grid-template-columns: 44px 40px 1fr auto; padding: 0.65rem 0.75rem; gap: 0.5rem; }
-    .team-avatar.small { width: 40px; height: 40px; }
-    .team-name { font-size: 0.95rem; }
-    .team-owner { font-size: 0.72rem; }
+    .standings-row { grid-template-columns: 44px 1fr auto; padding: 0.65rem 0.75rem; gap: 0.5rem; }
     .seed-col .num { font-size: 1rem; }
   }
 </style>

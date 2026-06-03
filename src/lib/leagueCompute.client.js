@@ -33,13 +33,38 @@ function computeStreaks(resultsArray) {
 }
 
 /**
- * Score a single Sleeper matchup entry. Sleeper has gone through a few
- * representations over the years — `starters_points` as an array, `player_points`
- * as a map keyed by player id, and an aggregate `points` field — so we try each
- * in turn and fall back to whatever's there.
+ * Score a single Sleeper matchup entry, honoring **commish overrides**.
+ *
+ * Sleeper's matchup payload exposes the team's score in three places, in
+ * descending order of trust:
+ *   1. `custom_points` — set when the commish manually edits a score in the
+ *      Sleeper UI. ALWAYS takes precedence when non-null/non-zero because
+ *      the per-player scoring breakdown is left stale after a manual edit.
+ *   2. `points` — Sleeper's auto-computed team total. Usually matches
+ *      sum(starters_points) but will diverge after a commish edit, after
+ *      scoring-setting changes mid-season, or in older seasons where the
+ *      per-player breakdown wasn't fully populated.
+ *   3. `sum(starters_points)` / `sum(player_points[starters])` — last
+ *      resort, computed from the per-player breakdown.
+ *
+ * BFA-specific context: the commissioner has been known to manually edit
+ * a handful of matchup scores (injury credits, scoring corrections, etc.).
+ * Honoring `custom_points` and `points` ensures the standings table on
+ * /standings, the H2H ledger on /team/[username], and the records on
+ * /records-team all reflect the OFFICIAL post-edit results — not a stale
+ * starter-sum that disagrees with what shows in Sleeper.
  */
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
+  // 1) commish override wins
+  const cp = safeNum(entry.custom_points);
+  if (cp && cp > 0) return Math.round(cp * 100) / 100;
+  // 2) Sleeper's official team total (already post-edit when commish saved
+  //    the change via the UI). Treat any non-zero value as authoritative.
+  const officialPoints = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score);
+  if (officialPoints && officialPoints > 0) return Math.round(officialPoints * 100) / 100;
+  // 3) Recompute from starters_points (used when seasonal exports drop the
+  //    aggregate `points` field — common for very old Sleeper seasons).
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
   for (const k of arrayKeys) {
     if (Array.isArray(entry[k]) && entry[k].length) {
@@ -53,8 +78,51 @@ function computeParticipantPoints(entry) {
     for (const st of entry.starters) s += safeNum(entry.player_points[String(st)] ?? entry.player_points[st]);
     return Math.round(s * 100) / 100;
   }
-  const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
-  return Math.round(fallback * 100) / 100;
+  return 0;
+}
+
+/**
+ * Strict per-starter point map for a single matchup entry.
+ *
+ * Returns `{ [pid]: number }` containing EVERY player ID that occupied a
+ * starter slot that week, paired with the AUTHORITATIVE per-slot score from
+ * `starters_points` (honors the owner's manual game-selection in NBA leagues
+ * with "Choose Start Game" and any commish slot-level edits).
+ *
+ * STRICT contract:
+ *   - The score for each starter comes ONLY from `starters_points[slotIndex]`.
+ *   - If `starters_points` is missing/empty OR a particular slot has no
+ *     numeric value, that player is credited with 0 (NEVER fall back to
+ *     `player_points[pid]`, which would over-count multi-game NBA weeks).
+ *   - Every player that started is still included in the map so callers
+ *     can correctly count `gamesStarted` even on weeks where the per-slot
+ *     score is missing.
+ *
+ * Returns `null` only when the entry has no `starters` array at all.
+ */
+export function starterPointsByPid(entry) {
+  if (!entry) return null;
+  const starters = Array.isArray(entry.starters) ? entry.starters : [];
+  if (!starters.length) return null;
+  const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
+  let arr = null;
+  for (const k of arrayKeys) {
+    if (Array.isArray(entry[k]) && entry[k].length) { arr = entry[k]; break; }
+  }
+  const out = {};
+  for (let i = 0; i < starters.length; i++) {
+    const pid = starters[i];
+    if (!pid) continue;
+    let val = 0;
+    if (arr) {
+      const raw = arr[i];
+      const n = safeNum(raw);
+      if (isFinite(n)) val = n;
+    }
+    // Sum in case the same player somehow appears in two starter slots.
+    out[pid] = (out[pid] || 0) + val;
+  }
+  return out;
 }
 
 /** Fetch a static JSON asset from `/static`. Returns `null` if missing or invalid. */
@@ -496,6 +564,7 @@ export async function computeStandingsForLeague(leagueId) {
       out.push({
         rosterId: rid,
         owner_id: meta.owner_id || null,
+        owner_username: meta.owner_username || null,
         team_name: meta.team_name || ('Roster ' + rid),
         owner_name: meta.owner_name || null,
         avatar: meta.team_avatar || meta.owner_avatar || null,
@@ -614,14 +683,28 @@ export async function computeStandingsForLeague(leagueId) {
  *   - `{ combinedParticipants: [...], participantsCount: N }` — multi-team game
  */
 export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = null) {
-  if (!rosterMap) rosterMap = await getRosterMapWithOwners(leagueId).catch(() => ({}));
-  const leagueMeta = await getLeague(leagueId).catch(() => null);
+  // Parallelize the 3 independent fetches: rosters+users (rosterMap),
+  // league metadata (needed for playoff_week_start + season), and the
+  // matchups payload itself. Saves 2x round-trips vs. sequential awaits.
+  const rosterMapPromise = rosterMap
+    ? Promise.resolve(rosterMap)
+    : getRosterMapWithOwners(leagueId).catch(() => ({}));
+  const leagueMetaPromise = getLeague(leagueId).catch(() => null);
+  const liveMatchupsPromise = getMatchupsForWeek(leagueId, week).catch(() => []);
+
+  const [resolvedRosterMap, leagueMeta] = await Promise.all([
+    rosterMapPromise,
+    leagueMetaPromise
+  ]);
+  rosterMap = resolvedRosterMap || {};
+
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   let playoffStart = leagueMeta?.settings?.playoff_week_start ? Number(leagueMeta.settings.playoff_week_start) : 15;
   if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
   const playoffEnd = playoffStart + 2;
 
-  // Prefer the static JSON snapshot for older seasons.
+  // Prefer the static JSON snapshot for older seasons — wait on it only if
+  // applicable, otherwise use the already-in-flight live matchups response.
   let seasonMatchups = null;
   if (leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)) {
     seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
@@ -644,8 +727,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
 
   // Live data path: Sleeper returns one entry per roster — group by matchup_id
   // to pair them into rows.
-  let raw = null;
-  try { raw = await getMatchupsForWeek(leagueId, week); } catch (e) { raw = []; }
+  let raw = await liveMatchupsPromise;
   if (!Array.isArray(raw)) raw = [];
 
   const byMatch = {};
@@ -700,7 +782,12 @@ function makeTeam(rid, rosterMap, entry) {
     points: computeParticipantPoints(entry),
     starters: entry?.starters ?? null,
     starters_points: entry?.starters_points ?? null,
-    player_points: entry?.player_points ?? null
+    // Sleeper's matchups endpoint exposes per-player scoring as
+    // `players_points` (with the 's'). Keep both keys mapped for backwards
+    // compatibility with our static historical JSON which uses
+    // `player_points`.
+    player_points: entry?.players_points ?? entry?.player_points ?? null,
+    players: Array.isArray(entry?.players) ? entry.players : null
   };
 }
 

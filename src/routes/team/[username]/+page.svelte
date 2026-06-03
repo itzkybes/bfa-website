@@ -13,9 +13,11 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { getSeasonsChain, BASE_LEAGUE_ID, getRosterMapWithOwners } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
+  import { computeStandingsForLeague, computeParticipantPoints } from '$lib/leagueCompute.client';
+  import { avatarOrPh, fmt2 as fmt } from '$lib/format';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import TeamBadge from '$lib/TeamBadge.svelte';
 
   let loading = true;
   let error = null;
@@ -54,17 +56,51 @@
     { wins: 0, losses: 0, pf: 0, pa: 0, games: 0 }
   );
 
-  function fmt(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    return (Math.round(n * 100) / 100).toFixed(2);
-  }
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? String(name)[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
+  /**
+   * Per-opponent head-to-head rollup across every season this owner has
+   * played. Keyed by opponent owner_username (lowercased) so the same
+   * franchise re-themed across seasons still aggregates to ONE row.
+   * Moved here from /records-team since this is a team-specific view.
+   */
+  $: h2h = (() => {
+    const byOpp = {};
+    for (const season of bySeason) {
+      for (const m of season.matchups) {
+        const meta = m.oppMeta || {};
+        const key = (meta.owner_username || meta.owner_name || meta.team_name || '').toLowerCase();
+        if (!key) continue;
+        if (!byOpp[key]) {
+          byOpp[key] = {
+            key,
+            opponent_meta: meta,
+            wins: 0, losses: 0, ties: 0, games: 0,
+            pf: 0, pa: 0,
+            lastSeason: null, lastWeek: null
+          };
+        }
+        const row = byOpp[key];
+        row.games += 1;
+        row.pf += m.my;
+        row.pa += m.opp;
+        if (m.result === 'W') row.wins += 1;
+        else if (m.result === 'L') row.losses += 1;
+        else row.ties += 1;
+        // Track most recent meeting — bySeason is newest-first so the first
+        // season we encounter for each opponent IS the most recent.
+        if (row.lastSeason == null) {
+          row.lastSeason = season.season;
+          row.lastWeek = m.week;
+        }
+      }
+    }
+    return Object.values(byOpp)
+      .map((r) => ({
+        ...r,
+        pf: Math.round(r.pf * 100) / 100,
+        pa: Math.round(r.pa * 100) / 100
+      }))
+      .sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses) || b.games - a.games);
+  })();
 
   /** Find the rosterId belonging to `username` in this league's roster map. */
   function findRosterIdForUser(rosterMap, usernameLower) {
@@ -78,11 +114,24 @@
   /**
    * Walk every week of `collectedMatchups`, pair the entries by matchup_id,
    * and emit one row per week where `myRosterId` was a participant.
+   *
+   * Rules per user spec:
+   *  - The season ends when the playoffs end → drop any matchups beyond
+   *    `playoffEnd`. The regular season + playoff window is the entire
+   *    season's matchup history.
+   *  - A matchup is only flagged as a "playoff" game when BOTH participants
+   *    were seeded into the winners bracket (their regular-season seed was
+   *    in 1..playoffTeams). Anything else in the playoff weeks is a
+   *    losers-bracket / consolation game and shows up unlabeled.
    */
-  function buildMatchupsForRoster(collectedMatchups, myRosterId, rosterMap, playoffStart, playoffEnd) {
+  function buildMatchupsForRoster(collectedMatchups, myRosterId, rosterMap, playoffStart, playoffEnd, winnersBracketRosters) {
+    const winnersSet = new Set((winnersBracketRosters || []).map(String));
     const out = [];
     const weeks = Object.keys(collectedMatchups).map(Number).sort((a, b) => a - b);
     for (const week of weeks) {
+      // Stop at the playoffs-end boundary; the user wants every team's
+      // history to end exactly when the championship is decided.
+      if (week > playoffEnd) continue;
       const arr = collectedMatchups[week] || [];
       // Pair by matchup_id
       const byMid = {};
@@ -97,14 +146,20 @@
         const mine = pair.find((e) => String(e.roster_id ?? e.rosterId ?? '') === String(myRosterId));
         if (!mine) continue;
         const opp = pair.find((e) => e !== mine);
-        const myPts = Number(mine.points ?? 0) || 0;
-        const oppPts = Number(opp?.points ?? 0) || 0;
+        // Use computeParticipantPoints so manual commish edits
+        // (`custom_points`) override the auto-computed total.
+        const myPts = computeParticipantPoints(mine);
+        const oppPts = opp ? computeParticipantPoints(opp) : 0;
         const oppRid = opp ? String(opp.roster_id ?? opp.rosterId ?? '') : null;
         const oppMeta = oppRid && rosterMap[oppRid] ? rosterMap[oppRid] : null;
         let result = 'T';
         if (myPts > oppPts + 1e-9) result = 'W';
         else if (myPts < oppPts - 1e-9) result = 'L';
-        const isPlayoff = week >= playoffStart && week <= playoffEnd;
+        // Winners-bracket-only playoff flag: both teams must have been
+        // top-seeded into the playoffs. Losers-bracket / consolation games
+        // played in the same weeks render as regular rows (no badge).
+        const bothInWinners = winnersSet.has(String(myRosterId)) && oppRid && winnersSet.has(String(oppRid));
+        const isPlayoff = week >= playoffStart && week <= playoffEnd && bothInWinners;
         out.push({ week, isPlayoff, my: myPts, opp: oppPts, oppMeta, result });
       }
     }
@@ -131,12 +186,37 @@
         const rid = findRosterIdForUser(standings.rosterMap || {}, usernameLower);
         if (!rid) return null; // owner wasn't in this season
 
+        // Compute the winners-bracket roster set (top playoff_teams seeds
+        // from the regular standings). Used to label playoff games and to
+        // recompute the playoff summary so it excludes losers-bracket games.
+        const playoffTeams = Number(standings.playoffTeams) || 8;
+        const winnersBracketRosters = (standings.regularStandings || [])
+          .slice(0, playoffTeams)
+          .map((r) => String(r.rosterId));
+
         const matchups = buildMatchupsForRoster(
           standings.collectedMatchups || {},
           rid,
           standings.rosterMap || {},
           standings.playoffStart,
-          standings.playoffEnd
+          standings.playoffEnd,
+          winnersBracketRosters
+        );
+
+        // Recompute the playoff summary from the matchups we actually kept
+        // (winners-bracket games only). Don't trust the upstream
+        // playoffStandings row because it conflates winners + losers
+        // bracket scoring.
+        const playoffGames = matchups.filter((m) => m.isPlayoff);
+        const playoffSummary = playoffGames.reduce(
+          (acc, m) => {
+            acc.pf += m.my;
+            acc.pa += m.opp;
+            if (m.result === 'W') acc.wins += 1;
+            else if (m.result === 'L') acc.losses += 1;
+            return acc;
+          },
+          { wins: 0, losses: 0, pf: 0, pa: 0 }
         );
 
         // Locate owner display info from THIS season's roster map. We prefer
@@ -156,12 +236,7 @@
             pf: reg.pf || 0,
             pa: reg.pa || 0
           },
-          playoffSummary: {
-            wins: playoff.wins || 0,
-            losses: playoff.losses || 0,
-            pf: playoff.pf || 0,
-            pa: playoff.pa || 0
-          },
+          playoffSummary,
           champion: playoff.champion === true,
           matchups,
           myMeta
@@ -220,6 +295,45 @@
   {:else if error}
     <ErrorBoundary {error} onRetry={loadAll} context="team matchup history" />
   {:else}
+    {#if h2h.length}
+      <section class="block" data-testid="h2h-section">
+        <div class="block-head">
+          <h2 class="block-title">Head-to-Head</h2>
+          <span class="block-sub">Career record vs every opponent</span>
+        </div>
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead>
+              <tr>
+                <th>Opponent</th>
+                <th class="col-num" title="Head-to-head wins">Wins</th>
+                <th class="col-num" title="Head-to-head losses">Losses</th>
+                <th class="col-num" title="Total games played">Games</th>
+                <th class="col-num" title="Total points scored against this opponent">Points For</th>
+                <th class="col-num" title="Total points allowed">Points Against</th>
+                <th class="col-num" title="Most recent meeting">Last Met</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each h2h as row (row.key)}
+                <tr data-testid={`h2h-row-${row.key}`}>
+                  <td>
+                    <TeamBadge meta={row.opponent_meta} size="sm" showOwner href={!!row.opponent_meta?.owner_username} />
+                  </td>
+                  <td class="col-num"><span class="num">{row.wins}</span></td>
+                  <td class="col-num"><span class="num">{row.losses}</span></td>
+                  <td class="col-num"><span class="num">{row.games}</span></td>
+                  <td class="col-num"><span class="num">{fmt(row.pf)}</span></td>
+                  <td class="col-num"><span class="num muted">{fmt(row.pa)}</span></td>
+                  <td class="col-num"><span class="num muted">{row.lastSeason ?? '—'}{#if row.lastWeek} · W{row.lastWeek}{/if}</span></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {/if}
+
     {#each bySeason as season (season.leagueId)}
       <section class="block" data-testid={`season-${season.season}`}>
         <div class="block-head">
@@ -255,13 +369,7 @@
                     </td>
                     <td>
                       {#if m.oppMeta}
-                        <a class="team-cell-link" href={m.oppMeta.owner_username ? `/team/${encodeURIComponent(m.oppMeta.owner_username)}` : '/rosters'}>
-                          <img class="team-avatar small" src={avatarOrPh(m.oppMeta.team_avatar, m.oppMeta.team_name)} alt={m.oppMeta.team_name} />
-                          <div>
-                            <div class="team-name-cell">{m.oppMeta.team_name}</div>
-                            {#if m.oppMeta.owner_name}<div class="team-owner-cell">{m.oppMeta.owner_name}</div>{/if}
-                          </div>
-                        </a>
+                        <TeamBadge meta={m.oppMeta} size="sm" showOwner href={!!m.oppMeta.owner_username} />
                       {:else}
                         <span class="muted">BYE</span>
                       {/if}
@@ -302,11 +410,6 @@
   .bfa-table { min-width: 720px; }
   .wk-cell { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; }
   .playoff-pill { background: var(--brand); color: var(--brand-foreground, #fff); font-size: 0.62rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 999px; letter-spacing: 0.08em; }
-  .team-cell-link { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: inherit; transition: opacity 0.2s; }
-  .team-cell-link:hover { opacity: 0.72; }
-  .team-avatar.small { width: 38px; height: 38px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
-  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
 
   .pf { color: var(--text-primary); font-weight: 700; }
   .muted { color: var(--text-tertiary); }
@@ -334,9 +437,6 @@
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.1rem; }
     .block-sub { font-size: 0.7rem; letter-spacing: 0.08em; }
-    .team-avatar.small { width: 30px; height: 30px; }
-    .team-owner-cell { display: none; }
-    .team-name-cell { font-size: 0.85rem; }
     .wk-cell { padding: 0.55rem 0.55rem; gap: 0.35rem; }
     .playoff-pill { font-size: 0.55rem; padding: 0.08rem 0.3rem; }
     .result-pill { min-width: 22px; padding: 0.1rem 0.3rem; font-size: 0.7rem; }

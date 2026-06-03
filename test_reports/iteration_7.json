@@ -1,0 +1,39 @@
+{
+  "iteration": 7,
+  "summary": "Frontend-only validation of iteration_7 changes: (1) loosened strict starterPointsByPid helper that now always returns a per-pid map for any non-empty starters[] (per-slot 0-fallback for missing values, full week is no longer skipped) → enables accurate gamesStarted counting; (2) PPG (Started) columns wired into 4 tables on /records-player; (3) parallelized /matchups fetches with getPlayersNba kicked off ahead of seasons walk. ALL 8 acceptance items PASS. Zero console errors across the 4 refactored pages.",
+  "scope": "frontend-only (CSR SvelteKit, public Sleeper API, no backend / no Mongo)",
+  "test_credentials": "N/A — public Sleeper API; no /app/memory/test_credentials.md needed.",
+  "tested_url": "http://localhost:3000 (no /app/frontend/.env; supervisor frontend on port 3000)",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_acceptance_criteria": [
+    "/records-player → All-Time Best Player · By Team (data-testid='all-time-best-by-team') renders 16 rows (one per franchise). Each populated Best · Reg-Season and Best · Playoffs PTS cell shows a big PTS number plus a `.ppg-sub` line in EXACT format `<N> GS · <PPG> PPG`. 32 `.ppg-sub` elements observed. SANITY CHECK PASSED: 'Gilbert Arenas zamt' row → Reg Season Luka Dončić '25 SEASON 874.82 PTS · 18 GS · 48.60 PPG (matches the expected example exactly). Playoff sub-line for same row: 191.25 PTS · 3 GS · 63.75 PPG.",
+    "/records-player → 'All-Time Single-Season Playoff Best' has the expected 6 columns: Team, Top Scorer, Season, GS, PPG (Started), Playoff PTS. 14 rows. Every row shows GS=3 (playoff window is 3 weeks), and PPG values are correct (Luka 63.75, Wemby 56.75, Jokić 52.50, Jalen Johnson 44.73, Josh Giddey 42.83 — all = PTS/3 rounded to 2 decimals).",
+    "/records-player → 'All-Time Single-Season Full-Season Best' has the expected 6 columns: Team, Top Scorer, Season, GS, PPG (Started), Total PTS. 14 rows. GS values observed in 17-20 range (within expected 16-22 full-season window). PPG (Started) values (e.g. 48.60, 45.39, 43.57, 42.15) match Total PTS / GS to 2 decimals.",
+    "/records-player → 'Playoffs MVP · All-Time Leaderboard' (data-testid='all-time-playoffs-leaderboard') has the expected 7 columns including new 'PPG (Started)' between 'Total Playoff PTS' and 'Best Single Run'. 25 rows. Top-ranked Nikola Jokić 519.69 PTS · 47.24 PPG (within expected 40-60 range). #2 Luka 489.26 · 40.77 PPG, #3 Bam Adebayo 399.19 · 33.27 PPG, #4 Giannis 387.19 · 35.20 PPG, #5 SGA 379.25 · 31.60 PPG — all reasonable, no inflation, no NaN.",
+    "/matchups season=2025 week=1 cold-cache → DOM ready in 0.05s, 'Top 3 Performances' heading present in 2.05s wall-clock (well under the 5s budget). All 8 expected recap cards render: Top 3 Performances (SGA 66.00, Wemby 61.25, Aaron Gordon 60.50), Biggest Blowout (+121.9 margin Emperors def. Team Lobster), Closest Game (Fraggle Rock 9 by 22.6), Highest-Scoring Matchup (616.3 combined), Biggest Bench Burn (Cedric Coward 37.25 +30.5 over worst starter), Bust of the Week (Khaman Maluach 2.75 started, Gilbert Arenas), Highest Team Score (Kanto Embers 368.50), Lowest Team Score (Pact Nicely 180.75). Head-to-Head Matchups list below shows all 7 pairings with starter/bench badges.",
+    "/standings regression → Regular Season MVP Race renders top 5 with positive PTS totals: 1) Nikola Jokić 901.2 (I could gopher a beer), 2) Luka Dončić 874.8 (Gilbert Arenas), 3) Tyrese Maxey 800.9 (The Codfather), 4) Cade Cunningham 784.2 (The Emperors), 5) Shai Gilgeous-Alexander 771.7 (Kanto Embers). Season dropdown default value = '2025' (confirmed via select.input_value()). Regular Season + Playoffs tables also render with W/L, PF/PA, and trend sparklines.",
+    "/honor-hall regression season=2025 → Regular Season MVP card: Nikola Jokić 901.2 PTS (JFK4312). Playoffs MVP card: Victor Wembanyama 163.9 PTS (JakePratt). Finals MVP card: Bam Adebayo 60.5 PTS (JFK4312). Each card shows player name + positive PTS total + owner. Champion banner ('I could gopher a beer' Seed #3) and Final Standings list (14 teams with placement-seeded medals/badges) also render.",
+    "ZERO console errors observed across all 4 refactored pages (/records-player, /matchups, /standings, /honor-hall). No occurrences of `starterPointsByPid is not a function`, `Cannot read properties of null`, or `gamesStarted of undefined`. No Svelte page-error overlays."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "leagueCompute.client.js → starterPointsByPid() (lines 103-126): correctly loosened. Now returns a non-null map for any entry whose starters[] array is non-empty, defaulting per-slot to 0 when starters_points is missing/empty or a particular index is non-numeric. The map always covers EVERY starter pid (using `out[pid] = (out[pid]||0) + val`), so gamesStarted counts correctly even on weeks with no scoring data. Defensive sum guards against the same pid appearing in two starter slots. Comments and contract match implementation — well documented.",
+    "records-player/+page.svelte: PPG values are computed from `gamesStarted` / `points` rather than averaged at row time — correct because gamesStarted is now reliably populated by the loosened helper. For the by-team table, PPG is intentionally rendered as a `.ppg-sub` sub-line under each PTS cell instead of a new column, preserving the 5-column layout per the iteration_7 spec.",
+    "matchups optimization (line 213 onwards): getPlayersNba() is kicked off WITHOUT await before loadSeasons() walks the chain → cold-cache load dropped from prior 5-15s to ~2s in this test. computeMatchupsForLeagueWeek() rosterMap+leagueMeta+matchups parallelization via Promise.all is correctly bundled and does not regress data correctness (top-3, bust, bench-burn values all still match prior iteration_6 sanity numbers).",
+    "Minor: the Bust of the Week (Khaman Maluach 2.75 from Gilbert Arenas) is identical to iteration_6's value, confirming the loosened helper does NOT change bust selection — bust is still derived from starter-only scoring as intended.",
+    "Sub-line `.ppg-sub` rendering uses muted styling differentiated from the big PTS number — visually clean and not cramping the column width. Tooltips on the GS / PPG (Started) <th> elements explain the new metric (good a11y / discoverability)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no backend)", "frontend": "100% (8/8 acceptance items pass)"},
+  "seed_data_creation": "None — public Sleeper API only.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend supervisor on http://localhost:3000. NO /app/frontend/.env file. Each page may take 5-15s on first hit (Sleeper season chain walk) — use wait_until='domcontentloaded' + wait_for_timeout(8-12s) AFTER first selector resolves, NOT 'networkidle'. Key data-testids: all-time-best-by-team, all-time-playoffs-leaderboard. /standings MVP race still has no data-testid (located by heading text). Sample owner = riguy506; sample past honor-hall season = 2024. Sample by-team sanity row = 'Gilbert Arenas' (zamt) → Luka Dončić '25 SEASON 18 GS · 48.60 PPG · 874.82 PTS.",
+  "rca_of_the_issue": "N/A — no bugs found. Loosened helper, PPG (Started) columns, and matchups parallelization all functioning as specified."
+}

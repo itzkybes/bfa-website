@@ -1,0 +1,37 @@
+{
+  "iteration": 6,
+  "summary": "Frontend-only verification of the new strict starter-only player scoring helper `starterPointsByPid()` wired into /standings (MVP race), /records-player (single-season best + all-time-by-team), /honor-hall (RS/Playoffs/Finals MVPs), and /matchups (Top 3 / Bust / Bench Burn). All 6 acceptance items PASS. No console or page errors on any route. /standings dropdown default regression from iteration_5 is also confirmed FIXED (defaults to 2025).",
+  "scope": "frontend-only (CSR SvelteKit, public Sleeper API, no backend / no Mongo)",
+  "test_credentials": "N/A — public Sleeper API.",
+  "tested_url": "http://localhost:3000 (no /app/frontend/.env present; REACT_APP_BACKEND_URL unset; supervisor frontend on port 3000)",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_acceptance_criteria": [
+    "/standings → Regular Season MVP Race renders top-5 list: 1) Luka Dončić 904.3 PTS · Gilbert Arenas, 2) Nikola Jokić 875.4, 3) Tyrese Maxey 792.2, 4) Cade Cunningham 779.9, 5) Shai Gilgeous-Alexander 771.7. Through W19 — averages 40-48 PTS/week, reasonable and not inflated. All five entries show positive several-hundred totals. Season dropdown defaults to 2025 (latest in-season) — iteration_5 regression FIXED.",
+    "/records-player → All-Time Single-Season Playoff Best (14 rows, each positive — top Luka 168.50 '25 / Bam Adebayo 165.00 / Wembanyama 141.25 / Josh Giddey 138.50 / Jalen Johnson 138.44), All-Time Single-Season Full-Season Best (14 rows, each positive — top Luka 1085.07 / Jokić 1028.94), All-Time Best Player By Team (16 rows — one per team each with best single-season starter score), Playoffs MVP All-Time Leaderboard (25 rows — Jokić 515.69 career playoff PTS). Team column uses TeamBadge throughout.",
+    "/matchups season=2025 week=1 → Top 3 Performances cards: SGA 66.00 (Kanto Embers), Wembanyama 61.25 (Corey's Shower), Aaron Gordon 60.50 (The Emperors) — each with name, team logo, positive points. Bust of the Week: Khaman Maluach 2.75 PTS (started, Gilbert Arenas) — low positive score from a started player. Biggest Bench Burn: Cedric Coward 37.25 PTS (WebbWarrior's Team, benched, +30.5 over worst starter) — bench scoring path unchanged and rendering correctly.",
+    "/honor-hall season=2024 → Regular Season MVP: Nikola Jokić 835.5 PTS (JFK4312). Playoffs MVP: Josh Giddey 121.5 PTS (riguy506). Finals MVP: Rudy Gobert 41.5 PTS (riguy506). All three cards render player name + positive PTS total + owner.",
+    "All four refactored pages (/standings, /records-player, /matchups, /honor-hall) load without any JavaScript console errors and without any runtime errors. Specifically: 0 occurrences of `Cannot read properties of null`, 0 occurrences of `starterPointsByPid is not a function` across the four pages. No Svelte page errors.",
+    "Regression: /team/riguy506 still renders correctly — header (THE FRAGGLE ROCK 9, 90 games, 73-17, 21248.96 PF / 18136.64 PA), H2H section present with 15 h2h-row entries, 5 per-season cards (data-testid='season-2026|2025|2024|2023|2022') with 5 per-season tables. No console errors."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "MISSING data-testid: The /standings Regular Season MVP Race section has NO data-testid='mvp-race' nor a `.mvp-leaderboard` class — neither selector mentioned in the acceptance criteria is actually present in the DOM. The block is only locatable by its <h2/h3> text 'Regular Season MVP Race'. Recommend adding `data-testid=\"mvp-race\"` to the section root so it can be reliably automation-targeted (minor — does not affect functionality).",
+    "leagueCompute.client.js → starterPointsByPid() (lines 100-121): correctly returns `null` when starters_points is missing/empty so callers skip the week. Uses safeNum() for per-slot values and defensively sums in case the same pid appears in two starter slots. Implementation matches the strict contract described in the PRD.",
+    "leagueCompute.client.js → computeParticipantPoints() (lines 57-82) still preserves the 3-tier resolution (custom_points > points > sum(starters_points)) for TEAM-level scoring used by standings/H2H/records-team. The two helpers are intentionally distinct (team total honors commish edits; per-player only trusts starters_points for game-selection accuracy). Good separation of concerns.",
+    "Strict-mode side effect: MVP totals can ONLY decrease (or stay the same) vs. the prior implementation because weeks without starters_points are now skipped instead of falling back to player_points. Verified by sanity-check: 2025 RS MVP Luka 904.3 / 19 weeks ≈ 47.6 PTS/game (in line with his real-life NBA fantasy production), Jokić in 2024 RS MVP at 835.5 — both reasonable, not inflated.",
+    "matchups page Top-3 / Bust calculations now respect starter-only points, but the matchups page itself still shows team totals via computeParticipantPoints (so commish overrides remain visible in the H2H scoreboard) — correct mixed-mode behavior."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no backend)", "frontend": "100% (6/6 acceptance items pass)"},
+  "seed_data_creation": "None — public Sleeper API.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend supervisor service runs on http://localhost:3000. There is NO /app/frontend/.env file — REACT_APP_BACKEND_URL is unset for this project; use http://localhost:3000 directly. Each page needs 10-15s after navigation to fetch the full Sleeper season chain (use wait_until='domcontentloaded' + page.wait_for_timeout(12000-15000), NOT 'networkidle'). MVP race section on /standings has no data-testid — locate by heading 'Regular Season MVP Race' if needed. Sample owner = riguy506; sample past season for honor-hall = 2024.",
+  "rca_of_the_issue": "N/A — no bugs found in this iteration. Strict scoring helper integration validated across all four pages with reasonable, non-inflated numbers and no runtime errors."
+}

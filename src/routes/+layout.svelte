@@ -1,8 +1,10 @@
 <script>
+  import { onMount } from 'svelte';
   import Header from '$lib/header/Header.svelte';
   import { webVitals } from '$lib/vitals';
   import { browser } from '$app/environment';
   import { page } from '$app/stores';
+  import { warmupLeagueData } from '$lib/leagueStore';
   import '../app.css';
 
   const analyticsId = import.meta.env.VERCEL_ANALYTICS_ID;
@@ -10,6 +12,15 @@
   $: if (browser && analyticsId) {
     webVitals({ path: $page.url.pathname, params: $page.params, analyticsId });
   }
+
+  // Single-shot warmup: pre-fetch the season chain, the active league's
+  // roster map, and the NBA players map ONCE when the app boots. Every
+  // page's `onMount` then reads straight from the cache instead of hitting
+  // Sleeper itself — so tab-to-tab navigation feels instant after the
+  // initial paint.
+  onMount(() => {
+    warmupLeagueData().catch(() => { /* swallow — pages still work */ });
+  });
 </script>
 
 <a class="skip-link" href="#content">Skip to content</a>
@@ -36,18 +47,21 @@
       <div class="footer-col">
         <div class="col-title">League</div>
         <a href="/" data-testid="footer-link-home">Home</a>
-        <a href="/rosters" data-testid="footer-link-rosters">Rosters</a>
+        <a href="/rosters" data-testid="footer-link-rosters">Rosters &amp; Owner Hub</a>
         <a href="/standings" data-testid="footer-link-standings">Standings</a>
-        <a href="/matchups" data-testid="footer-link-matchups">Matchups</a>
+        <a href="/matchups" data-testid="footer-link-matchups">Weekly Recap</a>
       </div>
       <div class="footer-col">
-        <div class="col-title">Records</div>
+        <div class="col-title">Analytics</div>
+        <a href="/power-rankings" data-testid="footer-link-power-rankings">Power Rankings</a>
+        <a href="/standings#mvp-race-block" data-testid="footer-link-mvp-race">Regular Season MVP Race</a>
         <a href="/records-team" data-testid="footer-link-records-team">Team Records</a>
         <a href="/records-player" data-testid="footer-link-records-player">Player Records</a>
-        <a href="/honor-hall" data-testid="footer-link-honor-hall">Honor Hall</a>
       </div>
       <div class="footer-col">
-        <div class="col-title">External</div>
+        <div class="col-title">History</div>
+        <a href="/honor-hall" data-testid="footer-link-honor-hall">Honor Hall</a>
+        <a href="/records-player#all-time-playoffs-leaderboard" data-testid="footer-link-playoff-mvps">All-Time Playoff MVPs</a>
         <a href="https://sleeper.com/" target="_blank" rel="noreferrer" data-testid="footer-link-sleeper">Sleeper ↗</a>
         <a href="https://docs.sleeper.app/" target="_blank" rel="noreferrer" data-testid="footer-link-sleeper-api">Sleeper API ↗</a>
       </div>

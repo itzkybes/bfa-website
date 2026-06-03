@@ -101,7 +101,44 @@ User followed up confirming:
   - Footer: `60px → 88px`.
 - ✅ Verified visually: home hero "BADGER BOWL" title now uses the deeper royal blue from the circle; the basketball-orange accent on buttons, eyebrows, and active nav reads warmer and more on-brand.
 
-## What's Been Implemented (2026-03-02 — cleanup pass)
+## What's Been Implemented (2026-06-03 — Single-shot warmup + in-flight dedup + null-safe bench burn)
+- ✅ **In-flight deduplication** added to `fetchWithCache()` in `/app/src/lib/cache.js`. Concurrent callers for the same URL now share the SAME Promise — the network only fires once. Previously the cold-cache `/matchups` page issued `/players/nba` (5MB) twice and `/league/{id}` twice when the matchups onMount + the seasons-chain walker fired simultaneously. Now: zero duplicate URLs observed.
+- ✅ **Single-shot layout warmup** in `/app/src/routes/+layout.svelte`. Calls a new `warmupLeagueData()` export from `leagueStore.js` that pre-fetches the seasons chain, the latest league's roster map, and the ~5MB NBA players map the instant any page mounts. Every subsequent route's `onMount` hits the cache or the in-flight promise instead of triggering fresh fetches.
+- ✅ **Cold-cache `/matchups` measured at 2.00s** (vs 20+s on the stale Vercel bundle) — recap renders all 8 cards (Top 3, Blowout, Closest, Highest-Scoring, Bench Burn, Bust, Highest/Lowest Team) before the user can even read the header.
+- ✅ **Optional chaining on `recap.benchBurn?.diff`** in the matchups template — final belt-and-suspenders guard so the historic Vercel "Cannot read properties of null (reading 'diff')" error becomes impossible even if a future refactor breaks the upstream null-check.
+
+## What's Been Implemented (2026-06-03 — PPG (Started) column + matchups speedup + loosened strict helper)
+- ✅ **Loosened `starterPointsByPid()` helper** per user request — it now ALWAYS returns a per-pid map for any entry whose `starters[]` array is non-empty (no longer returns `null` when the whole `starters_points` array is missing). Per-slot missing values fall back to 0, NEVER to `player_points[pid]`. This preserves the strict "no player_points fallback for starter scoring" contract AND enables accurate `gamesStarted` counting.
+- ✅ **PPG (Started) column added** to all 4 player tables on `/records-player`:
+  - "All-Time Single-Season Playoff Best" → 6 cols incl. `GS` + `PPG (Started)`
+  - "All-Time Single-Season Full-Season Best" → 6 cols incl. `GS` + `PPG (Started)`
+  - "All-Time Best Player By Team" → PPG rendered as a `.ppg-sub` sub-line under each PTS cell (`N GS · X.XX PPG`) to keep the 5-column layout intact
+  - "Playoffs MVP All-Time Leaderboard" → new `PPG (Started)` column between Total Playoff PTS and Best Single Run
+- ✅ **Matchups page cold-load optimized**: `computeMatchupsForLeagueWeek()` now fires rosterMap + leagueMeta + raw matchups via a single `Promise.all` (was 3 sequential awaits); `onMount` kicks off the ~5MB `getPlayersNba()` BEFORE the seasons-chain walk. Verified: DOM-ready at 0.05s, Top 3 Performances heading at 2.05s wall-clock (well under the prior 5-15s).
+- ✅ **Vercel `/matchups` "Cannot read properties of null"** — root-cause was the deployed bundle being from a commit before the bench-burn null-guards. Local production build (vite preview) renders cleanly. Pending a "Save to GitHub" push to trigger Vercel rebuild.
+
+## What's Been Implemented (2026-06-03 — Strict starter-only scoring + Vercel matchups bug)
+- ✅ **Strict starter-only player scoring helper** added: `starterPointsByPid(entry)` in `/app/src/lib/leagueCompute.client.js`. Returns `{ [pid]: weeklyStarterTotal }` ONLY when `starters_points` (the authoritative per-slot array, which honors owner manual game-selection / commish edits) is available; returns `null` otherwise so callers can skip the week instead of silently falling back to `player_points[pid]` (which would over-count multi-game NBA weeks).
+- ✅ All player aggregations refactored to use the strict helper: `aggregatePlayerPoints` in `/records-player`, `aggregatePlayerPoints` in `/honor-hall`, the MVP race accumulation in `/standings`, and the Top 3 / Bust per-week scoring in `/matchups`. No more `entry.starters_points || entry.player_points` fallback for starter scoring (bench-burn intentionally still uses `player_points` for bench-only players).
+- ✅ **Vercel `/matchups` "Cannot read properties of null (reading 'diff')" error** identified — the live Vercel bundle is running outdated code from before the bench-burn null-guards added in previous commits. The current local build serves `/matchups` cleanly under `vite preview`. Fix: user pushes to GitHub via "Save to GitHub" → Vercel auto-rebuilds.
+
+## What's Been Implemented (2026-06-03 — TeamBadge refactor & H2H move)
+- ✅ **Moved Head-to-Head table from `/records-team` to `/team/[username]`**. Each team's matchup-history page now opens with a Career H2H table showing wins/losses/PF/PA vs every other opponent the owner has faced across every season — exactly where users go when they care about one team's rivalries. Records-team page sub now points users to "open any team's Matchup History from the Rosters page" to find H2H.
+- ✅ **Created `<TeamBadge>` lightweight component** (`/app/src/lib/TeamBadge.svelte`) that consolidates the 30+ inline `<img class="team-avatar"> + <div class="team-name-cell">` blocks duplicated across pages. Supports four sizes (sm/md/lg/xl), inline + align-right layouts, and an `href` prop that auto-links to `/team/<owner_username>` for deep-linking. Now used in:
+  - `/standings` — both regular-season and playoff tables
+  - `/records-team` — aggregated regular-season and playoff tables
+  - `/team/[username]` — H2H table + per-season opponent column
+  - `/power-rankings` — full rank table
+  - `/honor-hall` — final-standings list
+  - `/records-player` — All-Time Best By Team, All-Time Single-Season Playoff/Full-Season Best, Career Playoff Leaderboard
+- ✅ **Helpers extended**: `franchiseAvatar` in `format.js` now also accepts the flat `meta.avatar` shorthand used by `computeStandingsForLeague` output rows; `leagueCompute.client.js` now propagates `owner_username` onto regular/playoff standings rows so the badge can link.
+- ✅ Dead-code cleanup: removed unused styles (`.team-cell-link`, redundant `.team-avatar.small`, `.team-name-cell`, `.team-owner-cell`, etc.) from refactored pages now that TeamBadge owns those visuals.
+
+## What's Been Implemented (2026-06-02 — score correctness + helper consolidation)
+- ✅ Fixed score computation to respect commish manual overrides (`custom_points`) via centralized `computeParticipantPoints` helper.
+- ✅ Created `format.js` (avatarOrPh, franchiseAvatar, franchiseName, ownerName, fmt/fmt1/fmt2, fmtRecord, winPct/fmtWinPct) and `leagueStore.js` (lazy-loaded singleton store with seasons chain, active league, latest roster map, NBA players map).
+
+
 - ✅ **Repo cleanup**: deleted dead code — `src/lib/server/` (old SSR module, now unused), `src/lib/actions/clickOutside.js`, `src/lib/form.js`, `src/lib/LazyImage.svelte`, `src/hooks.js`, `static/svelte-welcome.webp`, plus stale top-level docs `SITE_FILE_COMPARISON.md` / `UPGRADE_SUMMARY.md` / `design_guidelines.json`. Removed unused `cookie`, `@types/cookie`, and `@fontsource/fira-mono` from `package.json`.
 - ✅ **Tightened public surface** of `leagueCompute.client.js` — `HARDCODED_CHAMPIONS`, `fetchStaticJson`, `computeStreaks`, `MAX_WEEKS` are now module-internal; only the actually-used helpers are exported.
 - ✅ **Killed dead imports** across honor-hall, records-player, admin pages.

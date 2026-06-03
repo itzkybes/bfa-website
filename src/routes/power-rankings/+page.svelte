@@ -17,9 +17,11 @@
   import { onMount } from 'svelte';
   import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague } from '$lib/leagueCompute.client';
+  import { avatarOrPh, fmt1 } from '$lib/format';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
   import Sparkline from '$lib/Sparkline.svelte';
+  import TeamBadge from '$lib/TeamBadge.svelte';
 
   let loading = true;
   let error = null;
@@ -31,17 +33,10 @@
 
   const WINDOW = 4;
 
-  function fmt(v, places = 1) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    return n.toFixed(places);
-  }
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? String(name)[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
+  // Local wrapper so existing call-sites that pass `(v, places)` keep working —
+  // fmt1 from $lib/format always returns 1 decimal, and the page only ever
+  // calls fmt(v) without specifying a precision now.
+  const fmt = (v) => fmt1(v);
 
   /**
    * Given the standings result, the raw weekly PF arrays per roster, and a
@@ -223,17 +218,7 @@
               <tr data-testid={`rank-row-${r.rosterId}`}>
                 <td class="rank-cell"><span class="num rank-num">{r.rank}</span></td>
                 <td>
-                  <div class="team-cell">
-                    <img class="team-avatar small" src={avatarOrPh(r.meta.team_avatar || r.meta.owner_avatar, r.meta.team_name)} alt={r.meta.team_name} />
-                    <div>
-                      {#if r.meta.owner_username}
-                        <a class="team-name-link" href={`/team/${encodeURIComponent(r.meta.owner_username)}`}>{r.meta.team_name}</a>
-                      {:else}
-                        <div class="team-name-cell">{r.meta.team_name}</div>
-                      {/if}
-                      {#if r.meta.owner_name}<div class="team-owner-cell">{r.meta.owner_name}</div>{/if}
-                    </div>
-                  </div>
+                  <TeamBadge meta={r.meta} size="md" href={!!r.meta.owner_username} />
                 </td>
                 <td class="col-num"><span class="num">{r.wins}-{r.losses}</span></td>
                 <td class="col-num"><span class="num pf">{fmt(r.avgPf, 1)}</span></td>
@@ -275,7 +260,6 @@
   .team-cell { display: flex; align-items: center; gap: 0.75rem; }
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell, .team-name-link { font-weight: 700; color: var(--text-primary); line-height: 1.15; text-decoration: none; }
-  a.team-name-link:hover { color: var(--accent); }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
   .pf { color: var(--text-primary); font-weight: 700; }
   .positive { color: var(--brand); font-weight: 700; }

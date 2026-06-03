@@ -61,14 +61,33 @@ function clearExpired() {
 /**
  * `fetch` + JSON parse + cache, all in one. Cache key is just the URL, so
  * different query strings get distinct entries automatically.
+ *
+ * Includes an in-flight deduplication map: if the same URL is requested
+ * concurrently before either response lands, we hand back the SAME promise
+ * to every caller. This kills the most common "cold-start" waste pattern
+ * where the layout warmup + the page's own onMount both ask for
+ * `/players/nba` (a 5MB payload) at the same instant.
  */
+const inFlight = new Map(); // url -> Promise
+
 export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
   const cached = getCached(url);
   if (cached) return cached;
 
-  const res = await fetch(url, options);
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  const data = await res.json();
-  setCache(url, data, ttl);
-  return data;
+  const pending = inFlight.get(url);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      setCache(url, data, ttl);
+      return data;
+    } finally {
+      inFlight.delete(url);
+    }
+  })();
+  inFlight.set(url, promise);
+  return promise;
 }

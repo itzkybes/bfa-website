@@ -3,11 +3,14 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague, getPlayersNba, playerHeadshot } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot } from '$lib/sleeperClient.client';
+  import { computeStandingsForLeague, starterPointsByPid } from '$lib/leagueCompute.client';
+  import { avatarOrPh } from '$lib/format';
+  import { defaultSeasonIdFromChain } from '$lib/leagueStore';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
   import Sparkline from '$lib/Sparkline.svelte';
+  import TeamBadge from '$lib/TeamBadge.svelte';
 
   let loading = true;
   let error = null;
@@ -15,12 +18,6 @@
   let seasonsResults = [];
   let selectedSeasonId = null;
   let playersMap = {};
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
 
   $: selectedResult = (() => {
     if (!seasonsResults.length) return null;
@@ -77,18 +74,10 @@
       const entries = collected[wk] || [];
       for (const entry of entries) {
         const rid = String(entry.roster_id ?? entry.rosterId ?? '');
-        const starters = Array.isArray(entry.starters) ? entry.starters : [];
-        const pts = entry.starters_points || entry.player_points || null;
-        if (!pts || typeof pts !== 'object') continue;
-        for (const pid of starters) {
-          if (!pid) continue;
-          let val = 0;
-          if (Array.isArray(pts)) {
-            const i = starters.indexOf(pid);
-            val = Number(pts[i] ?? 0);
-          } else {
-            val = Number(pts[String(pid)] ?? 0);
-          }
+        const map = starterPointsByPid(entry);
+        if (!map) continue; // STRICT: skip weeks without authoritative per-slot data
+        for (const pid of Object.keys(map)) {
+          const val = map[pid];
           if (!isFinite(val) || val <= 0) continue;
           cumulative[pid] = (cumulative[pid] || 0) + val;
           rosterByPid[pid] = rid;
@@ -138,9 +127,7 @@
       // (in_season → complete → newest) so we don't land on a not-yet-drafted
       // pre-draft 2026 league with empty tables.
       const urlParam = $page.url.searchParams.get('season');
-      const active = pickActiveLeague(chain);
-      const latest = active || (chain.length ? chain[chain.length - 1] : null);
-      selectedSeasonId = urlParam || (latest?.season != null ? String(latest.season) : String(latest?.league_id || BASE_LEAGUE_ID));
+      selectedSeasonId = defaultSeasonIdFromChain(chain, urlParam);
 
       // Compute standings for ALL seasons (so dropdown can switch without
       // refetching) AND fetch the NBA players map for the MVP-race
@@ -194,7 +181,7 @@
     <ErrorBoundary {error} onRetry={loadAll} context="standings" />
   {:else}
     {#if mvpRace && mvpRace.top5.length}
-      <section class="mvp-race" aria-labelledby="mvp-race-h" data-testid="mvp-race-block">
+      <section class="mvp-race" id="mvp-race-block" aria-labelledby="mvp-race-h" data-testid="mvp-race-block">
         <div class="block-head">
           <div>
             <h2 id="mvp-race-h" class="block-title">Regular Season MVP Race</h2>
@@ -260,13 +247,7 @@
                 <tr>
                   <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
-                      <div>
-                        <div class="team-name-cell">{row.team_name}</div>
-                        {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
-                      </div>
-                    </div>
+                    <TeamBadge meta={row} size="md" href={!!row.owner_username} />
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
@@ -314,15 +295,9 @@
               {#each playoffDisplay as row (row.rosterId)}
                 <tr class:champion-row={row.champion === true}>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
-                      <div>
-                        <div class="team-name-cell">
-                          {row.team_name}
-                          {#if row.champion === true}<span class="trophy" title="Champion">🏆</span>{/if}
-                        </div>
-                        {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
-                      </div>
+                    <div class="team-with-trophies">
+                      <TeamBadge meta={row} size="md" href={!!row.owner_username} />
+                      {#if row.champion === true}<span class="trophy" title="Champion">🏆</span>{/if}
                     </div>
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
@@ -358,10 +333,7 @@
   .col-trend { width: 160px; min-width: 160px; padding-right: 0.75rem; }
   .rank-cell { width: 60px; }
   .rank-num { font-size: 1.4rem; color: var(--accent); }
-  .team-cell { display: flex; align-items: center; gap: 0.75rem; }
-  .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
-  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
+  .team-with-trophies { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
   .trophy { margin-left: 0.4rem; }
   .pf .num { color: var(--text-primary); font-weight: 700; }
   .num.muted { color: var(--text-tertiary); }
@@ -464,8 +436,6 @@
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.1rem; }
     .col-trend { width: 96px; min-width: 96px; padding-right: 0.5rem; }
-    .team-avatar.small { width: 34px; height: 34px; }
-    .team-owner-cell { display: none; }
     .rank-num { font-size: 1.2rem; }
   }
 </style>

@@ -3,30 +3,18 @@
   import { onMount } from 'svelte';
   import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
   import { computeStandingsForLeague, computeParticipantPoints } from '$lib/leagueCompute.client';
+  import { avatarOrPh } from '$lib/format';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import TeamBadge from '$lib/TeamBadge.svelte';
 
   let loading = true;
   let progress = '';
   let error = null;
   let aggregatedRegular = [];
   let aggregatedPlayoff = [];
-  let h2hOwners = [];
-  let h2hRecords = {};
   let marginsLargest = [];
   let marginsSmallest = [];
-  let selectedH2H = null;
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
-
-  function lastLabel(season, week) {
-    if (!season) return '—';
-    return `${season} · W${week || ''}`;
-  }
 
   // Stable key across seasons: prefer owner_username (Sleeper username), fallback to owner_name.
   function stableKey(meta) {
@@ -55,7 +43,6 @@
       const regAgg = {};
       const poAgg = {};
       const championCounts = {}; // stableKey -> # championships
-      const seasonOwnersByRid = {}; // {season: {rid: stableKey}}
 
       function addRow(agg, row, meta, season) {
         const key = stableKey(meta) || String(row.team_name || row.rosterId).toLowerCase();
@@ -98,12 +85,6 @@
           const ck = stableKey(cmeta);
           if (ck) championCounts[ck] = (championCounts[ck] || 0) + 1;
         }
-        // build per-roster ownership map for h2h
-        const ridToKey = {};
-        for (const rid of Object.keys(rmap)) {
-          ridToKey[rid] = stableKey(rmap[rid]) || String(rmap[rid].team_name || rid).toLowerCase();
-        }
-        seasonOwnersByRid[result.season] = ridToKey;
 
         for (const row of (result.regularStandings || [])) addRow(regAgg, row, rmap[row.rosterId], result.season);
         for (const row of (result.playoffStandings || [])) addRow(poAgg, row, rmap[row.rosterId], result.season);
@@ -119,9 +100,10 @@
         return (b.wins - a.wins) || (b.pf - a.pf);
       });
 
-      // ---------- H2H + margins (reuse collectedMatchups from standings results) ----------
-      const h2h = {};
-      const ownersByKey = {};
+      // ---------- Margins (reuse collectedMatchups from standings results) ----------
+      // H2H is now computed per-team on /team/[username] — this page is the
+      // league-wide aggregate view, so we only need the largest/smallest
+      // margin lists here.
       const allMargins = [];
 
       for (const result of standingsResults) {
@@ -129,26 +111,6 @@
         const rmap = result.rosterMap || {};
         const matchups = result.collectedMatchups || {};
         const leagueSeason = result.season;
-
-        for (const rid of Object.keys(rmap)) {
-          const k = stableKey(rmap[rid]) || String(rmap[rid].team_name || rid).toLowerCase();
-          if (!ownersByKey[k]) {
-            ownersByKey[k] = {
-              key: k,
-              team: rmap[rid].team_name,
-              display: rmap[rid].owner_name,
-              avatar: rmap[rid].team_avatar || rmap[rid].owner_avatar
-            };
-          } else {
-            // upgrade missing avatar / team name when a later season has it
-            if (!ownersByKey[k].avatar && (rmap[rid].team_avatar || rmap[rid].owner_avatar)) {
-              ownersByKey[k].avatar = rmap[rid].team_avatar || rmap[rid].owner_avatar;
-            }
-            if ((!ownersByKey[k].team || ownersByKey[k].team.startsWith('Roster ')) && rmap[rid].team_name) {
-              ownersByKey[k].team = rmap[rid].team_name;
-            }
-          }
-        }
 
         for (const wk of Object.keys(matchups)) {
           const weekEntries = matchups[wk];
@@ -169,9 +131,6 @@
             const bId = String(b.roster_id ?? b.rosterId ?? '');
             const aPts = computeParticipantPoints(a);
             const bPts = computeParticipantPoints(b);
-            const ak = stableKey(rmap[aId]);
-            const bk = stableKey(rmap[bId]);
-            if (!ak || !bk) continue;
             const aMeta = rmap[aId] || {};
             const bMeta = rmap[bId] || {};
 
@@ -191,43 +150,9 @@
                 scoreB: Math.round(losPts * 100) / 100
               });
             }
-
-            // H2H
-            if (!h2h[ak]) h2h[ak] = {};
-            if (!h2h[ak][bk]) h2h[ak][bk] = {
-              wins: 0, losses: 0, games: 0, pf: 0, pa: 0,
-              lastSeason: null, lastWeek: null,
-              opponentTeam: bMeta.team_name, opponentDisplay: bMeta.owner_name,
-              opponentAvatar: bMeta.team_avatar || bMeta.owner_avatar
-            };
-            if (!h2h[bk]) h2h[bk] = {};
-            if (!h2h[bk][ak]) h2h[bk][ak] = {
-              wins: 0, losses: 0, games: 0, pf: 0, pa: 0,
-              lastSeason: null, lastWeek: null,
-              opponentTeam: aMeta.team_name, opponentDisplay: aMeta.owner_name,
-              opponentAvatar: aMeta.team_avatar || aMeta.owner_avatar
-            };
-
-            h2h[ak][bk].games++; h2h[ak][bk].pf += aPts; h2h[ak][bk].pa += bPts;
-            h2h[ak][bk].lastSeason = leagueSeason; h2h[ak][bk].lastWeek = Number(wk);
-            h2h[bk][ak].games++; h2h[bk][ak].pf += bPts; h2h[bk][ak].pa += aPts;
-            h2h[bk][ak].lastSeason = leagueSeason; h2h[bk][ak].lastWeek = Number(wk);
-            if (aPts > bPts) { h2h[ak][bk].wins++; h2h[bk][ak].losses++; }
-            else if (bPts > aPts) { h2h[bk][ak].wins++; h2h[ak][bk].losses++; }
           }
         }
       }
-
-      for (const k of Object.keys(h2h)) for (const o of Object.keys(h2h[k])) {
-        h2h[k][o].pf = Math.round(h2h[k][o].pf * 100) / 100;
-        h2h[k][o].pa = Math.round(h2h[k][o].pa * 100) / 100;
-      }
-      h2hOwners = Object.values(ownersByKey).sort((a, b) => String(a.team || '').localeCompare(String(b.team || '')));
-      h2hRecords = {};
-      for (const k of Object.keys(h2h)) {
-        h2hRecords[k] = Object.values(h2h[k]).sort((a, b) => b.wins - a.wins || b.games - a.games);
-      }
-      if (h2hOwners.length) selectedH2H = h2hOwners[0].key;
 
       const sorted = allMargins.slice().sort((a, b) => b.margin - a.margin);
       marginsLargest = sorted.slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
@@ -247,7 +172,7 @@
   <header class="page-head rise">
     <div class="eyebrow">All-Time · Team Records</div>
     <h1 class="page-title">Team Records</h1>
-    <p class="page-sub">Aggregated stats across every available season — head-to-head matchups, biggest blowouts and nailbiters.</p>
+    <p class="page-sub">Aggregated stats across every available season — biggest blowouts and nailbiters. For per-team head-to-head records, open any team's <strong>Matchup History</strong> from the <a class="page-sub-link" href="/rosters">Rosters</a> page.</p>
   </header>
 
   {#if loading}
@@ -271,13 +196,11 @@
               {#each aggregatedRegular as row (row.key)}
                 <tr>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
-                      <div>
-                        <div class="team-name-cell">{row.team_name}</div>
-                        {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
-                      </div>
-                    </div>
+                    <TeamBadge
+                      meta={{ team_name: row.team_name, owner_name: row.owner_name, team_avatar: row.avatar, owner_username: row.owner_username }}
+                      size="md"
+                      href={!!row.owner_username}
+                    />
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
@@ -308,19 +231,17 @@
               {#each aggregatedPlayoff as row (row.key)}
                 <tr class:champion-row={(row.championships || 0) > 0}>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
-                      <div>
-                        <div class="team-name-cell">
-                          {row.team_name}
-                          {#if (row.championships || 0) > 0}
-                            <span class="trophies" title={`${row.championships} championship${row.championships > 1 ? 's' : ''}`}>
-                              {#each Array(row.championships) as _, i}<span>🏆</span>{/each}
-                            </span>
-                          {/if}
-                        </div>
-                        {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
-                      </div>
+                    <div class="team-with-trophies">
+                      <TeamBadge
+                        meta={{ team_name: row.team_name, owner_name: row.owner_name, team_avatar: row.avatar, owner_username: row.owner_username }}
+                        size="md"
+                        href={!!row.owner_username}
+                      />
+                      {#if (row.championships || 0) > 0}
+                        <span class="trophies" title={`${row.championships} championship${row.championships > 1 ? 's' : ''}`}>
+                          {#each Array(row.championships) as _, i}<span>🏆</span>{/each}
+                        </span>
+                      {/if}
                     </div>
                   </td>
                   <td class="col-num">
@@ -341,49 +262,6 @@
         </div>
       {:else}
         <div class="empty-card">No playoff results.</div>
-      {/if}
-    </section>
-
-    <section class="block">
-      <div class="block-head">
-        <h2 class="block-title">Head-to-Head</h2>
-        <div class="h2h-select-wrap">
-          <label for="h2h-select" class="visually-hidden">Team</label>
-          <select id="h2h-select" bind:value={selectedH2H} data-testid="h2h-team-select">
-            {#each h2hOwners as o}<option value={o.key}>{o.team || o.display}</option>{/each}
-          </select>
-        </div>
-      </div>
-
-      {#if selectedH2H && h2hRecords[selectedH2H]?.length}
-        <div class="table-wrap">
-          <table class="bfa-table">
-            <thead><tr><th>Opponent</th><th class="col-num" title="Head-to-head wins vs this opponent">Wins</th><th class="col-num" title="Head-to-head losses vs this opponent">Losses</th><th class="col-num" title="Total times the two teams have played">Games Played</th><th class="col-num" title="Points scored against this opponent">Points For</th><th class="col-num" title="Points allowed to this opponent">Points Against</th><th class="col-num" title="Most recent season they played">Last Met</th></tr></thead>
-            <tbody>
-              {#each h2hRecords[selectedH2H] as r}
-                <tr>
-                  <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(r.opponentAvatar, r.opponentTeam || r.opponentDisplay)} alt={r.opponentTeam} />
-                      <div>
-                        <div class="team-name-cell">{r.opponentTeam || r.opponentDisplay}</div>
-                        {#if r.opponentDisplay && r.opponentTeam}<div class="team-owner-cell">{r.opponentDisplay}</div>{/if}
-                      </div>
-                    </div>
-                  </td>
-                  <td class="col-num"><span class="num win-color">{r.wins}</span></td>
-                  <td class="col-num"><span class="num loss-color">{r.losses}</span></td>
-                  <td class="col-num"><span class="num muted">{r.games}</span></td>
-                  <td class="col-num"><span class="num">{r.pf}</span></td>
-                  <td class="col-num"><span class="num muted">{r.pa}</span></td>
-                  <td class="col-num"><span class="num muted">{lastLabel(r.lastSeason, r.lastWeek)}</span></td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {:else}
-        <div class="empty-card">No head-to-head data for selected team.</div>
       {/if}
     </section>
 
@@ -458,16 +336,14 @@
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
   .table-wrap { overflow-x: auto; }
   .bfa-table { min-width: 700px; }
-  .team-cell { display: flex; align-items: center; gap: 0.75rem; }
-  .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
-  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
+  .page-sub-link { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  .page-sub-link:hover { color: var(--text-primary); }
+  .team-with-trophies { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; min-width: 0; }
+  .team-avatar.small { width: 32px; height: 32px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .trophies { display: inline-flex; gap: 0.1rem; font-size: 0.95rem; }
   .pf .num { font-weight: 800; }
   .num.muted { color: var(--text-tertiary); }
   .title-count { color: var(--gold); font-size: 1.2rem; font-weight: 800; }
-  .win-color { color: var(--win); }
-  .loss-color { color: var(--loss); }
   .empty-card { padding: 1.5rem; text-align: center; color: var(--text-secondary); }
   .margins-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .margin-list { padding: 0.5rem 0; }
@@ -491,10 +367,7 @@
     .page-sub { font-size: 0.9rem; }
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.05rem; }
-    .block-head select { width: 100%; min-width: 0; }
-    .h2h-select-wrap { width: 100%; }
-    .team-avatar.small { width: 34px; height: 34px; }
-    .team-owner-cell { display: none; }
+    .team-avatar.small { width: 28px; height: 28px; }
     .margin-row { grid-template-columns: 40px 1fr; padding: 0.55rem 0.75rem; }
     .margin-meta { grid-column: 2; }
     .margin-teams { grid-template-columns: 1fr; gap: 0.4rem; }
