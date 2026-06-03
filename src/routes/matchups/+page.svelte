@@ -229,9 +229,9 @@
             <div class="recap-card top-scorer" data-testid="recap-top-scorer">
               <div class="recap-eyebrow">🏀 Top Scorer</div>
               <div class="recap-card-body">
-                <img class="recap-headshot" src={playerHeadshot(recap.topScorer.pid)} alt={playerName(recap.topScorer.pid) || ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                <img class="recap-headshot" src={playerHeadshot(recap.topScorer.pid)} alt={pname(recap.topScorer.pid) || ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                 <div class="recap-card-meta">
-                  <div class="recap-player">{playerName(recap.topScorer.pid) ?? recap.topScorer.pid}</div>
+                  <div class="recap-player">{pname(recap.topScorer.pid) ?? recap.topScorer.pid}</div>
                   <div class="recap-card-team">
                     {#if recap.topScorer.teamAvatar}<img class="recap-team-mini" src={recap.topScorer.teamAvatar} alt={recap.topScorer.teamName} />{/if}
                     <span>{recap.topScorer.teamName}</span>
