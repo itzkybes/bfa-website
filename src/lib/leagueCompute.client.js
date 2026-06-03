@@ -14,6 +14,39 @@ import {
 } from './sleeperClient.client';
 import { BASE_LEAGUE_ID } from './sleeperClient.client';
 
+/**
+ * Build a `{ pid: points }` map of starter scoring from a raw Sleeper
+ * matchup entry. Sleeper has shipped several representations of starter
+ * points over the years (`starters_points` as array, `starter_points`,
+ * `startersPoints`, `starterPoints`) — this helper checks them in order
+ * and zips with `entry.starters` to produce a stable map. Returns `null`
+ * if the entry doesn't have a starters array.
+ */
+export function starterPointsByPid(entry) {
+  if (!entry) return null;
+  const starters = Array.isArray(entry.starters) ? entry.starters : [];
+  if (!starters.length) return null;
+  const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
+  let arr = null;
+  for (const k of arrayKeys) {
+    if (Array.isArray(entry[k]) && entry[k].length) { arr = entry[k]; break; }
+  }
+  const out = {};
+  for (let i = 0; i < starters.length; i++) {
+    const pid = starters[i];
+    if (!pid) continue;
+    let val = 0;
+    if (arr) {
+      const raw = arr[i];
+      const n = safeNum(raw);
+      if (isFinite(n)) val = n;
+    }
+    // Sum in case the same pid somehow appears twice (e.g. multi-slot bench).
+    out[pid] = (out[pid] || 0) + val;
+  }
+  return out;
+}
+
 // Sleeper "season" runs for ~24 weeks; we scan a couple extra for safety.
 const MAX_WEEKS = 25;
 

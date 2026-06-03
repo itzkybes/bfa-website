@@ -2,6 +2,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, safeNum, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
+  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
   import { expandPositions } from '$lib/positions';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
@@ -62,6 +63,97 @@
     expandedRosterId = expandedRosterId === id ? null : id;
   }
 
+  /**
+   * Roll up every season's standings into a per-owner career snapshot:
+   * championships, playoff appearances, career W-L, career PF/PA, best
+   * finish, and best single-season PF. Keyed by `owner_username` (the
+   * stable handle across re-themed teams). Returns `{}` if standings can
+   * not be computed (e.g. league chain failed).
+   */
+  function buildOwnerHubs(allSeasonResults, chain) {
+    const hubs = {};
+    const ownerSeasonsHandled = {}; // username → Set(season) to avoid double-counting
+    function ensure(uname) {
+      const k = String(uname || '').toLowerCase();
+      if (!k) return null;
+      if (!hubs[k]) {
+        hubs[k] = {
+          owner_username: uname,
+          championships: 0,
+          playoffAppearances: 0,
+          finalsAppearances: 0,
+          seasonsPlayed: 0,
+          careerWins: 0,
+          careerLosses: 0,
+          careerPF: 0,
+          careerPA: 0,
+          bestFinish: null,
+          bestFinishSeason: null,
+          bestSeasonPF: 0,
+          bestSeasonPFSeason: null,
+          firstSeason: null,
+          lastSeason: null
+        };
+        ownerSeasonsHandled[k] = new Set();
+      }
+      return hubs[k];
+    }
+
+    for (let i = 0; i < allSeasonResults.length; i++) {
+      const s = chain[i];
+      const r = allSeasonResults[i];
+      if (!r || !r.regularStandings) continue;
+      const seasonLabel = s?.season ?? r.leagueSeason ?? s?.league_id;
+      const rmap = r.rosterMap || {};
+
+      for (const reg of r.regularStandings) {
+        const meta = rmap[reg.rosterId] || {};
+        const hub = ensure(meta.owner_username || meta.owner_name);
+        if (!hub) continue;
+        const k = hub.owner_username.toLowerCase();
+        if (!ownerSeasonsHandled[k].has(seasonLabel)) {
+          ownerSeasonsHandled[k].add(seasonLabel);
+          hub.seasonsPlayed += 1;
+        }
+        hub.careerWins += Number(reg.wins ?? 0);
+        hub.careerLosses += Number(reg.losses ?? 0);
+        hub.careerPF += Number(reg.pf ?? 0);
+        hub.careerPA += Number(reg.pa ?? 0);
+        if (Number(reg.pf ?? 0) > hub.bestSeasonPF) {
+          hub.bestSeasonPF = Number(reg.pf ?? 0);
+          hub.bestSeasonPFSeason = seasonLabel;
+        }
+        if (hub.firstSeason == null || Number(seasonLabel) < Number(hub.firstSeason)) hub.firstSeason = seasonLabel;
+        if (hub.lastSeason == null || Number(seasonLabel) > Number(hub.lastSeason)) hub.lastSeason = seasonLabel;
+      }
+
+      // Final standings — championships, playoff appearances, best finish.
+      // Only count if the bracket actually completed; in-progress seasons
+      // would otherwise pollute the "best finish" stat.
+      if (Array.isArray(r.finalStandings) && r.bracketComplete) {
+        for (const fs of r.finalStandings) {
+          const meta = rmap[fs.rosterId] || {};
+          const hub = ensure(meta.owner_username || meta.owner_name);
+          if (!hub) continue;
+          if (fs.isChampion) hub.championships += 1;
+          if (fs.isPlayoff) hub.playoffAppearances += 1;
+          if (fs.rank === 1 || fs.rank === 2) hub.finalsAppearances += 1;
+          if (hub.bestFinish == null || fs.rank < hub.bestFinish) {
+            hub.bestFinish = fs.rank;
+            hub.bestFinishSeason = seasonLabel;
+          }
+        }
+      }
+    }
+
+    for (const k of Object.keys(hubs)) {
+      const h = hubs[k];
+      const games = h.careerWins + h.careerLosses;
+      h.winPct = games ? h.careerWins / games : 0;
+    }
+    return hubs;
+  }
+
   async function loadAll() {
     loading = true;
     error = null;
@@ -75,11 +167,17 @@
       season = current.season;
       leagueName = current.name;
 
-      // 2. fetch roster map + players in parallel
-      const [rosterMap, playersMap] = await Promise.all([
+      // 2. fetch roster map + players + ALL seasons' standings in parallel.
+      // The all-seasons standings powers the per-team Owner Hub stats; each
+      // call is cached internally so this is cheap on re-renders.
+      const [rosterMap, playersMap, allSeasonResults] = await Promise.all([
         getRosterMapWithOwners(current.league_id),
-        getPlayersNba()
+        getPlayersNba(),
+        Promise.all(seasons.map((s) => computeStandingsForLeague(s.league_id).catch(() => null)))
       ]);
+
+      // Build per-owner career hubs from every season's standings.
+      const ownerHubs = buildOwnerHubs(allSeasonResults, seasons);
 
       // 3. enrich
       const list = [];
@@ -96,6 +194,10 @@
         const taxiIds = getTaxi(raw);
         const _taxi = taxiIds.map((pid) => ({ pid, player: getPlayerInfo(pid, playersMap) }));
 
+        // Attach the matching Owner Hub (career stats across every season)
+        const ownerHubKey = String(meta.owner_username || meta.owner_name || '').toLowerCase();
+        const owner_hub = ownerHubs[ownerHubKey] || null;
+
         list.push({
           rosterId: rid,
           owner_name: meta.owner_name,
@@ -105,7 +207,8 @@
           owner_avatar: meta.owner_avatar,
           _starters,
           _bench,
-          _taxi
+          _taxi,
+          owner_hub
         });
       }
       // sort by team name for stable layout
@@ -185,6 +288,65 @@
 
           {#if expandedRosterId === roster.rosterId}
             <section class="team-body">
+              {#if roster.owner_hub}
+                <div class="owner-hub" data-testid={`owner-hub-${roster.rosterId}`}>
+                  <div class="owner-hub-head">
+                    <div class="owner-hub-title">Owner Hub</div>
+                    <div class="owner-hub-sub">
+                      {roster.owner_hub.firstSeason ?? '—'} – {roster.owner_hub.lastSeason ?? '—'} ·
+                      {roster.owner_hub.seasonsPlayed} {roster.owner_hub.seasonsPlayed === 1 ? 'season' : 'seasons'}
+                    </div>
+                  </div>
+                  <div class="owner-hub-grid">
+                    <div class="hub-stat" title="Total league championships won by this owner">
+                      <div class="hub-stat-num">{roster.owner_hub.championships}</div>
+                      <div class="hub-stat-label">🏆 Titles</div>
+                    </div>
+                    <div class="hub-stat" title="Number of seasons reaching the playoffs">
+                      <div class="hub-stat-num">{roster.owner_hub.playoffAppearances}</div>
+                      <div class="hub-stat-label">Playoff Apps</div>
+                    </div>
+                    <div class="hub-stat" title="Number of championship games reached (Finals appearances)">
+                      <div class="hub-stat-num">{roster.owner_hub.finalsAppearances}</div>
+                      <div class="hub-stat-label">Finals Apps</div>
+                    </div>
+                    <div class="hub-stat" title="Best final finish across every season">
+                      <div class="hub-stat-num">{roster.owner_hub.bestFinish ?? '—'}{#if roster.owner_hub.bestFinishSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestFinishSeason).slice(-2)}</span>{/if}</div>
+                      <div class="hub-stat-label">Best Finish</div>
+                    </div>
+                    <div class="hub-stat" title="All-time regular-season wins">
+                      <div class="hub-stat-num">{roster.owner_hub.careerWins}</div>
+                      <div class="hub-stat-label">Career Wins</div>
+                    </div>
+                    <div class="hub-stat" title="All-time regular-season losses">
+                      <div class="hub-stat-num">{roster.owner_hub.careerLosses}</div>
+                      <div class="hub-stat-label">Career Losses</div>
+                    </div>
+                    <div class="hub-stat" title="Career regular-season win percentage">
+                      <div class="hub-stat-num">{(roster.owner_hub.winPct * 100).toFixed(1)}<span class="hub-stat-pct">%</span></div>
+                      <div class="hub-stat-label">Win %</div>
+                    </div>
+                    <div class="hub-stat" title="All-time regular-season points scored">
+                      <div class="hub-stat-num">{Math.round(roster.owner_hub.careerPF).toLocaleString()}</div>
+                      <div class="hub-stat-label">Career PF</div>
+                    </div>
+                    <div class="hub-stat" title="All-time regular-season points allowed">
+                      <div class="hub-stat-num">{Math.round(roster.owner_hub.careerPA).toLocaleString()}</div>
+                      <div class="hub-stat-label">Career PA</div>
+                    </div>
+                    <div class="hub-stat" title="Highest single-season PF and the year it happened">
+                      <div class="hub-stat-num">{Math.round(roster.owner_hub.bestSeasonPF).toLocaleString()}{#if roster.owner_hub.bestSeasonPFSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestSeasonPFSeason).slice(-2)}</span>{/if}</div>
+                      <div class="hub-stat-label">Best Season PF</div>
+                    </div>
+                  </div>
+                  {#if roster.owner_username}
+                    <a class="hub-history-link" href={`/team/${encodeURIComponent(roster.owner_username)}`} data-testid={`owner-hub-history-${roster.rosterId}`}>
+                      View matchup history →
+                    </a>
+                  {/if}
+                </div>
+              {/if}
+
               <div class="section-label">Starters</div>
               <div class="starters">
                 {#each roster._starters as st, i (i)}
@@ -399,6 +561,86 @@
   .collapse-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   .team-body { padding: 0.5rem 1rem 1rem; }
+
+  /* Owner Hub — career stats card shown at the top of an expanded roster.
+     Stats grid auto-fits to 5/4/3/2 columns depending on width so it stays
+     readable inside narrow accordion columns. */
+  .owner-hub {
+    margin: 0.5rem 0 1rem;
+    padding: 0.85rem 0.95rem 1rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+  }
+  .owner-hub-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.7rem;
+  }
+  .owner-hub-title {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+  }
+  .owner-hub-sub {
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+  .owner-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+    gap: 0.55rem;
+  }
+  .hub-stat {
+    padding: 0.55rem 0.6rem;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    text-align: center;
+  }
+  .hub-stat-num {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+  }
+  .hub-stat-year {
+    font-family: var(--font-body);
+    font-size: 0.65rem;
+    color: var(--text-tertiary);
+    font-weight: 600;
+    margin-left: 0.15rem;
+  }
+  .hub-stat-pct {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    margin-left: 0.1rem;
+  }
+  .hub-stat-label {
+    margin-top: 0.2rem;
+    font-size: 0.62rem;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .hub-history-link {
+    display: inline-block;
+    margin-top: 0.85rem;
+    font-size: 0.75rem;
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .hub-history-link:hover { text-decoration: underline; }
+
   .section-label {
     font-family: var(--font-body);
     font-weight: 800;
