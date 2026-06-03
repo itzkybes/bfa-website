@@ -1,0 +1,22 @@
+{
+  "iteration": 4,
+  "scope": "Manager-tinted MVP cards on Honor Hall + Records Player, and full position-eligibility expansion on Rosters.",
+  "test_credentials": "N/A — public Sleeper API, no auth.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "summary": {
+    "fixed_in_this_iteration": [
+      "Honor Hall: 3 MVP cards (Finals, Playoffs, Overall) now extract dominant color from the manager's CURRENT franchise logo via `tintFromImg` Svelte action and apply it as `--card-tint` for border, left-rail, radial-glow, eyebrow text, and PTS color. Verified 2025: all 3 cards by JFK4312 → olive-green (matches gopher's grass background).",
+      "Records Player: same `tintFromImg` action applied to 3 MVP cards. Verified 2023: Overall+Playoffs by zamt → crimson (matches Gilbert Arenas red avatar); Finals by jewishhorsemen → tan/brown (matches Harlem Globetrotters). The per-season roster_meta is now resolved through `latestMetaFor()` so it always reflects today's logo.",
+      "CORS workaround: Sleeper CDN sometimes serves cached non-CORS responses, so `dominantColor.js` routes Sleeper URLs through `images.weserv.nl` (free CORS-enabled image proxy). Non-Sleeper URLs pass through unchanged.",
+      "Rosters: every player pill now expands the basic fantasy_positions into the FULL eligibility set (PG → PG, G; SG → SG, G; SF → SF, F; PF → PF, F; C → C; everyone → UTIL). Verified: Quentin Grimes shows SG/G/UTIL, Josh Hart shows SG/SF/G/F/UTIL, etc. New helper at /app/src/lib/positions.js."
+    ]
+  },
+  "files_changed_iter_4": [
+    "/app/src/lib/dominantColor.js (NEW — canvas-based extraction + Svelte action + weserv proxy)",
+    "/app/src/lib/positions.js (NEW — expandPositions helper)",
+    "/app/src/routes/honor-hall/+page.svelte (use:tintFromImg on 3 MVP cards; CSS uses var(--card-tint))",
+    "/app/src/routes/records-player/+page.svelte (use:tintFromImg on 3 MVP cards; latestMetaFor applied to roster_meta; MVP CSS rewritten to use var(--card-tint))",
+    "/app/src/routes/rosters/+page.svelte (import + use expandPositions in getPlayerInfo)"
+  ]
+}

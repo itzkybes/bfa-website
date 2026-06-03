@@ -2,6 +2,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, safeNum, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
+  import { expandPositions } from '$lib/positions';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
@@ -47,7 +48,11 @@
     const p = players[id] || players[String(id)] || null;
     if (!p) return { name: id, team: '', positions: [], player_id: id };
     const fullName = p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.display_name || id;
-    const positions = Array.isArray(p.fantasy_positions) ? p.fantasy_positions : (p.position ? [p.position] : []);
+    // Sleeper only stores 1–2 basic positions per player — expand to every
+    // roster slot the player is eligible for (e.g. SG → SG, G, UTIL) so
+    // managers can see every legal lineup spot at a glance.
+    const basic = Array.isArray(p.fantasy_positions) ? p.fantasy_positions : (p.position ? [p.position] : []);
+    const positions = expandPositions(basic);
     return { name: fullName, team: p.team || p.team_abbreviation || 'FA', positions, player_id: p.player_id || id };
   }
 
