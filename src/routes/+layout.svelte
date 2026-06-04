@@ -1,6 +1,6 @@
 <script>
-  import Header from '$lib/header/Header.svelte';
-  import { webVitals } from '$lib/vitals';
+  import Header from '$lib/components/Header.svelte';
+  import { webVitals } from '$lib/utils/vitals';
   import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import '../app.css';
@@ -46,10 +46,12 @@
         <a href="/records-team" data-testid="footer-link-records-team">Team Records</a>
         <a href="/records-player" data-testid="footer-link-records-player">Player Records</a>
         <a href="/honor-hall" data-testid="footer-link-honor-hall">Honor Hall</a>
+        <a href="/rules" data-testid="footer-link-rules">Rules &amp; Scoring</a>
       </div>
       <div class="footer-col">
         <div class="col-title">Tooling</div>
         <a href="/admin/generate-season-matchups" data-testid="footer-link-generate-season">Generate Season Matchups</a>
+        <a href="/admin/player-id-lookup" data-testid="footer-link-player-id-lookup">Player ID Lookup</a>
       </div>
       <div class="footer-col">
         <div class="col-title">External</div>

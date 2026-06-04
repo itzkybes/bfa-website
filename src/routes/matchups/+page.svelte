@@ -3,10 +3,10 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague, getPlayersNba, playerHeadshot } from '$lib/sleeperClient.client';
-  import { computeMatchupsForLeagueWeek, starterPointsByPid } from '$lib/leagueCompute.client';
-  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
-  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague, getPlayersNba, playerHeadshot } from '$lib/api';
+  import { computeMatchupsForLeagueWeek, starterPointsByPid } from '$lib/compute';
+  import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 
   let loading = true;
   let error = null;

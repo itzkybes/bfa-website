@@ -15,11 +15,11 @@
 -->
 <script>
   import { onMount } from 'svelte';
-  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
-  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
-  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
-  import Sparkline from '$lib/Sparkline.svelte';
+  import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/api';
+  import { computeStandingsForLeague } from '$lib/compute';
+  import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import Sparkline from '$lib/components/Sparkline.svelte';
 
   let loading = true;
   let error = null;

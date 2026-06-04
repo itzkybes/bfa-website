@@ -1,4 +1,4 @@
-// src/lib/cache.js
+// src/lib/api/cache.js
 //
 // Tiny localStorage cache so Sleeper's public endpoints stay cheap and snappy
 // on repeat visits. Every entry stores `{ data, timestamp, ttl }` under a

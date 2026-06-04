@@ -12,10 +12,10 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { getSeasonsChain, BASE_LEAGUE_ID, getRosterMapWithOwners } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague } from '$lib/leagueCompute.client';
-  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
-  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getRosterMapWithOwners } from '$lib/api';
+  import { computeStandingsForLeague } from '$lib/compute';
+  import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 
   let loading = true;
   let error = null;
