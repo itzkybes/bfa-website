@@ -19,6 +19,7 @@ const SLEEPER_CDN = 'https://sleepercdn.com';
 // without anyone having to bump this constant).
 export const BASE_LEAGUE_ID = '1219816671624048640';
 
+const CACHE_60_SEC = 60 * 1000;
 const CACHE_5_MIN = 5 * 60 * 1000;
 const CACHE_10_MIN = 10 * 60 * 1000;
 const CACHE_1_HOUR = 60 * 60 * 1000;
@@ -44,8 +45,20 @@ export async function getUsers(leagueId, ttl = CACHE_10_MIN) {
   return await fetchWithCache(`${BASE}/league/${encodeURIComponent(leagueId)}/users`, {}, ttl);
 }
 
-/** All matchup entries for a given week (Sleeper returns one entry per roster). */
-export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_5_MIN) {
+/**
+ * All matchup entries for a given week (Sleeper returns one entry per roster).
+ *
+ * Default TTL is 60 SECONDS — short enough that a stat correction or
+ * mid-game scoring update propagates to the recap within ~1 minute, but
+ * long enough that rapid week-clicking through the dropdown still gets
+ * served from cache. Note the recap "selected game" semantics: Sleeper's
+ * `players_points` / `starters_points` arrays already reflect the owner's
+ * manually-selected game (Sleeper resolves the selection internally — no
+ * separate "selected game" field is exposed by the public API). So if a
+ * recap stat ever looks wrong, the fix is to (a) wait for Sleeper's stat
+ * correction job to run and (b) let this short TTL pull it in.
+ */
+export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_60_SEC) {
   return await fetchWithCache(
     `${BASE}/league/${encodeURIComponent(leagueId)}/matchups/${encodeURIComponent(week)}`,
     {},
