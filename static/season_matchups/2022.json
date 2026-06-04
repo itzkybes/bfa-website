@@ -8805,6 +8805,7 @@
     {
       "matchup_id": 1,
       "week": 22,
+      "is_finals_leg1": true,
       "teamA": {
         "rosterId": "2",
         "name": "Scat Porn",
@@ -8865,6 +8866,7 @@
     {
       "matchup_id": 2,
       "week": 22,
+      "is_finals_leg1": true,
       "teamA": {
         "rosterId": "12",
         "name": "zamt",
@@ -8925,6 +8927,7 @@
     {
       "matchup_id": 4,
       "week": 22,
+      "is_finals_leg1": true,
       "teamA": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -8985,6 +8988,7 @@
     {
       "matchup_id": 5,
       "week": 22,
+      "is_finals_leg1": true,
       "teamA": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -9045,6 +9049,7 @@
     {
       "matchup_id": 6,
       "week": 22,
+      "is_finals_leg1": true,
       "teamA": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -9105,6 +9110,7 @@
     {
       "matchup_id": 7,
       "week": 22,
+      "is_finals_leg1": true,
       "teamA": {
         "rosterId": "4",
         "name": "Uncle O’Grimacey’s Cream",
@@ -9163,5 +9169,374 @@
       "teamBScore": 243
     }
   ],
-  "playoff_week_start": 20
+  "23": [
+    {
+      "matchup_id": 1,
+      "week": 23,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "2",
+        "name": "Scat Porn",
+        "ownerName": "smallvt",
+        "starters": [
+          "2040",
+          "2289",
+          "1698",
+          "1752",
+          "1590",
+          "1548",
+          "1178",
+          "1787",
+          "1614"
+        ],
+        "starters_points": [
+          23,
+          24.5,
+          43,
+          36.25,
+          31.5,
+          18,
+          12.69,
+          37.5,
+          18.5
+        ]
+      },
+      "teamAScore": 244.94,
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506",
+        "starters": [
+          "1945",
+          "1803",
+          "2453",
+          "2313",
+          "1883",
+          "1535",
+          "2032",
+          "1739",
+          "2285"
+        ],
+        "starters_points": [
+          14.69,
+          19,
+          12.5,
+          42,
+          20,
+          38.69,
+          23,
+          28.75,
+          30
+        ]
+      },
+      "teamBScore": 228.63
+    },
+    {
+      "matchup_id": 2,
+      "week": 23,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "12",
+        "name": "zamt",
+        "ownerName": "zamt",
+        "starters": [
+          "1970",
+          "1747",
+          "1632",
+          "1308",
+          "2156",
+          "2261",
+          "2308",
+          "1967",
+          "1272"
+        ],
+        "starters_points": [
+          51.44,
+          29.25,
+          10,
+          17.5,
+          16,
+          2,
+          17.5,
+          22,
+          22.75
+        ]
+      },
+      "teamAScore": 188.44,
+      "teamB": {
+        "rosterId": "14",
+        "name": "exposethemlikeprimo",
+        "ownerName": "jewishhorsemen",
+        "starters": [
+          "2439",
+          "2157",
+          "2126",
+          "2091",
+          "1822",
+          "1988",
+          "1718",
+          "1974",
+          "1282"
+        ],
+        "starters_points": [
+          14,
+          28.25,
+          23.5,
+          9,
+          25.25,
+          17.75,
+          26,
+          0,
+          18.5
+        ]
+      },
+      "teamBScore": 162.25
+    },
+    {
+      "matchup_id": 4,
+      "week": 23,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12",
+        "starters": [
+          "1998",
+          "2012",
+          "1872",
+          "2065",
+          "2097",
+          "2435",
+          "1846",
+          "2447",
+          "2050"
+        ],
+        "starters_points": [
+          22,
+          21.75,
+          13,
+          30,
+          0,
+          6,
+          17,
+          11,
+          19
+        ]
+      },
+      "teamAScore": 139.75,
+      "teamB": {
+        "rosterId": "6",
+        "name": "hangin with the hernandez",
+        "ownerName": "cholybevv",
+        "starters": [
+          "2007",
+          "2009",
+          "2001",
+          "2445",
+          "1362",
+          "2095",
+          "2259",
+          "1972",
+          "2135"
+        ],
+        "starters_points": [
+          20,
+          10,
+          4.5,
+          15,
+          15.25,
+          12,
+          25.75,
+          9,
+          0.44
+        ]
+      },
+      "teamBScore": 111.94
+    },
+    {
+      "matchup_id": 5,
+      "week": 23,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "7",
+        "name": "aaaaaAAAAAHHHHH",
+        "ownerName": "TLupinetti",
+        "starters": [
+          "1957",
+          "1707",
+          "1831",
+          "1604",
+          "1525",
+          "1809",
+          "1486",
+          "1749",
+          "1200"
+        ],
+        "starters_points": [
+          25,
+          23,
+          32.25,
+          11.75,
+          0,
+          14.25,
+          8.38,
+          14.75,
+          13.5
+        ]
+      },
+      "teamAScore": 142.88,
+      "teamB": {
+        "rosterId": "11",
+        "name": "WebbWarrior",
+        "ownerName": "WebbWarrior",
+        "starters": [
+          "1054",
+          "1648",
+          "1450",
+          "1433",
+          "1000",
+          "1987",
+          "1595",
+          "1546",
+          "1727"
+        ],
+        "starters_points": [
+          21,
+          21.5,
+          31,
+          0,
+          14,
+          5,
+          17,
+          16.63,
+          28.25
+        ]
+      },
+      "teamBScore": 154.38
+    },
+    {
+      "matchup_id": 6,
+      "week": 23,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael",
+        "starters": [
+          "1240",
+          "2017",
+          "1717",
+          "1975",
+          "1380",
+          "2286",
+          "2136",
+          "1339",
+          "1887"
+        ],
+        "starters_points": [
+          20.5,
+          13,
+          34.5,
+          36,
+          32.69,
+          12,
+          15.5,
+          20.5,
+          19
+        ]
+      },
+      "teamAScore": 203.69,
+      "teamB": {
+        "rosterId": "13",
+        "name": "Superficial Fibular nerve",
+        "ownerName": "JFK4312",
+        "starters": [
+          "1128",
+          "1711",
+          "1910",
+          "2181",
+          "2304",
+          "2120",
+          "1541",
+          "1265",
+          "1658"
+        ],
+        "starters_points": [
+          17.5,
+          36.5,
+          8,
+          22.5,
+          27.5,
+          2,
+          36.5,
+          16,
+          33.25
+        ]
+      },
+      "teamBScore": 199.75
+    },
+    {
+      "matchup_id": 7,
+      "week": 23,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "4",
+        "name": "Uncle O’Grimacey’s Cream",
+        "ownerName": "slawflesh",
+        "starters": [
+          "1845",
+          "1830",
+          "1621",
+          "2456",
+          "1512",
+          "1516",
+          "1350",
+          "1772",
+          "1716"
+        ],
+        "starters_points": [
+          22,
+          26.25,
+          23,
+          19.5,
+          0,
+          9,
+          22.5,
+          23,
+          23.5
+        ]
+      },
+      "teamAScore": 168.75,
+      "teamB": {
+        "rosterId": "10",
+        "name": "armyjunior",
+        "ownerName": "armyjunior",
+        "starters": [
+          "1444",
+          "2309",
+          "1321",
+          "1074",
+          "1487",
+          "1690",
+          "1319",
+          "1434",
+          "1092"
+        ],
+        "starters_points": [
+          34.69,
+          23.25,
+          26.75,
+          26.5,
+          13,
+          8,
+          29.5,
+          11.5,
+          17
+        ]
+      },
+      "teamBScore": 190.19
+    }
+  ],
+  "playoff_week_start": 20,
+  "playoff_week_end": 23
 }

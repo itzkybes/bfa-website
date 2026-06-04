@@ -149,6 +149,13 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
  * For one Sleeper league, fetch every week of matchups and shape them
  * into the JSON layout `leagueCompute.client.js → computeStandingsForLeague`
  * already consumes (the existing `static/season_matchups/{year}.json` shape).
+ *
+ * Playoff window: this league plays a **4-week** playoff every season, with
+ * the LAST 2 weeks merged into a single championship matchup (owners pick one
+ * game each of those weeks; total score = sum of the two starters_points
+ * arrays). The Sleeper API only records `matchup_id` for the first week of
+ * the merged final, so we walk forward one week and synthesize the same
+ * matchup_id for the second half so downstream code can pair the rounds.
  */
 async function generateSeasonJson(season) {
   const { league_id, season: year } = season;
@@ -157,21 +164,60 @@ async function generateSeasonJson(season) {
 
   let playoffStart = season.playoff_week_start;
   if (!isFinite(playoffStart) || playoffStart < 1) playoffStart = 15;
+  // League policy: playoffs are always 4 weeks (2 single-elim rounds + a
+  // 2-week merged championship final). `playoff_week_end` is written to the
+  // JSON so the consumers don't have to assume.
+  const playoffEnd = playoffStart + 3;
+  const finalsWeek1 = playoffStart + 2;   // first half of the merged final
+  const finalsWeek2 = playoffStart + 3;   // second half — usually no matchup_id from Sleeper
+
+  // We need to peek at the previous week (the first half of finals) to know
+  // how the championship was paired. Build a roster_id → matchup_id index
+  // for that week first, then apply it to finalsWeek2 entries that come
+  // back without their own matchup_id.
+  let finalsPairingByRoster = {};
 
   const weeks = {};
   let totalMatchups = 0;
   let overridesSeen = 0;
+  let finalsSynthesized = 0;
 
-  for (let week = 1; week <= 22; week++) {
+  // Walk through every plausible playoff week (extend to 25 to cover any
+  // edge cases). We loop in order so the finals-week1 mapping is built
+  // before finals-week2 is processed.
+  for (let week = 1; week <= 25; week++) {
     let raw = null;
     try { raw = await getMatchupsForWeek(league_id, week); } catch (_) { continue; }
     if (!raw || !raw.length) continue;
+
+    // For the first half of the merged final, snapshot its roster→matchup_id
+    // pairing so the second half can inherit it.
+    if (week === finalsWeek1) {
+      finalsPairingByRoster = {};
+      for (const e of raw) {
+        if (e && e.roster_id != null && e.matchup_id != null) {
+          finalsPairingByRoster[String(e.roster_id)] = e.matchup_id;
+        }
+      }
+    }
 
     const byMatch = {};
     for (let i = 0; i < raw.length; i++) {
       const m = raw[i];
       if (m && m.custom_points != null) overridesSeen += 1;
-      const mid = m.matchup_id ?? m.matchupId ?? ('auto' + i);
+      // Synthesize matchup_id for the merged-final's second half. Sleeper
+      // doesn't pair the W2 entries (matchup_id=null) — we inherit pairing
+      // from W1 so downstream consumers can show the two halves as one
+      // championship rendered across two weeks.
+      let mid = m.matchup_id ?? m.matchupId ?? null;
+      if (mid == null && week === finalsWeek2 && m && m.roster_id != null) {
+        const inherited = finalsPairingByRoster[String(m.roster_id)];
+        if (inherited != null) {
+          mid = inherited;
+          finalsSynthesized += 1;
+        }
+      }
+      if (mid == null) mid = 'auto' + i;
       if (!byMatch[mid]) byMatch[mid] = [];
       byMatch[mid].push(m);
     }
@@ -198,14 +244,16 @@ async function generateSeasonJson(season) {
         starters: Array.isArray(b.starters) ? b.starters : [],
         starters_points: Array.isArray(b.starters_points) ? b.starters_points : []
       };
-      // Preserve the commish manual-override field on every entry that has
-      // one. Downstream consumers (see `computeStandingsForLeague`) honor
-      // this exactly the same way as live Sleeper data.
       if (a.custom_points != null) teamA.custom_points = safeNum(a.custom_points);
       if (b.custom_points != null) teamB.custom_points = safeNum(b.custom_points);
+      const isFinalsLeg2 = (week === finalsWeek2);
       weekRows.push({
         matchup_id: Number(mid) || mid,
         week,
+        // Mark championship halves explicitly so consumers can recognise the
+        // merged-final shape without re-deriving it.
+        is_finals_leg1: week === finalsWeek1 || undefined,
+        is_finals_leg2: isFinalsLeg2 || undefined,
         teamA,
         teamAScore: computeParticipantPoints(a),
         teamB,
@@ -218,12 +266,13 @@ async function generateSeasonJson(season) {
     }
   }
 
-  // Final payload — matches existing JSON shape exactly.
+  // Final payload — matches existing JSON shape, now with playoff_week_end.
   const payload = {
     playoff_week_start: playoffStart,
+    playoff_week_end: playoffEnd,
     ...weeks
   };
-  return { year, payload, totalMatchups, overridesSeen, weeks: Object.keys(weeks).length };
+  return { year, payload, totalMatchups, overridesSeen, weeks: Object.keys(weeks).length, finalsSynthesized };
 }
 
 async function main() {
@@ -265,7 +314,7 @@ async function main() {
     await fs.writeFile(outPath, JSON.stringify(result.payload, null, 2) + '\n', 'utf8');
     const size = (await fs.stat(outPath)).size;
     console.log(`    ✓ wrote ${outPath}`);
-    console.log(`      weeks=${result.weeks}  matchups=${result.totalMatchups}  commish_overrides=${result.overridesSeen}  size=${(size / 1024).toFixed(1)}KB`);
+    console.log(`      weeks=${result.weeks}  matchups=${result.totalMatchups}  commish_overrides=${result.overridesSeen}  finals_synthesized=${result.finalsSynthesized}  size=${(size / 1024).toFixed(1)}KB`);
     written += 1;
   }
 

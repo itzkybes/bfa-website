@@ -9223,5 +9223,744 @@
       "teamBScore": 161.44
     }
   ],
-  "playoff_week_start": 21
+  "23": [
+    {
+      "matchup_id": 1,
+      "week": 23,
+      "is_finals_leg1": true,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt",
+        "starters": [
+          "2722",
+          "2289",
+          "1711",
+          "2613",
+          "1595",
+          "1380",
+          "2308",
+          "1265",
+          "2461"
+        ],
+        "starters_points": [
+          17,
+          22.75,
+          12,
+          17.25,
+          17,
+          27.25,
+          28,
+          26.5,
+          17.5
+        ]
+      },
+      "teamAScore": 185.25,
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506",
+        "starters": [
+          "2313",
+          "1648",
+          "2449",
+          "1000",
+          "1433",
+          "2032",
+          "1350",
+          "1945",
+          "1308"
+        ],
+        "starters_points": [
+          29.5,
+          27.5,
+          35.5,
+          27.5,
+          38.25,
+          34.5,
+          41.5,
+          39.94,
+          39.5
+        ]
+      },
+      "teamBScore": 313.69
+    },
+    {
+      "matchup_id": 2,
+      "week": 23,
+      "is_finals_leg1": true,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes",
+        "starters": [
+          "2748",
+          "2133",
+          "2322",
+          "1821",
+          "2458",
+          "2258",
+          "1787",
+          "1178",
+          "1082"
+        ],
+        "starters_points": [
+          16.75,
+          22.75,
+          15.25,
+          10.25,
+          32.25,
+          23.25,
+          36.25,
+          7.5,
+          6
+        ]
+      },
+      "teamAScore": 170.25,
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt",
+        "starters": [
+          "2007",
+          "2143",
+          "2457",
+          "1913",
+          "1362",
+          "2438",
+          "2728",
+          "2476",
+          "2726"
+        ],
+        "starters_points": [
+          27.25,
+          33.5,
+          16.5,
+          20.75,
+          30,
+          28,
+          7.25,
+          17.75,
+          33.25
+        ]
+      },
+      "teamBScore": 214.25
+    },
+    {
+      "matchup_id": 3,
+      "week": 23,
+      "is_finals_leg1": true,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12",
+        "starters": [
+          "2295",
+          "2001",
+          "2126",
+          "2091",
+          "2447",
+          "1846",
+          "2259",
+          "2135",
+          "2233"
+        ],
+        "starters_points": [
+          18.75,
+          18.5,
+          0,
+          25.5,
+          22,
+          26,
+          16.75,
+          6.5,
+          18.5
+        ]
+      },
+      "teamAScore": 152.5,
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti",
+        "starters": [
+          "1957",
+          "1779",
+          "1085",
+          "1831",
+          "1604",
+          "2733",
+          "1716",
+          "1525",
+          "2574"
+        ],
+        "starters_points": [
+          36.75,
+          12.25,
+          30,
+          35.25,
+          0,
+          28,
+          16.5,
+          17.25,
+          33
+        ]
+      },
+      "teamBScore": 209
+    },
+    {
+      "matchup_id": 4,
+      "week": 23,
+      "is_finals_leg1": true,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior",
+        "ownerName": "armyjunior",
+        "starters": [
+          "2309",
+          "2012",
+          "1434",
+          "1803",
+          "1988",
+          "1321",
+          "1934",
+          "1487",
+          "2441"
+        ],
+        "starters_points": [
+          25.75,
+          20.75,
+          19,
+          29.5,
+          24.75,
+          22.75,
+          33.25,
+          29,
+          13.5
+        ]
+      },
+      "teamAScore": 218.25,
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312",
+        "starters": [
+          "2142",
+          "1240",
+          "1841",
+          "2304",
+          "2455",
+          "1535",
+          "1658",
+          "1282",
+          "1697"
+        ],
+        "starters_points": [
+          22,
+          16.75,
+          4.75,
+          21,
+          8.75,
+          33.5,
+          43.5,
+          16,
+          30.75
+        ]
+      },
+      "teamBScore": 197
+    },
+    {
+      "matchup_id": 5,
+      "week": 23,
+      "is_finals_leg1": true,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael",
+        "starters": [
+          "1717",
+          "1975",
+          "2620",
+          "2451",
+          "2029",
+          "2136",
+          "1752",
+          "2564",
+          "1486"
+        ],
+        "starters_points": [
+          21.25,
+          25,
+          9.25,
+          2.5,
+          22,
+          24,
+          0,
+          30.25,
+          29.75
+        ],
+        "custom_points": 181.75
+      },
+      "teamAScore": 181.75,
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt",
+        "starters": [
+          "1970",
+          "2580",
+          "1747",
+          "1637",
+          "1272",
+          "2020",
+          "2141",
+          "1799",
+          "1339"
+        ],
+        "starters_points": [
+          42.25,
+          4,
+          22.25,
+          15.5,
+          27.5,
+          14,
+          9.44,
+          21.5,
+          9.5
+        ],
+        "custom_points": 188.44000244140625
+      },
+      "teamBScore": 188.44
+    },
+    {
+      "matchup_id": 6,
+      "week": 23,
+      "is_finals_leg1": true,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01",
+        "starters": [
+          "2161",
+          "1749",
+          "1081",
+          "1526",
+          "1924",
+          "2146",
+          "2718",
+          "1883",
+          "2119"
+        ],
+        "starters_points": [
+          23.25,
+          19.25,
+          16,
+          5.75,
+          22.25,
+          13,
+          30.25,
+          11.25,
+          17.75
+        ]
+      },
+      "teamAScore": 158.75,
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen",
+        "starters": [
+          "1998",
+          "2157",
+          "1830",
+          "2086",
+          "1590",
+          "2181",
+          "1718",
+          "2152",
+          "1319"
+        ],
+        "starters_points": [
+          27,
+          24,
+          22.5,
+          28,
+          15.75,
+          34,
+          33.5,
+          5.75,
+          6
+        ]
+      },
+      "teamBScore": 196.5
+    }
+  ],
+  "24": [
+    {
+      "matchup_id": 1,
+      "week": 24,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "2",
+        "name": "DAMN!!!!!!!!!!!!!!!!!",
+        "ownerName": "smallvt",
+        "starters": [
+          "2722",
+          "2289",
+          "1711",
+          "2613",
+          "1595",
+          "1380",
+          "2308",
+          "1265",
+          "2461"
+        ],
+        "starters_points": [
+          22,
+          9.75,
+          15.5,
+          30,
+          24.75,
+          51,
+          29.75,
+          20,
+          24.25
+        ]
+      },
+      "teamAScore": 227,
+      "teamB": {
+        "rosterId": "3",
+        "name": "The Fraggle Rock 9",
+        "ownerName": "riguy506",
+        "starters": [
+          "2313",
+          "1648",
+          "2449",
+          "1000",
+          "1433",
+          "2032",
+          "1350",
+          "1945",
+          "1308"
+        ],
+        "starters_points": [
+          31.75,
+          32.44,
+          28.75,
+          20.5,
+          0,
+          24.75,
+          46,
+          40.75,
+          34
+        ]
+      },
+      "teamBScore": 258.94
+    },
+    {
+      "matchup_id": 2,
+      "week": 24,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "1",
+        "name": "The Emperors",
+        "ownerName": "Kybes",
+        "starters": [
+          "2748",
+          "2133",
+          "2322",
+          "1821",
+          "2458",
+          "2258",
+          "1787",
+          "1178",
+          "1082"
+        ],
+        "starters_points": [
+          8.25,
+          30,
+          24.19,
+          24.75,
+          47.25,
+          22.25,
+          14,
+          39,
+          2.69
+        ]
+      },
+      "teamAScore": 212.38,
+      "teamB": {
+        "rosterId": "6",
+        "name": "Corey’s Shower",
+        "ownerName": "JakePratt",
+        "starters": [
+          "2007",
+          "2143",
+          "2457",
+          "1913",
+          "1362",
+          "2438",
+          "2728",
+          "2476",
+          "2726"
+        ],
+        "starters_points": [
+          15,
+          32.5,
+          30.75,
+          8,
+          22.25,
+          49,
+          22.25,
+          26.5,
+          9
+        ]
+      },
+      "teamBScore": 215.25
+    },
+    {
+      "matchup_id": 3,
+      "week": 24,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "5",
+        "name": "The Codfather",
+        "ownerName": "samsilverman12",
+        "starters": [
+          "2295",
+          "2001",
+          "2126",
+          "2091",
+          "2447",
+          "1846",
+          "2259",
+          "2135",
+          "2233"
+        ],
+        "starters_points": [
+          17.5,
+          17,
+          0,
+          0,
+          13.25,
+          43.5,
+          30.75,
+          5.5,
+          7.5
+        ]
+      },
+      "teamAScore": 135,
+      "teamB": {
+        "rosterId": "7",
+        "name": "Kanto Embers",
+        "ownerName": "TLupinetti",
+        "starters": [
+          "1957",
+          "1779",
+          "1085",
+          "1831",
+          "1604",
+          "2733",
+          "1716",
+          "1525",
+          "2574"
+        ],
+        "starters_points": [
+          31.75,
+          11.75,
+          8.25,
+          28.25,
+          0,
+          14.75,
+          37,
+          0,
+          28.75
+        ]
+      },
+      "teamBScore": 160.5
+    },
+    {
+      "matchup_id": 4,
+      "week": 24,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "10",
+        "name": "armyjunior",
+        "ownerName": "armyjunior",
+        "starters": [
+          "2309",
+          "2012",
+          "1434",
+          "1803",
+          "1988",
+          "1321",
+          "1934",
+          "1487",
+          "2441"
+        ],
+        "starters_points": [
+          24.25,
+          15,
+          16.75,
+          16.5,
+          17.5,
+          29.5,
+          11.25,
+          8.5,
+          29.25
+        ]
+      },
+      "teamAScore": 168.5,
+      "teamB": {
+        "rosterId": "13",
+        "name": "I could gopher a beer",
+        "ownerName": "JFK4312",
+        "starters": [
+          "2142",
+          "1240",
+          "1841",
+          "2304",
+          "2455",
+          "1535",
+          "1658",
+          "1282",
+          "1697"
+        ],
+        "starters_points": [
+          29.75,
+          40.75,
+          6.75,
+          28.5,
+          12,
+          16,
+          66.25,
+          10.5,
+          31.5
+        ]
+      },
+      "teamBScore": 242
+    },
+    {
+      "matchup_id": 5,
+      "week": 24,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "9",
+        "name": "Pact Nicely",
+        "ownerName": "WillMichael",
+        "starters": [
+          "1717",
+          "1975",
+          "2620",
+          "2451",
+          "2029",
+          "2136",
+          "2281",
+          "2564",
+          "1486"
+        ],
+        "starters_points": [
+          11.25,
+          23.75,
+          0,
+          0,
+          16,
+          35,
+          9,
+          21.25,
+          29.5
+        ]
+      },
+      "teamAScore": 145.75,
+      "teamB": {
+        "rosterId": "12",
+        "name": "Gilbert Arenas",
+        "ownerName": "zamt",
+        "starters": [
+          "1970",
+          "2580",
+          "1747",
+          "1637",
+          "1272",
+          "2020",
+          "2141",
+          "1799",
+          "2040"
+        ],
+        "starters_points": [
+          34.5,
+          26.75,
+          0,
+          8.75,
+          19.5,
+          15.75,
+          8.25,
+          15.75,
+          24.69
+        ]
+      },
+      "teamBScore": 153.94
+    },
+    {
+      "matchup_id": 6,
+      "week": 24,
+      "is_finals_leg2": true,
+      "teamA": {
+        "rosterId": "8",
+        "name": "Team Lobster",
+        "ownerName": "noahlap01",
+        "starters": [
+          "2161",
+          "1749",
+          "1081",
+          "1526",
+          "1924",
+          "2146",
+          "2718",
+          "1883",
+          "2119"
+        ],
+        "starters_points": [
+          23,
+          12.75,
+          10.25,
+          26,
+          31,
+          24,
+          32.25,
+          14.5,
+          20
+        ]
+      },
+      "teamAScore": 193.75,
+      "teamB": {
+        "rosterId": "14",
+        "name": "Harlem Globetrotters",
+        "ownerName": "jewishhorsemen",
+        "starters": [
+          "1998",
+          "2157",
+          "1830",
+          "2086",
+          "1590",
+          "2181",
+          "1718",
+          "2152",
+          "1319"
+        ],
+        "starters_points": [
+          34,
+          25.25,
+          17.5,
+          34,
+          15.75,
+          39,
+          25.25,
+          9.25,
+          4.25
+        ]
+      },
+      "teamBScore": 204.25
+    }
+  ],
+  "playoff_week_start": 21,
+  "playoff_week_end": 24
 }

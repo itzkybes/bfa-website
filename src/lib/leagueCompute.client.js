@@ -356,7 +356,14 @@ export async function computeStandingsForLeague(leagueId) {
 
   let playoffStart = (leagueMeta?.settings?.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 15;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-  const playoffEnd = playoffStart + 2;
+  // League policy: playoffs are always 4 weeks (2 single-elim rounds + a
+  // 2-week merged championship final). The static JSON also writes
+  // `playoff_week_end` so it can be picked up downstream — see below.
+  let playoffEnd = playoffStart + 3;
+  // The last week of the playoffs that pairs as the "second half" of the
+  // 2-week merged final. Used to merge W(end-1)+W(end) into a single
+  // championship game for win/loss accounting on the playoff record line.
+  let finalsLeg2Week = playoffEnd;
 
   const statsByRosterRegular = {}, resultsByRosterRegular = {}, paByRosterRegular = {};
   const statsByRosterPlayoff = {}, resultsByRosterPlayoff = {}, paByRosterPlayoff = {};
@@ -394,6 +401,15 @@ export async function computeStandingsForLeague(leagueId) {
       : Promise.resolve(null),
     leagueSeason === '2023' ? fetchStaticJson('/early2023.json') : Promise.resolve(null)
   ]);
+
+  // If the snapshot pinned the playoff window explicitly, prefer it (the
+  // regen script writes `playoff_week_end` based on the user's league
+  // policy of "4 playoff weeks, last 2 merged into one championship"). This
+  // lets a single change to the JSON adjust every downstream consumer.
+  if (seasonMatchups && Number.isFinite(seasonMatchups.playoff_week_end)) {
+    playoffEnd = Number(seasonMatchups.playoff_week_end);
+    finalsLeg2Week = playoffEnd;
+  }
 
   // Fetch ALL weeks in parallel (instead of sequential)
   const weekFetches = [];
@@ -452,6 +468,11 @@ export async function computeStandingsForLeague(leagueId) {
 
   // Process week by week using fetched data
   const collectedMatchups = {}; // week -> matchup entries
+  // Per-matchup_id finals leg-1 outcomes — used to retroactively merge the
+  // two halves of the 2-week championship into a single W/L. The leg-1
+  // week's per-week assignment runs normally; when we hit leg-2 we undo
+  // both legs' assignments and replace them with the combined-score result.
+  const finalsLeg1Outcomes = {};
   for (const { week, matchups } of allWeekResults) {
     if (!matchups || !matchups.length) continue;
     collectedMatchups[week] = matchups;
@@ -557,6 +578,78 @@ export async function computeStandingsForLeague(leagueId) {
         if (part.points > oppAvg + 1e-9) { resultsByRoster[part.rosterId].push('W'); statsByRoster[part.rosterId].wins += 1; }
         else if (part.points < oppAvg - 1e-9) { resultsByRoster[part.rosterId].push('L'); statsByRoster[part.rosterId].losses += 1; }
         else { resultsByRoster[part.rosterId].push('T'); statsByRoster[part.rosterId].ties += 1; }
+      }
+
+      // ── Merged 2-week championship handling ───────────────────────
+      // The user's league plays the FINAL as one matchup spanning the last
+      // two playoff weeks (owners pick one game from each week, total
+      // score = sum of both weeks' starters_points). For W/L accounting we
+      // need to count that as ONE game, not two.
+      //
+      // Strategy:
+      //  · On leg-1 week: remember each participant's leg-1 points and
+      //    their result index in `resultsByRoster` for later rollback.
+      //  · On leg-2 week: undo BOTH legs' per-week W/L (each leg counted
+      //    1 W/L per participant above), then push a single MERGED W/L per
+      //    participant based on the sum of leg-1 + leg-2 scores.
+      // PF/PA are intentionally untouched — both weeks DO contribute to
+      // playoff PF/PA, so summing them per-week is already correct.
+      if (isPlayoffWeek && participants.length === 2) {
+        const mid = entries[0]?.matchup_id ?? entries[0]?.matchupId ?? null;
+        if (mid != null) {
+          const midKey = String(mid);
+          if (week === finalsLeg2Week - 1) {
+            // Leg 1 — snapshot each participant's leg-1 result for later merge.
+            finalsLeg1Outcomes[midKey] = participants.map((p) => ({
+              rosterId: p.rosterId,
+              points: p.points,
+              resultIndex: resultsByRoster[p.rosterId].length - 1
+            }));
+          } else if (week === finalsLeg2Week) {
+            const leg1 = finalsLeg1Outcomes[midKey];
+            if (leg1 && leg1.length === 2) {
+              // 1. Roll back leg-1's contribution.
+              for (const l of leg1) {
+                const arr = resultsByRoster[l.rosterId];
+                const idx = l.resultIndex;
+                if (idx >= 0 && idx < arr.length) {
+                  const r = arr[idx];
+                  if (r === 'W') statsByRoster[l.rosterId].wins -= 1;
+                  else if (r === 'L') statsByRoster[l.rosterId].losses -= 1;
+                  else if (r === 'T') statsByRoster[l.rosterId].ties -= 1;
+                  arr.splice(idx, 1);
+                }
+              }
+              // 2. Roll back leg-2's contribution that was just pushed above.
+              for (const p of participants) {
+                const arr = resultsByRoster[p.rosterId];
+                const popped = arr.pop();
+                if (popped === 'W') statsByRoster[p.rosterId].wins -= 1;
+                else if (popped === 'L') statsByRoster[p.rosterId].losses -= 1;
+                else if (popped === 'T') statsByRoster[p.rosterId].ties -= 1;
+              }
+              // 3. Push the single MERGED result based on combined scores.
+              const totals = {};
+              for (const p of participants) totals[p.rosterId] = (totals[p.rosterId] ?? 0) + p.points;
+              for (const l of leg1) totals[l.rosterId] = (totals[l.rosterId] ?? 0) + l.points;
+              const [pa, pb] = participants;
+              const aTotal = totals[pa.rosterId] ?? 0;
+              const bTotal = totals[pb.rosterId] ?? 0;
+              let aRes, bRes;
+              if (aTotal > bTotal + 1e-9) { aRes = 'W'; bRes = 'L'; }
+              else if (aTotal < bTotal - 1e-9) { aRes = 'L'; bRes = 'W'; }
+              else { aRes = 'T'; bRes = 'T'; }
+              resultsByRoster[pa.rosterId].push(aRes);
+              resultsByRoster[pb.rosterId].push(bRes);
+              if (aRes === 'W') statsByRoster[pa.rosterId].wins += 1;
+              else if (aRes === 'L') statsByRoster[pa.rosterId].losses += 1;
+              else statsByRoster[pa.rosterId].ties += 1;
+              if (bRes === 'W') statsByRoster[pb.rosterId].wins += 1;
+              else if (bRes === 'L') statsByRoster[pb.rosterId].losses += 1;
+              else statsByRoster[pb.rosterId].ties += 1;
+            }
+          }
+        }
       }
     }
   }
@@ -695,7 +788,8 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   let playoffStart = leagueMeta?.settings?.playoff_week_start ? Number(leagueMeta.settings.playoff_week_start) : 15;
   if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-  const playoffEnd = playoffStart + 2;
+  // League policy: 4-week playoffs (last 2 weeks are the merged final).
+  let playoffEnd = playoffStart + 3;
 
   // Prefer the locked-in static snapshot only for finalized seasons that
   // actually have a JSON dropped in /static. Same rule as
@@ -704,6 +798,10 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   let seasonMatchups = null;
   if (isLeagueComplete && leagueSeason) {
     seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
+  }
+  // Pinned by the snapshot if present.
+  if (seasonMatchups && Number.isFinite(seasonMatchups.playoff_week_end)) {
+    playoffEnd = Number(seasonMatchups.playoff_week_end);
   }
 
   if (seasonMatchups && Array.isArray(seasonMatchups[String(week)])) {

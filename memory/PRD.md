@@ -78,7 +78,15 @@ User followed up confirming:
 - ✅ Added "Power" link to the global header nav.
 - ✅ `getSeasonsChain` now captures `status` per season so callers can branch on it without re-fetching league metadata.
 
-## What's Been Implemented (2026-06-04 — Auto static/live routing + footer redesign)
+## What's Been Implemented (2026-06-04 — 4-week playoffs + merged final + CONTRIBUTING.md)
+- ✅ **Playoff window extended from 3 weeks to 4** to match league policy (2 single-elim rounds + a 2-week merged championship). New `playoff_week_end = playoff_week_start + 3` is computed live AND written to every static JSON. Per-season values: 2022→23, 2023→24, 2024→24, 2025→23. Consumers read `playoff_week_end` from the JSON when present.
+- ✅ **Regen script extended to capture all 4 playoff weeks** AND synthesize the matchup pairing for the second half of the merged final (Sleeper drops `matchup_id` for that week; we inherit from the prior week, keyed by roster_id). Stats: 2022 needed 0 synthesized (Sleeper paired both halves), 2023/2024/2025 each needed 12 synthesized (6 matchups × 2 rosters).
+- ✅ **Merged 2-week final W/L accounting** — `computeStandingsForLeague` now tracks finals leg-1 results, then on leg-2 rolls back BOTH legs' per-week W/L and pushes a single MERGED outcome based on combined scores. PF/PA stays per-week (correct — both weeks contribute to the championship total). Verified on 2025: The Codfather went 3-0 in playoffs (not 4-0); I could gopher a beer went 2-1 with the merged-final win. Verified on 2024: The Fraggle Rock 9 wins the merged final (W23: 313.69 + W24: 258.94 = 572.63 vs DAMN!! 412.25).
+- ✅ **CONTRIBUTING.md created** at `/app/CONTRIBUTING.md` with the full yearly-migration runbook: regen script invocation, validation steps, PR checklist, playoff-window reference table, and the "do NOT regenerate during an active season" warning.
+- ✅ **All pages route through `computeStandingsForLeague` / `computeMatchupsForLeagueWeek`** which now uses `status === 'complete' && JSON file exists` to pick static-vs-live. Verified end-to-end: 2025 routes hit `season_matchups/2025.json`; 2026 (when it starts and `status !== 'complete'`) will automatically fall back to live API with no code change.
+- ✅ Vercel build verified.
+
+
 - ✅ **Removed the hardcoded year whitelist** in `computeStandingsForLeague` and `computeMatchupsForLeagueWeek`. The path now triggers on **two** signals: `leagueMeta.status === 'complete'` AND a static snapshot exists at `/static/season_matchups/{year}.json` (404 = automatic live-API fallback). This means the season lifecycle is **fully automatic** — no code changes when 2026 → 2027:
   - 2026 in-progress: `status !== 'complete'` → live API everywhere.
   - 2026 ends, no JSON yet: 404 on snapshot → live API.

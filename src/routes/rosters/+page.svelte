@@ -145,7 +145,9 @@
       // All per-player figures read from `starters_points` ONLY.
       const collected = r.collectedMatchups || {};
       const playoffStart = r.playoffStart || 15;
-      const playoffEnd = r.playoffEnd || (playoffStart + 2);
+      // 4-week playoff window. The static JSON exposes `playoff_week_end`;
+      // fall back to `playoffStart + 3` for in-progress seasons fetched live.
+      const playoffEnd = r.playoffEnd || (playoffStart + 3);
       for (const wkStr of Object.keys(collected)) {
         const wk = Number(wkStr);
         if (!isFinite(wk) || wk < 1) continue;
