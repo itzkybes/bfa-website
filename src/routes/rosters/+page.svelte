@@ -76,6 +76,7 @@
           longestWinStreak: 0, longestWinStreakSeason: null,
           longestLoseStreak: 0, longestLoseStreakSeason: null,
           bestSingleGame: null,
+          bestPlayoffGame: null,
           highestWeek: null, lowestWeek: null,
           biggestBlowoutWin: null, biggestBlowoutLoss: null,
           firstSeason: null, lastSeason: null
@@ -137,14 +138,20 @@
         }
       }
 
-      // Per-game records — scan collectedMatchups for every regular-season
-      // week. Reads from `starters_points` only (zip with `starters` by
-      // index). Skip playoffs to keep records "regular-season pure".
+      // Per-game records — scan collectedMatchups for every week. Regular
+      // season weeks (1 → playoffStart-1) feed the franchise records that
+      // are strictly regular-season (highest/lowest, blowouts, best single
+      // game). Playoff weeks (playoffStart → playoffEnd) feed `bestPlayoffGame`.
+      // All per-player figures read from `starters_points` ONLY.
       const collected = r.collectedMatchups || {};
       const playoffStart = r.playoffStart || 15;
+      const playoffEnd = r.playoffEnd || (playoffStart + 2);
       for (const wkStr of Object.keys(collected)) {
         const wk = Number(wkStr);
-        if (!isFinite(wk) || wk < 1 || wk >= playoffStart) continue;
+        if (!isFinite(wk) || wk < 1) continue;
+        const isRegular = wk < playoffStart;
+        const isPlayoff = wk >= playoffStart && wk <= playoffEnd;
+        if (!isRegular && !isPlayoff) continue;
         const entries = collected[wkStr] || [];
         const byMatch = {};
         for (const e of entries) {
@@ -160,7 +167,8 @@
           if (!hub) continue;
           const pts = Number(e.points ?? 0);
 
-          if (pts > 0) {
+          // Regular-season-only metrics: highest/lowest week + blowouts.
+          if (isRegular && pts > 0) {
             const opp = (byMatch[String(e.matchup_id)] || []).find((o) => (o.roster_id ?? o.rosterId) !== rid);
             const oppMeta = opp ? (rmap[opp.roster_id ?? opp.rosterId] || {}) : {};
             if (!hub.highestWeek || pts > hub.highestWeek.points) {
@@ -195,7 +203,8 @@
             }
           }
 
-          // Best single-game starter performance — strictly from starters_points.
+          // Best single-game starter performance — strictly from
+          // starters_points. Tracked separately for regular vs playoffs.
           const sp = e.starters_points;
           const starters = e.starters;
           if (Array.isArray(sp) && Array.isArray(starters)) {
@@ -204,13 +213,24 @@
               if (!pid) continue;
               const val = Number(sp[idx] ?? 0);
               if (!isFinite(val) || val <= 0) continue;
-              if (!hub.bestSingleGame || val > hub.bestSingleGame.points) {
-                const p = playersMap[pid] || {};
-                hub.bestSingleGame = {
-                  player_id: pid,
-                  player_name: p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || pid,
-                  points: val, week: wk, season: seasonLabel
-                };
+              if (isRegular) {
+                if (!hub.bestSingleGame || val > hub.bestSingleGame.points) {
+                  const p = playersMap[pid] || {};
+                  hub.bestSingleGame = {
+                    player_id: pid,
+                    player_name: p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || pid,
+                    points: val, week: wk, season: seasonLabel
+                  };
+                }
+              } else if (isPlayoff) {
+                if (!hub.bestPlayoffGame || val > hub.bestPlayoffGame.points) {
+                  const p = playersMap[pid] || {};
+                  hub.bestPlayoffGame = {
+                    player_id: pid,
+                    player_name: p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || pid,
+                    points: val, week: wk, season: seasonLabel
+                  };
+                }
               }
             }
           }
@@ -402,7 +422,7 @@
             <div class="franchise-records" data-testid={`franchise-records-${roster.rosterId}`}>
               <div class="records-head">
                 <div class="records-title">Franchise Records</div>
-                <div class="records-sub">Regular season only · across every season the owner has played</div>
+                <div class="records-sub">Across every season this owner has played</div>
               </div>
               <div class="records-grid">
                 {#if roster.owner_hub.bestSingleGame}
@@ -416,6 +436,20 @@
                       </div>
                     </div>
                     <div class="record-stat win">{roster.owner_hub.bestSingleGame.points.toFixed(2)}<span class="record-stat-label"> PTS</span></div>
+                  </div>
+                {/if}
+
+                {#if roster.owner_hub.bestPlayoffGame}
+                  <div class="record-card">
+                    <div class="record-eyebrow">🏆 Best Playoff Game</div>
+                    <div class="record-body">
+                      <img class="record-headshot" src={playerHeadshot(roster.owner_hub.bestPlayoffGame.player_id)} alt={roster.owner_hub.bestPlayoffGame.player_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                      <div class="record-meta">
+                        <div class="record-name">{roster.owner_hub.bestPlayoffGame.player_name}</div>
+                        <div class="record-context">W{roster.owner_hub.bestPlayoffGame.week} · {roster.owner_hub.bestPlayoffGame.season} Playoffs</div>
+                      </div>
+                    </div>
+                    <div class="record-stat win">{roster.owner_hub.bestPlayoffGame.points.toFixed(2)}<span class="record-stat-label"> PTS</span></div>
                   </div>
                 {/if}
 
@@ -893,9 +927,19 @@
     border: 1px solid var(--border-subtle);
     border-radius: var(--r-sm);
     transition: border-color var(--t-fast);
+    flex-wrap: wrap;
   }
   .player-pill:hover { border-color: var(--border-strong); }
   .player-pill.compact { padding: 0.45rem 0.6rem; }
+  /* Inside the bench/taxi grid the cards are narrow — force the position
+     pills onto their own row so the player name always gets full width
+     and never has to break character-by-character. */
+  .player-pill.compact .pos-tags {
+    width: 100%;
+    margin-top: 0.3rem;
+    justify-content: flex-end;
+  }
+  .player-pill .player-info { flex: 1 1 140px; }
 
   .slot-badge { min-width: 42px; }
 
@@ -913,7 +957,8 @@
     font-weight: 700; font-size: 0.9rem;
     color: var(--text-primary);
     line-height: 1.15;
-    word-break: break-word;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
   .player-name.empty { color: var(--text-tertiary); font-style: italic; font-weight: 500; }
   .player-team { color: var(--text-tertiary); font-size: 0.74rem; margin-top: 0.15rem; }

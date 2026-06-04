@@ -54,6 +54,58 @@
     { wins: 0, losses: 0, pf: 0, pa: 0, games: 0 }
   );
 
+  /**
+   * Per-opponent Head-to-Head rollup across every season this owner has
+   * played. Walks `bySeason` in chronological order (oldest → newest) so
+   * `results` reflects true chronology and `last3` always returns the
+   * three most recent meetings. Includes BOTH regular-season AND playoff
+   * games per the user's preference. BYE rows are skipped.
+   */
+  $: h2h = (() => {
+    if (!bySeason.length) return null;
+    const byOpp = {};
+    const seasonsChronological = [...bySeason].reverse(); // bySeason is newest→oldest
+    for (const season of seasonsChronological) {
+      for (const m of season.matchups) {
+        if (!m.oppMeta) continue;
+        const key = String(m.oppMeta.owner_username || m.oppMeta.owner_name || m.oppMeta.team_name || '').toLowerCase();
+        if (!key) continue;
+        if (!byOpp[key]) byOpp[key] = {
+          ownerKey: key, meta: m.oppMeta,
+          gp: 0, w: 0, l: 0, t: 0, pf: 0, pa: 0, results: []
+        };
+        const o = byOpp[key];
+        o.gp += 1;
+        if (m.result === 'W') o.w += 1;
+        else if (m.result === 'L') o.l += 1;
+        else o.t += 1;
+        o.pf += m.my;
+        o.pa += m.opp;
+        o.results.push(m.result);
+      }
+    }
+    const opps = Object.values(byOpp);
+    if (!opps.length) return null;
+    for (const o of opps) {
+      o.winPct = o.gp ? o.w / o.gp : 0;
+      o.last3 = o.results.slice(-3);
+      let maxStreak = 0, curStreak = 0;
+      for (const r of o.results) {
+        if (r === 'W') { curStreak += 1; if (curStreak > maxStreak) maxStreak = curStreak; }
+        else curStreak = 0;
+      }
+      o.longestWinStreak = maxStreak;
+    }
+    opps.sort((a, b) => b.gp - a.gp || b.pf - a.pf);
+    const biggestRival = opps[0] || null;
+    const streakLeader = [...opps].sort((a, b) => b.longestWinStreak - a.longestWinStreak)[0] || null;
+    return {
+      opps,
+      biggestRival,
+      longestStreak: streakLeader && streakLeader.longestWinStreak > 0 ? streakLeader : null
+    };
+  })();
+
   function fmt(v) {
     const n = Number(v);
     if (!isFinite(n)) return '—';
@@ -220,6 +272,120 @@
   {:else if error}
     <ErrorBoundary {error} onRetry={loadAll} context="team matchup history" />
   {:else}
+    {#if h2h}
+      <section class="h2h-block" data-testid="h2h-block">
+        <div class="h2h-head">
+          <h2 class="block-title">Head-to-Head</h2>
+          <span class="block-sub">All games · {h2h.opps.length} opponents across {totals.games} matchups</span>
+        </div>
+        <div class="h2h-highlights">
+          {#if h2h.biggestRival}
+            <div class="h2h-card" data-testid="h2h-rival">
+              <div class="h2h-eyebrow">👹 Biggest Rival</div>
+              <div class="h2h-card-body">
+                {#if h2h.biggestRival.meta?.owner_username}
+                  <a class="h2h-link" href={`/team/${encodeURIComponent(h2h.biggestRival.meta.owner_username)}`}>
+                    <img class="h2h-avatar" src={avatarOrPh(h2h.biggestRival.meta.team_avatar, h2h.biggestRival.meta.team_name)} alt={h2h.biggestRival.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                    <div class="h2h-meta">
+                      <div class="h2h-name">{h2h.biggestRival.meta.team_name ?? '—'}</div>
+                      <div class="h2h-context">{h2h.biggestRival.gp} games played</div>
+                    </div>
+                  </a>
+                {:else}
+                  <img class="h2h-avatar" src={avatarOrPh(h2h.biggestRival.meta?.team_avatar, h2h.biggestRival.meta?.team_name)} alt={h2h.biggestRival.meta?.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                  <div class="h2h-meta">
+                    <div class="h2h-name">{h2h.biggestRival.meta?.team_name ?? '—'}</div>
+                    <div class="h2h-context">{h2h.biggestRival.gp} games played</div>
+                  </div>
+                {/if}
+              </div>
+              <div class="h2h-stat" class:positive={h2h.biggestRival.w > h2h.biggestRival.l} class:negative={h2h.biggestRival.w < h2h.biggestRival.l}>
+                {h2h.biggestRival.w}–{h2h.biggestRival.l}{#if h2h.biggestRival.t}–{h2h.biggestRival.t}{/if}
+                <span class="h2h-stat-label"> RECORD</span>
+              </div>
+            </div>
+          {/if}
+
+          {#if h2h.longestStreak}
+            <div class="h2h-card" data-testid="h2h-streak">
+              <div class="h2h-eyebrow">🔥 Longest H2H Win Streak</div>
+              <div class="h2h-card-body">
+                {#if h2h.longestStreak.meta?.owner_username}
+                  <a class="h2h-link" href={`/team/${encodeURIComponent(h2h.longestStreak.meta.owner_username)}`}>
+                    <img class="h2h-avatar" src={avatarOrPh(h2h.longestStreak.meta.team_avatar, h2h.longestStreak.meta.team_name)} alt={h2h.longestStreak.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                    <div class="h2h-meta">
+                      <div class="h2h-name">vs {h2h.longestStreak.meta.team_name ?? '—'}</div>
+                      <div class="h2h-context">{h2h.longestStreak.gp} games · {h2h.longestStreak.w}–{h2h.longestStreak.l}{#if h2h.longestStreak.t}–{h2h.longestStreak.t}{/if}</div>
+                    </div>
+                  </a>
+                {:else}
+                  <img class="h2h-avatar" src={avatarOrPh(h2h.longestStreak.meta?.team_avatar, h2h.longestStreak.meta?.team_name)} alt={h2h.longestStreak.meta?.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                  <div class="h2h-meta">
+                    <div class="h2h-name">vs {h2h.longestStreak.meta?.team_name ?? '—'}</div>
+                    <div class="h2h-context">{h2h.longestStreak.gp} games</div>
+                  </div>
+                {/if}
+              </div>
+              <div class="h2h-stat positive">
+                {h2h.longestStreak.longestWinStreak}<span class="h2h-stat-label"> CONSECUTIVE WINS</span>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <div class="table-wrap">
+          <table class="bfa-table h2h-table">
+            <thead>
+              <tr>
+                <th>Opponent</th>
+                <th class="col-num" title="Games played all-time">GP</th>
+                <th class="col-num" title="Wins-Losses(-Ties) head-to-head">Record</th>
+                <th class="col-num" title="Win percentage vs this opponent">Win %</th>
+                <th class="col-num" title="Total points scored against this opponent">PF</th>
+                <th class="col-num" title="Total points allowed to this opponent">PA</th>
+                <th class="col-num" title="Three most recent meetings (chronological)">Last 3</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each h2h.opps as o (o.ownerKey)}
+                <tr data-testid={`h2h-row-${o.ownerKey}`}>
+                  <td>
+                    {#if o.meta?.owner_username}
+                      <a class="team-cell-link" href={`/team/${encodeURIComponent(o.meta.owner_username)}`}>
+                        <img class="team-avatar small" src={avatarOrPh(o.meta.team_avatar, o.meta.team_name)} alt={o.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                        <div>
+                          <div class="team-name-cell">{o.meta.team_name}</div>
+                          {#if o.meta.owner_name}<div class="team-owner-cell">{o.meta.owner_name}</div>{/if}
+                        </div>
+                      </a>
+                    {:else}
+                      <span class="muted">{o.meta?.team_name ?? '—'}</span>
+                    {/if}
+                  </td>
+                  <td class="col-num"><span class="num">{o.gp}</span></td>
+                  <td class="col-num">
+                    <span class="num" class:positive={o.w > o.l} class:negative={o.w < o.l}>
+                      {o.w}–{o.l}{#if o.t}–{o.t}{/if}
+                    </span>
+                  </td>
+                  <td class="col-num"><span class="num">{(o.winPct * 100).toFixed(1)}%</span></td>
+                  <td class="col-num"><span class="num pf">{fmt(o.pf)}</span></td>
+                  <td class="col-num"><span class="num muted">{fmt(o.pa)}</span></td>
+                  <td class="col-num">
+                    <div class="last3">
+                      {#each o.last3 as r}
+                        <span class={`pellet ${r === 'W' ? 'w' : r === 'L' ? 'l' : 't'}`}>{r}</span>
+                      {/each}
+                    </div>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {/if}
+
     {#each bySeason as season (season.leagueId)}
       <section class="block" data-testid={`season-${season.season}`}>
         <div class="block-head">
@@ -320,6 +486,96 @@
 
   .playoff-row td { background: linear-gradient(90deg, rgba(52, 50, 200, 0.06), transparent 60%); }
 
+  /* ── Head-to-Head block (above season blocks) ──────────────────────── */
+  .h2h-block {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .h2h-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 1rem; flex-wrap: wrap;
+  }
+  .h2h-highlights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.7rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .h2h-card {
+    padding: 0.75rem 0.9rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    display: flex; flex-direction: column; gap: 0.45rem;
+  }
+  .h2h-eyebrow {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.62rem;
+    color: var(--text-tertiary);
+  }
+  .h2h-card-body { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .h2h-link { display: flex; align-items: center; gap: 0.6rem; min-width: 0; text-decoration: none; color: inherit; transition: opacity 0.2s; flex: 1; }
+  .h2h-link:hover { opacity: 0.78; }
+  .h2h-avatar {
+    width: 36px; height: 36px;
+    border-radius: 5px;
+    object-fit: cover;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .h2h-meta { min-width: 0; flex: 1; }
+  .h2h-name {
+    font-weight: 700; color: var(--text-primary);
+    font-size: 0.92rem; line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .h2h-context {
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    margin-top: 0.18rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .h2h-stat {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--text-primary);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .h2h-stat.positive { color: var(--brand); }
+  .h2h-stat.negative { color: var(--accent); }
+  .h2h-stat-label {
+    font-family: var(--font-body);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    color: var(--text-tertiary);
+    margin-left: 0.25rem;
+  }
+
+  .h2h-table { min-width: 720px; }
+  .h2h-table td, .h2h-table th { padding: 0.55rem 0.7rem; }
+  .last3 { display: inline-flex; gap: 0.2rem; justify-content: flex-end; }
+  .pellet {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    font-size: 0.62rem; font-weight: 800;
+    line-height: 1;
+  }
+  .pellet.w { background: rgba(52, 50, 200, 0.22); color: var(--brand); }
+  .pellet.l { background: rgba(200, 114, 50, 0.18); color: var(--accent); }
+  .pellet.t { background: var(--surface-2); color: var(--text-tertiary); }
+
   .empty-card { padding: 1.5rem; text-align: center; color: var(--text-secondary); }
 
   .back-btn { padding: 0.5rem 0.85rem; }
@@ -340,5 +596,9 @@
     .wk-cell { padding: 0.55rem 0.55rem; gap: 0.35rem; }
     .playoff-pill { font-size: 0.55rem; padding: 0.08rem 0.3rem; }
     .result-pill { min-width: 22px; padding: 0.1rem 0.3rem; font-size: 0.7rem; }
+    .h2h-head { padding: 0.85rem 1rem; }
+    .h2h-highlights { grid-template-columns: 1fr; padding: 0.85rem 1rem; gap: 0.55rem; }
+    .h2h-stat { font-size: 1.05rem; }
+    .pellet { width: 16px; height: 16px; font-size: 0.58rem; }
   }
 </style>

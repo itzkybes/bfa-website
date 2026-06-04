@@ -68,13 +68,32 @@ function computeStreaks(resultsArray) {
 }
 
 /**
- * Score a single Sleeper matchup entry. Sleeper has gone through a few
- * representations over the years — `starters_points` as an array, `player_points`
- * as a map keyed by player id, and an aggregate `points` field — so we try each
- * in turn and fall back to whatever's there.
+ * Score a single Sleeper matchup entry.
+ *
+ * Order of precedence (top to bottom):
+ *   1. `entry.custom_points` — the commissioner override. Sleeper exposes
+ *      this whenever the commish manually sets a team's score for a week
+ *      (e.g. fixing a missed lock, applying a forfeit, correcting a stat
+ *      error). When non-null we trust it as the final team total.
+ *   2. `starters_points` array — project policy: per-player figures only
+ *      ever come from this; the team total is the sum.
+ *   3. Top-level `points` field — last-resort fallback (still a Sleeper
+ *      starter-only total).
+ *
+ * `player_points` / `players_points` is deliberately NOT consulted, since
+ * for our league with manual game-selection it includes raw unselected
+ * games.
  */
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
+  // 1. Commissioner override wins. Sleeper sets this to null when no
+  //    override is in play. Any finite numeric value (including 0) means
+  //    the commish has manually pinned the score.
+  if (entry.custom_points != null) {
+    const cp = safeNum(entry.custom_points);
+    if (isFinite(cp)) return Math.round(cp * 100) / 100;
+  }
+  // 2. Sum of starters_points.
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
   for (const k of arrayKeys) {
     if (Array.isArray(entry[k]) && entry[k].length) {
@@ -83,10 +102,7 @@ function computeParticipantPoints(entry) {
       return Math.round(s * 100) / 100;
     }
   }
-  // No `players_points` fallback — by project policy, all per-player scoring
-  // must read from `starters_points` only (which already reflects each owner's
-  // game selection). If `starters_points` is missing, fall back to the
-  // top-level `points` total (still a starter-only number from Sleeper's side).
+  // 3. Top-level points fallback.
   const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
   return Math.round(fallback * 100) / 100;
 }

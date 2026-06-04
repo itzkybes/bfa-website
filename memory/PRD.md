@@ -78,7 +78,14 @@ User followed up confirming:
 - ✅ Added "Power" link to the global header nav.
 - ✅ `getSeasonsChain` now captures `status` per season so callers can branch on it without re-fetching league metadata.
 
-## What's Been Implemented (2026-06-04 — Owner Hub dropdown + strict starters_points sweep)
+## What's Been Implemented (2026-06-04 — Owner Hub polish + H2H block + commish override)
+- ✅ **Bug fix: vertical-letter player names** on Owner Hub bench/taxi cards. When a player had 3-4 position eligibilities (e.g. Michael Porter Jr. = SF/PF/F/UTIL), the `pos-tags` element ate horizontal space and `word-break: break-word` then broke the name letter-by-letter vertically. Fix: `.player-name` now uses `overflow-wrap: anywhere` (only breaks unbreakable strings), `.player-info` has `flex: 1 1 140px` (won't shrink below readable), and `.player-pill.compact .pos-tags` is forced onto its own row so the name always gets full width.
+- ✅ **Best Playoff Game** record card added to Franchise Records in the Owner Hub. New `bestPlayoffGame` tracker in `buildOwnerHubs()` scans every playoff-week starter score (zip of `starters` × `starters_points`) and records the highest single performance. Verified on The Fraggle Rock 9 — Giannis 51.50 W23 2023 Playoffs.
+- ✅ **Head-to-Head mini-block on `/team/[username]`**. New section above the per-season blocks showing: (a) Biggest Rival (most-played opponent + your record), (b) Longest H2H Win Streak (longest run of consecutive H2H wins vs any single opponent, computed chronologically), (c) full table with GP · W-L · Win% · PF · PA · Last 3 results (3 most recent meetings in chronological order). Covers **all games** (regular + playoffs). Verified on riguy506 — Biggest Rival "The Emperors" (15 games, 10-5), Longest Win Streak "Team Lobster" (7-0, 7 consecutive wins).
+- ✅ **Commissioner manual-score override (`custom_points`)**. `computeParticipantPoints` in `lib/leagueCompute.client.js` now checks `entry.custom_points` first (the Sleeper field set whenever a commish manually pins a score), then falls back to summing `starters_points`, and last-resort to `entry.points`. This means **no hardcoded values are required** for any of your past or future manual overrides — they flow through the API directly. Per-player breakdowns (`starterPointsByPid`) intentionally unchanged since overrides are team-total only.
+- ✅ Vercel production build verified (`yarn build` → ✓ built · adapter-vercel · nodejs22.x).
+
+
 - ✅ **Owner Hub layout refactor (`/rosters`)**: replaced the 14-card accordion with a single top-level **team-picker dropdown** (`data-testid="rosters-team-select"`). Defaults to the alphabetically-first team; switching is instant (reactive). The "View matchup history →" link inside the Owner Hub was removed entirely.
 - ✅ **Global `starters_points`-only enforcement** (per league rule: Sleeper's manual game-selection mechanic is natively baked into `starters_points`; reading `player_points` would pull in raw unselected games):
   - `/standings` — Regular Season MVP Race aggregator now reads strictly from `starters_points` (zipped with `starters`). Dropped the `|| entry.player_points` fallback.
@@ -151,12 +158,12 @@ User followed up confirming:
 
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P2** — "Trade Impact" badge on trade-ledger cards (% PF change over next 4 weeks after each trade)
-- **P2** — "Head-to-Head" mini-block on team history pages (rival, most-played opponent, longest win streak)
 - **P2** — "Championship Game Boxscore" mini-section on Honor Hall (top 3 scorers per finalist)
 - **P2** — `CONTRIBUTING.md` runbook for adding a new season / yearly migration
 - **P2** — Mobile FAB to jump to "This Week" matchups from any page
 - **P3** — Subtle owner avatar fallback on hover for team logos
 - **P3** — User-controlled theme switch (light + light-on-blue variants)
+- **P3** — Regenerate `/static/season_matchups/{year}.json` snapshots to bake in any historical commish overrides (api-generator already updated to capture `custom_points`)
 
 ## Next Tasks
 - User verification of the new Owner Hub dropdown UX + confirmation that MVP numbers stay consistent across `/standings` and `/honor-hall`.
