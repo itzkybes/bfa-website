@@ -13,24 +13,72 @@ Live on Vercel. No login. No backend. No database.
 
 | Route             | What you'll find                                                |
 | ----------------- | --------------------------------------------------------------- |
-| `/`               | Current-week matchups, "Rando Player" spotlight, league header  |
-| `/rosters`        | Every team's starters, bench, and taxi squad with headshots     |
-| `/standings`      | Regular-season and playoff records, switchable by season        |
-| `/matchups`       | Week-by-week head-to-head results with full starter scoring     |
-| `/records-team`   | All-time aggregated W/L, biggest blowouts, head-to-head matrix  |
-| `/records-player` | Per-season Overall / Playoffs / Finals MVP + single-season best |
-| `/honor-hall`     | Champion + Biggest Loser + three MVPs + final standings 1-14    |
+| `/`               | Current-week matchups, "Rando Player" spotlight, recent Trade Ledger |
+| `/rosters`        | Every team's starters, bench, and taxi squad — collapsed accordion + per-owner career Hub |
+| `/standings`      | Regular-season + playoff records with weekly PF trend sparklines, plus "Regular Season MVP Race" top-5 leaderboard |
+| `/matchups`       | **Weekly Recap** — Top 3 Performances, Biggest Blowout, Closest Game, Highest-Scoring Matchup, Bench Burn, Bust of the Week, plus every head-to-head card |
+| `/power-rankings` | Rolling 4-week window: Last 4 W-L, avg score, avg margin, score trend, Δ vs prior |
+| `/team/[username]`| Per-roster matchup history — every week's opponent and result |
+| `/records-team`   | All-time aggregated W/L, biggest blowouts/nailbiters, head-to-head matrix |
+| `/records-player` | Regular Season / Playoffs / Finals MVP per season + 4 all-time tables (Best By Team, Playoff Best, Full-Season Best, Playoffs Leaderboard) |
+| `/honor-hall`     | Champion + Biggest Loser + three MVPs + final standings 1–14   |
 | `/admin/generate-season-matchups` | Regenerate the static `/season_matchups/*.json` snapshots |
 
 ### Three different MVPs, three different definitions
 
 The league has three MVP awards per season and they're easy to confuse, so:
 
-- **Overall MVP** — top cumulative scorer across the whole season (regular + playoffs).
-- **Playoffs MVP** — top cumulative scorer across just the playoff window (3 weeks).
+- **Regular Season MVP** — top cumulative scorer across the regular season ONLY
+  (no playoff points). Surfaces on the Honor Hall page and Records-Player.
+- **Playoffs MVP** — top cumulative scorer across just the playoff window,
+  filtered to only count rosters that actually made the playoffs (seeds 1–8
+  via `leagueMeta.settings.playoff_teams`). So a toilet-bowl scorer can't
+  steal this trophy.
 - **Finals MVP** — top scorer in the single championship game, counting players
   from **both** finalists. So if you lose the final but drop 60, you still take
   home the trophy.
+
+### The Weekly Recap (`/matchups`)
+
+Every weekly stat that comes out of `recap` reads from one of TWO authoritative
+data shapes — and never mixes them:
+
+| Stat                          | Source                                            |
+| ----------------------------- | ------------------------------------------------- |
+| 🏀 Top 3 Performances         | `starters_points` only (via `starterPointsByPid`) |
+| 🥶 Bust of the Week           | `starters_points` only (via `starterPointsByPid`) |
+| 🪑 Biggest Bench Burn         | `player_points` minus starters set                |
+| 💥 Biggest Blowout            | Per-team `points` total                           |
+| 🔥 Closest Game               | Per-team `points` total                           |
+| 🎯 Highest-Scoring Matchup    | Per-team `points` total                           |
+| 📈 Highest / 📉 Lowest Team   | Per-team `points` total                           |
+
+**Critical:** Top 3 and Bust are STRICTLY starter scoring. `starterPointsByPid`
+in `leagueCompute.client.js` returns `null` if a Sleeper matchup entry lacks a
+`starters_points` array — the caller skips that team entirely rather than
+falling back to `player_points`, which would conflate bench contributions with
+starter performance. Sleeper has shipped four different field names over the
+years (`starters_points`, `starter_points`, `startersPoints`, `starterPoints`),
+all of them handled.
+
+### Owner Hub (rosters page)
+
+Each team card on `/rosters` is a global accordion — only one card can be
+expanded at a time, and the multi-column flow re-balances so an open card never
+leaves a blank gap next to a still-collapsed neighbor. Expanding a card reveals
+the **Owner Hub**: a 10-stat career snapshot built by aggregating
+`computeStandingsForLeague()` across every season in the chain, keyed by
+`owner_username` so re-themes and avatar swaps don't break continuity:
+
+- Titles 🏆
+- Playoff Appearances
+- Finals Appearances
+- Best Finish (with year)
+- Career Wins / Losses / Win %
+- Career PF / PA
+- Best Season PF (with year)
+
+Plus a "View matchup history →" deep-link to `/team/[username]`.
 
 ---
 
@@ -40,10 +88,13 @@ The league has three MVP awards per season and they're easy to confuse, so:
 src/
 ├── lib/
 │   ├── sleeperClient.client.js    Thin wrapper around Sleeper REST endpoints
-│   ├── leagueCompute.client.js    Standings, brackets, MVPs, matchup rows
+│   ├── leagueCompute.client.js    Standings, brackets, MVPs, matchup rows + `starterPointsByPid`
+│   ├── positions.js               Expand `fantasy_positions` to full slot eligibility (PG→PG,G,UTIL …)
+│   ├── dominantColor.js           Optional canvas-based dominant-color extractor (unused at the moment)
 │   ├── cache.js                   localStorage cache with TTL
 │   ├── vitals.js                  Web Vitals → Vercel Analytics
 │   ├── header/Header.svelte       Sticky top nav
+│   ├── Sparkline.svelte           SVG sparkline (used on standings + power-rankings)
 │   ├── ErrorBoundary.svelte       Friendly error UI with retry
 │   └── SkeletonLoader.svelte      Loading skeletons for tables/cards/rows
 ├── routes/                        One folder per page (+ /admin)

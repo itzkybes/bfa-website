@@ -15,12 +15,17 @@ import {
 import { BASE_LEAGUE_ID } from './sleeperClient.client';
 
 /**
- * Build a `{ pid: points }` map of starter scoring from a raw Sleeper
+ * Build a `{ pid: points }` map of STARTER scoring from a raw Sleeper
  * matchup entry. Sleeper has shipped several representations of starter
  * points over the years (`starters_points` as array, `starter_points`,
  * `startersPoints`, `starterPoints`) — this helper checks them in order
- * and zips with `entry.starters` to produce a stable map. Returns `null`
- * if the entry doesn't have a starters array.
+ * and zips with `entry.starters` to produce a stable map.
+ *
+ * Returns `null` if the entry doesn't have BOTH a `starters` array AND
+ * a matching starters_points array. The caller MUST treat null as
+ * "no authoritative starter scoring for this team this week" — never
+ * fall back to `player_points` for stats like Top Scorer or Bust of the
+ * Week (per-week starter scoring is the only authoritative source).
  */
 export function starterPointsByPid(entry) {
   if (!entry) return null;
@@ -31,17 +36,14 @@ export function starterPointsByPid(entry) {
   for (const k of arrayKeys) {
     if (Array.isArray(entry[k]) && entry[k].length) { arr = entry[k]; break; }
   }
+  if (!arr) return null;   // refuse to silently emit zeros — caller will skip the entry
   const out = {};
   for (let i = 0; i < starters.length; i++) {
     const pid = starters[i];
     if (!pid) continue;
-    let val = 0;
-    if (arr) {
-      const raw = arr[i];
-      const n = safeNum(raw);
-      if (isFinite(n)) val = n;
-    }
-    // Sum in case the same pid somehow appears twice (e.g. multi-slot bench).
+    const n = safeNum(arr[i]);
+    const val = isFinite(n) ? n : 0;
+    // Sum in case the same pid somehow appears twice.
     out[pid] = (out[pid] || 0) + val;
   }
   return out;

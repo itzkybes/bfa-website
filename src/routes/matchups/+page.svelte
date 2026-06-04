@@ -59,7 +59,11 @@
         });
         totalPoints += Number(t.points) || 0;
 
-        // ----- Per-starter scores (strict — only authoritative starters_points) -----
+        // ----- Per-starter scores -----
+        // SOURCE OF TRUTH: `starters_points` array (via starterPointsByPid).
+        // Top 3 Performances and Bust of the Week both read from this only.
+        // We never fall back to `player_points` here — that would include
+        // bench contributions and corrupt the "starter" semantics.
         const starters = Array.isArray(t.starters) ? t.starters : [];
         const starterMeta = { teamName: t.name, ownerName: t.ownerName, teamAvatar: t.avatar, rosterId: t.rosterId };
         const starterPidSet = new Set(starters.filter(Boolean).map(String));
@@ -68,9 +72,9 @@
         if (starterMap) {
           for (const pid of Object.keys(starterMap)) {
             const val = starterMap[pid];
-            if (!isFinite(val)) continue;
+            if (!isFinite(val) || val <= 0) continue;
             playerScores.push({ pid, points: val, ...starterMeta, isStarter: true });
-            if (val > 0 && (!lowestStarter || val < lowestStarter.points)) {
+            if (!lowestStarter || val < lowestStarter.points) {
               lowestStarter = { pid, points: val, ...starterMeta };
             }
           }
@@ -115,7 +119,12 @@
 
     if (!teams.length) return null;
     const sortedTeams = teams.slice().sort((a, b) => b.points - a.points);
-    const sortedPlayers = playerScores.slice().sort((a, b) => b.points - a.points);
+    // Top 3 and Bust come strictly from `starters_points` (via
+    // `starterPointsByPid`). Filter out any 0-point entries so a week
+    // with partial data can't put a 0.0 starter on the leaderboard.
+    const sortedPlayers = playerScores
+      .filter((p) => p.isStarter && p.points > 0)
+      .sort((a, b) => b.points - a.points);
     const top3 = sortedPlayers.slice(0, 3);
 
     // Bench Burn — bench player who outscored their team's lowest starter
@@ -138,8 +147,9 @@
       if (heaviestBench) benchBurn = { ...heaviestBench, diff: null, lowestStarter: null };
     }
 
-    // Bust of the Week — lowest non-zero starter score across the league.
-    const bustOfWeek = sortedPlayers.filter((p) => p.isStarter && p.points > 0).slice(-1)[0] || null;
+    // Bust of the Week — lowest non-zero starter score across the league
+    // (sortedPlayers is already filtered to starters with points > 0).
+    const bustOfWeek = sortedPlayers.length ? sortedPlayers[sortedPlayers.length - 1] : null;
 
     return {
       top3,
