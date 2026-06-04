@@ -187,6 +187,13 @@ User followed up confirming:
 - **Before**: Each route had `+page.server.js`. Vercel serverless function was invoked for every page view. Function was crashing with `FUNCTION_INVOCATION_FAILED` for inscrutable Vercel-side reasons.
 - **After**: Each route is a static HTML shell + browser-side fetch. The Vercel serverless function is **never invoked**. The home page already worked this way (using the Rando Player client-side fetch) — now every page follows the same pattern.
 
+## What's Been Implemented (2026-06-04 — code reorg + Rules page + Player ID tool)
+- ✅ **Restructured `src/lib/`** into focused subfolders: `api/` (Sleeper REST + cache + static-JSON loader with in-flight dedup), `compute/` (split the 927-line `leagueCompute.client.js` into 6 focused files: `scoring.js`, `streaks.js`, `brackets.js`, `avatars.js`, `standings.js`, `matchups.js`), `components/` (Header, SkeletonLoader, ErrorBoundary, Sparkline), `utils/` (positions, dominantColor, vitals, scoringLabels). Barrel `index.js` files for `api/` + `compute/` give every route a one-line import. All 9 route pages updated. Zero behavior changes.
+- ✅ **`/rules` page** — house rules + data-driven scoring system pulled live from Sleeper's `league.scoring_settings`. Auto-updates if you change a setting in Sleeper. Roster slot card, 4 scoring groups (Basics / Shooting / Bonuses / Penalties), and 7 hand-authored house rule sections (League Format, Roster Construction, Draft, Waivers, Trades, Playoffs, Score Overrides). Edit `src/routes/rules/+page.svelte` `HOUSE_RULES` array to customize.
+- ✅ **`/admin/player-id-lookup` page** — search the full Sleeper NBA player map by name; shows headshot + position + team + Sleeper `player_id` with a one-click copy button. Diacritic folding so "doncic" matches "Dončić".
+- ✅ Header nav gets a new "Rules" link (last item). Footer gets "Rules & Scoring" (Records column) and "Player ID Lookup" (Tooling column).
+- ✅ **Bonus**: also addressed P3 backlog — `fetchStaticJson` now uses an in-flight promise map (de-dupes parallel fetches of the same JSON across standings/honor-hall/etc).
+
 ## What's Been Implemented (2026-06-04 — home cleanup + simpler score overrides)
 - ✅ **Removed the homepage "Matchups" section + all supporting code** (`computeEffectiveWeek`, `weekDateRange`, `normalizeMatchups`, `weekRanges`/`fetchWeek`/`leagueStatus` state, related CSS). Home page now: Hero · Rando Player · Recent Trades.
 - ✅ **Removed `custom_points` everywhere** — Sleeper commish-override field is no longer respected at runtime. The new manual override mechanism is dead-simple: edit `teamAScore` / `teamBScore` directly in `/static/season_matchups/{year}.json` and the change flows through standings, matchups, MVP race, records — everywhere — instantly.
