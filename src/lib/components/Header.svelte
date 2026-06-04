@@ -55,7 +55,8 @@
         { href: '/records-player', label: 'Player Records' }
       ]
     },
-    { href: '/honor-hall', label: 'Honor Hall' }
+    { href: '/honor-hall', label: 'Honor Hall' },
+    { href: '/rules', label: 'Rules' }
   ];
 
   function isActive(path, href) {

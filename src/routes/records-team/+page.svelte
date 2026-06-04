@@ -1,10 +1,10 @@
 <!-- src/routes/records-team/+page.svelte (client-side, bracket-aware, parallelized) -->
 <script>
   import { onMount } from 'svelte';
-  import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/sleeperClient.client';
-  import { computeStandingsForLeague, computeParticipantPoints } from '$lib/leagueCompute.client';
-  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
-  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  import { getSeasonsChain, BASE_LEAGUE_ID } from '$lib/api';
+  import { computeStandingsForLeague, computeParticipantPoints } from '$lib/compute';
+  import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 
   let loading = true;
   let progress = '';

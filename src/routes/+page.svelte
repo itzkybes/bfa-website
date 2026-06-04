@@ -1,14 +1,14 @@
 <!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + Trade Ledger -->
 <script>
   import { onMount } from 'svelte';
-  import { fetchWithCache } from '$lib/cache';
   import {
+    fetchWithCache,
     getSeasonsChain, BASE_LEAGUE_ID,
     pickActiveLeague, getRecentTrades,
     getPlayersNba, getRosterMapWithOwners, playerHeadshot
-  } from '$lib/sleeperClient.client';
-  import SkeletonLoader from '$lib/SkeletonLoader.svelte';
-  import ErrorBoundary from '$lib/ErrorBoundary.svelte';
+  } from '$lib/api';
+  import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
+  import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   // URL override > env override > resolved-at-runtime "live" league

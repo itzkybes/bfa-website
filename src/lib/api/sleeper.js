@@ -1,4 +1,4 @@
-// src/lib/sleeperClient.client.js
+// src/lib/api/sleeper.js
 //
 // Thin wrapper around Sleeper's public REST API for the browser. Everything
 // here runs client-side (we use the global `fetch` and lean on the localStorage
@@ -7,7 +7,7 @@
 // The Sleeper API is read-only and unauthenticated, so it works just as well
 // for a static deploy as it does for a dev box.
 
-import { fetchWithCache } from '$lib/cache';
+import { fetchWithCache } from './cache';
 
 const BASE = 'https://api.sleeper.app/v1';
 const SLEEPER_CDN = 'https://sleepercdn.com';
@@ -29,6 +29,8 @@ export function safeNum(v) {
   const n = Number(v);
   return isNaN(n) ? 0 : n;
 }
+
+// ─── League ─────────────────────────────────────────────────────────────
 
 /** League metadata: name, season, settings (playoff week, scoring, etc.). */
 export async function getLeague(leagueId, ttl = CACHE_5_MIN) {
@@ -66,6 +68,8 @@ export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_60_SEC) {
   );
 }
 
+// ─── Brackets ───────────────────────────────────────────────────────────
+
 /**
  * Winners bracket — array of matches across rounds. Each entry looks like:
  * `{ r: round, m: match_id, t1, t2, w (winner roster_id), l (loser roster_id), p: placement, t1_from, t2_from }`
@@ -95,6 +99,8 @@ export async function getLosersBracket(leagueId, ttl = CACHE_10_MIN) {
   } catch (e) { return []; }
 }
 
+// ─── Players ────────────────────────────────────────────────────────────
+
 /**
  * The full NBA player map keyed by Sleeper player id. The payload is ~5 MB so
  * we cache aggressively in localStorage — subsequent page loads read straight
@@ -103,6 +109,13 @@ export async function getLosersBracket(leagueId, ttl = CACHE_10_MIN) {
 export async function getPlayersNba(ttl = CACHE_1_HOUR) {
   return await fetchWithCache(`${BASE}/players/nba`, {}, ttl);
 }
+
+/** CDN URL for an NBA player's headshot, or an empty string if no pid. */
+export function playerHeadshot(pid) {
+  return pid ? `${SLEEPER_CDN}/content/nba/players/${pid}.jpg` : '';
+}
+
+// ─── Roster + owner enrichment ──────────────────────────────────────────
 
 /**
  * Build a `{ rosterId: { team_name, owner_name, team_avatar, owner_avatar, ... } }`
@@ -184,6 +197,8 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
   }
   return map;
 }
+
+// ─── Seasons chain (auto-discovery) ─────────────────────────────────────
 
 /**
  * List every NBA league a given user is in for a given season year.
@@ -374,7 +389,6 @@ export async function getCurrentWeekForLeague(leagueId, { maxWeek = 25, minAvg =
     const last = meta?.settings?.last_scored_leg;
     const lastNum = Number(last);
     if (last != null && !isNaN(lastNum) && lastNum > 0) {
-      // Verify the suggested week actually has scoring data before trusting it.
       const m = await getMatchupsForWeek(leagueId, lastNum).catch(() => null);
       if (Array.isArray(m) && m.length > 0) {
         let total = 0;
@@ -399,6 +413,8 @@ export async function getCurrentWeekForLeague(leagueId, { maxWeek = 25, minAvg =
   }
   return null;
 }
+
+// ─── Transactions / Trades ──────────────────────────────────────────────
 
 /**
  * Fetch transactions (trades + waivers + free agent moves) for one round
@@ -438,9 +454,4 @@ export async function getRecentTrades(leagueId, { weekFrom = 1, weekTo = 25, lim
   // Newest first by `status_updated`
   all.sort((a, b) => Number(b.status_updated || 0) - Number(a.status_updated || 0));
   return all.slice(0, limit);
-}
-
-/** CDN URL for an NBA player's headshot, or an empty string if no pid. */
-export function playerHeadshot(pid) {
-  return pid ? `${SLEEPER_CDN}/content/nba/players/${pid}.jpg` : '';
 }
