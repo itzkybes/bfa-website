@@ -83,11 +83,10 @@ function computeParticipantPoints(entry) {
       return Math.round(s * 100) / 100;
     }
   }
-  if (Array.isArray(entry.starters) && entry.player_points && typeof entry.player_points === 'object') {
-    let s = 0;
-    for (const st of entry.starters) s += safeNum(entry.player_points[String(st)] ?? entry.player_points[st]);
-    return Math.round(s * 100) / 100;
-  }
+  // No `players_points` fallback — by project policy, all per-player scoring
+  // must read from `starters_points` only (which already reflects each owner's
+  // game selection). If `starters_points` is missing, fall back to the
+  // top-level `points` total (still a starter-only number from Sleeper's side).
   const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
   return Math.round(fallback * 100) / 100;
 }

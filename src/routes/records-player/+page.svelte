@@ -41,29 +41,25 @@
   $: pm = selectedRow?.playoffsMvp ?? null;
   $: fm = selectedRow?.finalsMvp ?? null;
 
-  // Aggregate player points across multiple matchups
+  // Aggregate player points across multiple matchups. Reads STRICTLY from
+  // `starters_points` (which already reflects each owner's selected-game
+  // choice) — never falls back to `player_points`. Entries that ship
+  // without a starters_points array are skipped so we don't inject zeros.
   function aggregatePlayerPoints(matchupEntries) {
-    // For each roster, sum every starter's points across all entries
     const byPlayer = {}; // pid -> { points, rosterId }
     for (const entry of matchupEntries) {
       if (!entry) continue;
       const rid = String(entry.roster_id ?? entry.rosterId ?? '');
       const starters = Array.isArray(entry.starters) ? entry.starters : [];
-      const pts = entry.starters_points || entry.player_points || null;
-      if (pts && typeof pts === 'object') {
-        for (const pid of starters) {
-          if (!pid) continue;
-          let val = 0;
-          if (Array.isArray(pts)) {
-            const idx = starters.indexOf(pid);
-            val = Number(pts[idx] ?? 0);
-          } else {
-            val = Number(pts[String(pid)] ?? 0);
-          }
-          if (!isFinite(val)) val = 0;
-          if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-          byPlayer[pid].points += val;
-        }
+      const sp = entry.starters_points;
+      if (!Array.isArray(sp) || !starters.length) continue;
+      for (let i = 0; i < starters.length; i++) {
+        const pid = starters[i];
+        if (!pid) continue;
+        const n = Number(sp[i] ?? 0);
+        const val = isFinite(n) ? n : 0;
+        if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
+        byPlayer[pid].points += val;
       }
     }
     for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
