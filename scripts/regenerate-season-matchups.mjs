@@ -9,9 +9,10 @@
  *
  * Key correctness rules (matches project policy):
  *   1. Team-total score precedence:
- *        a. `entry.custom_points` (commissioner manual override) when non-null
- *        b. Sum of `starters_points` (zip with `starters` by index)
- *        c. Fallback to `entry.points`
+ *        a. Sum of `starters_points` (zip with `starters` by index)
+ *        b. Fallback to `entry.points`
+ *      To manually override a team's score for a week after regen, edit
+ *      `teamAScore` / `teamBScore` directly in the generated JSON.
  *   2. `player_points` is NEVER written to the JSON — that field includes
  *      raw unselected games and would corrupt scores for managers using
  *      Sleeper's manual game-selection feature.
@@ -49,10 +50,6 @@ function safeNum(v) {
  */
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
-  if (entry.custom_points != null) {
-    const cp = safeNum(entry.custom_points);
-    if (isFinite(cp)) return Math.round(cp * 100) / 100;
-  }
   if (Array.isArray(entry.starters_points) && entry.starters_points.length) {
     let s = 0;
     for (const v of entry.starters_points) s += safeNum(v);
@@ -179,7 +176,6 @@ async function generateSeasonJson(season) {
 
   const weeks = {};
   let totalMatchups = 0;
-  let overridesSeen = 0;
   let finalsSynthesized = 0;
 
   // Walk through every plausible playoff week (extend to 25 to cover any
@@ -204,7 +200,6 @@ async function generateSeasonJson(season) {
     const byMatch = {};
     for (let i = 0; i < raw.length; i++) {
       const m = raw[i];
-      if (m && m.custom_points != null) overridesSeen += 1;
       // Synthesize matchup_id for the merged-final's second half. Sleeper
       // doesn't pair the W2 entries (matchup_id=null) — we inherit pairing
       // from W1 so downstream consumers can show the two halves as one
@@ -244,8 +239,6 @@ async function generateSeasonJson(season) {
         starters: Array.isArray(b.starters) ? b.starters : [],
         starters_points: Array.isArray(b.starters_points) ? b.starters_points : []
       };
-      if (a.custom_points != null) teamA.custom_points = safeNum(a.custom_points);
-      if (b.custom_points != null) teamB.custom_points = safeNum(b.custom_points);
       const isFinalsLeg2 = (week === finalsWeek2);
       weekRows.push({
         matchup_id: Number(mid) || mid,
@@ -272,7 +265,7 @@ async function generateSeasonJson(season) {
     playoff_week_end: playoffEnd,
     ...weeks
   };
-  return { year, payload, totalMatchups, overridesSeen, weeks: Object.keys(weeks).length, finalsSynthesized };
+  return { year, payload, totalMatchups, weeks: Object.keys(weeks).length, finalsSynthesized };
 }
 
 async function main() {
@@ -314,7 +307,7 @@ async function main() {
     await fs.writeFile(outPath, JSON.stringify(result.payload, null, 2) + '\n', 'utf8');
     const size = (await fs.stat(outPath)).size;
     console.log(`    ✓ wrote ${outPath}`);
-    console.log(`      weeks=${result.weeks}  matchups=${result.totalMatchups}  commish_overrides=${result.overridesSeen}  finals_synthesized=${result.finalsSynthesized}  size=${(size / 1024).toFixed(1)}KB`);
+    console.log(`      weeks=${result.weeks}  matchups=${result.totalMatchups}  finals_synthesized=${result.finalsSynthesized}  size=${(size / 1024).toFixed(1)}KB`);
     written += 1;
   }
 

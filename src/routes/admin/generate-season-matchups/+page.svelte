@@ -74,8 +74,6 @@
               rosterId: bId, name: bMeta.team_name, ownerName: bMeta.owner_name,
               avatar: bMeta.team_avatar, starters: b.starters || [], starters_points: b.starters_points
             };
-            if (a.custom_points != null) teamA.custom_points = Number(a.custom_points);
-            if (b.custom_points != null) teamB.custom_points = Number(b.custom_points);
             return {
               matchup_id: Number(mid) || mid,
               teamA,

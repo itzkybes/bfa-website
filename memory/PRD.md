@@ -187,6 +187,12 @@ User followed up confirming:
 - **Before**: Each route had `+page.server.js`. Vercel serverless function was invoked for every page view. Function was crashing with `FUNCTION_INVOCATION_FAILED` for inscrutable Vercel-side reasons.
 - **After**: Each route is a static HTML shell + browser-side fetch. The Vercel serverless function is **never invoked**. The home page already worked this way (using the Rando Player client-side fetch) — now every page follows the same pattern.
 
+## What's Been Implemented (2026-06-04 — home cleanup + simpler score overrides)
+- ✅ **Removed the homepage "Matchups" section + all supporting code** (`computeEffectiveWeek`, `weekDateRange`, `normalizeMatchups`, `weekRanges`/`fetchWeek`/`leagueStatus` state, related CSS). Home page now: Hero · Rando Player · Recent Trades.
+- ✅ **Removed `custom_points` everywhere** — Sleeper commish-override field is no longer respected at runtime. The new manual override mechanism is dead-simple: edit `teamAScore` / `teamBScore` directly in `/static/season_matchups/{year}.json` and the change flows through standings, matchups, MVP race, records — everywhere — instantly.
+- ✅ Static-load path in `leagueCompute.client.js` now tags entries with `__final_score = teamAScore` (resp. `teamBScore`). `computeParticipantPoints` honors this first, so the JSON is authoritative for completed seasons.
+- ✅ Cleaned up: `scripts/regenerate-season-matchups.mjs` no longer writes/reads `custom_points`, `routes/admin/generate-season-matchups/+page.svelte` no longer carries it through, existing `/static/season_matchups/*.json` had their 10 leftover `custom_points` keys stripped (teamAScore preserves the previously-overridden values).
+
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P2** — "Trade Impact" badge on trade-ledger cards (% PF change over next 4 weeks after each trade)
 - **P2** — "Championship Game Boxscore" mini-section on Honor Hall (top 3 scorers per finalist)

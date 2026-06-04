@@ -71,10 +71,10 @@ function computeStreaks(resultsArray) {
  * Score a single Sleeper matchup entry.
  *
  * Order of precedence (top to bottom):
- *   1. `entry.custom_points` — the commissioner override. Sleeper exposes
- *      this whenever the commish manually sets a team's score for a week
- *      (e.g. fixing a missed lock, applying a forfeit, correcting a stat
- *      error). When non-null we trust it as the final team total.
+ *   1. `entry.__final_score` — authoritative override pinned by the static
+ *      JSON path. Use this to manually fix a score: edit `teamAScore` or
+ *      `teamBScore` directly in `/static/season_matchups/{year}.json`. The
+ *      static-load synthesis carries those values through under this key.
  *   2. `starters_points` array — project policy: per-player figures only
  *      ever come from this; the team total is the sum.
  *   3. Top-level `points` field — last-resort fallback (still a Sleeper
@@ -86,12 +86,10 @@ function computeStreaks(resultsArray) {
  */
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
-  // 1. Commissioner override wins. Sleeper sets this to null when no
-  //    override is in play. Any finite numeric value (including 0) means
-  //    the commish has manually pinned the score.
-  if (entry.custom_points != null) {
-    const cp = safeNum(entry.custom_points);
-    if (isFinite(cp)) return Math.round(cp * 100) / 100;
+  // 1. Static-JSON authoritative override (teamAScore / teamBScore).
+  if (entry.__final_score != null) {
+    const v = safeNum(entry.__final_score);
+    if (isFinite(v)) return Math.round(v * 100) / 100;
   }
   // 2. Sum of starters_points.
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
@@ -383,8 +381,8 @@ export async function computeStandingsForLeague(leagueId) {
   //
   // We prefer the locked-in static JSON snapshot whenever ALL of these are true:
   //   1. The Sleeper league reports `status === 'complete'`. While the season
-  //      is live we always want fresh API data so newly-played games and
-  //      commish overrides show up immediately.
+  //      is live we always want fresh API data so newly-played games show up
+  //      immediately.
   //   2. A `/static/season_matchups/{year}.json` snapshot actually exists.
   //      `fetchStaticJson()` returns null on 404, so the fallback is graceful.
   //
@@ -394,6 +392,9 @@ export async function computeStandingsForLeague(leagueId) {
   //   · 2026 complete + JSON dropped in /static → use static (after running
   //                                                `node scripts/regenerate-season-matchups.mjs`)
   // No code change required to flip a season from "live" to "static".
+  //
+  // Score override mechanism: edit `teamAScore` / `teamBScore` directly in
+  // the JSON to pin a score (carried below via `__final_score`).
   const isLeagueComplete = leagueMeta?.status === 'complete';
   const [seasonMatchups, earlyData] = await Promise.all([
     (isLeagueComplete && leagueSeason)
@@ -422,14 +423,12 @@ export async function computeStandingsForLeague(leagueId) {
           const ridA = String(m.teamA.rosterId ?? m.teamA.roster_id ?? '');
           if (ridA) transformed.push({
             week, roster_id: ridA, matchup_id: m.matchup_id ?? null,
-            points: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
-            // Carry the commish manual-override field through. When set,
-            // `computeParticipantPoints` honors it ahead of the
-            // starters_points sum — keeping the static JSON path in lockstep
-            // with the live API path.
-            custom_points: (m.teamA?.custom_points != null) ? safeNum(m.teamA.custom_points)
-                          : (m.teamA_custom_points != null) ? safeNum(m.teamA_custom_points)
-                          : null,
+            // `__final_score` is the authoritative team total from the
+            // static JSON. `computeParticipantPoints` honors it first, so
+            // editing `teamAScore` / `teamBScore` in the JSON immediately
+            // changes the team's score everywhere (standings, records,
+            // matchups page, etc.).
+            __final_score: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
             // Carry starters + starters_points through so MVP aggregators
             // (records-player / honor-hall) can break down by player for
             // historical seasons sourced from the static JSON. We do NOT
@@ -444,10 +443,7 @@ export async function computeStandingsForLeague(leagueId) {
           const ridB = String(m.teamB.rosterId ?? m.teamB.roster_id ?? '');
           if (ridB) transformed.push({
             week, roster_id: ridB, matchup_id: m.matchup_id ?? null,
-            points: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
-            custom_points: (m.teamB?.custom_points != null) ? safeNum(m.teamB.custom_points)
-                          : (m.teamB_custom_points != null) ? safeNum(m.teamB_custom_points)
-                          : null,
+            __final_score: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
             starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
             starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,
             __team_name: m.teamB.name ?? null, __owner_name: m.teamB.ownerName ?? null
@@ -773,8 +769,8 @@ export async function computeStandingsForLeague(leagueId) {
  *
  * Source-of-truth rule:
  *   · If the league has `status === 'complete'` AND a static snapshot exists at
- *     `/static/season_matchups/{year}.json`, use the snapshot (instant + locks
- *     in any commish overrides via `custom_points`).
+ *     `/static/season_matchups/{year}.json`, use the snapshot (instant +
+ *     `teamAScore` / `teamBScore` are the authoritative final scores).
  *   · Otherwise (in-progress season, or no snapshot yet), call Sleeper directly.
  *
  * Each row is one of:

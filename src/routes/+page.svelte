@@ -1,88 +1,37 @@
-<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + current-week matchups -->
+<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + Trade Ledger -->
 <script>
   import { onMount } from 'svelte';
   import { fetchWithCache } from '$lib/cache';
   import {
     getSeasonsChain, BASE_LEAGUE_ID,
-    pickActiveLeague, getCurrentWeekForLeague, getRecentTrades,
+    pickActiveLeague, getRecentTrades,
     getPlayersNba, getRosterMapWithOwners, playerHeadshot
   } from '$lib/sleeperClient.client';
   import SkeletonLoader from '$lib/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/ErrorBoundary.svelte';
 
-  const CONFIG_PATH = '/week-ranges.json';
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const forcedWeek = (urlParams && urlParams.get('week')) ? parseInt(urlParams.get('week'), 10) : null;
   // URL override > env override > resolved-at-runtime "live" league
   // (resolved inside loadData via pickActiveLeague). Falls back to BASE_LEAGUE_ID.
   const leagueOverride = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || null;
   let leagueId = leagueOverride || BASE_LEAGUE_ID;
   let seasonLabel = '';
-  let leagueStatus = null;          // 'in_season' | 'complete' | 'pre_draft' | ...
   let recentTrades = [];            // [{ ...transaction, _week, _teamA, _teamB }]
   let tradesLoading = true;
   let playersMap = {};
   let rosterMap = {};               // for trade ledger team names + avatars
 
-  const CACHE_5_MIN = 5 * 60 * 1000;
   const CACHE_10_MIN = 10 * 60 * 1000;
 
   let loading = true;
   let error = null;
-  let matchupPairs = [];
   let rosters = [];
   let users = [];
-  let weekRanges = null;
-  let fetchWeek = null;
   let potw = null;
-
-  function parseYMD(ymd) { return new Date(ymd + 'T00:00:00'); }
-
-  function computeEffectiveWeek(ranges) {
-    if (forcedWeek && !isNaN(forcedWeek)) return forcedWeek;
-    if (!Array.isArray(ranges) || ranges.length === 0) return 1;
-    const now = new Date();
-    for (let i = 0; i < ranges.length; i++) {
-      const r = ranges[i];
-      const start = parseYMD(r.start);
-      const end = parseYMD(r.end);
-      const endInclusive = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
-      if (now >= start && now <= endInclusive) {
-        const rotateAt = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12, 0, 0, 0);
-        rotateAt.setDate(rotateAt.getDate() + 1);
-        if (now >= rotateAt) {
-          const next = (i + 1 < ranges.length) ? ranges[i + 1] : null;
-          return next ? next.week : r.week;
-        }
-        return r.week;
-      }
-    }
-    if (now < parseYMD(ranges[0].start)) return ranges[0].week;
-    return ranges[ranges.length - 1].week;
-  }
-
-  function findRoster(id) {
-    if (!rosters || !id) return null;
-    return rosters.find((r) => String(r.roster_id) === String(id)) || null;
-  }
 
   function findUserByOwner(ownerId) {
     if (!users || !ownerId) return null;
     return users.find((u) => String(u.user_id) === String(ownerId)) || null;
-  }
-
-  function avatarForRoster(roster) {
-    if (!roster) return null;
-    const md = roster.metadata || {};
-    const settings = roster.settings || {};
-    let candidate = md.team_avatar || md.avatar || settings.team_avatar || settings.avatar;
-    if (!candidate) {
-      const u = findUserByOwner(roster.owner_id);
-      if (u) candidate = (u.metadata && u.metadata.avatar) || u.avatar;
-    }
-    if (!candidate) return null;
-    if (String(candidate).startsWith('http')) return candidate;
-    return 'https://sleepercdn.com/avatars/' + encodeURIComponent(String(candidate));
   }
 
   function displayNameForRoster(roster) {
@@ -108,55 +57,6 @@
     const u = findUserByOwner(roster.owner_id);
     if (!u) return null;
     return u.display_name || u.username || (u.metadata && u.metadata.team_name) || null;
-  }
-
-  function fmt(n) {
-    if (n == null) return '-';
-    if (typeof n === 'number') return (Math.round(n * 10) / 10).toFixed(1);
-    return String(n);
-  }
-
-  function normalizeMatchups(raw) {
-    const pairs = [];
-    if (!raw) return pairs;
-    if (Array.isArray(raw)) {
-      const map = {};
-      for (let i = 0; i < raw.length; i++) {
-        const e = raw[i];
-        const mid = e.matchup_id != null ? String(e.matchup_id) : 'p_' + i;
-        if (!map[mid]) map[mid] = [];
-        map[mid].push(e);
-      }
-      for (const mid of Object.keys(map)) {
-        const bucket = map[mid];
-        if (bucket.length === 2) pairs.push({ matchup_id: mid, home: normalizeEntry(bucket[0]), away: normalizeEntry(bucket[1]) });
-        else if (bucket.length === 1) pairs.push({ matchup_id: mid, home: normalizeEntry(bucket[0]), away: null });
-      }
-    }
-    return pairs;
-
-    function normalizeEntry(e) {
-      if (!e) return null;
-      return {
-        roster_id: e.roster_id ?? null,
-        points: e.points ?? e.points_for ?? e.starters_points ?? null,
-        matchup_id: e.matchup_id ?? null
-      };
-    }
-  }
-
-  function weekDateRange(weekNum) {
-    if (!Array.isArray(weekRanges)) return null;
-    const found = weekRanges.find((r) => Number(r.week) === Number(weekNum));
-    if (!found) return null;
-    try {
-      const opts = { month: 'short', day: 'numeric' };
-      const sd = new Date(found.start + 'T00:00:00').toLocaleDateString(undefined, opts);
-      const ed = new Date(found.end + 'T00:00:00').toLocaleDateString(undefined, opts);
-      return sd + ' — ' + ed;
-    } catch (_) {
-      return found.start + ' — ' + found.end;
-    }
   }
 
   function getHeadshot(playerId) {
@@ -217,50 +117,26 @@
     error = null;
     try {
       // Resolve which league_id is "live" — newest in_season league preferred,
-      // else newest complete league, else newest overall. This makes the home
-      // page Always Show Real Data, even when the upcoming season hasn't drafted
-      // yet (in which case we show last year's championship week + trades).
+      // else newest complete league, else newest overall.
       if (!leagueOverride) {
         try {
           const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
           const active = pickActiveLeague(seasons);
           if (active?.league_id) leagueId = String(active.league_id);
           if (active?.season) seasonLabel = String(active.season);
-          leagueStatus = active?.status || null;
         } catch (_) { /* keep fallback leagueId */ }
       }
 
-      // Find the current/most-recent week with real scoring data. For an
-      // in_season league this is "this week"; for a complete league it's the
-      // championship week. We skip the static week-ranges.json calendar
-      // approach because it lags whenever the season schedule shifts.
-      const cfgRes = await fetch(CONFIG_PATH).catch(() => null);
-      weekRanges = cfgRes && cfgRes.ok ? await cfgRes.json() : null;
-
-      if (forcedWeek && !isNaN(forcedWeek)) {
-        fetchWeek = forcedWeek;
-      } else {
-        const detected = await getCurrentWeekForLeague(leagueId).catch(() => null);
-        if (detected?.week) {
-          fetchWeek = detected.week;
-        } else {
-          // Last resort — use the static date-range calendar.
-          fetchWeek = computeEffectiveWeek(weekRanges || []);
-        }
-      }
-
-      const [matchupsRaw, _rosters, _users] = await Promise.all([
-        fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/matchups/${fetchWeek}`, {}, CACHE_5_MIN),
+      const [_rosters, _users] = await Promise.all([
         fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`, {}, CACHE_10_MIN),
         fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`, {}, CACHE_10_MIN)
       ]);
       rosters = _rosters;
       users = _users;
-      matchupPairs = normalizeMatchups(matchupsRaw);
       await pickRandoPlayer();
 
-      // Trade ledger loads in the background (independent of matchups). We don't
-      // block the page on it — it gets its own loading state.
+      // Trade ledger loads in the background. We don't block on it — it gets
+      // its own loading state.
       loadTradeLedger().catch((e) => console.warn('[Home] trade ledger failed', e));
     } catch (err) {
       error = err;
@@ -427,6 +303,8 @@
             <div class="shimmer" style="height:12px; width:40%;"></div>
           </div>
         </div>
+      {:else if error}
+        <ErrorBoundary {error} onRetry={loadData} context="home" />
       {:else}
         <div class="rando-empty">No player available.</div>
       {/if}
@@ -434,91 +312,11 @@
   </div>
 </section>
 
-<section class="wrap matchups-section" aria-labelledby="matchups-h">
-  <div class="section-head">
-    <div>
-      <div class="eyebrow">
-        {#if leagueStatus === 'complete'}Final · Championship Week
-        {:else if leagueStatus === 'in_season'}This Week
-        {:else}Latest{/if}
-      </div>
-      <h2 id="matchups-h" class="section-title">Matchups</h2>
-    </div>
-    <div class="week-pill" data-testid="current-week-pill">
-      <span class="week-num">W{fetchWeek || '?'}</span>
-      {#if seasonLabel}<span class="week-range">'{String(seasonLabel).slice(-2)} Season</span>{/if}
-    </div>
-  </div>
-
-  {#if loading}
-    <SkeletonLoader variant="matchup" count={5} />
-  {:else if error}
-    <ErrorBoundary {error} onRetry={loadData} context="matchups" />
-  {:else if matchupPairs && matchupPairs.length}
-    <div class="matchups-grid" data-testid="matchups-grid">
-      {#each matchupPairs as p, idx}
-        <a
-          class="matchup-card rise"
-          style="animation-delay: {idx * 50}ms;"
-          href={`/rosters?owner=${p.home && p.home.roster_id ? p.home.roster_id : ''}`}
-          data-testid={`matchup-card-${idx}`}
-        >
-          <div class="m-side m-left">
-            {#if p.home && findRoster(p.home.roster_id)}
-              {@const r = findRoster(p.home.roster_id)}
-              {#if avatarForRoster(r)}
-                <img class="m-avatar" src={avatarForRoster(r)} alt={displayNameForRoster(r)} loading="lazy" />
-              {:else}
-                <div class="m-avatar placeholder"></div>
-              {/if}
-              <div class="m-meta">
-                <div class="m-name">{displayNameForRoster(r)}</div>
-                <div class="m-owner">{ownerNameForRoster(r) || ''}</div>
-              </div>
-            {:else}
-              <div class="m-avatar placeholder"></div>
-              <div class="m-meta"><div class="m-name">TBD</div></div>
-            {/if}
-          </div>
-
-          <div class="m-score">
-            <span class="score-num" class:winner={p.home && p.away && Number(p.home.points) > Number(p.away.points)}>{fmt(p.home && p.home.points)}</span>
-            <span class="score-vs">vs</span>
-            <span class="score-num" class:winner={p.home && p.away && Number(p.away.points) > Number(p.home.points)}>{fmt(p.away && p.away.points)}</span>
-          </div>
-
-          <div class="m-side m-right">
-            {#if p.away && findRoster(p.away.roster_id)}
-              {@const r = findRoster(p.away.roster_id)}
-              <div class="m-meta right">
-                <div class="m-name">{displayNameForRoster(r)}</div>
-                <div class="m-owner">{ownerNameForRoster(r) || ''}</div>
-              </div>
-              {#if avatarForRoster(r)}
-                <img class="m-avatar" src={avatarForRoster(r)} alt={displayNameForRoster(r)} loading="lazy" />
-              {:else}
-                <div class="m-avatar placeholder"></div>
-              {/if}
-            {:else}
-              <div class="m-meta right"><div class="m-name">TBD</div></div>
-              <div class="m-avatar placeholder"></div>
-            {/if}
-          </div>
-        </a>
-      {/each}
-    </div>
-  {:else}
-    <div class="empty-card" data-testid="matchups-empty">
-      No matchups found for week {fetchWeek}. Try a different week via <code>?week=N</code>.
-    </div>
-  {/if}
-</section>
-
 <!--
   Trade Ledger — most recent completed trades pulled from Sleeper's
   /transactions/{week} endpoint, aggregated across every week of the live
-  league. Independent loading state so the matchups grid above isn't gated
-  on the slower multi-week transactions roll-up.
+  league. Independent loading state so the section isn't gated on anything
+  upstream.
 -->
 <section class="wrap trades-section" aria-labelledby="trades-h" data-testid="trade-ledger">
   <div class="section-head">
@@ -793,11 +591,7 @@
     text-align: center;
   }
 
-  /* ----- MATCHUPS ----- */
-  .matchups-section {
-    padding-top: 3rem;
-  }
-
+  /* ----- SECTION HEAD (shared by trade ledger) ----- */
   .section-head {
     display: flex;
     align-items: flex-end;
@@ -816,128 +610,6 @@
     margin-top: 0.4rem;
   }
 
-  .week-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 0.55rem 0.9rem;
-    background: var(--surface-1);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--r-sm);
-    font-size: 0.85rem;
-  }
-
-  .week-num {
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    color: var(--accent);
-    letter-spacing: 0.05em;
-  }
-
-  .week-range {
-    color: var(--text-secondary);
-    font-weight: 500;
-    font-size: 0.8rem;
-  }
-
-  .matchups-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
-    gap: 0.85rem;
-  }
-
-  .matchup-card {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem 1.1rem;
-    background: var(--surface-1);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--r-sm);
-    color: var(--text-primary);
-    text-decoration: none;
-    transition: border-color var(--t-fast), transform var(--t-fast), background var(--t-fast);
-    cursor: pointer;
-  }
-
-  .matchup-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    background: var(--surface-2);
-  }
-
-  .m-side {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 0;
-  }
-
-  .m-right {
-    justify-content: flex-end;
-  }
-
-  .m-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--r-sm);
-    object-fit: cover;
-    background: var(--surface-2);
-    flex-shrink: 0;
-    border: 1px solid var(--border-subtle);
-  }
-
-  .m-avatar.placeholder { background: var(--surface-2); }
-
-  .m-meta { min-width: 0; }
-  .m-meta.right { text-align: right; }
-
-  .m-name {
-    font-family: var(--font-body);
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    line-height: 1.15;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .m-owner {
-    color: var(--text-tertiary);
-    font-size: 0.78rem;
-    margin-top: 0.15rem;
-  }
-
-  .m-score {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.15rem;
-  }
-
-  .score-num {
-    font-family: var(--font-display);
-    font-size: 1.6rem;
-    line-height: 1;
-    letter-spacing: 0.03em;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .score-num.winner { color: var(--win); }
-
-  .score-vs {
-    font-family: var(--font-body);
-    font-weight: 800;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: var(--text-tertiary);
-    margin: 0.1rem 0;
-  }
-
   .empty-card {
     padding: 2rem;
     text-align: center;
@@ -947,17 +619,8 @@
     color: var(--text-secondary);
   }
 
-  .empty-card code {
-    color: var(--accent);
-    background: var(--surface-2);
-    padding: 0.15rem 0.4rem;
-    border-radius: var(--r-sm);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.85rem;
-  }
-
   /* ----- TRADE LEDGER ----- */
-  .trades-section { padding-top: 2rem; padding-bottom: 3rem; }
+  .trades-section { padding-top: 3rem; padding-bottom: 3rem; }
   .trades-count { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
   .trades-list { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
   .trade-card {
@@ -1053,7 +716,6 @@
     padding: 0 0.25rem;
   }
 
-  /* Score flipped layout for compact matchup: switch to row on small screens */
   @media (max-width: 980px) {
     .hero-inner { grid-template-columns: 1fr; gap: 2rem; }
     .rando { max-width: 100%; }
@@ -1061,11 +723,6 @@
 
   @media (max-width: 720px) {
     .hero { padding: 2.5rem 0 3rem; }
-    .matchups-grid { grid-template-columns: 1fr; gap: 0.75rem; }
-    .matchup-card { grid-template-columns: 1fr 1fr; padding: 0.9rem 1rem; }
-    .m-score { grid-column: 1 / -1; flex-direction: row; gap: 0.75rem; justify-content: center; padding-top: 0.5rem; border-top: 1px solid var(--border-subtle); }
-    .score-num { font-size: 1.3rem; }
-    .m-avatar { width: 40px; height: 40px; }
     .trade-sides { grid-template-columns: 1fr; }
     .trade-swap { transform: rotate(90deg); justify-self: center; padding: 0.25rem 0; }
     .trade-card { padding: 0.9rem 0.95rem; }
