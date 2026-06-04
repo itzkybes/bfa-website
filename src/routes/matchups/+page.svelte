@@ -20,6 +20,22 @@
   let weekOptions = { regular: [], playoffs: [] };
   let playersMap = {};
 
+  // Per-week cache: key = `${leagueId}:${week}` → { matchupsRows, playoffStart, playoffEnd }.
+  // Populated synchronously on every successful fetch, AND in the background
+  // for every other week of the selected season as soon as that season is
+  // loaded. Result: switching weeks is a zero-network operation after the
+  // first paint completes — no spinner, no skeleton flash, no API call.
+  let weekCache = {};
+  // Tracks "I am currently re-fetching THIS key" so we never overwrite a
+  // newer fetch's result with an older fetch that finished later. Only ever
+  // checked inside the async loader — never read in markup.
+  let fetchInFlight = null;
+  // Used to render a subtle inline "refreshing…" pill while a background
+  // re-fetch is happening. Distinct from `loading`, which still blanks the
+  // page on FIRST load only.
+  let bgRefreshing = false;
+  const cacheKey = (lid, wk) => `${lid}:${wk}`;
+
   function avatarOrPh(url, name) {
     if (url) return url;
     const ch = name ? name[0].toUpperCase() : 'T';
@@ -189,25 +205,123 @@
     selectedWeek = urlWeek ? Number(urlWeek) : 1;
   }
 
-  async function loadMatchups() {
+  /**
+   * Apply a `{matchupsRows, playoffStart, playoffEnd}` snapshot from the
+   * cache into the reactive state. Idempotent — safe to call repeatedly.
+   */
+  function applySnapshot(snap) {
+    matchupsRows = snap.matchupsRows || [];
+    playoffStart = snap.playoffStart;
+    playoffEnd = snap.playoffEnd;
+    weekOptions = {
+      regular: Array.from({ length: Math.max(0, playoffStart - 1) }, (_, i) => i + 1),
+      playoffs: Array.from({ length: 3 }, (_, i) => playoffStart + i)
+    };
+  }
+
+  /**
+   * Show the requested week IMMEDIATELY from cache (if present), then
+   * background-refresh in case the data changed. If there is no cache
+   * entry yet, the FIRST mount keeps `loading = true` so skeletons paint;
+   * subsequent week switches only set `bgRefreshing = true` so the previous
+   * week's data stays visible while we re-fetch (no blank page flash).
+   */
+  async function loadMatchups({ isInitial = false } = {}) {
     if (!selectedLeagueId) return;
-    loading = true;
+    const key = cacheKey(selectedLeagueId, selectedWeek);
+
+    // Hot path — cached snapshot exists.
+    if (weekCache[key]) {
+      applySnapshot(weekCache[key]);
+      loading = false;
+      error = null;
+      // Schedule a single background refresh on initial mount so stale
+      // localStorage-cached weeks tick over. Subsequent switches do NOT
+      // re-fetch the cached week (Sleeper data for past weeks is stable).
+      if (isInitial) backgroundRefresh(selectedLeagueId, selectedWeek);
+      return;
+    }
+
+    // Cold path — first time this (league, week) has been requested.
+    // Only show the blocking spinner on the very first mount; otherwise we
+    // keep the previous week's data on screen and show an inline pill.
+    if (isInitial) loading = true;
+    else bgRefreshing = true;
     error = null;
+    const inflightKey = `${key}:${Date.now()}`;
+    fetchInFlight = inflightKey;
     try {
       const out = await computeMatchupsForLeagueWeek(selectedLeagueId, selectedWeek);
-      matchupsRows = out.matchupsRows || [];
-      playoffStart = out.playoffStart;
-      playoffEnd = out.playoffEnd;
-      weekOptions = {
-        regular: Array.from({ length: Math.max(0, playoffStart - 1) }, (_, i) => i + 1),
-        playoffs: Array.from({ length: 3 }, (_, i) => playoffStart + i)
+      // Discard stale responses — a faster click may have superseded us.
+      if (fetchInFlight !== inflightKey) return;
+      const snap = {
+        matchupsRows: out.matchupsRows || [],
+        playoffStart: out.playoffStart,
+        playoffEnd: out.playoffEnd
       };
+      weekCache = { ...weekCache, [key]: snap };
+      applySnapshot(snap);
     } catch (e) {
       console.error('[Matchups] failed', e);
       error = e;
     } finally {
       loading = false;
+      bgRefreshing = false;
     }
+  }
+
+  /**
+   * Fire-and-forget background re-fetch of a week we already have cached.
+   * Used on initial mount so the snapshot is kept fresh.
+   */
+  async function backgroundRefresh(leagueId, week) {
+    const key = cacheKey(leagueId, week);
+    try {
+      const out = await computeMatchupsForLeagueWeek(leagueId, week);
+      const snap = {
+        matchupsRows: out.matchupsRows || [],
+        playoffStart: out.playoffStart,
+        playoffEnd: out.playoffEnd
+      };
+      weekCache = { ...weekCache, [key]: snap };
+      // Only re-apply if the user is still viewing this same week.
+      if (selectedLeagueId === leagueId && selectedWeek === week) {
+        applySnapshot(snap);
+      }
+    } catch (e) { /* silent — cached snapshot remains visible */ }
+  }
+
+  /**
+   * Prefetch every week of the selected season in the background so the
+   * dropdown is instant after the very first paint. Skips weeks already
+   * in the cache, and limits to 4 in-flight requests at a time so we
+   * don't hammer the Sleeper CDN.
+   */
+  async function prefetchSeason(leagueId, playoffStartLocal) {
+    if (!leagueId) return;
+    const weeks = Array.from({ length: (playoffStartLocal || 15) - 1 + 3 }, (_, i) => i + 1);
+    const queue = weeks.filter((w) => !weekCache[cacheKey(leagueId, w)]);
+    const CONCURRENCY = 4;
+    async function worker() {
+      while (queue.length) {
+        const wk = queue.shift();
+        // Bail out if the user has navigated to a different season meanwhile.
+        if (selectedLeagueId !== leagueId) return;
+        try {
+          const out = await computeMatchupsForLeagueWeek(leagueId, wk);
+          const snap = {
+            matchupsRows: out.matchupsRows || [],
+            playoffStart: out.playoffStart,
+            playoffEnd: out.playoffEnd
+          };
+          // Late insert — only set if the user hasn't navigated away.
+          if (selectedLeagueId === leagueId) {
+            weekCache = { ...weekCache, [cacheKey(leagueId, wk)]: snap };
+          }
+        } catch (e) { /* one missing week shouldn't kill the prefetch */ }
+      }
+    }
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   }
 
   function onSeasonChange(e) {
@@ -218,6 +332,11 @@
     selectedLeagueId = found.league_id;
     goto(`?season=${encodeURIComponent(val)}&week=${selectedWeek}`, { replaceState: true });
     loadMatchups();
+    // Kick off a background prefetch for the new season — week 1 is in
+    // flight via loadMatchups() above, and the rest will follow with
+    // 4-wide concurrency. Subsequent week switches in this season will be
+    // instant once the prefetch settles (~2-3s on Sleeper's CDN).
+    prefetchSeason(selectedLeagueId, playoffStart);
   }
 
   function onWeekChange(e) {
@@ -230,8 +349,11 @@
     await loadSeasons();
     // Fire the players-map fetch in parallel — recap top-scorer needs names.
     const playersPromise = getPlayersNba().catch(() => ({}));
-    await loadMatchups();
+    await loadMatchups({ isInitial: true });
     playersMap = await playersPromise;
+    // Start prefetching every other week in the background. We have to
+    // wait for `loadMatchups` so we know `playoffStart` for the season.
+    prefetchSeason(selectedLeagueId, playoffStart);
   });
 </script>
 
@@ -269,6 +391,9 @@
             </optgroup>
           {/if}
         </select>
+        {#if bgRefreshing}
+          <span class="refresh-pill" data-testid="matchups-refresh-pill" aria-live="polite">Refreshing…</span>
+        {/if}
       </div>
     </div>
   </header>
@@ -555,6 +680,30 @@
     gap: 0.55rem;
   }
   .recap-card.top-scorer { border-color: var(--accent); }
+  .refresh-pill {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-tertiary);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    align-self: center;
+  }
+  .refresh-pill::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: refresh-pulse 1s infinite;
+  }
+  @keyframes refresh-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
   .recap-card.wide { grid-column: span 2; }
   .recap-top3-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
   .recap-top3-row {
