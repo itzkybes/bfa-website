@@ -43,7 +43,7 @@
 
   const links = [
     { href: '/', label: 'Home' },
-    { href: '/rosters', label: 'Rosters' },
+    { href: '/rosters', label: 'Owner Hub' },
     { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
     { href: '/power-rankings', label: 'Power Rankings' },

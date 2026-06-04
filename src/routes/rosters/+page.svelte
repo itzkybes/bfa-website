@@ -66,11 +66,12 @@
   /**
    * Roll up every season's standings into a per-owner career snapshot:
    * championships, playoff appearances, career W-L, career PF/PA, best
-   * finish, and best single-season PF. Keyed by `owner_username` (the
-   * stable handle across re-themed teams). Returns `{}` if standings can
-   * not be computed (e.g. league chain failed).
+   * finish, and best single-season PF, PLUS franchise-specific records
+   * (highest single-game starter, biggest blowout +/-, longest streak,
+   * best weekly score, etc). Keyed by `owner_username` (the stable handle
+   * across re-themed teams). Returns `{}` if standings can not be computed.
    */
-  function buildOwnerHubs(allSeasonResults, chain) {
+  function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
     const hubs = {};
     const ownerSeasonsHandled = {}; // username → Set(season) to avoid double-counting
     function ensure(uname) {
@@ -91,6 +92,16 @@
           bestFinishSeason: null,
           bestSeasonPF: 0,
           bestSeasonPFSeason: null,
+          bestSeasonRecord: null,            // { wins, losses, season }
+          longestWinStreak: 0,
+          longestWinStreakSeason: null,
+          longestLoseStreak: 0,
+          longestLoseStreakSeason: null,
+          bestSingleGame: null,              // { player_id, points, week, season }
+          highestWeek: null,                 // { points, week, season, opponent_team, opponent_avatar }
+          lowestWeek: null,                  // { points, week, season }
+          biggestBlowoutWin: null,           // { margin, my_score, opp_score, opponent_team, opponent_avatar, week, season }
+          biggestBlowoutLoss: null,          // same shape (negative perspective)
           firstSeason: null,
           lastSeason: null
         };
@@ -106,6 +117,7 @@
       const seasonLabel = s?.season ?? r.leagueSeason ?? s?.league_id;
       const rmap = r.rosterMap || {};
 
+      // Per-roster aggregates from regular standings.
       for (const reg of r.regularStandings) {
         const meta = rmap[reg.rosterId] || {};
         const hub = ensure(meta.owner_username || meta.owner_name);
@@ -115,21 +127,29 @@
           ownerSeasonsHandled[k].add(seasonLabel);
           hub.seasonsPlayed += 1;
         }
-        hub.careerWins += Number(reg.wins ?? 0);
-        hub.careerLosses += Number(reg.losses ?? 0);
-        hub.careerPF += Number(reg.pf ?? 0);
-        hub.careerPA += Number(reg.pa ?? 0);
-        if (Number(reg.pf ?? 0) > hub.bestSeasonPF) {
-          hub.bestSeasonPF = Number(reg.pf ?? 0);
-          hub.bestSeasonPFSeason = seasonLabel;
+        const wins = Number(reg.wins ?? 0);
+        const losses = Number(reg.losses ?? 0);
+        const pf = Number(reg.pf ?? 0);
+        const pa = Number(reg.pa ?? 0);
+        hub.careerWins += wins;
+        hub.careerLosses += losses;
+        hub.careerPF += pf;
+        hub.careerPA += pa;
+        if (pf > hub.bestSeasonPF) { hub.bestSeasonPF = pf; hub.bestSeasonPFSeason = seasonLabel; }
+        // Best season record by wins, tiebreak by lowest losses.
+        if (!hub.bestSeasonRecord || wins > hub.bestSeasonRecord.wins ||
+            (wins === hub.bestSeasonRecord.wins && losses < hub.bestSeasonRecord.losses)) {
+          hub.bestSeasonRecord = { wins, losses, season: seasonLabel };
         }
+        const winStreak = Number(reg.win_streak ?? reg.winStreak ?? reg.best_win_streak ?? 0);
+        const loseStreak = Number(reg.lose_streak ?? reg.loseStreak ?? reg.worst_lose_streak ?? 0);
+        if (winStreak > hub.longestWinStreak) { hub.longestWinStreak = winStreak; hub.longestWinStreakSeason = seasonLabel; }
+        if (loseStreak > hub.longestLoseStreak) { hub.longestLoseStreak = loseStreak; hub.longestLoseStreakSeason = seasonLabel; }
         if (hub.firstSeason == null || Number(seasonLabel) < Number(hub.firstSeason)) hub.firstSeason = seasonLabel;
         if (hub.lastSeason == null || Number(seasonLabel) > Number(hub.lastSeason)) hub.lastSeason = seasonLabel;
       }
 
       // Final standings — championships, playoff appearances, best finish.
-      // Only count if the bracket actually completed; in-progress seasons
-      // would otherwise pollute the "best finish" stat.
       if (Array.isArray(r.finalStandings) && r.bracketComplete) {
         for (const fs of r.finalStandings) {
           const meta = rmap[fs.rosterId] || {};
@@ -141,6 +161,88 @@
           if (hub.bestFinish == null || fs.rank < hub.bestFinish) {
             hub.bestFinish = fs.rank;
             hub.bestFinishSeason = seasonLabel;
+          }
+        }
+      }
+
+      // Per-game records — scan collectedMatchups for every regular-season
+      // week to find highest single-game starter scores + biggest weekly
+      // wins/losses. Skip playoffs to keep records "regular-season pure".
+      const collected = r.collectedMatchups || {};
+      const playoffStart = r.playoffStart || 15;
+      for (const wkStr of Object.keys(collected)) {
+        const wk = Number(wkStr);
+        if (!isFinite(wk) || wk < 1 || wk >= playoffStart) continue;
+        const entries = collected[wkStr] || [];
+        // Group by matchup_id to find opponents
+        const byMatch = {};
+        for (const e of entries) {
+          const m = String(e.matchup_id ?? '_unk');
+          if (!byMatch[m]) byMatch[m] = [];
+          byMatch[m].push(e);
+        }
+        for (const e of entries) {
+          const rid = e.roster_id ?? e.rosterId;
+          if (!rid) continue;
+          const meta = rmap[rid] || {};
+          const hub = ensure(meta.owner_username || meta.owner_name);
+          if (!hub) continue;
+          const pts = Number(e.points ?? 0);
+
+          // Highest / lowest weekly score
+          if (pts > 0) {
+            const opp = (byMatch[String(e.matchup_id)] || []).find((o) => (o.roster_id ?? o.rosterId) !== rid);
+            const oppMeta = opp ? (rmap[opp.roster_id ?? opp.rosterId] || {}) : {};
+            if (!hub.highestWeek || pts > hub.highestWeek.points) {
+              hub.highestWeek = {
+                points: pts, week: wk, season: seasonLabel,
+                opponent_team: oppMeta.team_name || null,
+                opponent_avatar: oppMeta.team_avatar || oppMeta.owner_avatar || null
+              };
+            }
+            if (!hub.lowestWeek || pts < hub.lowestWeek.points) {
+              hub.lowestWeek = { points: pts, week: wk, season: seasonLabel };
+            }
+            if (opp) {
+              const oppPts = Number(opp.points ?? 0);
+              const margin = pts - oppPts;
+              if (margin > 0 && (!hub.biggestBlowoutWin || margin > hub.biggestBlowoutWin.margin)) {
+                hub.biggestBlowoutWin = {
+                  margin, my_score: pts, opp_score: oppPts,
+                  opponent_team: oppMeta.team_name || null,
+                  opponent_avatar: oppMeta.team_avatar || oppMeta.owner_avatar || null,
+                  week: wk, season: seasonLabel
+                };
+              }
+              if (margin < 0 && (!hub.biggestBlowoutLoss || margin < hub.biggestBlowoutLoss.margin)) {
+                hub.biggestBlowoutLoss = {
+                  margin, my_score: pts, opp_score: oppPts,
+                  opponent_team: oppMeta.team_name || null,
+                  opponent_avatar: oppMeta.team_avatar || oppMeta.owner_avatar || null,
+                  week: wk, season: seasonLabel
+                };
+              }
+            }
+          }
+
+          // Highest single-game starter performance
+          const sp = e.starters_points;
+          const starters = e.starters;
+          if (Array.isArray(sp) && Array.isArray(starters)) {
+            for (let idx = 0; idx < starters.length; idx++) {
+              const pid = starters[idx];
+              if (!pid) continue;
+              const val = Number(sp[idx] ?? 0);
+              if (!isFinite(val) || val <= 0) continue;
+              if (!hub.bestSingleGame || val > hub.bestSingleGame.points) {
+                const p = playersMap[pid] || {};
+                hub.bestSingleGame = {
+                  player_id: pid,
+                  player_name: p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || pid,
+                  points: val, week: wk, season: seasonLabel
+                };
+              }
+            }
           }
         }
       }
@@ -177,7 +279,7 @@
       ]);
 
       // Build per-owner career hubs from every season's standings.
-      const ownerHubs = buildOwnerHubs(allSeasonResults, seasons);
+      const ownerHubs = buildOwnerHubs(allSeasonResults, seasons, playersMap);
 
       // 3. enrich
       const list = [];
@@ -229,9 +331,9 @@
 
 <div class="page wrap">
   <header class="page-head rise">
-    <div class="eyebrow">League Rosters{#if season} · {season}{/if}</div>
-    <h1 class="page-title">Team Rosters</h1>
-    <p class="page-sub">Current season starting lineups, bench, and taxi squads.</p>
+    <div class="eyebrow">Owner Hub{#if season} · {season}{/if}</div>
+    <h1 class="page-title">Owner Hub</h1>
+    <p class="page-sub">Tap a team to expand: career stats, franchise records, and the current season's roster.</p>
   </header>
 
   {#if loading}
@@ -345,6 +447,127 @@
                     </a>
                   {/if}
                 </div>
+
+                {#if roster.owner_hub.bestSingleGame || roster.owner_hub.highestWeek || roster.owner_hub.biggestBlowoutWin || roster.owner_hub.biggestBlowoutLoss}
+                  <div class="franchise-records" data-testid={`franchise-records-${roster.rosterId}`}>
+                    <div class="records-head">
+                      <div class="records-title">Franchise Records</div>
+                      <div class="records-sub">Regular season only · across every season the owner has played</div>
+                    </div>
+                    <div class="records-grid">
+                      {#if roster.owner_hub.bestSingleGame}
+                        <div class="record-card">
+                          <div class="record-eyebrow">🏀 Best Single Game</div>
+                          <div class="record-body">
+                            <img class="record-headshot" src={playerHeadshot(roster.owner_hub.bestSingleGame.player_id)} alt={roster.owner_hub.bestSingleGame.player_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            <div class="record-meta">
+                              <div class="record-name">{roster.owner_hub.bestSingleGame.player_name}</div>
+                              <div class="record-context">W{roster.owner_hub.bestSingleGame.week} · {roster.owner_hub.bestSingleGame.season}</div>
+                            </div>
+                          </div>
+                          <div class="record-stat win">{roster.owner_hub.bestSingleGame.points.toFixed(2)}<span class="record-stat-label"> PTS</span></div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.highestWeek}
+                        <div class="record-card">
+                          <div class="record-eyebrow">📈 Highest Weekly Total</div>
+                          <div class="record-body">
+                            {#if roster.owner_hub.highestWeek.opponent_avatar}
+                              <img class="record-team-avatar" src={roster.owner_hub.highestWeek.opponent_avatar} alt={roster.owner_hub.highestWeek.opponent_team ?? ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            {/if}
+                            <div class="record-meta">
+                              <div class="record-name">vs {roster.owner_hub.highestWeek.opponent_team ?? '—'}</div>
+                              <div class="record-context">W{roster.owner_hub.highestWeek.week} · {roster.owner_hub.highestWeek.season}</div>
+                            </div>
+                          </div>
+                          <div class="record-stat win">{roster.owner_hub.highestWeek.points.toFixed(1)}<span class="record-stat-label"> PTS</span></div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.lowestWeek}
+                        <div class="record-card">
+                          <div class="record-eyebrow">📉 Lowest Weekly Total</div>
+                          <div class="record-body">
+                            <div class="record-meta">
+                              <div class="record-name">W{roster.owner_hub.lowestWeek.week}</div>
+                              <div class="record-context">{roster.owner_hub.lowestWeek.season}</div>
+                            </div>
+                          </div>
+                          <div class="record-stat loss">{roster.owner_hub.lowestWeek.points.toFixed(1)}<span class="record-stat-label"> PTS</span></div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.biggestBlowoutWin}
+                        <div class="record-card">
+                          <div class="record-eyebrow">💥 Biggest Blowout (Win)</div>
+                          <div class="record-body">
+                            {#if roster.owner_hub.biggestBlowoutWin.opponent_avatar}
+                              <img class="record-team-avatar" src={roster.owner_hub.biggestBlowoutWin.opponent_avatar} alt={roster.owner_hub.biggestBlowoutWin.opponent_team ?? ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            {/if}
+                            <div class="record-meta">
+                              <div class="record-name">def. {roster.owner_hub.biggestBlowoutWin.opponent_team ?? '—'}</div>
+                              <div class="record-context">{roster.owner_hub.biggestBlowoutWin.my_score.toFixed(1)} – {roster.owner_hub.biggestBlowoutWin.opp_score.toFixed(1)} · W{roster.owner_hub.biggestBlowoutWin.week} {roster.owner_hub.biggestBlowoutWin.season}</div>
+                            </div>
+                          </div>
+                          <div class="record-stat win">+{roster.owner_hub.biggestBlowoutWin.margin.toFixed(1)}<span class="record-stat-label"> MARGIN</span></div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.biggestBlowoutLoss}
+                        <div class="record-card">
+                          <div class="record-eyebrow">🥶 Biggest Blowout (Loss)</div>
+                          <div class="record-body">
+                            {#if roster.owner_hub.biggestBlowoutLoss.opponent_avatar}
+                              <img class="record-team-avatar" src={roster.owner_hub.biggestBlowoutLoss.opponent_avatar} alt={roster.owner_hub.biggestBlowoutLoss.opponent_team ?? ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                            {/if}
+                            <div class="record-meta">
+                              <div class="record-name">lost to {roster.owner_hub.biggestBlowoutLoss.opponent_team ?? '—'}</div>
+                              <div class="record-context">{roster.owner_hub.biggestBlowoutLoss.my_score.toFixed(1)} – {roster.owner_hub.biggestBlowoutLoss.opp_score.toFixed(1)} · W{roster.owner_hub.biggestBlowoutLoss.week} {roster.owner_hub.biggestBlowoutLoss.season}</div>
+                            </div>
+                          </div>
+                          <div class="record-stat loss">{roster.owner_hub.biggestBlowoutLoss.margin.toFixed(1)}<span class="record-stat-label"> MARGIN</span></div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.longestWinStreak > 0}
+                        <div class="record-card">
+                          <div class="record-eyebrow">🔥 Longest Win Streak</div>
+                          <div class="record-body">
+                            <div class="record-meta">
+                              <div class="record-name">{roster.owner_hub.longestWinStreak} {roster.owner_hub.longestWinStreak === 1 ? 'game' : 'games'}</div>
+                              <div class="record-context">{roster.owner_hub.longestWinStreakSeason}</div>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.longestLoseStreak > 0}
+                        <div class="record-card">
+                          <div class="record-eyebrow">❄️ Longest Lose Streak</div>
+                          <div class="record-body">
+                            <div class="record-meta">
+                              <div class="record-name">{roster.owner_hub.longestLoseStreak} {roster.owner_hub.longestLoseStreak === 1 ? 'game' : 'games'}</div>
+                              <div class="record-context">{roster.owner_hub.longestLoseStreakSeason}</div>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+
+                      {#if roster.owner_hub.bestSeasonRecord}
+                        <div class="record-card">
+                          <div class="record-eyebrow">🏅 Best Season Record</div>
+                          <div class="record-body">
+                            <div class="record-meta">
+                              <div class="record-name">{roster.owner_hub.bestSeasonRecord.wins}–{roster.owner_hub.bestSeasonRecord.losses}</div>
+                              <div class="record-context">{roster.owner_hub.bestSeasonRecord.season}</div>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
               {/if}
 
               <div class="section-label">Starters</div>
@@ -640,6 +863,102 @@
     letter-spacing: 0.04em;
   }
   .hub-history-link:hover { text-decoration: underline; }
+
+  /* Franchise Records — second card inside the expanded team body.
+     Surfaces per-team highlights (best single game, biggest blowout,
+     longest streak, etc) so each owner has their own mini hall-of-fame
+     visible without leaving the roster page. */
+  .franchise-records {
+    margin: 0.4rem 0 1rem;
+    padding: 0.85rem 0.95rem 1rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+  }
+  .records-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.7rem;
+  }
+  .records-title {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+  }
+  .records-sub {
+    font-size: 0.65rem;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .records-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.55rem;
+  }
+  .record-card {
+    padding: 0.65rem 0.75rem 0.75rem;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .record-eyebrow {
+    font-family: var(--font-body);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.6rem;
+    color: var(--text-tertiary);
+  }
+  .record-body { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+  .record-headshot, .record-team-avatar {
+    width: 32px; height: 32px;
+    border-radius: 5px;
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .record-meta { min-width: 0; flex: 1; }
+  .record-name {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .record-context {
+    font-size: 0.66rem;
+    color: var(--text-tertiary);
+    margin-top: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .record-stat {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    color: var(--text-primary);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .record-stat.win { color: var(--win); }
+  .record-stat.loss { color: var(--loss); }
+  .record-stat-label {
+    font-family: var(--font-body);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    color: var(--text-tertiary);
+    margin-left: 0.2rem;
+  }
 
   .section-label {
     font-family: var(--font-body);
