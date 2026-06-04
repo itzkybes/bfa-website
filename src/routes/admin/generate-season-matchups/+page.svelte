@@ -63,12 +63,12 @@
               matchup_id: Number(mid) || mid,
               teamA: {
                 rosterId: aId, name: aMeta.team_name, ownerName: aMeta.owner_name,
-                avatar: aMeta.team_avatar, starters: a.starters || [], starters_points: a.starters_points, player_points: a.player_points
+                avatar: aMeta.team_avatar, starters: a.starters || [], starters_points: a.starters_points
               },
               teamAScore: computeParticipantPoints(a),
               teamB: {
                 rosterId: bId, name: bMeta.team_name, ownerName: bMeta.owner_name,
-                avatar: bMeta.team_avatar, starters: b.starters || [], starters_points: b.starters_points, player_points: b.player_points
+                avatar: bMeta.team_avatar, starters: b.starters || [], starters_points: b.starters_points
               },
               teamBScore: computeParticipantPoints(b)
             };

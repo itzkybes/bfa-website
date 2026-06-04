@@ -47,19 +47,19 @@
       if (!entry) continue;
       const rid = String(entry.roster_id ?? entry.rosterId ?? '');
       const starters = Array.isArray(entry.starters) ? entry.starters : [];
-      const pts = entry.starters_points || entry.player_points || null;
-      if (pts && typeof pts === 'object') {
-        for (const pid of starters) {
-          if (!pid) continue;
-          let val = 0;
-          if (Array.isArray(pts)) {
-            const idx = starters.indexOf(pid);
-            val = Number(pts[idx] ?? 0);
-          } else val = Number(pts[String(pid)] ?? 0);
-          if (!isFinite(val)) val = 0;
-          if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-          byPlayer[pid].points += val;
-        }
+      // SOURCE OF TRUTH: `starters_points` array, zipped with `starters`.
+      // We never fall back to `player_points` — that includes raw
+      // unselected games and would corrupt MVP figures for managers who
+      // manually pick which game counts each week.
+      const sp = entry.starters_points;
+      if (!Array.isArray(sp) || !starters.length) continue;
+      for (let i = 0; i < starters.length; i++) {
+        const pid = starters[i];
+        if (!pid) continue;
+        const n = Number(sp[i] ?? 0);
+        const val = isFinite(n) ? n : 0;
+        if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
+        byPlayer[pid].points += val;
       }
     }
     for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;

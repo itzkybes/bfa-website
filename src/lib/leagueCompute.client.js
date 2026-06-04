@@ -376,12 +376,13 @@ export async function computeStandingsForLeague(leagueId) {
           if (ridA) transformed.push({
             week, roster_id: ridA, matchup_id: m.matchup_id ?? null,
             points: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
-            // Pass starters + per-player points through so MVP aggregator
+            // Carry starters + starters_points through so MVP aggregators
             // (records-player / honor-hall) can break down by player for
-            // historical seasons sourced from the static JSON.
+            // historical seasons sourced from the static JSON. We do NOT
+            // forward `player_points` — starters_points is the sole
+            // source of truth for per-player scoring.
             starters: Array.isArray(m.teamA.starters) ? m.teamA.starters : null,
             starters_points: Array.isArray(m.teamA.starters_points) ? m.teamA.starters_points : null,
-            player_points: m.teamA.player_points ?? null,
             __team_name: m.teamA.name ?? null, __owner_name: m.teamA.ownerName ?? null
           });
         }
@@ -392,7 +393,6 @@ export async function computeStandingsForLeague(leagueId) {
             points: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
             starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
             starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,
-            player_points: m.teamB.player_points ?? null,
             __team_name: m.teamB.name ?? null, __owner_name: m.teamB.ownerName ?? null
           });
         }
@@ -723,7 +723,10 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   return { week, playoffStart, playoffEnd, leagueSeason, matchupsRows: rows };
 }
 
-/** Shape one live Sleeper matchup entry into the row format the UI expects. */
+/** Shape one live Sleeper matchup entry into the row format the UI expects.
+ *  Carries through `starters` + `starters_points` only — `player_points`
+ *  is deliberately omitted (project policy: starters_points is the sole
+ *  source of truth for per-player scoring). */
 function makeTeam(rid, rosterMap, entry) {
   const meta = rosterMap[rid] || {};
   return {
@@ -733,8 +736,7 @@ function makeTeam(rid, rosterMap, entry) {
     avatar: meta.team_avatar || meta.owner_avatar || null,
     points: computeParticipantPoints(entry),
     starters: entry?.starters ?? null,
-    starters_points: entry?.starters_points ?? null,
-    player_points: entry?.player_points ?? null
+    starters_points: entry?.starters_points ?? null
   };
 }
 
@@ -749,8 +751,7 @@ function normalizeTeamFromStatic(t, score, rosterMap) {
     avatar: t.avatar ?? meta.team_avatar ?? null,
     points: safeNum(score ?? t.score ?? t.points ?? 0),
     starters: t.starters ?? null,
-    starters_points: t.starters_points ?? null,
-    player_points: t.player_points ?? null
+    starters_points: t.starters_points ?? null
   };
 }
 

@@ -55,8 +55,10 @@
   };
 
   // Build the week's recap stats reactively from `matchupsRows`. Every
-  // metric is derived from the data already on each team (starters +
-  // starters_points + player_points) so no extra fetches are needed.
+  // metric is derived strictly from `starters` + `starters_points` so
+  // we honor each owner's manual game-selection choice. We deliberately
+  // do not consult `player_points`, since that field includes raw
+  // unselected games for any player on the roster.
   $: recap = (() => {
     if (!matchupsRows.length) return null;
     const teams = [];                 // [{ name, owner, points, avatar, rosterId }]
@@ -65,7 +67,6 @@
     let closestGame = null;           // { teams, margin }
     let mostExciting = null;          // { teams, total }   highest combined
     let totalPoints = 0;
-    const benchByTeam = [];           // [{ team, topBench, totalBench, lowestStarter }]
 
     for (const row of matchupsRows) {
       const sides = [row.teamA, row.teamB].filter(t => t && t.points != null && t.name !== 'BYE');
@@ -78,39 +79,14 @@
         // ----- Per-starter scores -----
         // SOURCE OF TRUTH: `starters_points` array (via starterPointsByPid).
         // Top 3 Performances and Bust of the Week both read from this only.
-        // We never fall back to `player_points` here — that would include
-        // bench contributions and corrupt the "starter" semantics.
-        const starters = Array.isArray(t.starters) ? t.starters : [];
         const starterMeta = { teamName: t.name, ownerName: t.ownerName, teamAvatar: t.avatar, rosterId: t.rosterId };
-        const starterPidSet = new Set(starters.filter(Boolean).map(String));
-        let lowestStarter = null;
         const starterMap = starterPointsByPid(t);
         if (starterMap) {
           for (const pid of Object.keys(starterMap)) {
             const val = starterMap[pid];
             if (!isFinite(val) || val <= 0) continue;
             playerScores.push({ pid, points: val, ...starterMeta, isStarter: true });
-            if (!lowestStarter || val < lowestStarter.points) {
-              lowestStarter = { pid, points: val, ...starterMeta };
-            }
           }
-        }
-
-        // ----- Bench scoring: every entry in player_points whose pid is
-        // NOT one of the starters that week. Used for "bench burn" stat. -----
-        let topBench = null;
-        let totalBench = 0;
-        if (t.player_points && typeof t.player_points === 'object' && !Array.isArray(t.player_points)) {
-          for (const pid of Object.keys(t.player_points)) {
-            if (starterPidSet.has(pid)) continue;
-            const val = Number(t.player_points[pid] ?? 0);
-            if (!isFinite(val) || val <= 0) continue;
-            totalBench += val;
-            if (!topBench || val > topBench.points) topBench = { pid, points: val, ...starterMeta };
-          }
-        }
-        if (topBench || lowestStarter) {
-          benchByTeam.push({ team: starterMeta, topBench, totalBench, lowestStarter });
         }
       }
 
@@ -143,33 +119,12 @@
       .sort((a, b) => b.points - a.points);
     const top3 = sortedPlayers.slice(0, 3);
 
-    // Bench Burn — bench player who outscored their team's lowest starter
-    // by the most (i.e. "you should have benched X for Y").
-    let benchBurn = null;
-    for (const b of benchByTeam) {
-      if (!b.topBench || !b.lowestStarter) continue;
-      const diff = b.topBench.points - b.lowestStarter.points;
-      if (diff > 0 && (!benchBurn || diff > benchBurn.diff)) {
-        benchBurn = { ...b.topBench, diff, lowestStarter: b.lowestStarter };
-      }
-    }
-    // Fall back to the heaviest individual bench player if no clean
-    // "shoulda started" candidate exists.
-    if (!benchBurn) {
-      const heaviestBench = benchByTeam
-        .map((b) => b.topBench)
-        .filter(Boolean)
-        .sort((a, b) => b.points - a.points)[0];
-      if (heaviestBench) benchBurn = { ...heaviestBench, diff: null, lowestStarter: null };
-    }
-
     // Bust of the Week — lowest non-zero starter score across the league
     // (sortedPlayers is already filtered to starters with points > 0).
     const bustOfWeek = sortedPlayers.length ? sortedPlayers[sortedPlayers.length - 1] : null;
 
     return {
       top3,
-      benchBurn,
       bustOfWeek,
       biggestBlowout,
       closestGame,
@@ -471,26 +426,6 @@
                 </div>
               </div>
               <div class="recap-stat">{fmt1(recap.mostExciting.total)}<span class="recap-stat-label"> COMBINED</span></div>
-            </div>
-          {/if}
-
-          {#if recap.benchBurn}
-            <div class="recap-card" data-testid="recap-bench-burn">
-              <div class="recap-eyebrow">🪑 Biggest Bench Burn</div>
-              <div class="recap-card-body">
-                <img class="recap-headshot" src={playerHeadshot(recap.benchBurn.pid)} alt={pname(recap.benchBurn.pid) || ''} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                <div class="recap-card-meta">
-                  <div class="recap-player">{pname(recap.benchBurn.pid) ?? recap.benchBurn.pid}</div>
-                  <div class="recap-card-team">
-                    {#if recap.benchBurn.teamAvatar}<img class="recap-team-mini" src={recap.benchBurn.teamAvatar} alt={recap.benchBurn.teamName} />{/if}
-                    <span class="muted">{recap.benchBurn.teamName} · benched</span>
-                  </div>
-                </div>
-              </div>
-              <div class="recap-stat loss">
-                {fmt2(recap.benchBurn.points)}<span class="recap-stat-label"> PTS</span>
-                {#if recap.benchBurn?.diff != null}<span class="recap-stat-sub">+{fmt1(recap.benchBurn.diff)} over worst starter</span>{/if}
-              </div>
             </div>
           {/if}
 

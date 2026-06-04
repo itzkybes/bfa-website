@@ -78,17 +78,15 @@
       for (const entry of entries) {
         const rid = String(entry.roster_id ?? entry.rosterId ?? '');
         const starters = Array.isArray(entry.starters) ? entry.starters : [];
-        const pts = entry.starters_points || entry.player_points || null;
-        if (!pts || typeof pts !== 'object') continue;
-        for (const pid of starters) {
+        // SOURCE OF TRUTH: `starters_points` only. We never consult
+        // `player_points` — it includes raw unselected games and would
+        // corrupt the MVP race for owners who manually pick a game.
+        const sp = entry.starters_points;
+        if (!Array.isArray(sp) || !starters.length) continue;
+        for (let i = 0; i < starters.length; i++) {
+          const pid = starters[i];
           if (!pid) continue;
-          let val = 0;
-          if (Array.isArray(pts)) {
-            const i = starters.indexOf(pid);
-            val = Number(pts[i] ?? 0);
-          } else {
-            val = Number(pts[String(pid)] ?? 0);
-          }
+          const val = Number(sp[i] ?? 0);
           if (!isFinite(val) || val <= 0) continue;
           cumulative[pid] = (cumulative[pid] || 0) + val;
           rosterByPid[pid] = rid;

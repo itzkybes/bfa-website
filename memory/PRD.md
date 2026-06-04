@@ -78,7 +78,19 @@ User followed up confirming:
 - ✅ Added "Power" link to the global header nav.
 - ✅ `getSeasonsChain` now captures `status` per season so callers can branch on it without re-fetching league metadata.
 
-## What's Been Implemented (2026-03-02 — feature batch: leaderboard + trends + team history)
+## What's Been Implemented (2026-06-04 — Owner Hub dropdown + strict starters_points sweep)
+- ✅ **Owner Hub layout refactor (`/rosters`)**: replaced the 14-card accordion with a single top-level **team-picker dropdown** (`data-testid="rosters-team-select"`). Defaults to the alphabetically-first team; switching is instant (reactive). The "View matchup history →" link inside the Owner Hub was removed entirely.
+- ✅ **Global `starters_points`-only enforcement** (per league rule: Sleeper's manual game-selection mechanic is natively baked into `starters_points`; reading `player_points` would pull in raw unselected games):
+  - `/standings` — Regular Season MVP Race aggregator now reads strictly from `starters_points` (zipped with `starters`). Dropped the `|| entry.player_points` fallback.
+  - `/honor-hall` — `aggregatePlayerPoints()` dropped the same fallback. Finals MVP / Playoffs MVP / Regular Season MVP all source from `starters_points` only.
+  - `/matchups` — "Biggest Bench Burn" recap card and all bench-scoring logic **removed entirely** (this was the only consumer of `player_points` and it cannot be honestly computed without it).
+  - `lib/leagueCompute.client.js` — `makeTeam`, `normalizeTeamFromStatic`, and the static-JSON synthesizer in `computeStandingsForLeague` no longer carry `player_points` into row payloads.
+  - `/admin/generate-season-matchups` — no longer embeds `player_points` into generated static JSON snapshots.
+  - `/records-player` already used `starters_points` only — verified clean.
+- ✅ Vercel production build verified locally (`yarn build` → ✓ built in 6.82s · Using @sveltejs/adapter-vercel · nodejs22.x).
+- ✅ Smoke-tested all 4 affected pages on the live preview: rosters dropdown renders default + alt team correctly, Standings MVP Race shows 5 real rows (Luka 920.1, Jokić 905.7, …), Matchups Weekly Recap renders Top 3 + Bust + 5 other cards with Bench Burn gone, Honor Hall MVPs cross-check with Standings MVP numbers (Luka 920.1 reg / 192.0 playoff / 75.8 finals).
+
+
 - ✅ **Playoffs MVP All-Time Leaderboard** on `/records-player`. New section below the per-season MVP cards: top 25 players by **cumulative playoff points across every season**. Columns: rank, player headshot + name, total PTS, best single run (with year stamp), # of seasons appeared, most-recent team. Verified live — Nikola Jokić leads at 515.69 cumulative playoff points, best run 153.50 in 2025.
 - ✅ **Per-team season trends chart** on `/standings`. New "PF / Week" column in the regular-season table with an inline SVG sparkline per team — the actual PF curve across every regular-season week of the selected season. Uses a new dependency-free `Sparkline.svelte` component (~50 lines, zero deps). Falls back to an em-dash placeholder for seasons that haven't started yet (2026). Verified live — 14 sparklines rendered with real path data on the 2024 standings.
 - ✅ **Per-roster matchup history page** at `/team/[username]`. New route showing one season block per year the owner appears in, with a full week-by-week table (week #, opponent w/ avatar + link, my PTS, opp PTS, margin, W/L/T pill). Playoff weeks get a "PO" badge + tinted row background. Champion seasons get the 🏆 badge in the section header. Verified live — `/team/riguy506` renders 5 season blocks across 2022 → 2026, all rows populated with real Sleeper data.
@@ -147,5 +159,6 @@ User followed up confirming:
 - **P3** — User-controlled theme switch (light + light-on-blue variants)
 
 ## Next Tasks
-- User verification of: (a) records-player real franchise logos on the three all-time tables, (b) dropdowns defaulting to 2025 site-wide, (c) full mobile experience across every route.
+- User verification of the new Owner Hub dropdown UX + confirmation that MVP numbers stay consistent across `/standings` and `/honor-hall`.
+- **P1** — Add "Best Playoff Game" record alongside Franchise Records in the Owner Hub.
 - If satisfied → push to GitHub via the "Save to GitHub" feature in chat input.
