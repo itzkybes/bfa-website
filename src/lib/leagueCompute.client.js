@@ -374,7 +374,7 @@ export async function computeStandingsForLeague(leagueId) {
 
   // Try seasonMatchups + early2023 in parallel
   const [seasonMatchups, earlyData] = await Promise.all([
-    leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)
+    leagueSeason && ['2022', '2023', '2024', '2025'].includes(leagueSeason)
       ? fetchStaticJson(`/season_matchups/${leagueSeason}.json`)
       : Promise.resolve(null),
     leagueSeason === '2023' ? fetchStaticJson('/early2023.json') : Promise.resolve(null)
@@ -392,6 +392,13 @@ export async function computeStandingsForLeague(leagueId) {
           if (ridA) transformed.push({
             week, roster_id: ridA, matchup_id: m.matchup_id ?? null,
             points: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
+            // Carry the commish manual-override field through. When set,
+            // `computeParticipantPoints` honors it ahead of the
+            // starters_points sum — keeping the static JSON path in lockstep
+            // with the live API path.
+            custom_points: (m.teamA?.custom_points != null) ? safeNum(m.teamA.custom_points)
+                          : (m.teamA_custom_points != null) ? safeNum(m.teamA_custom_points)
+                          : null,
             // Carry starters + starters_points through so MVP aggregators
             // (records-player / honor-hall) can break down by player for
             // historical seasons sourced from the static JSON. We do NOT
@@ -407,6 +414,9 @@ export async function computeStandingsForLeague(leagueId) {
           if (ridB) transformed.push({
             week, roster_id: ridB, matchup_id: m.matchup_id ?? null,
             points: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
+            custom_points: (m.teamB?.custom_points != null) ? safeNum(m.teamB.custom_points)
+                          : (m.teamB_custom_points != null) ? safeNum(m.teamB_custom_points)
+                          : null,
             starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
             starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,
             __team_name: m.teamB.name ?? null, __owner_name: m.teamB.ownerName ?? null
@@ -673,7 +683,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
 
   // Prefer the static JSON snapshot for older seasons.
   let seasonMatchups = null;
-  if (leagueSeason && ['2022', '2023', '2024'].includes(leagueSeason)) {
+  if (leagueSeason && ['2022', '2023', '2024', '2025'].includes(leagueSeason)) {
     seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
   }
 

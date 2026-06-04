@@ -27,7 +27,7 @@
     loading = true; error = null; messages = []; outputs = [];
     try {
       const yearsParam = $page.url.searchParams.get('years');
-      const years = yearsParam ? yearsParam.split(',').map(y => y.trim()).filter(Boolean) : ['2022', '2023', '2024'];
+      const years = yearsParam ? yearsParam.split(',').map(y => y.trim()).filter(Boolean) : ['2022', '2023', '2024', '2025'];
       messages = [`Requested years: ${years.join(', ')}`];
 
       const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
@@ -59,17 +59,21 @@
             const bId = String(b.roster_id ?? '');
             const aMeta = rosterMap[aId] || {};
             const bMeta = rosterMap[bId] || {};
+            const teamA = {
+              rosterId: aId, name: aMeta.team_name, ownerName: aMeta.owner_name,
+              avatar: aMeta.team_avatar, starters: a.starters || [], starters_points: a.starters_points
+            };
+            const teamB = {
+              rosterId: bId, name: bMeta.team_name, ownerName: bMeta.owner_name,
+              avatar: bMeta.team_avatar, starters: b.starters || [], starters_points: b.starters_points
+            };
+            if (a.custom_points != null) teamA.custom_points = Number(a.custom_points);
+            if (b.custom_points != null) teamB.custom_points = Number(b.custom_points);
             return {
               matchup_id: Number(mid) || mid,
-              teamA: {
-                rosterId: aId, name: aMeta.team_name, ownerName: aMeta.owner_name,
-                avatar: aMeta.team_avatar, starters: a.starters || [], starters_points: a.starters_points
-              },
+              teamA,
               teamAScore: computeParticipantPoints(a),
-              teamB: {
-                rosterId: bId, name: bMeta.team_name, ownerName: bMeta.owner_name,
-                avatar: bMeta.team_avatar, starters: b.starters || [], starters_points: b.starters_points
-              },
+              teamB,
               teamBScore: computeParticipantPoints(b)
             };
           }).filter(Boolean);

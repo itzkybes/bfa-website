@@ -1,5 +1,4 @@
 {
-  "playoff_week_start": 20,
   "1": [
     {
       "matchup_id": 1,
@@ -29,9 +28,9 @@
           12,
           24,
           6
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 190.75,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -57,10 +56,8 @@
           18,
           0,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 190.75,
       "teamBScore": 145.25
     },
     {
@@ -91,12 +88,12 @@
           20.69,
           12.25,
           7
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 166.69,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -119,10 +116,8 @@
           18.25,
           19,
           7
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 166.69,
       "teamBScore": 205.88
     },
     {
@@ -153,12 +148,12 @@
           3,
           17.5,
           15
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 153,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -181,10 +176,8 @@
           16,
           16.75,
           3.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 153,
       "teamBScore": 149.13
     },
     {
@@ -215,9 +208,9 @@
           34.5,
           24.25,
           14.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 219.19,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -243,10 +236,8 @@
           15,
           31.5,
           11.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 219.19,
       "teamBScore": 203.63
     },
     {
@@ -277,9 +268,9 @@
           9.25,
           11,
           17.69
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 177.38,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -305,10 +296,8 @@
           13.5,
           15,
           10
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 177.38,
       "teamBScore": 171.69
     },
     {
@@ -339,12 +328,12 @@
           12,
           22.5,
           30.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 180,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -367,10 +356,8 @@
           0,
           13.5,
           10.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 180,
       "teamBScore": 172.25
     },
     {
@@ -401,9 +388,9 @@
           13.75,
           13.5,
           17.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 142.94,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -429,10 +416,8 @@
           43.75,
           12,
           24.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 142.94,
       "teamBScore": 176.5
     }
   ],
@@ -465,12 +450,12 @@
           20,
           0,
           15
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 120.94,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -493,10 +478,8 @@
           17.25,
           23.75,
           0.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 120.94,
       "teamBScore": 134
     },
     {
@@ -527,9 +510,9 @@
           17.75,
           12,
           35.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198.44,
       "teamB": {
         "rosterId": "2",
         "name": "Scat Porn",
@@ -555,10 +538,8 @@
           30.25,
           18.75,
           31.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198.44,
       "teamBScore": 190.5
     },
     {
@@ -589,9 +570,9 @@
           16.5,
           20.25,
           14.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 181.5,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -617,10 +598,8 @@
           12,
           16,
           29
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 181.5,
       "teamBScore": 202.75
     },
     {
@@ -651,12 +630,12 @@
           24.5,
           13,
           22
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 196.75,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -679,10 +658,8 @@
           16.5,
           23,
           14
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 196.75,
       "teamBScore": 137.5
     },
     {
@@ -713,9 +690,9 @@
           19.25,
           35.5,
           18.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -741,10 +718,8 @@
           21,
           23.25,
           25.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198,
       "teamBScore": 218.25
     },
     {
@@ -775,9 +750,9 @@
           18.75,
           13,
           11
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 135.5,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -803,10 +778,8 @@
           26.5,
           30.75,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 135.5,
       "teamBScore": 207.69
     },
     {
@@ -814,7 +787,7 @@
       "week": 2,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -837,9 +810,9 @@
           36.5,
           21,
           14
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 232.25,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -865,10 +838,8 @@
           44,
           24,
           27.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 232.25,
       "teamBScore": 170.25
     }
   ],
@@ -901,9 +872,9 @@
           12,
           9,
           24
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164.25,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -929,10 +900,8 @@
           17.25,
           0,
           19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164.25,
       "teamBScore": 107.75
     },
     {
@@ -963,12 +932,12 @@
           20.25,
           18.75,
           16
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 208.25,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -991,10 +960,8 @@
           0,
           25.5,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 208.25,
       "teamBScore": 129.19
     },
     {
@@ -1025,9 +992,9 @@
           27.5,
           16.25,
           24.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 201.5,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -1053,10 +1020,8 @@
           18.44,
           26,
           19.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 201.5,
       "teamBScore": 217.44
     },
     {
@@ -1087,9 +1052,9 @@
           30.5,
           26,
           35.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 197.69,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -1115,10 +1080,8 @@
           27.5,
           15,
           23
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 197.69,
       "teamBScore": 170
     },
     {
@@ -1149,12 +1112,12 @@
           28.5,
           7.69,
           15.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 94.19,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -1177,10 +1140,8 @@
           27.75,
           24.25,
           12
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 94.19,
       "teamBScore": 166.19
     },
     {
@@ -1211,9 +1172,9 @@
           6,
           23,
           25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 221.94,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -1239,10 +1200,8 @@
           31,
           17,
           19.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 221.94,
       "teamBScore": 159.5
     },
     {
@@ -1250,7 +1209,7 @@
       "week": 3,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -1273,9 +1232,9 @@
           19,
           21.5,
           21
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -1301,10 +1260,8 @@
           32.75,
           8,
           18.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198,
       "teamBScore": 199.5
     }
   ],
@@ -1337,9 +1294,9 @@
           12.5,
           31,
           16
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 179.5,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -1365,10 +1322,8 @@
           18,
           0,
           3
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 179.5,
       "teamBScore": 148.13
     },
     {
@@ -1399,9 +1354,9 @@
           22.5,
           10.75,
           19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 120.5,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -1427,10 +1382,8 @@
           20,
           17.25,
           13
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 120.5,
       "teamBScore": 179
     },
     {
@@ -1461,12 +1414,12 @@
           7.5,
           28,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 174.38,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -1489,10 +1442,8 @@
           13.25,
           21.5,
           3
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 174.38,
       "teamBScore": 171.94
     },
     {
@@ -1523,9 +1474,9 @@
           38.25,
           23.5,
           12.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 197.75,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -1551,10 +1502,8 @@
           18.75,
           0,
           7.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 197.75,
       "teamBScore": 119.75
     },
     {
@@ -1585,9 +1534,9 @@
           8,
           9.5,
           21.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 169.19,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -1613,10 +1562,8 @@
           28,
           31.75,
           18.44
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 169.19,
       "teamBScore": 146.44
     },
     {
@@ -1624,7 +1571,7 @@
       "week": 4,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -1647,12 +1594,12 @@
           10.25,
           24.75,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 163.44,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -1675,10 +1622,8 @@
           24.75,
           35.5,
           5.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 163.44,
       "teamBScore": 185
     },
     {
@@ -1709,9 +1654,9 @@
           14,
           7,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 128.25,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -1737,10 +1682,8 @@
           15.25,
           26.25,
           18
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 128.25,
       "teamBScore": 199.75
     }
   ],
@@ -1773,9 +1716,9 @@
           22.75,
           0,
           11.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 115,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -1801,10 +1744,8 @@
           12,
           34.75,
           47
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 115,
       "teamBScore": 207.25
     },
     {
@@ -1835,9 +1776,9 @@
           9.25,
           16.94,
           26
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 192.94,
       "teamB": {
         "rosterId": "4",
         "name": "Uncle O’Grimacey’s Cream",
@@ -1863,10 +1804,8 @@
           22.5,
           25.75,
           14.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 192.94,
       "teamBScore": 181
     },
     {
@@ -1897,9 +1836,9 @@
           7,
           25.5,
           15.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 130.94,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -1925,10 +1864,8 @@
           26,
           12,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 130.94,
       "teamBScore": 161.25
     },
     {
@@ -1936,7 +1873,7 @@
       "week": 5,
       "teamA": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -1959,9 +1896,9 @@
           11.25,
           21.25,
           7
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 161.75,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -1987,10 +1924,8 @@
           31.5,
           9,
           9.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 161.75,
       "teamBScore": 156.75
     },
     {
@@ -2021,12 +1956,12 @@
           31.25,
           25.69,
           20.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 194.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1546",
@@ -2049,10 +1984,8 @@
           24.75,
           10.5,
           12
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 194.19,
       "teamBScore": 165.44
     },
     {
@@ -2083,9 +2016,9 @@
           38,
           10,
           11.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 184,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -2111,10 +2044,8 @@
           12,
           12,
           12.69
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 184,
       "teamBScore": 133.19
     },
     {
@@ -2145,12 +2076,12 @@
           11,
           0,
           11
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 99.19,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -2173,10 +2104,8 @@
           9.75,
           20.5,
           25.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 99.19,
       "teamBScore": 147.75
     }
   ],
@@ -2209,9 +2138,9 @@
           16,
           24.75,
           24.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 209.94,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -2237,10 +2166,8 @@
           24.75,
           0,
           21
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 209.94,
       "teamBScore": 153.5
     },
     {
@@ -2271,9 +2198,9 @@
           25.75,
           12,
           8
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 158.19,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -2299,10 +2226,8 @@
           30.69,
           19,
           21
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 158.19,
       "teamBScore": 194.69
     },
     {
@@ -2333,9 +2258,9 @@
           34,
           26.75,
           8
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 181.5,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -2361,10 +2286,8 @@
           28,
           21.75,
           19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 181.5,
       "teamBScore": 193.69
     },
     {
@@ -2395,12 +2318,12 @@
           22.25,
           32.25,
           51
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 237.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -2423,10 +2346,8 @@
           6.75,
           15.69,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 237.19,
       "teamBScore": 174.63
     },
     {
@@ -2434,7 +2355,7 @@
       "week": 6,
       "teamA": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -2457,9 +2378,9 @@
           23,
           30.25,
           9
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 183.25,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -2485,10 +2406,8 @@
           32.25,
           20,
           21
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 183.25,
       "teamBScore": 195
     },
     {
@@ -2519,9 +2438,9 @@
           21,
           20.75,
           39.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 197,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -2547,10 +2466,8 @@
           20.5,
           0,
           24.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 197,
       "teamBScore": 150.75
     },
     {
@@ -2581,12 +2498,12 @@
           22.5,
           20.5,
           23.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 221.69,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -2609,10 +2526,8 @@
           2,
           14.44,
           10
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 221.69,
       "teamBScore": 105.44
     }
   ],
@@ -2645,9 +2560,9 @@
           23.38,
           7.25,
           1
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 126.32,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -2673,10 +2588,8 @@
           26.5,
           0,
           13.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 126.32,
       "teamBScore": 114.94
     },
     {
@@ -2707,9 +2620,9 @@
           28.5,
           31.5,
           16.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 187.25,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -2735,10 +2648,8 @@
           20,
           32,
           12
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 187.25,
       "teamBScore": 147.5
     },
     {
@@ -2769,12 +2680,12 @@
           16,
           14.75,
           16
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 196.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -2797,10 +2708,8 @@
           20.5,
           22.75,
           24.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 196.19,
       "teamBScore": 179.69
     },
     {
@@ -2831,9 +2740,9 @@
           5.5,
           29.25,
           6
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 127.94,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -2859,10 +2768,8 @@
           11,
           23.5,
           10
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 127.94,
       "teamBScore": 184.88
     },
     {
@@ -2893,9 +2800,9 @@
           35.25,
           19.25,
           24.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 205.44,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -2921,10 +2828,8 @@
           12,
           0,
           20.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 205.44,
       "teamBScore": 135.25
     },
     {
@@ -2932,7 +2837,7 @@
       "week": 7,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -2955,12 +2860,12 @@
           10.5,
           20,
           15
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 128.19,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -2983,10 +2888,8 @@
           13,
           17.25,
           18.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 128.19,
       "teamBScore": 179.25
     },
     {
@@ -3017,9 +2920,9 @@
           25.5,
           26.5,
           13
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 210.69,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -3045,10 +2948,8 @@
           20,
           14.25,
           11.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 210.69,
       "teamBScore": 200.69
     }
   ],
@@ -3081,9 +2982,9 @@
           25.5,
           0,
           36
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 154,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -3109,10 +3010,8 @@
           28,
           29.5,
           53
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 154,
       "teamBScore": 194
     },
     {
@@ -3143,12 +3042,12 @@
           15.5,
           14,
           13
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 140.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -3171,10 +3070,8 @@
           14,
           24.25,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 140.19,
       "teamBScore": 178.75
     },
     {
@@ -3205,9 +3102,9 @@
           20.69,
           28.75,
           22.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 208.19,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -3233,10 +3130,8 @@
           23.5,
           18.5,
           24.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 208.19,
       "teamBScore": 163.5
     },
     {
@@ -3267,9 +3162,9 @@
           10.25,
           25.75,
           19.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 160,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -3295,10 +3190,8 @@
           10.25,
           13,
           24
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 160,
       "teamBScore": 148
     },
     {
@@ -3329,12 +3222,12 @@
           40.94,
           16.5,
           33.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 203.69,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -3357,10 +3250,8 @@
           11.19,
           16.25,
           8.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 203.69,
       "teamBScore": 211.38
     },
     {
@@ -3391,9 +3282,9 @@
           13.75,
           15,
           24.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 162.75,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -3419,10 +3310,8 @@
           36.25,
           22.25,
           13.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 162.75,
       "teamBScore": 167.94
     },
     {
@@ -3453,12 +3342,12 @@
           29,
           12,
           31
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 172.19,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -3481,10 +3370,8 @@
           10,
           14,
           9
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 172.19,
       "teamBScore": 188.5
     }
   ],
@@ -3517,12 +3404,12 @@
           20.75,
           0,
           12.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 155.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -3545,10 +3432,8 @@
           16,
           21,
           17.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 155.19,
       "teamBScore": 213.19
     },
     {
@@ -3579,9 +3464,9 @@
           16,
           22,
           63.94
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198.44,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -3607,10 +3492,8 @@
           4.5,
           27,
           11.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198.44,
       "teamBScore": 172.69
     },
     {
@@ -3641,9 +3524,9 @@
           26.5,
           13,
           9.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 160.75,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -3669,10 +3552,8 @@
           20.75,
           9,
           19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 160.75,
       "teamBScore": 183.25
     },
     {
@@ -3703,12 +3584,12 @@
           27.75,
           31.75,
           17
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 232.5,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -3731,10 +3612,8 @@
           14,
           21.75,
           23
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 232.5,
       "teamBScore": 201.25
     },
     {
@@ -3765,9 +3644,9 @@
           25,
           4,
           16
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 158.69,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -3793,10 +3672,8 @@
           22,
           16.5,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 158.69,
       "teamBScore": 151.25
     },
     {
@@ -3827,9 +3704,9 @@
           15.69,
           6,
           10.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 128.07,
       "teamB": {
         "rosterId": "4",
         "name": "Uncle O’Grimacey’s Cream",
@@ -3855,10 +3732,8 @@
           19.5,
           5,
           23.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 128.07,
       "teamBScore": 138.25
     },
     {
@@ -3889,12 +3764,12 @@
           13.25,
           19,
           7
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 178,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -3917,10 +3792,8 @@
           9.5,
           21.5,
           5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 178,
       "teamBScore": 129.25
     }
   ],
@@ -3953,9 +3826,9 @@
           16,
           0,
           22.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 130,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -3981,10 +3854,8 @@
           22,
           21.25,
           8
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 130,
       "teamBScore": 169.88
     },
     {
@@ -4015,12 +3886,12 @@
           17.25,
           22,
           21.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 180,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -4043,10 +3914,8 @@
           17.5,
           15,
           6
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 180,
       "teamBScore": 133.5
     },
     {
@@ -4054,7 +3923,7 @@
       "week": 10,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -4077,9 +3946,9 @@
           11,
           18.94,
           9.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 179.13,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -4105,10 +3974,8 @@
           18.5,
           27,
           58.19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 179.13,
       "teamBScore": 216.69
     },
     {
@@ -4139,9 +4006,9 @@
           16,
           7,
           13
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 104.13,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -4167,10 +4034,8 @@
           24,
           25,
           18
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 104.13,
       "teamBScore": 174.75
     },
     {
@@ -4201,9 +4066,9 @@
           23,
           24.75,
           21.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164,
       "teamB": {
         "rosterId": "3",
         "name": "The Fraggle Rock 9",
@@ -4229,10 +4094,8 @@
           17.25,
           37.75,
           23
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164,
       "teamBScore": 245.88
     },
     {
@@ -4263,12 +4126,12 @@
           34.19,
           13,
           22.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 231.13,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -4291,10 +4154,8 @@
           26.25,
           26.75,
           4
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 231.13,
       "teamBScore": 201.5
     },
     {
@@ -4325,9 +4186,9 @@
           19,
           19,
           11
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 185.69,
       "teamB": {
         "rosterId": "4",
         "name": "Uncle O’Grimacey’s Cream",
@@ -4353,10 +4214,8 @@
           15.5,
           18,
           48.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 185.69,
       "teamBScore": 190.75
     }
   ],
@@ -4389,9 +4248,9 @@
           23.5,
           0,
           1
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 139.5,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -4417,10 +4276,8 @@
           24.25,
           6.69,
           27.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 139.5,
       "teamBScore": 177.63
     },
     {
@@ -4428,7 +4285,7 @@
       "week": 11,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -4451,9 +4308,9 @@
           17.94,
           26.19,
           16
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 212.13,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -4479,10 +4336,8 @@
           28.69,
           18.75,
           11.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 212.13,
       "teamBScore": 165.38
     },
     {
@@ -4513,12 +4368,12 @@
           10.25,
           10.25,
           14
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 96,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -4541,10 +4396,8 @@
           28,
           15,
           9
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 96,
       "teamBScore": 128.5
     },
     {
@@ -4575,9 +4428,9 @@
           37.5,
           25,
           20
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 222.75,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -4603,10 +4456,8 @@
           0,
           0,
           46.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 222.75,
       "teamBScore": 164.69
     },
     {
@@ -4637,12 +4488,12 @@
           28.25,
           23.75,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 149,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -4665,10 +4516,8 @@
           11.25,
           0,
           2
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 149,
       "teamBScore": 138.75
     },
     {
@@ -4699,9 +4548,9 @@
           25.75,
           14,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 203.94,
       "teamB": {
         "rosterId": "3",
         "name": "The Fraggle Rock 9",
@@ -4727,10 +4576,8 @@
           44.25,
           34.25,
           30.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 203.94,
       "teamBScore": 226.75
     },
     {
@@ -4761,9 +4608,9 @@
           14.75,
           39.5,
           33.19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 180.69,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -4789,10 +4636,8 @@
           23.5,
           22.75,
           13
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 180.69,
       "teamBScore": 191.94
     }
   ],
@@ -4825,12 +4670,12 @@
           20,
           0,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 137.19,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -4853,10 +4698,8 @@
           25.75,
           32.25,
           14.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 137.19,
       "teamBScore": 184.5
     },
     {
@@ -4887,9 +4730,9 @@
           29.5,
           23.75,
           18.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 149,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -4915,10 +4758,8 @@
           29.5,
           14,
           7
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 149,
       "teamBScore": 161.63
     },
     {
@@ -4949,9 +4790,9 @@
           15,
           20.5,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 163.25,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -4977,10 +4818,8 @@
           26.75,
           31.19,
           36.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 163.25,
       "teamBScore": 194.44
     },
     {
@@ -4988,7 +4827,7 @@
       "week": 12,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -5011,12 +4850,12 @@
           31.5,
           8,
           23
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 158.25,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -5039,10 +4878,8 @@
           15.5,
           24,
           5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 158.25,
       "teamBScore": 163.38
     },
     {
@@ -5073,9 +4910,9 @@
           32.5,
           7.75,
           10
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 180.75,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -5101,10 +4938,8 @@
           0,
           15.25,
           45
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 180.75,
       "teamBScore": 133
     },
     {
@@ -5135,9 +4970,9 @@
           21.25,
           16.25,
           25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 212.19,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -5163,10 +4998,8 @@
           16.25,
           12,
           20.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 212.19,
       "teamBScore": 123.75
     },
     {
@@ -5197,9 +5030,9 @@
           4.25,
           35,
           15
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 200.75,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -5225,10 +5058,8 @@
           10.5,
           32.25,
           13
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 200.75,
       "teamBScore": 181.25
     }
   ],
@@ -5261,9 +5092,9 @@
           15.25,
           0,
           9
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 117.25,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -5289,10 +5120,8 @@
           24.5,
           14,
           26.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 117.25,
       "teamBScore": 182.5
     },
     {
@@ -5323,12 +5152,12 @@
           24.5,
           22,
           20.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 193.5,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -5351,10 +5180,8 @@
           35,
           40.94,
           21
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 193.5,
       "teamBScore": 194.94
     },
     {
@@ -5385,12 +5212,12 @@
           46.25,
           0,
           28.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 193,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -5413,10 +5240,8 @@
           20,
           26.25,
           14.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 193,
       "teamBScore": 185.75
     },
     {
@@ -5447,9 +5272,9 @@
           23.75,
           36.75,
           14
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 165.5,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -5475,10 +5300,8 @@
           19.75,
           20,
           17.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 165.5,
       "teamBScore": 197.44
     },
     {
@@ -5509,12 +5332,12 @@
           20.19,
           10,
           26.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 148.44,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -5537,10 +5360,8 @@
           0,
           25.5,
           25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 148.44,
       "teamBScore": 126
     },
     {
@@ -5571,9 +5392,9 @@
           15.44,
           22,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 163.19,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -5599,10 +5420,8 @@
           0,
           17.25,
           39.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 163.19,
       "teamBScore": 142.75
     },
     {
@@ -5633,9 +5452,9 @@
           30.5,
           32.5,
           27.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 253.13,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -5661,10 +5480,8 @@
           29,
           20,
           11
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 253.13,
       "teamBScore": 143.25
     }
   ],
@@ -5697,9 +5514,9 @@
           15,
           18,
           16.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 189.75,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -5725,10 +5542,8 @@
           26.75,
           0,
           25.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 189.75,
       "teamBScore": 132.75
     },
     {
@@ -5759,12 +5574,12 @@
           30.5,
           5,
           4
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 141.75,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -5787,10 +5602,8 @@
           37,
           16,
           3
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 141.75,
       "teamBScore": 188.19
     },
     {
@@ -5821,12 +5634,12 @@
           13,
           26.75,
           11
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 205.25,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -5849,10 +5662,8 @@
           25.5,
           13,
           21
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 205.25,
       "teamBScore": 169.75
     },
     {
@@ -5883,9 +5694,9 @@
           2,
           27,
           20.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 168.5,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -5911,10 +5722,8 @@
           11.25,
           34,
           9
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 168.5,
       "teamBScore": 168.75
     },
     {
@@ -5945,9 +5754,9 @@
           24,
           11,
           17
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 153.25,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -5973,10 +5782,8 @@
           29.5,
           24.25,
           19.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 153.25,
       "teamBScore": 192.25
     },
     {
@@ -6007,12 +5814,12 @@
           6,
           35.5,
           31
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 247.25,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -6035,10 +5842,8 @@
           32.25,
           6,
           24
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 247.25,
       "teamBScore": 129
     },
     {
@@ -6069,9 +5874,9 @@
           22,
           16.25,
           17.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164.25,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -6097,10 +5902,8 @@
           20,
           28,
           43
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164.25,
       "teamBScore": 195.5
     }
   ],
@@ -6133,12 +5936,12 @@
           25,
           0,
           22.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 152.5,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -6161,10 +5964,8 @@
           24.75,
           21,
           12
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 152.5,
       "teamBScore": 165.25
     },
     {
@@ -6195,9 +5996,9 @@
           21.75,
           0,
           7
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 162.69,
       "teamB": {
         "rosterId": "2",
         "name": "Scat Porn",
@@ -6223,10 +6024,8 @@
           13.5,
           20.25,
           24.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 162.69,
       "teamBScore": 175.44
     },
     {
@@ -6257,9 +6056,9 @@
           24.5,
           5.25,
           19.19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 171.38,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -6285,10 +6084,8 @@
           16,
           11,
           25.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 171.38,
       "teamBScore": 192.69
     },
     {
@@ -6319,12 +6116,12 @@
           14.25,
           35.94,
           14.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 125.38,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -6347,10 +6144,8 @@
           12,
           13.75,
           10.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 125.38,
       "teamBScore": 145.44
     },
     {
@@ -6381,9 +6176,9 @@
           35.5,
           24.25,
           32.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 228.57,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -6409,10 +6204,8 @@
           14,
           25.5,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 228.57,
       "teamBScore": 164.69
     },
     {
@@ -6443,9 +6236,9 @@
           21.75,
           23,
           20
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164.75,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -6471,10 +6264,8 @@
           15.25,
           16.25,
           21
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164.75,
       "teamBScore": 159.5
     },
     {
@@ -6482,7 +6273,7 @@
       "week": 15,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -6505,9 +6296,9 @@
           13.25,
           0,
           27.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 125.44,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -6533,10 +6324,8 @@
           28.5,
           18.5,
           27
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 125.44,
       "teamBScore": 168.25
     }
   ],
@@ -6569,9 +6358,9 @@
           18,
           0,
           16
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 160,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -6597,10 +6386,8 @@
           31.75,
           0,
           17.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 160,
       "teamBScore": 105
     },
     {
@@ -6631,12 +6418,12 @@
           16.5,
           17,
           21.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 148.44,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -6659,10 +6446,8 @@
           11,
           22,
           10.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 148.44,
       "teamBScore": 174.19
     },
     {
@@ -6693,9 +6478,9 @@
           30.5,
           25.69,
           23.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 228.57,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -6721,10 +6506,8 @@
           30,
           21.25,
           7
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 228.57,
       "teamBScore": 169.75
     },
     {
@@ -6755,9 +6538,9 @@
           20.69,
           38.5,
           26.94
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 215.88,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -6783,10 +6566,8 @@
           30.5,
           4,
           16.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 215.88,
       "teamBScore": 180.5
     },
     {
@@ -6817,12 +6598,12 @@
           31.5,
           18,
           17
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 145,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -6845,10 +6626,8 @@
           29.5,
           14.25,
           6.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 145,
       "teamBScore": 198.75
     },
     {
@@ -6879,9 +6658,9 @@
           14,
           6.25,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 148,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -6907,10 +6686,8 @@
           17.25,
           17,
           40.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 148,
       "teamBScore": 196.5
     },
     {
@@ -6918,7 +6695,7 @@
       "week": 16,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -6941,9 +6718,9 @@
           32,
           0,
           11
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 119.5,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -6969,10 +6746,8 @@
           21.5,
           15.25,
           19.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 119.5,
       "teamBScore": 171.69
     }
   ],
@@ -7005,9 +6780,9 @@
           19,
           14,
           25.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 182.5,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -7033,10 +6808,8 @@
           19,
           0,
           19.19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 182.5,
       "teamBScore": 125.19
     },
     {
@@ -7067,9 +6840,9 @@
           27.5,
           0,
           14
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 163,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -7095,10 +6868,8 @@
           26,
           17.25,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 163,
       "teamBScore": 138.5
     },
     {
@@ -7129,12 +6900,12 @@
           17.69,
           26.44,
           17.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 176.57,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -7157,10 +6928,8 @@
           15,
           28.75,
           2
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 176.57,
       "teamBScore": 117.5
     },
     {
@@ -7191,9 +6960,9 @@
           27.75,
           25,
           22.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 209.44,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -7219,10 +6988,8 @@
           32.75,
           13,
           23.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 209.44,
       "teamBScore": 168.69
     },
     {
@@ -7253,9 +7020,9 @@
           27.5,
           22.5,
           18.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 155.5,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -7281,10 +7048,8 @@
           27.5,
           23,
           45.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 155.5,
       "teamBScore": 183.75
     },
     {
@@ -7292,7 +7057,7 @@
       "week": 17,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -7315,12 +7080,12 @@
           11.25,
           26.75,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 153.75,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -7343,10 +7108,8 @@
           16.5,
           0,
           10
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 153.75,
       "teamBScore": 115.75
     },
     {
@@ -7377,9 +7140,9 @@
           9,
           31,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 177,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -7405,10 +7168,8 @@
           19,
           13.75,
           22.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 177,
       "teamBScore": 151.5
     }
   ],
@@ -7441,9 +7202,9 @@
           19,
           0,
           17
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 123.5,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -7469,10 +7230,8 @@
           19,
           40.75,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 123.5,
       "teamBScore": 129.94
     },
     {
@@ -7503,9 +7262,9 @@
           14,
           35.5,
           15.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 173.19,
       "teamB": {
         "rosterId": "4",
         "name": "Uncle O’Grimacey’s Cream",
@@ -7531,10 +7290,8 @@
           33.75,
           24,
           24.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 173.19,
       "teamBScore": 189.25
     },
     {
@@ -7565,9 +7322,9 @@
           8,
           0,
           20.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 94.75,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -7593,10 +7350,8 @@
           33.75,
           9,
           22.44
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 94.75,
       "teamBScore": 162.19
     },
     {
@@ -7604,7 +7359,7 @@
       "week": 18,
       "teamA": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -7627,9 +7382,9 @@
           13.69,
           23.25,
           35.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 189.94,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -7655,10 +7410,8 @@
           18,
           22.5,
           33.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 189.94,
       "teamBScore": 160.13
     },
     {
@@ -7689,12 +7442,12 @@
           31,
           34.94,
           17.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 223.69,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -7717,10 +7470,8 @@
           22,
           28,
           24
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 223.69,
       "teamBScore": 175
     },
     {
@@ -7751,9 +7502,9 @@
           25.5,
           11,
           27
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164.25,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -7779,10 +7530,8 @@
           38,
           39.75,
           26.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164.25,
       "teamBScore": 230.19
     },
     {
@@ -7813,12 +7562,12 @@
           24,
           35.5,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198.25,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -7841,10 +7590,8 @@
           21.5,
           0,
           8
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198.25,
       "teamBScore": 146.38
     }
   ],
@@ -7877,9 +7624,9 @@
           18.25,
           27.5,
           29
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 191.5,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -7905,10 +7652,8 @@
           29.5,
           2,
           15.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 191.5,
       "teamBScore": 136.75
     },
     {
@@ -7939,9 +7684,9 @@
           19.44,
           25.5,
           10.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 155.19,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -7967,10 +7712,8 @@
           21,
           9,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 155.19,
       "teamBScore": 126.25
     },
     {
@@ -8001,9 +7744,9 @@
           26.75,
           15,
           23.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 179.19,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -8029,10 +7772,8 @@
           15,
           28.25,
           57.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 179.19,
       "teamBScore": 197.69
     },
     {
@@ -8063,12 +7804,12 @@
           11,
           3,
           37.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 188.5,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -8091,10 +7832,8 @@
           26,
           15.44,
           29.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 188.5,
       "teamBScore": 172.94
     },
     {
@@ -8102,7 +7841,7 @@
       "week": 19,
       "teamA": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -8125,9 +7864,9 @@
           22.75,
           15,
           41.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198.75,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -8153,10 +7892,8 @@
           24.5,
           26.5,
           15.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198.75,
       "teamBScore": 165.5
     },
     {
@@ -8187,9 +7924,9 @@
           24.5,
           33,
           18.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 214.69,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -8215,10 +7952,8 @@
           12,
           16,
           22.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 214.69,
       "teamBScore": 147.19
     },
     {
@@ -8249,12 +7984,12 @@
           23.75,
           0,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 139.44,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -8277,10 +8012,8 @@
           17.25,
           25,
           19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 139.44,
       "teamBScore": 191.19
     }
   ],
@@ -8313,9 +8046,9 @@
           11.5,
           17,
           24.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 165.69,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -8341,10 +8074,8 @@
           11.75,
           22.94,
           22.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 165.69,
       "teamBScore": 213.94
     },
     {
@@ -8375,12 +8106,12 @@
           17,
           25.75,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 168.19,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -8403,10 +8134,8 @@
           32.75,
           26.5,
           35.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 168.19,
       "teamBScore": 225.94
     },
     {
@@ -8437,9 +8166,9 @@
           33,
           5,
           19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 159.25,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -8465,10 +8194,8 @@
           26.5,
           19,
           41.69
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 159.25,
       "teamBScore": 207.94
     },
     {
@@ -8499,9 +8226,9 @@
           24.75,
           27.5,
           22.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 182.5,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -8527,10 +8254,8 @@
           17.5,
           15,
           16
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 182.5,
       "teamBScore": 165.25
     },
     {
@@ -8561,12 +8286,12 @@
           36,
           18.5,
           15
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 146.5,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -8589,10 +8314,8 @@
           10,
           13.5,
           14.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 146.5,
       "teamBScore": 168.75
     },
     {
@@ -8623,12 +8346,12 @@
           11.25,
           21.25,
           20.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 235.75,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -8651,77 +8374,9 @@
           19.25,
           23.19,
           4
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 235.75,
       "teamBScore": 213.69
-    },
-    {
-      "matchup_id": null,
-      "week": 20,
-      "teamA": {
-        "rosterId": "2",
-        "name": "Scat Porn",
-        "ownerName": "smallvt",
-        "starters": [
-          "2040",
-          "1982",
-          "2289",
-          "1752",
-          "1590",
-          "1698",
-          "1787",
-          "1178",
-          "1534"
-        ],
-        "starters_points": [
-          27.75,
-          20,
-          27,
-          27,
-          22.5,
-          21.25,
-          15,
-          15.75,
-          27
-        ],
-        "player_points": null
-      },
-      "teamAScore": 203.25
-    },
-    {
-      "matchup_id": null,
-      "week": 20,
-      "teamA": {
-        "rosterId": "3",
-        "name": "The Fraggle Rock 9",
-        "ownerName": "riguy506",
-        "starters": [
-          "1945",
-          "1941",
-          "2453",
-          "2313",
-          "1799",
-          "1535",
-          "2032",
-          "1739",
-          "1883"
-        ],
-        "starters_points": [
-          32.5,
-          21,
-          29.75,
-          15.5,
-          20.75,
-          24,
-          23.5,
-          32,
-          16
-        ],
-        "player_points": null
-      },
-      "teamAScore": 215
     }
   ],
   "21": [
@@ -8753,9 +8408,9 @@
           31.75,
           34.25,
           4
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 211,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -8781,10 +8436,8 @@
           31.75,
           18,
           15.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 211,
       "teamBScore": 149.13
     },
     {
@@ -8815,12 +8468,12 @@
           29,
           22.75,
           14.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 197.75,
       "teamB": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -8843,10 +8496,8 @@
           21,
           13.75,
           34
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 197.75,
       "teamBScore": 186.44
     },
     {
@@ -8877,9 +8528,9 @@
           0,
           12,
           31.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 177.75,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -8905,10 +8556,8 @@
           23,
           16.75,
           16.94
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 177.75,
       "teamBScore": 180.19
     },
     {
@@ -8939,9 +8588,9 @@
           21.75,
           20.25,
           12.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 165.25,
       "teamB": {
         "rosterId": "7",
         "name": "aaaaaAAAAAHHHHH",
@@ -8967,10 +8616,8 @@
           30.5,
           8,
           22.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 165.25,
       "teamBScore": 181.75
     },
     {
@@ -9001,12 +8648,12 @@
           13,
           12,
           15
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 110,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -9029,10 +8676,8 @@
           31.5,
           14.69,
           18
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 110,
       "teamBScore": 189.38
     },
     {
@@ -9063,9 +8708,9 @@
           39.5,
           20,
           14
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 195.5,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -9091,10 +8736,8 @@
           14,
           26,
           58.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 195.5,
       "teamBScore": 194.5
     },
     {
@@ -9125,12 +8768,12 @@
           16.5,
           31,
           13.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 141.75,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -9153,10 +8796,8 @@
           24,
           10,
           14
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 141.75,
       "teamBScore": 183.5
     }
   ],
@@ -9189,9 +8830,9 @@
           22.69,
           30.94,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 217.82,
       "teamB": {
         "rosterId": "3",
         "name": "The Fraggle Rock 9",
@@ -9217,10 +8858,8 @@
           20.25,
           48.5,
           22.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 217.82,
       "teamBScore": 255.69
     },
     {
@@ -9228,7 +8867,7 @@
       "week": 22,
       "teamA": {
         "rosterId": "12",
-        "name": "zamt's Team",
+        "name": "zamt",
         "ownerName": "zamt",
         "starters": [
           "1970",
@@ -9251,9 +8890,9 @@
           21.25,
           19,
           27.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 152.94,
       "teamB": {
         "rosterId": "14",
         "name": "exposethemlikeprimo",
@@ -9279,10 +8918,8 @@
           28.5,
           27,
           14
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 152.94,
       "teamBScore": 196
     },
     {
@@ -9313,9 +8950,9 @@
           30.25,
           10,
           11
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 136.25,
       "teamB": {
         "rosterId": "6",
         "name": "hangin with the hernandez",
@@ -9341,10 +8978,8 @@
           26.5,
           30,
           20
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 136.25,
       "teamBScore": 161.25
     },
     {
@@ -9375,12 +9010,12 @@
           21,
           5,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 130.5,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "1054",
@@ -9403,10 +9038,8 @@
           18,
           20.75,
           17.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 130.5,
       "teamBScore": 190
     },
     {
@@ -9437,9 +9070,9 @@
           18.5,
           35.5,
           19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 205.5,
       "teamB": {
         "rosterId": "13",
         "name": "Superficial Fibular nerve",
@@ -9465,10 +9098,8 @@
           25,
           15,
           45.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 205.5,
       "teamBScore": 197
     },
     {
@@ -9499,12 +9130,12 @@
           23.25,
           18.5,
           30.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 170.75,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -9527,517 +9158,10 @@
           29.25,
           24.5,
           11.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 170.75,
       "teamBScore": 243
-    },
-    {
-      "matchup_id": null,
-      "week": 22,
-      "teamA": {
-        "rosterId": "1",
-        "name": "The Void",
-        "ownerName": "Kybes",
-        "starters": [
-          "2086",
-          "2133",
-          "1964",
-          "2458",
-          "2029",
-          "1585",
-          "1950",
-          "1697",
-          "2441"
-        ],
-        "starters_points": [
-          20,
-          6,
-          11,
-          19.69,
-          17.25,
-          11.75,
-          0,
-          22,
-          27.75
-        ],
-        "player_points": null
-      },
-      "teamAScore": 135.44
-    },
-    {
-      "matchup_id": null,
-      "week": 22,
-      "teamA": {
-        "rosterId": "8",
-        "name": "Team Lobster",
-        "ownerName": "noahlap01",
-        "starters": [
-          "2161",
-          "1526",
-          "1713",
-          "2146",
-          "1600",
-          "2131",
-          "1082",
-          "1924",
-          "1322"
-        ],
-        "starters_points": [
-          0,
-          22.5,
-          27,
-          30,
-          31.69,
-          4.25,
-          15.25,
-          34.75,
-          15.5
-        ],
-        "player_points": null
-      },
-      "teamAScore": 180.94
     }
   ],
-  "23": [
-    {
-      "matchup_id": 1,
-      "week": 23,
-      "teamA": {
-        "rosterId": "2",
-        "name": "Scat Porn",
-        "ownerName": "smallvt",
-        "starters": [
-          "2040",
-          "2289",
-          "1698",
-          "1752",
-          "1590",
-          "1548",
-          "1178",
-          "1787",
-          "1614"
-        ],
-        "starters_points": [
-          23,
-          24.5,
-          43,
-          36.25,
-          31.5,
-          18,
-          12.69,
-          37.5,
-          18.5
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "3",
-        "name": "The Fraggle Rock 9",
-        "ownerName": "riguy506",
-        "starters": [
-          "1945",
-          "1803",
-          "2453",
-          "2313",
-          "1883",
-          "1535",
-          "2032",
-          "1739",
-          "2285"
-        ],
-        "starters_points": [
-          14.69,
-          19,
-          12.5,
-          42,
-          20,
-          38.69,
-          23,
-          28.75,
-          30
-        ],
-        "player_points": null
-      },
-      "teamAScore": 244.94,
-      "teamBScore": 228.63
-    },
-    {
-      "matchup_id": 2,
-      "week": 23,
-      "teamA": {
-        "rosterId": "12",
-        "name": "zamt's Team",
-        "ownerName": "zamt",
-        "starters": [
-          "1970",
-          "1747",
-          "1632",
-          "1308",
-          "2156",
-          "2261",
-          "2308",
-          "1967",
-          "1272"
-        ],
-        "starters_points": [
-          51.44,
-          29.25,
-          10,
-          17.5,
-          16,
-          2,
-          17.5,
-          22,
-          22.75
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "14",
-        "name": "exposethemlikeprimo",
-        "ownerName": "jewishhorsemen",
-        "starters": [
-          "2439",
-          "2157",
-          "2126",
-          "2091",
-          "1822",
-          "1988",
-          "1718",
-          "1974",
-          "1282"
-        ],
-        "starters_points": [
-          14,
-          28.25,
-          23.5,
-          9,
-          25.25,
-          17.75,
-          26,
-          0,
-          18.5
-        ],
-        "player_points": null
-      },
-      "teamAScore": 188.44,
-      "teamBScore": 162.25
-    },
-    {
-      "matchup_id": 4,
-      "week": 23,
-      "teamA": {
-        "rosterId": "5",
-        "name": "The Codfather",
-        "ownerName": "samsilverman12",
-        "starters": [
-          "1998",
-          "2012",
-          "1872",
-          "2065",
-          "2097",
-          "2435",
-          "1846",
-          "2447",
-          "2050"
-        ],
-        "starters_points": [
-          22,
-          21.75,
-          13,
-          30,
-          0,
-          6,
-          17,
-          11,
-          19
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "6",
-        "name": "hangin with the hernandez",
-        "ownerName": "cholybevv",
-        "starters": [
-          "2007",
-          "2009",
-          "2001",
-          "2445",
-          "1362",
-          "2095",
-          "2259",
-          "1972",
-          "2135"
-        ],
-        "starters_points": [
-          20,
-          10,
-          4.5,
-          15,
-          15.25,
-          12,
-          25.75,
-          9,
-          0.44
-        ],
-        "player_points": null
-      },
-      "teamAScore": 139.75,
-      "teamBScore": 111.94
-    },
-    {
-      "matchup_id": 5,
-      "week": 23,
-      "teamA": {
-        "rosterId": "7",
-        "name": "aaaaaAAAAAHHHHH",
-        "ownerName": "TLupinetti",
-        "starters": [
-          "1957",
-          "1707",
-          "1831",
-          "1604",
-          "1525",
-          "1809",
-          "1486",
-          "1749",
-          "1200"
-        ],
-        "starters_points": [
-          25,
-          23,
-          32.25,
-          11.75,
-          0,
-          14.25,
-          8.38,
-          14.75,
-          13.5
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "11",
-        "name": "WebbWarrior's Team",
-        "ownerName": "WebbWarrior",
-        "starters": [
-          "1054",
-          "1648",
-          "1450",
-          "1433",
-          "1000",
-          "1987",
-          "1595",
-          "1546",
-          "1727"
-        ],
-        "starters_points": [
-          21,
-          21.5,
-          31,
-          0,
-          14,
-          5,
-          17,
-          16.63,
-          28.25
-        ],
-        "player_points": null
-      },
-      "teamAScore": 142.88,
-      "teamBScore": 154.38
-    },
-    {
-      "matchup_id": 6,
-      "week": 23,
-      "teamA": {
-        "rosterId": "9",
-        "name": "Pact Nicely",
-        "ownerName": "WillMichael",
-        "starters": [
-          "1240",
-          "2017",
-          "1717",
-          "1975",
-          "1380",
-          "2286",
-          "2136",
-          "1339",
-          "1887"
-        ],
-        "starters_points": [
-          20.5,
-          13,
-          34.5,
-          36,
-          32.69,
-          12,
-          15.5,
-          20.5,
-          19
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "13",
-        "name": "Superficial Fibular nerve",
-        "ownerName": "JFK4312",
-        "starters": [
-          "1128",
-          "1711",
-          "1910",
-          "2181",
-          "2304",
-          "2120",
-          "1541",
-          "1265",
-          "1658"
-        ],
-        "starters_points": [
-          17.5,
-          36.5,
-          8,
-          22.5,
-          27.5,
-          2,
-          36.5,
-          16,
-          33.25
-        ],
-        "player_points": null
-      },
-      "teamAScore": 203.69,
-      "teamBScore": 199.75
-    },
-    {
-      "matchup_id": 7,
-      "week": 23,
-      "teamA": {
-        "rosterId": "4",
-        "name": "Uncle O’Grimacey’s Cream",
-        "ownerName": "slawflesh",
-        "starters": [
-          "1845",
-          "1830",
-          "1621",
-          "2456",
-          "1512",
-          "1516",
-          "1350",
-          "1772",
-          "1716"
-        ],
-        "starters_points": [
-          22,
-          26.25,
-          23,
-          19.5,
-          0,
-          9,
-          22.5,
-          23,
-          23.5
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "10",
-        "name": "armyjunior's Team",
-        "ownerName": "armyjunior",
-        "starters": [
-          "1444",
-          "2309",
-          "1321",
-          "1074",
-          "1487",
-          "1690",
-          "1319",
-          "1434",
-          "1092"
-        ],
-        "starters_points": [
-          34.69,
-          23.25,
-          26.75,
-          26.5,
-          13,
-          8,
-          29.5,
-          11.5,
-          17
-        ],
-        "player_points": null
-      },
-      "teamAScore": 168.75,
-      "teamBScore": 190.19
-    },
-    {
-      "matchup_id": null,
-      "week": 23,
-      "teamA": {
-        "rosterId": "1",
-        "name": "The Void",
-        "ownerName": "Kybes",
-        "starters": [
-          "2086",
-          "2133",
-          "1964",
-          "2458",
-          "2029",
-          "1585",
-          "1950",
-          "1697",
-          "2441"
-        ],
-        "starters_points": [
-          22,
-          13.25,
-          5,
-          16.5,
-          32.5,
-          16,
-          14.25,
-          17.25,
-          32.25
-        ],
-        "player_points": null
-      },
-      "teamAScore": 169
-    },
-    {
-      "matchup_id": null,
-      "week": 23,
-      "teamA": {
-        "rosterId": "8",
-        "name": "Team Lobster",
-        "ownerName": "noahlap01",
-        "starters": [
-          "2161",
-          "1526",
-          "1713",
-          "2146",
-          "1600",
-          "2131",
-          "1082",
-          "1924",
-          "1322"
-        ],
-        "starters_points": [
-          29,
-          21,
-          15.5,
-          13,
-          11,
-          7.5,
-          15.25,
-          28.69,
-          9
-        ],
-        "player_points": null
-      },
-      "teamAScore": 149.94
-    }
-  ]
+  "playoff_week_start": 20
 }

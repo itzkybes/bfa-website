@@ -1,5 +1,4 @@
 {
-  "playoff_week_start": 21,
   "1": [
     {
       "matchup_id": 1,
@@ -29,9 +28,9 @@
           11.5,
           25.75,
           13.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 179.25,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -57,10 +56,8 @@
           4,
           19.25,
           18.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 179.25,
       "teamBScore": 174.25
     },
     {
@@ -91,9 +88,9 @@
           16.94,
           15.75,
           18.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 176.94,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -119,10 +116,8 @@
           43.5,
           14.75,
           15.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 176.94,
       "teamBScore": 209.5
     },
     {
@@ -153,9 +148,9 @@
           25.5,
           39.75,
           19.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 245.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -181,10 +176,8 @@
           24.75,
           19.75,
           27.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 245.25,
       "teamBScore": 247.69
     },
     {
@@ -215,9 +208,9 @@
           27.25,
           28.25,
           10.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 225,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -243,10 +236,8 @@
           32.75,
           4.75,
           13.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 225,
       "teamBScore": 210.5
     },
     {
@@ -277,12 +268,12 @@
           26,
           33,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 227,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -305,10 +296,8 @@
           5.25,
           16,
           36.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 227,
       "teamBScore": 196
     },
     {
@@ -339,12 +328,12 @@
           28,
           6.75,
           13.19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 195.69,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -367,10 +356,8 @@
           18,
           28.5,
           20.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 195.69,
       "teamBScore": 168.25
     },
     {
@@ -401,9 +388,9 @@
           14.75,
           15.5,
           16.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 187.25,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -429,10 +416,8 @@
           8,
           18,
           8.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 187.25,
       "teamBScore": 177
     }
   ],
@@ -465,9 +450,9 @@
           11.25,
           15.25,
           8.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 179.75,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -493,10 +478,8 @@
           48.25,
           9.75,
           20.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 179.75,
       "teamBScore": 180.75
     },
     {
@@ -527,9 +510,9 @@
           37.25,
           20.5,
           20.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 197.25,
       "teamB": {
         "rosterId": "2",
         "name": "DAMN!!!!!!!!!!!!!!!!!",
@@ -555,10 +538,8 @@
           43,
           6.25,
           11
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 197.25,
       "teamBScore": 218.13
     },
     {
@@ -589,9 +570,9 @@
           17.5,
           11.5,
           33.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 252,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -617,10 +598,8 @@
           17.25,
           12,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 252,
       "teamBScore": 171
     },
     {
@@ -651,9 +630,9 @@
           27.5,
           9.25,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 213.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -679,10 +658,8 @@
           17.5,
           15.75,
           35.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 213.25,
       "teamBScore": 253.5
     },
     {
@@ -713,12 +690,12 @@
           22.25,
           15,
           25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 174.5,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -741,10 +718,8 @@
           11.94,
           19.25,
           10.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 174.5,
       "teamBScore": 167.94
     },
     {
@@ -775,12 +750,12 @@
           18,
           16.25,
           30.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 271,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -803,10 +778,8 @@
           16.5,
           23.5,
           20.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 271,
       "teamBScore": 181.5
     },
     {
@@ -837,9 +810,9 @@
           18.75,
           15,
           17.19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 210.44,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -865,10 +838,8 @@
           9.25,
           15.25,
           29
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 210.44,
       "teamBScore": 216.94
     }
   ],
@@ -901,9 +872,9 @@
           24,
           30.5,
           25.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 250,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -929,10 +900,8 @@
           21.5,
           6.75,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 250,
       "teamBScore": 153.5
     },
     {
@@ -963,9 +932,9 @@
           18.25,
           27,
           8
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 186.94,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -991,10 +960,8 @@
           49.25,
           15.25,
           7.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 186.94,
       "teamBScore": 206
     },
     {
@@ -1025,9 +992,9 @@
           11.5,
           21.25,
           3.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 128.19,
       "teamB": {
         "rosterId": "4",
         "name": "The Mog Squad",
@@ -1053,10 +1020,8 @@
           41.5,
           17.5,
           28.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 128.19,
       "teamBScore": 220.44
     },
     {
@@ -1087,12 +1052,12 @@
           12.5,
           9.19,
           21.69
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 140.38,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "1444",
@@ -1115,10 +1080,8 @@
           7.25,
           17.25,
           20.94
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 140.38,
       "teamBScore": 185.19
     },
     {
@@ -1149,9 +1112,9 @@
           35.75,
           19,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 199.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -1177,10 +1140,8 @@
           10,
           10.25,
           33.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 199.25,
       "teamBScore": 171.75
     },
     {
@@ -1211,9 +1172,9 @@
           28.75,
           9.5,
           13
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 203,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -1239,10 +1200,8 @@
           14.5,
           16.25,
           12.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 203,
       "teamBScore": 185.25
     },
     {
@@ -1273,12 +1232,12 @@
           25,
           4,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 203.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -1301,10 +1260,8 @@
           25.75,
           18.75,
           8.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 203.19,
       "teamBScore": 176
     }
   ],
@@ -1337,9 +1294,9 @@
           8.75,
           28.5,
           20.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 188,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -1365,10 +1322,8 @@
           20.75,
           20.25,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 188,
       "teamBScore": 203.25
     },
     {
@@ -1399,9 +1354,9 @@
           14,
           25.5,
           31.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 211.25,
       "teamB": {
         "rosterId": "4",
         "name": "The Mog Squad",
@@ -1427,10 +1382,8 @@
           11.25,
           16.25,
           30.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 211.25,
       "teamBScore": 224.25
     },
     {
@@ -1438,7 +1391,7 @@
       "week": 4,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -1461,9 +1414,9 @@
           14.75,
           38.5,
           29.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 206.19,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -1489,10 +1442,8 @@
           0,
           10.25,
           9.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 206.19,
       "teamBScore": 134
     },
     {
@@ -1523,9 +1474,9 @@
           16.75,
           21,
           12.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 149,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -1551,10 +1502,8 @@
           30.75,
           21.75,
           25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 149,
       "teamBScore": 211.5
     },
     {
@@ -1585,9 +1534,9 @@
           29.5,
           13,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 170.5,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -1613,10 +1562,8 @@
           15.5,
           10,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 170.5,
       "teamBScore": 214.5
     },
     {
@@ -1647,9 +1594,9 @@
           14.75,
           34.75,
           20.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 266.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -1675,10 +1622,8 @@
           10.75,
           18.75,
           44.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 266.25,
       "teamBScore": 204.5
     },
     {
@@ -1709,12 +1654,12 @@
           14.5,
           20.75,
           28.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 204.75,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -1737,10 +1682,8 @@
           8,
           19.25,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 204.75,
       "teamBScore": 176.75
     }
   ],
@@ -1773,9 +1716,9 @@
           43.5,
           25.5,
           11.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 219.75,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -1801,10 +1744,8 @@
           16,
           7,
           8
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 219.75,
       "teamBScore": 156
     },
     {
@@ -1835,12 +1776,12 @@
           15.5,
           14,
           26.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 175.94,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -1863,10 +1804,8 @@
           36.25,
           22,
           32.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 175.94,
       "teamBScore": 206.5
     },
     {
@@ -1897,9 +1836,9 @@
           35,
           19.5,
           30.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 226.44,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -1925,10 +1864,8 @@
           21.5,
           27.69,
           27.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 226.44,
       "teamBScore": 227.63
     },
     {
@@ -1959,9 +1896,9 @@
           11.75,
           0,
           19.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 176.44,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -1987,10 +1924,8 @@
           51.25,
           30.5,
           22.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 176.44,
       "teamBScore": 228.25
     },
     {
@@ -2021,9 +1956,9 @@
           26.25,
           8,
           22
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 172.5,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -2049,10 +1984,8 @@
           4.75,
           16,
           12
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 172.5,
       "teamBScore": 163.25
     },
     {
@@ -2083,12 +2016,12 @@
           23.5,
           16.5,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 145,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -2111,10 +2044,8 @@
           18.75,
           24.75,
           31.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 145,
       "teamBScore": 248.25
     },
     {
@@ -2145,9 +2076,9 @@
           26,
           7.75,
           29.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 221.75,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -2173,10 +2104,8 @@
           39,
           15,
           7.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 221.75,
       "teamBScore": 204.44
     }
   ],
@@ -2209,12 +2138,12 @@
           15.5,
           21.75,
           1.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 216,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -2237,10 +2166,8 @@
           26.5,
           18,
           25.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 216,
       "teamBScore": 219.69
     },
     {
@@ -2271,9 +2198,9 @@
           29.5,
           20.5,
           20
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 228.19,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -2299,10 +2226,8 @@
           28.5,
           7.94,
           46
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 228.19,
       "teamBScore": 205.94
     },
     {
@@ -2333,9 +2258,9 @@
           29,
           32,
           32.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 240,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -2361,10 +2286,8 @@
           13.25,
           15.75,
           25.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 240,
       "teamBScore": 202
     },
     {
@@ -2395,9 +2318,9 @@
           7.25,
           24.75,
           32.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 189.44,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -2423,10 +2346,8 @@
           26.75,
           18.5,
           31
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 189.44,
       "teamBScore": 219.44
     },
     {
@@ -2434,7 +2355,7 @@
       "week": 6,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -2457,9 +2378,9 @@
           10.5,
           13.25,
           13.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164.5,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -2485,10 +2406,8 @@
           41.75,
           18.75,
           20.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164.5,
       "teamBScore": 179.5
     },
     {
@@ -2519,9 +2438,9 @@
           18.75,
           7.5,
           12.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -2547,10 +2466,8 @@
           24.75,
           22.25,
           30.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164,
       "teamBScore": 221.5
     },
     {
@@ -2581,9 +2498,9 @@
           13.5,
           19.75,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 119.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -2609,10 +2526,8 @@
           19,
           26.75,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 119.25,
       "teamBScore": 227.75
     }
   ],
@@ -2645,9 +2560,9 @@
           30,
           30,
           27.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 239.5,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -2673,10 +2588,8 @@
           18.75,
           16.75,
           7
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 239.5,
       "teamBScore": 177
     },
     {
@@ -2684,7 +2597,7 @@
       "week": 7,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -2707,9 +2620,9 @@
           16.75,
           33.25,
           5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 191.88,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -2735,10 +2648,8 @@
           13.25,
           23.25,
           23.69
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 191.88,
       "teamBScore": 242.44
     },
     {
@@ -2769,9 +2680,9 @@
           29.5,
           23.25,
           17.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 223.25,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -2797,10 +2708,8 @@
           13.94,
           18.25,
           19.19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 223.25,
       "teamBScore": 207.38
     },
     {
@@ -2831,12 +2740,12 @@
           17.25,
           1.5,
           28.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 180.44,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2453",
@@ -2859,10 +2768,8 @@
           37.5,
           12.75,
           19.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 180.44,
       "teamBScore": 215.19
     },
     {
@@ -2893,9 +2800,9 @@
           12,
           15.25,
           19.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 150.25,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -2921,10 +2828,8 @@
           21.5,
           30.69,
           18.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 150.25,
       "teamBScore": 217.94
     },
     {
@@ -2955,9 +2860,9 @@
           50.25,
           29.25,
           20.44
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 214.69,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -2983,10 +2888,8 @@
           29,
           15,
           11
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 214.69,
       "teamBScore": 199.5
     },
     {
@@ -3017,9 +2920,9 @@
           32.25,
           25,
           28.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 118.75,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -3045,10 +2948,8 @@
           14.5,
           27.5,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 118.75,
       "teamBScore": 168
     }
   ],
@@ -3081,9 +2982,9 @@
           8.5,
           5,
           18.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 147.5,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -3109,10 +3010,8 @@
           31.25,
           14,
           13.94
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 147.5,
       "teamBScore": 266.88
     },
     {
@@ -3143,9 +3042,9 @@
           37,
           13.25,
           21
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 206.25,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -3171,10 +3070,8 @@
           15.25,
           20.5,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 206.25,
       "teamBScore": 198.5
     },
     {
@@ -3182,7 +3079,7 @@
       "week": 8,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -3205,12 +3102,12 @@
           19.5,
           23.75,
           17.69
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 184.13,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2453",
@@ -3233,10 +3130,8 @@
           19.75,
           30.25,
           14.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 184.13,
       "teamBScore": 178.5
     },
     {
@@ -3267,9 +3162,9 @@
           28.5,
           8.5,
           8.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 196.5,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -3295,10 +3190,8 @@
           24.75,
           17,
           20
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 196.5,
       "teamBScore": 234
     },
     {
@@ -3329,9 +3222,9 @@
           22.75,
           25.25,
           27.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 225.44,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -3357,10 +3250,8 @@
           29.5,
           16,
           16.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 225.44,
       "teamBScore": 208.5
     },
     {
@@ -3391,9 +3282,9 @@
           30.5,
           31.25,
           18.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 184.13,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -3419,10 +3310,8 @@
           21.25,
           22,
           25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 184.13,
       "teamBScore": 186.75
     },
     {
@@ -3453,9 +3342,9 @@
           8,
           12.75,
           12.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 153.75,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -3481,10 +3370,8 @@
           17.5,
           23,
           27.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 153.75,
       "teamBScore": 158.5
     }
   ],
@@ -3517,9 +3404,9 @@
           19.25,
           19.5,
           16.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 207.5,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -3545,10 +3432,8 @@
           23.5,
           27.5,
           8
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 207.5,
       "teamBScore": 168.25
     },
     {
@@ -3556,7 +3441,7 @@
       "week": 9,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -3579,9 +3464,9 @@
           18.75,
           23.5,
           21.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 238.5,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -3607,10 +3492,8 @@
           10.25,
           20.75,
           17.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 238.5,
       "teamBScore": 199
     },
     {
@@ -3641,9 +3524,9 @@
           21.25,
           15.25,
           19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 192.25,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -3669,10 +3552,8 @@
           42.25,
           39.75,
           12.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 192.25,
       "teamBScore": 210.5
     },
     {
@@ -3680,7 +3561,7 @@
       "week": 9,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -3703,9 +3584,9 @@
           28.44,
           19,
           25.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 246.88,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -3731,10 +3612,8 @@
           12.75,
           37,
           0.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 246.88,
       "teamBScore": 188.94
     },
     {
@@ -3765,9 +3644,9 @@
           30,
           10.5,
           27.44
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 205.19,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -3793,10 +3672,8 @@
           -3,
           49,
           15.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 205.19,
       "teamBScore": 191.5
     },
     {
@@ -3827,9 +3704,9 @@
           11.75,
           13.75,
           25.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 180.13,
       "teamB": {
         "rosterId": "3",
         "name": "The Fraggle Rock 9",
@@ -3855,10 +3732,8 @@
           21,
           17.75,
           35.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 180.13,
       "teamBScore": 207.19
     },
     {
@@ -3889,9 +3764,9 @@
           21.5,
           24.25,
           13.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 237.88,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -3917,10 +3792,8 @@
           34.25,
           14.5,
           34.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 237.88,
       "teamBScore": 182.44
     }
   ],
@@ -3953,12 +3826,12 @@
           20.75,
           17.25,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 159,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -3981,10 +3854,8 @@
           26.75,
           21.5,
           14.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 159,
       "teamBScore": 209
     },
     {
@@ -4015,9 +3886,9 @@
           8.5,
           8.25,
           15.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 221.75,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -4043,10 +3914,8 @@
           20.5,
           10.75,
           27.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 221.75,
       "teamBScore": 176.25
     },
     {
@@ -4077,9 +3946,9 @@
           10.5,
           15.94,
           29.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 250.44,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -4105,10 +3974,8 @@
           19.5,
           37.5,
           18
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 250.44,
       "teamBScore": 245.94
     },
     {
@@ -4139,9 +4006,9 @@
           28.75,
           12.5,
           37
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 217,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -4167,10 +4034,8 @@
           0,
           26,
           23.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 217,
       "teamBScore": 156
     },
     {
@@ -4201,12 +4066,12 @@
           30.25,
           20.69,
           17
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 225.63,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -4229,10 +4094,8 @@
           25.75,
           30,
           19
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 225.63,
       "teamBScore": 236.94
     },
     {
@@ -4263,9 +4126,9 @@
           6.69,
           23.69,
           26.94
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 196.51,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -4291,10 +4154,8 @@
           28.5,
           12.75,
           43.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 196.51,
       "teamBScore": 217
     },
     {
@@ -4325,9 +4186,9 @@
           36,
           22.94,
           19.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 210.94,
       "teamB": {
         "rosterId": "3",
         "name": "The Fraggle Rock 9",
@@ -4353,10 +4214,8 @@
           22.5,
           48.25,
           25.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 210.94,
       "teamBScore": 260
     }
   ],
@@ -4389,9 +4248,9 @@
           21.5,
           28.75,
           33
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 239.38,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -4417,10 +4276,8 @@
           9.5,
           0,
           0.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 239.38,
       "teamBScore": 103.5
     },
     {
@@ -4428,7 +4285,7 @@
       "week": 11,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -4451,9 +4308,9 @@
           30.5,
           4,
           25.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 205.69,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -4479,10 +4336,8 @@
           23.25,
           23.75,
           16
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 205.69,
       "teamBScore": 184.19
     },
     {
@@ -4513,9 +4368,9 @@
           13.25,
           26,
           27.69
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 250.63,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -4541,10 +4396,8 @@
           0,
           15.75,
           6.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 250.63,
       "teamBScore": 111.25
     },
     {
@@ -4575,9 +4428,9 @@
           25,
           20.75,
           20.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 203,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -4603,10 +4456,8 @@
           15.5,
           4.75,
           9
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 203,
       "teamBScore": 182
     },
     {
@@ -4637,9 +4488,9 @@
           35,
           0,
           11.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 152.5,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -4665,10 +4516,8 @@
           70.75,
           9.75,
           36.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 152.5,
       "teamBScore": 218.75
     },
     {
@@ -4699,12 +4548,12 @@
           16.5,
           12.75,
           19.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 171.25,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -4727,10 +4576,8 @@
           24.25,
           25.94,
           28.94
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 171.25,
       "teamBScore": 211.88
     },
     {
@@ -4761,9 +4608,9 @@
           26.5,
           10.5,
           25.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 239.69,
       "teamB": {
         "rosterId": "4",
         "name": "The Mog Squad",
@@ -4789,10 +4636,8 @@
           9.75,
           26.75,
           29.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 239.69,
       "teamBScore": 201.44
     }
   ],
@@ -4825,9 +4670,9 @@
           22,
           0,
           10
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 109,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -4853,10 +4698,8 @@
           18,
           26.25,
           16.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 109,
       "teamBScore": 193.25
     },
     {
@@ -4887,9 +4730,9 @@
           23.75,
           29.75,
           39.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 211.69,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -4915,10 +4758,8 @@
           0,
           5.75,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 211.69,
       "teamBScore": 90.75
     },
     {
@@ -4949,12 +4790,12 @@
           22.25,
           20.94,
           22.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 193.94,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -4977,10 +4818,8 @@
           33.25,
           14.75,
           32
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 193.94,
       "teamBScore": 230.25
     },
     {
@@ -5011,9 +4850,9 @@
           36,
           14.25,
           24.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 206,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -5039,10 +4878,8 @@
           63.75,
           21.75,
           16
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 206,
       "teamBScore": 196.5
     },
     {
@@ -5073,9 +4910,9 @@
           18.75,
           20.5,
           22.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 176.44,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -5101,10 +4938,8 @@
           11,
           12.5,
           28.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 176.44,
       "teamBScore": 210.25
     },
     {
@@ -5135,9 +4970,9 @@
           21.25,
           9.25,
           36.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 239.5,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -5163,10 +4998,8 @@
           27.75,
           32.75,
           33
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 239.5,
       "teamBScore": 219
     },
     {
@@ -5197,12 +5030,12 @@
           31,
           9.5,
           39
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 208.5,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -5225,10 +5058,8 @@
           29.75,
           16.75,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 208.5,
       "teamBScore": 212.69
     }
   ],
@@ -5261,9 +5092,9 @@
           0,
           2.25,
           7.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 82,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -5289,10 +5120,8 @@
           0,
           0,
           10.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 82,
       "teamBScore": 119
     },
     {
@@ -5323,9 +5152,9 @@
           30.25,
           19.5,
           28.94
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 232.69,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -5351,10 +5180,8 @@
           25,
           30.25,
           32.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 232.69,
       "teamBScore": 211.63
     },
     {
@@ -5385,9 +5212,9 @@
           36.5,
           23.25,
           40.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 267.25,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -5413,10 +5240,8 @@
           39.5,
           22,
           23.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 267.25,
       "teamBScore": 202
     },
     {
@@ -5447,12 +5272,12 @@
           12.75,
           25.25,
           18.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198.25,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -5475,10 +5300,8 @@
           17.5,
           41.5,
           20.69
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198.25,
       "teamBScore": 246.69
     },
     {
@@ -5509,9 +5332,9 @@
           19,
           18.25,
           39.44
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 243.94,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -5537,10 +5360,8 @@
           4.5,
           17,
           33
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 243.94,
       "teamBScore": 213.5
     },
     {
@@ -5571,9 +5392,9 @@
           17,
           27.25,
           34
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 195.75,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -5599,10 +5420,8 @@
           10.75,
           22.75,
           22.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 195.75,
       "teamBScore": 200.5
     },
     {
@@ -5633,12 +5452,12 @@
           26.25,
           22,
           31.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 196.63,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -5661,10 +5480,8 @@
           25.75,
           16.25,
           33
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 196.63,
       "teamBScore": 237.75
     }
   ],
@@ -5697,9 +5514,9 @@
           33.75,
           7.44,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 188.38,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -5725,10 +5542,8 @@
           15.75,
           23.5,
           14
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 188.38,
       "teamBScore": 140.75
     },
     {
@@ -5759,9 +5574,9 @@
           30.75,
           25.5,
           11.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 186.75,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -5787,10 +5602,8 @@
           75,
           5.5,
           16
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 186.75,
       "teamBScore": 241
     },
     {
@@ -5821,9 +5634,9 @@
           21.75,
           20,
           17.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 241.94,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -5849,10 +5662,8 @@
           28,
           34.5,
           29.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 241.94,
       "teamBScore": 194
     },
     {
@@ -5883,9 +5694,9 @@
           11.25,
           13.94,
           25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 211.44,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -5911,10 +5722,8 @@
           21,
           16,
           46.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 211.44,
       "teamBScore": 253.75
     },
     {
@@ -5945,12 +5754,12 @@
           20.5,
           26.75,
           20.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 195.5,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -5973,10 +5782,8 @@
           33,
           36,
           20.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 195.5,
       "teamBScore": 237.25
     },
     {
@@ -6007,12 +5814,12 @@
           11.25,
           13.5,
           24.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 220,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -6035,10 +5842,8 @@
           28.25,
           20,
           22
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 220,
       "teamBScore": 203.25
     },
     {
@@ -6069,9 +5874,9 @@
           18.25,
           28.75,
           31.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 214.5,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -6097,10 +5902,8 @@
           13.5,
           18,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 214.5,
       "teamBScore": 209
     }
   ],
@@ -6133,9 +5936,9 @@
           27.25,
           14.75,
           13.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 139,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -6161,10 +5964,8 @@
           53.5,
           16.5,
           39
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 139,
       "teamBScore": 232
     },
     {
@@ -6195,9 +5996,9 @@
           27.5,
           7.5,
           16.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 231.25,
       "teamB": {
         "rosterId": "2",
         "name": "DAMN!!!!!!!!!!!!!!!!!",
@@ -6223,10 +6024,8 @@
           18.25,
           12.25,
           10.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 231.25,
       "teamBScore": 199.25
     },
     {
@@ -6257,9 +6056,9 @@
           27.25,
           34.75,
           23.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 217.19,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -6285,10 +6084,8 @@
           3.75,
           24.75,
           19.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 217.19,
       "teamBScore": 167
     },
     {
@@ -6319,9 +6116,9 @@
           0,
           16.5,
           8.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 47.5,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -6347,10 +6144,8 @@
           28.25,
           22.75,
           27.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 47.5,
       "teamBScore": 174
     },
     {
@@ -6381,12 +6176,12 @@
           25.5,
           24.44,
           31.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 221.94,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -6409,10 +6204,8 @@
           7.25,
           7,
           27
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 221.94,
       "teamBScore": 158.94
     },
     {
@@ -6443,12 +6236,12 @@
           29.75,
           23.75,
           30.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 198.75,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -6471,10 +6264,8 @@
           37.5,
           33,
           21.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 198.75,
       "teamBScore": 246.69
     },
     {
@@ -6505,9 +6296,9 @@
           33.25,
           16.25,
           27.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 275.19,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -6533,10 +6324,8 @@
           25,
           9.25,
           23.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 275.19,
       "teamBScore": 132.25
     }
   ],
@@ -6569,9 +6358,9 @@
           27.25,
           38.25,
           15.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 240.69,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -6597,10 +6386,8 @@
           20,
           23.25,
           13
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 240.69,
       "teamBScore": 130.5
     },
     {
@@ -6631,9 +6418,9 @@
           14.75,
           27,
           35.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 248.5,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -6659,10 +6446,8 @@
           51.25,
           22,
           43.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 248.5,
       "teamBScore": 287.5
     },
     {
@@ -6693,9 +6478,9 @@
           27.5,
           25,
           15.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 195.5,
       "teamB": {
         "rosterId": "4",
         "name": "The Mog Squad",
@@ -6721,10 +6506,8 @@
           1.75,
           17.94,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 195.5,
       "teamBScore": 133.19
     },
     {
@@ -6755,12 +6538,12 @@
           29.75,
           20.75,
           14.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 181.69,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -6783,10 +6566,8 @@
           9.25,
           36,
           29
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 181.69,
       "teamBScore": 217.19
     },
     {
@@ -6817,9 +6598,9 @@
           24.5,
           27.5,
           15.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 196.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -6845,10 +6626,8 @@
           8.75,
           44.75,
           17.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 196.25,
       "teamBScore": 237.5
     },
     {
@@ -6879,9 +6658,9 @@
           26.5,
           28.75,
           23
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 187.25,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -6907,10 +6686,8 @@
           0,
           24.5,
           9.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 187.25,
       "teamBScore": 168.75
     },
     {
@@ -6941,12 +6718,12 @@
           22.5,
           11,
           28.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 252.69,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -6969,10 +6746,8 @@
           35.5,
           28.5,
           15.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 252.69,
       "teamBScore": 209.5
     }
   ],
@@ -7005,9 +6780,9 @@
           17.75,
           37,
           39.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 240.5,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -7033,10 +6808,8 @@
           16.5,
           29.25,
           0
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 240.5,
       "teamBScore": 124.5
     },
     {
@@ -7067,9 +6840,9 @@
           27.75,
           30.75,
           13.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 228.5,
       "teamB": {
         "rosterId": "4",
         "name": "The Mog Squad",
@@ -7095,10 +6868,8 @@
           -0.25,
           20.75,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 228.5,
       "teamBScore": 125.44
     },
     {
@@ -7106,7 +6877,7 @@
       "week": 17,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -7129,9 +6900,9 @@
           16.25,
           34,
           17.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 203,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -7157,10 +6928,8 @@
           45.25,
           21.75,
           31.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 203,
       "teamBScore": 246.25
     },
     {
@@ -7191,9 +6960,9 @@
           23.75,
           19.25,
           10.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 164.75,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -7219,10 +6988,8 @@
           30.75,
           15.75,
           6.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 164.75,
       "teamBScore": 183.5
     },
     {
@@ -7253,9 +7020,9 @@
           7.25,
           39.25,
           37.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 193.94,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -7281,10 +7048,8 @@
           0,
           27.25,
           21.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 193.94,
       "teamBScore": 177.5
     },
     {
@@ -7315,9 +7080,9 @@
           20.5,
           20.25,
           21.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 224.75,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -7343,10 +7108,8 @@
           5.25,
           13.25,
           24.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 224.75,
       "teamBScore": 166.25
     },
     {
@@ -7377,12 +7140,12 @@
           22.5,
           4.75,
           43
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 211,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -7405,10 +7168,8 @@
           0,
           12,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 211,
       "teamBScore": 159.44
     }
   ],
@@ -7441,9 +7202,9 @@
           2.5,
           5.75,
           20.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 85,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -7469,10 +7230,8 @@
           26.5,
           31.75,
           2.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 85,
       "teamBScore": 122.5
     },
     {
@@ -7503,12 +7262,12 @@
           28.25,
           27,
           35.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 288.25,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -7531,10 +7290,8 @@
           22.25,
           18.75,
           16.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 288.25,
       "teamBScore": 209.44
     },
     {
@@ -7565,9 +7322,9 @@
           19.5,
           16.5,
           19.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 228.94,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -7593,10 +7350,8 @@
           41.75,
           24.75,
           20
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 228.94,
       "teamBScore": 208
     },
     {
@@ -7627,9 +7382,9 @@
           21.5,
           26.44,
           29.19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 214.32,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -7655,10 +7410,8 @@
           31.25,
           18.25,
           20.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 214.32,
       "teamBScore": 221.25
     },
     {
@@ -7689,9 +7442,9 @@
           37,
           12.25,
           18
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 215.5,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -7717,10 +7470,8 @@
           14.25,
           4.25,
           10
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 215.5,
       "teamBScore": 190.75
     },
     {
@@ -7751,12 +7502,12 @@
           13.25,
           12.75,
           16.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 184.75,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -7779,10 +7530,8 @@
           13.25,
           11.5,
           16.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 184.75,
       "teamBScore": 158.75
     },
     {
@@ -7813,9 +7562,9 @@
           13.5,
           24.75,
           25.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 185.5,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -7841,10 +7590,8 @@
           31.94,
           0,
           16.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 185.5,
       "teamBScore": 210.94
     }
   ],
@@ -7877,12 +7624,12 @@
           0,
           10.75,
           10.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 133.5,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -7905,10 +7652,8 @@
           29.5,
           13.75,
           25.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 133.5,
       "teamBScore": 218
     },
     {
@@ -7939,9 +7684,9 @@
           0,
           6.5,
           14.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 134.19,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -7967,10 +7712,8 @@
           18.75,
           32.75,
           11.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 134.19,
       "teamBScore": 157.75
     },
     {
@@ -8001,9 +7744,9 @@
           15,
           30.25,
           37.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 233,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -8029,10 +7772,8 @@
           26.5,
           23.69,
           24.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 233,
       "teamBScore": 243.13
     },
     {
@@ -8063,9 +7804,9 @@
           15,
           20,
           30
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 215.5,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -8091,10 +7832,8 @@
           21.75,
           12.75,
           20.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 215.5,
       "teamBScore": 191.94
     },
     {
@@ -8102,7 +7841,7 @@
       "week": 19,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -8125,9 +7864,9 @@
           35,
           16.5,
           15.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 166.94,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -8153,10 +7892,8 @@
           40.75,
           24,
           24.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 166.94,
       "teamBScore": 218
     },
     {
@@ -8187,9 +7924,9 @@
           34.5,
           20.25,
           16.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 232,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -8215,10 +7952,8 @@
           18,
           17.25,
           22.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 232,
       "teamBScore": 205.75
     },
     {
@@ -8249,9 +7984,9 @@
           21.25,
           22.75,
           8.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 192.38,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -8277,10 +8012,8 @@
           14,
           24,
           21.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 192.38,
       "teamBScore": 196
     }
   ],
@@ -8313,9 +8046,9 @@
           33.25,
           26.25,
           24.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 233.5,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -8341,10 +8074,8 @@
           0,
           0,
           5.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 233.5,
       "teamBScore": 88
     },
     {
@@ -8352,7 +8083,7 @@
       "week": 20,
       "teamA": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -8375,9 +8106,9 @@
           19.25,
           26.75,
           51.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 215.75,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -8403,10 +8134,8 @@
           16.75,
           33.5,
           15.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 215.75,
       "teamBScore": 223.94
     },
     {
@@ -8437,9 +8166,9 @@
           2.5,
           17.25,
           5.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 101.75,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -8465,10 +8194,8 @@
           32,
           26,
           42.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 101.75,
       "teamBScore": 296
     },
     {
@@ -8499,12 +8226,12 @@
           15.75,
           17.75,
           13
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 218.19,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -8527,10 +8254,8 @@
           16.25,
           31.5,
           13.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 218.19,
       "teamBScore": 207.25
     },
     {
@@ -8561,9 +8286,9 @@
           40.75,
           30,
           26.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 233.69,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -8589,10 +8314,8 @@
           30.5,
           19.25,
           30.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 233.69,
       "teamBScore": 199.44
     },
     {
@@ -8623,9 +8346,9 @@
           0,
           14.5,
           0
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 20.5,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -8651,10 +8374,8 @@
           23.75,
           15.5,
           33
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 20.5,
       "teamBScore": 201
     },
     {
@@ -8685,9 +8406,9 @@
           29.75,
           10.5,
           35.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 224.25,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -8713,10 +8434,8 @@
           21.25,
           23,
           4.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 224.25,
       "teamBScore": 157.75
     }
   ],
@@ -8749,9 +8468,9 @@
           18.75,
           33,
           22.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 243.94,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -8777,10 +8496,8 @@
           13.75,
           4.5,
           31.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 243.94,
       "teamBScore": 178.75
     },
     {
@@ -8811,9 +8528,9 @@
           26,
           23.25,
           19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 218,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -8839,10 +8556,8 @@
           31.25,
           15,
           11
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 218,
       "teamBScore": 227.44
     },
     {
@@ -8873,12 +8588,12 @@
           33.25,
           38,
           16.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 257.94,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -8901,10 +8616,8 @@
           20,
           23.5,
           28.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 257.94,
       "teamBScore": 234
     },
     {
@@ -8935,9 +8648,9 @@
           40.25,
           19.75,
           21.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 244.25,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -8963,10 +8676,8 @@
           54.75,
           12.5,
           36.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 244.25,
       "teamBScore": 239.25
     },
     {
@@ -8974,7 +8685,7 @@
       "week": 21,
       "teamA": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -8997,9 +8708,9 @@
           38.5,
           42.5,
           13
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 209.75,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -9025,10 +8736,8 @@
           22.19,
           25.94,
           13.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 209.75,
       "teamBScore": 177.57
     },
     {
@@ -9059,9 +8768,9 @@
           26.75,
           24.5,
           12
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 185.94,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -9087,77 +8796,9 @@
           23.5,
           22.25,
           6.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 185.94,
       "teamBScore": 182.5
-    },
-    {
-      "matchup_id": null,
-      "week": 21,
-      "teamA": {
-        "rosterId": "8",
-        "name": "Team Lobster",
-        "ownerName": "noahlap01",
-        "starters": [
-          "2161",
-          "1749",
-          "1081",
-          "2737",
-          "1924",
-          "2146",
-          "2718",
-          "1526",
-          "2119"
-        ],
-        "starters_points": [
-          50.75,
-          10.25,
-          19,
-          10,
-          26.5,
-          26,
-          17.25,
-          17.25,
-          12.25
-        ],
-        "player_points": null
-      },
-      "teamAScore": 189.25
-    },
-    {
-      "matchup_id": null,
-      "week": 21,
-      "teamA": {
-        "rosterId": "9",
-        "name": "Pact Nicely",
-        "ownerName": "WillMichael",
-        "starters": [
-          "1717",
-          "1975",
-          "2620",
-          "2281",
-          "1257",
-          "2736",
-          "1752",
-          "2564",
-          "2836"
-        ],
-        "starters_points": [
-          27,
-          16.75,
-          8.75,
-          0,
-          20.5,
-          0,
-          11,
-          0,
-          6.5
-        ],
-        "player_points": null
-      },
-      "teamAScore": 90.5
     }
   ],
   "22": [
@@ -9189,9 +8830,9 @@
           15,
           16.25,
           19.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 201.44,
       "teamB": {
         "rosterId": "3",
         "name": "The Fraggle Rock 9",
@@ -9217,10 +8858,8 @@
           16.25,
           58,
           26.5
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 201.44,
       "teamBScore": 277.25
     },
     {
@@ -9251,9 +8890,9 @@
           21.25,
           22.25,
           23
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 205,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -9279,10 +8918,8 @@
           23.75,
           23.25,
           28
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 205,
       "teamBScore": 201.5
     },
     {
@@ -9313,12 +8950,12 @@
           24.5,
           41.75,
           19
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 209.94,
       "teamB": {
         "rosterId": "10",
-        "name": "armyjunior's Team",
+        "name": "armyjunior",
         "ownerName": "armyjunior",
         "starters": [
           "2309",
@@ -9341,10 +8978,8 @@
           33.75,
           17.25,
           23
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 209.94,
       "teamBScore": 186.75
     },
     {
@@ -9375,9 +9010,9 @@
           25.75,
           19.25,
           20.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 224.19,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -9403,10 +9038,8 @@
           0,
           25.75,
           42.75
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 224.19,
       "teamBScore": 206.75
     },
     {
@@ -9437,9 +9070,9 @@
           14,
           25,
           33.25
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 184.19,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -9465,10 +9098,8 @@
           22,
           6,
           17
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 184.19,
       "teamBScore": 198.19
     },
     {
@@ -9499,9 +9130,9 @@
           15.25,
           29.25,
           10.5
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 188,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -9527,10 +9158,8 @@
           25.75,
           5.25,
           12
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 188,
       "teamBScore": 156.13
     },
     {
@@ -9561,12 +9190,12 @@
           23.75,
           23,
           14.75
-        ],
-        "player_points": null
+        ]
       },
+      "teamAScore": 177.75,
       "teamB": {
         "rosterId": "11",
-        "name": "WebbWarrior's Team",
+        "name": "WebbWarrior",
         "ownerName": "WebbWarrior",
         "starters": [
           "2179",
@@ -9589,451 +9218,10 @@
           18,
           7.5,
           12.25
-        ],
-        "player_points": null
+        ]
       },
-      "teamAScore": 177.75,
       "teamBScore": 161.44
     }
   ],
-  "23": [
-    {
-      "matchup_id": 1,
-      "week": 23,
-      "teamA": {
-        "rosterId": "2",
-        "name": "DAMN!!!!!!!!!!!!!!!!!",
-        "ownerName": "smallvt",
-        "starters": [
-          "2722",
-          "2289",
-          "1711",
-          "2613",
-          "1595",
-          "1380",
-          "2308",
-          "1265",
-          "2461"
-        ],
-        "starters_points": [
-          17,
-          22.75,
-          12,
-          17.25,
-          17,
-          27.25,
-          28,
-          26.5,
-          17.5
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "3",
-        "name": "The Fraggle Rock 9",
-        "ownerName": "riguy506",
-        "starters": [
-          "2313",
-          "1648",
-          "2449",
-          "1000",
-          "1433",
-          "2032",
-          "1350",
-          "1945",
-          "1308"
-        ],
-        "starters_points": [
-          29.5,
-          27.5,
-          35.5,
-          27.5,
-          38.25,
-          34.5,
-          41.5,
-          39.94,
-          39.5
-        ],
-        "player_points": null
-      },
-      "teamAScore": 185.25,
-      "teamBScore": 313.69
-    },
-    {
-      "matchup_id": 2,
-      "week": 23,
-      "teamA": {
-        "rosterId": "1",
-        "name": "The Emperors",
-        "ownerName": "Kybes",
-        "starters": [
-          "2748",
-          "2133",
-          "2322",
-          "1821",
-          "2458",
-          "2258",
-          "1787",
-          "1178",
-          "1082"
-        ],
-        "starters_points": [
-          16.75,
-          22.75,
-          15.25,
-          10.25,
-          32.25,
-          23.25,
-          36.25,
-          7.5,
-          6
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "6",
-        "name": "Corey’s Shower",
-        "ownerName": "JakePratt",
-        "starters": [
-          "2007",
-          "2143",
-          "2457",
-          "1913",
-          "1362",
-          "2438",
-          "2728",
-          "2476",
-          "2726"
-        ],
-        "starters_points": [
-          27.25,
-          33.5,
-          16.5,
-          20.75,
-          30,
-          28,
-          7.25,
-          17.75,
-          33.25
-        ],
-        "player_points": null
-      },
-      "teamAScore": 170.25,
-      "teamBScore": 214.25
-    },
-    {
-      "matchup_id": 3,
-      "week": 23,
-      "teamA": {
-        "rosterId": "5",
-        "name": "The Codfather",
-        "ownerName": "samsilverman12",
-        "starters": [
-          "2295",
-          "2001",
-          "2126",
-          "2091",
-          "2447",
-          "1846",
-          "2259",
-          "2135",
-          "2233"
-        ],
-        "starters_points": [
-          18.75,
-          18.5,
-          0,
-          25.5,
-          22,
-          26,
-          16.75,
-          6.5,
-          18.5
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "7",
-        "name": "Kanto Embers",
-        "ownerName": "TLupinetti",
-        "starters": [
-          "1957",
-          "1779",
-          "1085",
-          "1831",
-          "1604",
-          "2733",
-          "1716",
-          "1525",
-          "2574"
-        ],
-        "starters_points": [
-          36.75,
-          12.25,
-          30,
-          35.25,
-          0,
-          28,
-          16.5,
-          17.25,
-          33
-        ],
-        "player_points": null
-      },
-      "teamAScore": 152.5,
-      "teamBScore": 209
-    },
-    {
-      "matchup_id": 4,
-      "week": 23,
-      "teamA": {
-        "rosterId": "10",
-        "name": "armyjunior's Team",
-        "ownerName": "armyjunior",
-        "starters": [
-          "2309",
-          "2012",
-          "1434",
-          "1803",
-          "1988",
-          "1321",
-          "1934",
-          "1487",
-          "2441"
-        ],
-        "starters_points": [
-          25.75,
-          20.75,
-          19,
-          29.5,
-          24.75,
-          22.75,
-          33.25,
-          29,
-          13.5
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "13",
-        "name": "I could gopher a beer",
-        "ownerName": "JFK4312",
-        "starters": [
-          "2142",
-          "1240",
-          "1841",
-          "2304",
-          "2455",
-          "1535",
-          "1658",
-          "1282",
-          "1697"
-        ],
-        "starters_points": [
-          22,
-          16.75,
-          4.75,
-          21,
-          8.75,
-          33.5,
-          43.5,
-          16,
-          30.75
-        ],
-        "player_points": null
-      },
-      "teamAScore": 218.25,
-      "teamBScore": 197
-    },
-    {
-      "matchup_id": 5,
-      "week": 23,
-      "teamA": {
-        "rosterId": "9",
-        "name": "Pact Nicely",
-        "ownerName": "WillMichael",
-        "starters": [
-          "1717",
-          "1975",
-          "2620",
-          "2451",
-          "2029",
-          "2136",
-          "1752",
-          "2564",
-          "1486"
-        ],
-        "starters_points": [
-          21.25,
-          25,
-          9.25,
-          2.5,
-          22,
-          24,
-          0,
-          30.25,
-          29.75
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "12",
-        "name": "Gilbert Arenas",
-        "ownerName": "zamt",
-        "starters": [
-          "1970",
-          "2580",
-          "1747",
-          "1637",
-          "1272",
-          "2020",
-          "2141",
-          "1799",
-          "1339"
-        ],
-        "starters_points": [
-          42.25,
-          4,
-          22.25,
-          15.5,
-          27.5,
-          14,
-          9.44,
-          21.5,
-          9.5
-        ],
-        "player_points": null
-      },
-      "teamAScore": 164,
-      "teamBScore": 165.94
-    },
-    {
-      "matchup_id": 6,
-      "week": 23,
-      "teamA": {
-        "rosterId": "8",
-        "name": "Team Lobster",
-        "ownerName": "noahlap01",
-        "starters": [
-          "2161",
-          "1749",
-          "1081",
-          "1526",
-          "1924",
-          "2146",
-          "2718",
-          "1883",
-          "2119"
-        ],
-        "starters_points": [
-          23.25,
-          19.25,
-          16,
-          5.75,
-          22.25,
-          13,
-          30.25,
-          11.25,
-          17.75
-        ],
-        "player_points": null
-      },
-      "teamB": {
-        "rosterId": "14",
-        "name": "Harlem Globetrotters",
-        "ownerName": "jewishhorsemen",
-        "starters": [
-          "1998",
-          "2157",
-          "1830",
-          "2086",
-          "1590",
-          "2181",
-          "1718",
-          "2152",
-          "1319"
-        ],
-        "starters_points": [
-          27,
-          24,
-          22.5,
-          28,
-          15.75,
-          34,
-          33.5,
-          5.75,
-          6
-        ],
-        "player_points": null
-      },
-      "teamAScore": 158.75,
-      "teamBScore": 196.5
-    },
-    {
-      "matchup_id": null,
-      "week": 23,
-      "teamA": {
-        "rosterId": "4",
-        "name": "The Mog Squad",
-        "ownerName": "slawflesh",
-        "starters": [
-          "1621",
-          "1983",
-          "2566",
-          "2316",
-          "1585",
-          "2095",
-          "1613",
-          "1845",
-          "2432"
-        ],
-        "starters_points": [
-          10.25,
-          17.75,
-          10.5,
-          35.5,
-          11,
-          26,
-          25.75,
-          42.75,
-          1
-        ],
-        "player_points": null
-      },
-      "teamAScore": 180.5
-    },
-    {
-      "matchup_id": null,
-      "week": 23,
-      "teamA": {
-        "rosterId": "11",
-        "name": "WebbWarrior's Team",
-        "ownerName": "WebbWarrior",
-        "starters": [
-          "2179",
-          "2583",
-          "1516",
-          "1822",
-          "2065",
-          "1964",
-          "2440",
-          "1739",
-          "2720"
-        ],
-        "starters_points": [
-          20.75,
-          1,
-          31.5,
-          39.75,
-          17.25,
-          15.94,
-          30.75,
-          26.75,
-          15.75
-        ],
-        "player_points": null
-      },
-      "teamAScore": 199.44
-    }
-  ]
+  "playoff_week_start": 21
 }

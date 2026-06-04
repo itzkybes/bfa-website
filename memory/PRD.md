@@ -78,7 +78,15 @@ User followed up confirming:
 - ✅ Added "Power" link to the global header nav.
 - ✅ `getSeasonsChain` now captures `status` per season so callers can branch on it without re-fetching league metadata.
 
-## What's Been Implemented (2026-06-04 — Owner Hub polish + H2H block + commish override)
+## What's Been Implemented (2026-06-04 — Static JSON regen + custom_points wiring)
+- ✅ **Regenerated `/static/season_matchups/{2022,2023,2024,2025}.json`** with fresh, accurate scores. Wrote a standalone Node script at `/app/scripts/regenerate-season-matchups.mjs` that walks the league chain from `BASE_LEAGUE_ID`, fetches every week's matchups, and rebuilds the JSON in the historical shape but stripped of `player_points` and with `custom_points` embedded per team when present. **8 commissioner overrides** in 2025 are captured. Re-run anytime via `node scripts/regenerate-season-matchups.mjs` (optionally pass specific years as args).
+- ✅ **`custom_points` round-trip support**. Updated the synthesizer in `computeStandingsForLeague` (`lib/leagueCompute.client.js`) to forward `custom_points` from the static JSON into the per-week entry passed to `computeParticipantPoints`, so the static-JSON path and live-API path produce identical scores. Verified: live API vs static JSON for Gilbert Arenas 2025 regular season → both produce exactly **5594.34** (delta 0.00).
+- ✅ **2025 added to the static-JSON whitelist** in `computeStandingsForLeague` and the admin generator. Pages now use the regenerated 2025.json for instant load instead of hitting Sleeper's 22 endpoints on every standings/honor-hall/records visit.
+- ✅ **Updated admin generator** (`/admin/generate-season-matchups`) to also embed `custom_points` so manual UI-driven regens stay consistent with the script.
+- ✅ Vercel build verified (`yarn build` → ✓ built · adapter-vercel · nodejs22.x).
+- ✅ Smoke-tested standings (Gilbert Arenas 5594.34 ✓, MVP race now Jokić 925.5 / Luka 914.1 / Maxey 798.6) and matchups Week 1 (Pact Nicely shows 180.75 — the commish-override value, confirming custom_points propagation works end-to-end).
+
+
 - ✅ **Bug fix: vertical-letter player names** on Owner Hub bench/taxi cards. When a player had 3-4 position eligibilities (e.g. Michael Porter Jr. = SF/PF/F/UTIL), the `pos-tags` element ate horizontal space and `word-break: break-word` then broke the name letter-by-letter vertically. Fix: `.player-name` now uses `overflow-wrap: anywhere` (only breaks unbreakable strings), `.player-info` has `flex: 1 1 140px` (won't shrink below readable), and `.player-pill.compact .pos-tags` is forced onto its own row so the name always gets full width.
 - ✅ **Best Playoff Game** record card added to Franchise Records in the Owner Hub. New `bestPlayoffGame` tracker in `buildOwnerHubs()` scans every playoff-week starter score (zip of `starters` × `starters_points`) and records the highest single performance. Verified on The Fraggle Rock 9 — Giannis 51.50 W23 2023 Playoffs.
 - ✅ **Head-to-Head mini-block on `/team/[username]`**. New section above the per-season blocks showing: (a) Biggest Rival (most-played opponent + your record), (b) Longest H2H Win Streak (longest run of consecutive H2H wins vs any single opponent, computed chronologically), (c) full table with GP · W-L · Win% · PF · PA · Last 3 results (3 most recent meetings in chronological order). Covers **all games** (regular + playoffs). Verified on riguy506 — Biggest Rival "The Emperors" (15 games, 10-5), Longest Win Streak "Team Lobster" (7-0, 7 consecutive wins).
@@ -159,11 +167,10 @@ User followed up confirming:
 ## Prioritized Backlog (P0/P1/P2 features remaining)
 - **P2** — "Trade Impact" badge on trade-ledger cards (% PF change over next 4 weeks after each trade)
 - **P2** — "Championship Game Boxscore" mini-section on Honor Hall (top 3 scorers per finalist)
-- **P2** — `CONTRIBUTING.md` runbook for adding a new season / yearly migration
+- **P2** — `CONTRIBUTING.md` runbook for adding a new season / yearly migration (include `node scripts/regenerate-season-matchups.mjs` step)
 - **P2** — Mobile FAB to jump to "This Week" matchups from any page
 - **P3** — Subtle owner avatar fallback on hover for team logos
 - **P3** — User-controlled theme switch (light + light-on-blue variants)
-- **P3** — Regenerate `/static/season_matchups/{year}.json` snapshots to bake in any historical commish overrides (api-generator already updated to capture `custom_points`)
 
 ## Next Tasks
 - User verification of the new Owner Hub dropdown UX + confirmation that MVP numbers stay consistent across `/standings` and `/honor-hall`.
