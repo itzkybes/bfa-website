@@ -156,6 +156,20 @@ includes raw unselected games and would corrupt stats for anyone using
 manual selection. See `computeParticipantPoints()` in `leagueCompute.client.js`
 for the canonical precedence: `custom_points → starters_points → points`.
 
+### `yarn.lock` MUST be committed
+
+The repo's `vercel.json` runs `yarn install --frozen-lockfile`. If
+`yarn.lock` is missing from the commit, Vercel will fall back to a fresh
+resolve and has historically pulled in a phantom transitive dependency
+(`@sveltejs/load-config@0.1.1` doesn't exist in the npm registry) — the
+build fails before it ever reaches `vite build`. To avoid this:
+
+- Always run `yarn install` locally before committing any `package.json`
+  change so `yarn.lock` is refreshed.
+- Confirm `yarn.lock` is in `git ls-files` (it is **not** in `.gitignore`).
+- After bumping any dep, sanity-check with `yarn install --frozen-lockfile`
+  locally — Vercel will fail the same way on missing entries.
+
 ### Data-testid convention
 
 Every interactive element and every element showing critical user-facing
@@ -171,6 +185,8 @@ function not style. Example:
 ## Pull request checklist
 
 - [ ] `yarn build` runs clean locally (`✔ done · Using @sveltejs/adapter-vercel`).
+- [ ] `yarn install --frozen-lockfile` succeeds (proves `yarn.lock` is in sync with `package.json`; this is the command Vercel runs).
+- [ ] `yarn.lock` is committed if you touched `package.json`.
 - [ ] No `+page.server.js` was added.
 - [ ] No `player_points` reads anywhere (`grep -r "player_points\|players_points" src/`).
 - [ ] If touching scoring logic, the precedence is `custom_points → starters_points → points`.
