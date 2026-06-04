@@ -783,7 +783,32 @@ export async function computeStandingsForLeague(leagueId) {
  *   - `{ combinedParticipants: [...], participantsCount: N }` — multi-team game
  */
 export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = null) {
-  if (!rosterMap) rosterMap = await getRosterMapWithOwners(leagueId).catch(() => ({}));
+  if (!rosterMap) {
+    // Fetch the per-league roster map AND the league-wide latest-avatar
+    // overlay in parallel. Historical seasons' rosters often have null
+    // `team_avatar` — we overlay each owner's CURRENT avatar (keyed by
+    // username) so the matchups page always shows fresh team art instead
+    // of placeholder letters. Mirrors what `computeStandingsForLeague`
+    // does so the two paths stay visually identical.
+    const [rmap, latestAvatars] = await Promise.all([
+      getRosterMapWithOwners(leagueId).catch(() => ({})),
+      getLatestOwnerAvatars().catch(() => ({}))
+    ]);
+    rosterMap = rmap;
+    for (const rid of Object.keys(rosterMap)) {
+      const meta = rosterMap[rid];
+      if (!meta) continue;
+      const key = (meta.owner_username || meta.owner_name || '').toLowerCase();
+      if (!key) continue;
+      const latest = latestAvatars[key];
+      if (!latest) continue;
+      if (latest.team_avatar) meta.team_avatar = latest.team_avatar;
+      if (latest.owner_avatar && !meta.owner_avatar) meta.owner_avatar = latest.owner_avatar;
+      if (latest.team_name && !String(latest.team_name).startsWith('Roster ')) {
+        meta.team_name = latest.team_name;
+      }
+    }
+  }
   const leagueMeta = await getLeague(leagueId).catch(() => null);
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   let playoffStart = leagueMeta?.settings?.playoff_week_start ? Number(leagueMeta.settings.playoff_week_start) : 15;
@@ -891,7 +916,10 @@ function normalizeTeamFromStatic(t, score, rosterMap) {
     rosterId: rid,
     name: t.name ?? meta.team_name ?? null,
     ownerName: t.ownerName ?? meta.owner_name ?? null,
-    avatar: t.avatar ?? meta.team_avatar ?? null,
+    // Same fallback ladder as `makeTeam`: team_avatar → owner_avatar → null.
+    // Critical for live seasons where Sleeper has `roster.metadata.team_avatar`
+    // null for every roster but `user.metadata.avatar` IS set.
+    avatar: t.avatar ?? meta.team_avatar ?? meta.owner_avatar ?? null,
     points: safeNum(score ?? t.score ?? t.points ?? 0),
     starters: t.starters ?? null,
     starters_points: t.starters_points ?? null
