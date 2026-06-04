@@ -36,15 +36,20 @@
       <div class="footer-col">
         <div class="col-title">League</div>
         <a href="/" data-testid="footer-link-home">Home</a>
-        <a href="/rosters" data-testid="footer-link-rosters">Rosters</a>
-        <a href="/standings" data-testid="footer-link-standings">Standings</a>
+        <a href="/rosters" data-testid="footer-link-rosters">Owner Hub</a>
         <a href="/matchups" data-testid="footer-link-matchups">Matchups</a>
+        <a href="/standings" data-testid="footer-link-standings">Standings</a>
+        <a href="/power-rankings" data-testid="footer-link-power-rankings">Power Rankings</a>
       </div>
       <div class="footer-col">
         <div class="col-title">Records</div>
         <a href="/records-team" data-testid="footer-link-records-team">Team Records</a>
         <a href="/records-player" data-testid="footer-link-records-player">Player Records</a>
         <a href="/honor-hall" data-testid="footer-link-honor-hall">Honor Hall</a>
+      </div>
+      <div class="footer-col">
+        <div class="col-title">Tooling</div>
+        <a href="/admin/generate-season-matchups" data-testid="footer-link-generate-season">Generate Season Matchups</a>
       </div>
       <div class="footer-col">
         <div class="col-title">External</div>
@@ -69,7 +74,7 @@
 
   .footer-inner {
     display: grid;
-    grid-template-columns: 1.2fr 2fr;
+    grid-template-columns: 1fr 2.4fr;
     gap: 3rem;
     padding: 3rem var(--s-5);
     max-width: 1200px;
@@ -119,7 +124,7 @@
 
   .footer-nav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 2rem;
   }
 
@@ -158,7 +163,7 @@
       padding: 2.5rem var(--s-4);
       gap: 2.5rem;
     }
-    .footer-nav { gap: 1.5rem; }
+    .footer-nav { gap: 1.5rem; grid-template-columns: repeat(2, 1fr); }
   }
 
   @media (max-width: 520px) {

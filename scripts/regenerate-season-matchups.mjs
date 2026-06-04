@@ -19,8 +19,13 @@
  *      returns them — those reflect the owner's game selection natively.
  *
  * Usage:
- *   node scripts/regenerate-season-matchups.mjs            # 2022, 2023, 2024, 2025
+ *   node scripts/regenerate-season-matchups.mjs            # every completed season in the chain
  *   node scripts/regenerate-season-matchups.mjs 2024 2025  # only the years given
+ *
+ * The "current" in-progress season is intentionally skipped by default. While
+ * the league is live, `computeStandingsForLeague` always reads the Sleeper API
+ * so newly-played games show up immediately. Once the season ends, re-run this
+ * script (or pass the year explicitly) to lock the snapshot in.
  */
 
 import fs from 'node:fs/promises';
@@ -33,7 +38,6 @@ const STATIC_DIR = path.resolve(__dirname, '..', 'static', 'season_matchups');
 
 const BASE = 'https://api.sleeper.app/v1';
 const ANCHOR_LEAGUE_ID = '1219816671624048640'; // current-season anchor (matches BASE_LEAGUE_ID in sleeperClient)
-const DEFAULT_YEARS = ['2022', '2023', '2024', '2025'];
 
 function safeNum(v) {
   const n = Number(v);
@@ -224,8 +228,7 @@ async function generateSeasonJson(season) {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const requestedYears = argv.length ? argv : DEFAULT_YEARS;
-  console.log(`▶︎ Regenerating season matchups for: ${requestedYears.join(', ')}`);
+  console.log(`▶︎ Regenerating season matchups`);
   console.log(`  Anchor league: ${ANCHOR_LEAGUE_ID}`);
   console.log(`  Output dir   : ${STATIC_DIR}`);
 
@@ -234,6 +237,18 @@ async function main() {
   for (const s of seasons) {
     console.log(`    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${s.playoff_week_start ?? '?'}  status=${s.status ?? '?'}`);
   }
+
+  // Default = every COMPLETED season. The current in-progress season is
+  // intentionally skipped — we want fresh API data while the league is live.
+  const requestedYears = argv.length
+    ? argv
+    : seasons.filter((s) => s.status === 'complete' && s.season).map((s) => String(s.season));
+
+  if (!requestedYears.length) {
+    console.log(`\n  ⚠︎  No completed seasons found in the chain. Pass year(s) explicitly to override (e.g. node scripts/regenerate-season-matchups.mjs 2026).`);
+    return;
+  }
+  console.log(`\n  Will write: ${requestedYears.join(', ')}`);
 
   await fs.mkdir(STATIC_DIR, { recursive: true });
 

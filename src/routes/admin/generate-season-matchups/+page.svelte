@@ -27,10 +27,17 @@
     loading = true; error = null; messages = []; outputs = [];
     try {
       const yearsParam = $page.url.searchParams.get('years');
-      const years = yearsParam ? yearsParam.split(',').map(y => y.trim()).filter(Boolean) : ['2022', '2023', '2024', '2025'];
-      messages = [`Requested years: ${years.join(', ')}`];
-
       const { seasons } = await getSeasonsChain(BASE_LEAGUE_ID);
+      // Default = every COMPLETED season in the chain. The "current" in-progress
+      // season is intentionally skipped — we don't want to freeze partial data
+      // into the static snapshot. Override via `?years=2025,2026` if needed.
+      const completedYears = seasons
+        .filter((s) => s.status === 'complete' && s.season)
+        .map((s) => String(s.season));
+      const years = yearsParam
+        ? yearsParam.split(',').map(y => y.trim()).filter(Boolean)
+        : completedYears;
+      messages = [`Requested years: ${years.join(', ') || '(none — all seasons appear in-progress)'}`];
       for (const yr of years) {
         const target = seasons.find(s => String(s.season) === yr);
         if (!target) { messages = [...messages, `Skip ${yr}: no league found in chain`]; continue; }

@@ -372,9 +372,24 @@ export async function computeStandingsForLeague(leagueId) {
     weeklyPfByRoster[rk] = [];
   }
 
-  // Try seasonMatchups + early2023 in parallel
+  // ── Static-vs-live decision ────────────────────────────────────────
+  //
+  // We prefer the locked-in static JSON snapshot whenever ALL of these are true:
+  //   1. The Sleeper league reports `status === 'complete'`. While the season
+  //      is live we always want fresh API data so newly-played games and
+  //      commish overrides show up immediately.
+  //   2. A `/static/season_matchups/{year}.json` snapshot actually exists.
+  //      `fetchStaticJson()` returns null on 404, so the fallback is graceful.
+  //
+  // This means the lifecycle is fully automatic:
+  //   · 2026 in-progress    → status !== 'complete'  → live API
+  //   · 2026 complete + no JSON yet → static fetch 404s → live API
+  //   · 2026 complete + JSON dropped in /static → use static (after running
+  //                                                `node scripts/regenerate-season-matchups.mjs`)
+  // No code change required to flip a season from "live" to "static".
+  const isLeagueComplete = leagueMeta?.status === 'complete';
   const [seasonMatchups, earlyData] = await Promise.all([
-    leagueSeason && ['2022', '2023', '2024', '2025'].includes(leagueSeason)
+    (isLeagueComplete && leagueSeason)
       ? fetchStaticJson(`/season_matchups/${leagueSeason}.json`)
       : Promise.resolve(null),
     leagueSeason === '2023' ? fetchStaticJson('/early2023.json') : Promise.resolve(null)
@@ -663,10 +678,11 @@ export async function computeStandingsForLeague(leagueId) {
  * Build the matchup rows for one league + week. This is the data the `/matchups`
  * page renders.
  *
- * Historical seasons (2022/2023/2024) come from a static JSON snapshot under
- * `/static/season_matchups/{year}.json` because Sleeper's per-week matchups
- * endpoint stops returning useful data for old leagues. For everything else we
- * call Sleeper directly.
+ * Source-of-truth rule:
+ *   · If the league has `status === 'complete'` AND a static snapshot exists at
+ *     `/static/season_matchups/{year}.json`, use the snapshot (instant + locks
+ *     in any commish overrides via `custom_points`).
+ *   · Otherwise (in-progress season, or no snapshot yet), call Sleeper directly.
  *
  * Each row is one of:
  *   - `{ teamA, teamB, participantsCount: 2 }` — normal head-to-head
@@ -681,9 +697,12 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
   const playoffEnd = playoffStart + 2;
 
-  // Prefer the static JSON snapshot for older seasons.
+  // Prefer the locked-in static snapshot only for finalized seasons that
+  // actually have a JSON dropped in /static. Same rule as
+  // `computeStandingsForLeague` so the two paths stay aligned.
+  const isLeagueComplete = leagueMeta?.status === 'complete';
   let seasonMatchups = null;
-  if (leagueSeason && ['2022', '2023', '2024', '2025'].includes(leagueSeason)) {
+  if (isLeagueComplete && leagueSeason) {
     seasonMatchups = await fetchStaticJson(`/season_matchups/${leagueSeason}.json`);
   }
 

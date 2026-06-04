@@ -78,7 +78,22 @@ User followed up confirming:
 - ✅ Added "Power" link to the global header nav.
 - ✅ `getSeasonsChain` now captures `status` per season so callers can branch on it without re-fetching league metadata.
 
-## What's Been Implemented (2026-06-04 — Static JSON regen + custom_points wiring)
+## What's Been Implemented (2026-06-04 — Auto static/live routing + footer redesign)
+- ✅ **Removed the hardcoded year whitelist** in `computeStandingsForLeague` and `computeMatchupsForLeagueWeek`. The path now triggers on **two** signals: `leagueMeta.status === 'complete'` AND a static snapshot exists at `/static/season_matchups/{year}.json` (404 = automatic live-API fallback). This means the season lifecycle is **fully automatic** — no code changes when 2026 → 2027:
+  - 2026 in-progress: `status !== 'complete'` → live API everywhere.
+  - 2026 ends, no JSON yet: 404 on snapshot → live API.
+  - `node scripts/regenerate-season-matchups.mjs 2026` run after season ends → snapshot dropped in → all pages flip to static instantly.
+  - 2027 starts: `status !== 'complete'` → live API again.
+- ✅ **Regen script & admin generator now default to "every completed season in the chain"** rather than a hardcoded list. The current in-progress season is intentionally skipped to avoid freezing partial data.
+- ✅ **Footer redesigned** — 4 columns mirroring the top nav: **League** (Home, Owner Hub, Matchups, Standings, Power Rankings), **Records** (Team Records, Player Records, Honor Hall), **Tooling** (Generate Season Matchups), **External** (Sleeper, Sleeper API). All links have `data-testid` attributes. Confirmed live on the preview.
+- ✅ **README rewritten** for the new lifecycle:
+  - Removed "regenerating historical seasons" section, replaced with a "Static snapshots & the season lifecycle" section that explains the `status + file-existence` trigger and walks through the 2026→2027 transition end to end.
+  - Updated the route table to reflect the dropdown-driven Owner Hub and the new H2H block on team-history pages.
+  - Removed the Bench Burn row from the Weekly Recap data-source table (the card was removed in the earlier `starters_points`-only sweep).
+  - Documented the `custom_points → starters_points → points` precedence used by `computeParticipantPoints`.
+- ✅ Verified end-to-end on the live preview: `/matchups?week=1` triggers `season_matchups/2025.json` fetch (✓ static path), Pact Nicely shows 180.75 (commish override), no `/v1/league/.../matchups/` calls hit Sleeper, Vercel `yarn build` clean.
+
+
 - ✅ **Regenerated `/static/season_matchups/{2022,2023,2024,2025}.json`** with fresh, accurate scores. Wrote a standalone Node script at `/app/scripts/regenerate-season-matchups.mjs` that walks the league chain from `BASE_LEAGUE_ID`, fetches every week's matchups, and rebuilds the JSON in the historical shape but stripped of `player_points` and with `custom_points` embedded per team when present. **8 commissioner overrides** in 2025 are captured. Re-run anytime via `node scripts/regenerate-season-matchups.mjs` (optionally pass specific years as args).
 - ✅ **`custom_points` round-trip support**. Updated the synthesizer in `computeStandingsForLeague` (`lib/leagueCompute.client.js`) to forward `custom_points` from the static JSON into the per-week entry passed to `computeParticipantPoints`, so the static-JSON path and live-API path produce identical scores. Verified: live API vs static JSON for Gilbert Arenas 2025 regular season → both produce exactly **5594.34** (delta 0.00).
 - ✅ **2025 added to the static-JSON whitelist** in `computeStandingsForLeague` and the admin generator. Pages now use the regenerated 2025.json for instant load instead of hitting Sleeper's 22 endpoints on every standings/honor-hall/records visit.
