@@ -160,8 +160,8 @@ export async function computeStandingsForLeague(leagueId) {
 
   let playoffStart = (leagueMeta?.settings?.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 20;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 20;
-  // League policy: playoffs are always 4 weeks (2 single-elim rounds + a
-  // 2-week merged championship final).
+  // League policy: playoffs are always 3 weeks (2 single-elim rounds + a
+  // championship final).
   let playoffEnd = playoffStart + 2;
   let finalsLeg2Week = playoffEnd;
 
@@ -183,8 +183,7 @@ export async function computeStandingsForLeague(leagueId) {
   // 4. Decide static vs live and load any historical patches.
   const isLeagueComplete = leagueMeta?.status === 'complete';
   const [seasonMatchups, earlyData] = await Promise.all([
-    (isLeagueComplete && leagueSeason) ? loadSeasonMatchups(leagueSeason) : Promise.resolve(null),
-    leagueSeason === '2023' ? fetchStaticJson('/early2023.json') : Promise.resolve(null)
+    (isLeagueComplete && leagueSeason) ? loadSeasonMatchups(leagueSeason) : Promise.resolve(null)
   ]);
 
   if (seasonMatchups && Number.isFinite(seasonMatchups.playoff_week_end)) {
