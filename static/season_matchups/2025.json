@@ -747,12 +747,12 @@
           24.75,
           35.25,
           34.5,
-          35.5,
+          43.75,
           34.5,
           30.5
         ]
       },
-      "teamAScore": 295.44,
+      "teamAScore": 303.69,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -2975,16 +2975,16 @@
         "starters_points": [
           35.25,
           22.75,
-          18.75,
+          36.25,
           30,
           28.25,
           29.75,
           22.25,
           17.75,
-          41.25
+          14
         ]
       },
-      "teamAScore": 246,
+      "teamAScore": 236.25,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -3002,7 +3002,7 @@
         ],
         "starters_points": [
           8.75,
-          25.5,
+          10.75,
           28.25,
           3.25,
           0,
@@ -3012,7 +3012,7 @@
           24.75
         ]
       },
-      "teamBScore": 162.19
+      "teamBScore": 147.44
     },
     {
       "matchup_id": 2,
@@ -3034,7 +3034,7 @@
         ],
         "starters_points": [
           26.75,
-          0,
+          48.25,
           33.75,
           29.25,
           36.75,
@@ -3044,7 +3044,7 @@
           21.75
         ]
       },
-      "teamAScore": 245,
+      "teamAScore": 293.25,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -3063,16 +3063,16 @@
         "starters_points": [
           0,
           13.75,
-          14.75,
-          37.5,
-          0,
+          29.25,
+          38.75,
+          40,
           18.5,
           21.5,
-          39,
-          18.25
+          25.75,
+          22
         ]
       },
-      "teamBScore": 163.25
+      "teamBScore": 209.5
     },
     {
       "matchup_id": 3,
@@ -3095,7 +3095,7 @@
         "starters_points": [
           7.75,
           21.5,
-          31.5,
+          22.5,
           32.5,
           32.5,
           18,
@@ -3104,7 +3104,7 @@
           14.25
         ]
       },
-      "teamAScore": 199.75,
+      "teamAScore": 190.75,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -3153,8 +3153,8 @@
           "1595"
         ],
         "starters_points": [
-          18,
-          17.75,
+          27.5,
+          37.5,
           25.25,
           21,
           51.75,
@@ -3164,7 +3164,7 @@
           9
         ]
       },
-      "teamAScore": 235.75,
+      "teamAScore": 265,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -3218,13 +3218,13 @@
           32.44,
           33,
           17.25,
-          5,
+          0,
           33,
-          15.25,
+          39.94,
           42
         ]
       },
-      "teamAScore": 247.19,
+      "teamAScore": 271.88,
       "teamB": {
         "rosterId": "10",
         "name": "armyjunior",
@@ -3278,13 +3278,13 @@
           13,
           20.5,
           34.5,
-          25,
+          0,
           33.75,
           24,
           40
         ]
       },
-      "teamAScore": 260.44,
+      "teamAScore": 235.44,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -3307,12 +3307,12 @@
           40.5,
           38,
           26.5,
-          24.5,
-          21.25,
-          41.75
+          23.75,
+          26.25,
+          24.44
         ]
       },
-      "teamBScore": 300.5
+      "teamBScore": 287.44
     },
     {
       "matchup_id": 7,
@@ -3338,13 +3338,13 @@
           23.75,
           31.25,
           44.5,
-          19.25,
+          24.5,
           24.5,
           39,
           29.75
         ]
       },
-      "teamAScore": 282.25,
+      "teamAScore": 287.5,
       "teamB": {
         "rosterId": "11",
         "name": "WebbWarrior",
@@ -6772,7 +6772,7 @@
         ],
         "starters_points": [
           25,
-          22,
+          41.25,
           0,
           0,
           19.25,
@@ -6782,7 +6782,7 @@
           23.25
         ]
       },
-      "teamAScore": 118.5,
+      "teamAScore": 137.75,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -6859,9 +6859,9 @@
           "2566"
         ],
         "starters_points": [
-          29.75,
+          46,
           0,
-          18,
+          20,
           21.75,
           15,
           46,
@@ -6870,7 +6870,7 @@
           12
         ]
       },
-      "teamBScore": 210.25
+      "teamBScore": 228.5
     },
     {
       "matchup_id": 3,
@@ -6895,14 +6895,14 @@
           30.75,
           21.5,
           42.5,
-          22.75,
+          28.25,
           23,
           23.25,
           9.25,
           13.75
         ]
       },
-      "teamAScore": 216.5,
+      "teamAScore": 222,
       "teamB": {
         "rosterId": "8",
         "name": "Team Lobster",
@@ -6925,12 +6925,12 @@
           23,
           8.5,
           0,
-          40,
+          0,
           14.5,
           9.75
         ]
       },
-      "teamBScore": 116.75
+      "teamBScore": 76.75
     },
     {
       "matchup_id": 4,
@@ -6952,7 +6952,7 @@
         ],
         "starters_points": [
           31.25,
-          17.75,
+          26.75,
           34.25,
           28.75,
           33.75,
@@ -6962,7 +6962,7 @@
           46.44
         ]
       },
-      "teamAScore": 293.63,
+      "teamAScore": 302.63,
       "teamB": {
         "rosterId": "11",
         "name": "WebbWarrior",
@@ -7014,15 +7014,15 @@
           35.75,
           9.5,
           29,
-          38.25,
+          22.5,
           28.75,
           34.25,
-          39.5,
+          52.75,
           23.5,
           26.25
         ]
       },
-      "teamAScore": 264.75,
+      "teamAScore": 262.25,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -7047,10 +7047,10 @@
           18.25,
           33.25,
           23,
-          21.25
+          23.25
         ]
       },
-      "teamBScore": 163
+      "teamBScore": 165
     },
     {
       "matchup_id": 6,
@@ -7072,17 +7072,17 @@
         ],
         "starters_points": [
           40.25,
-          22.25,
-          45.5,
+          38.5,
+          41.25,
           22.25,
           20.75,
           12,
-          29.19,
+          33.75,
           19.75,
           21.5
         ]
       },
-      "teamAScore": 233.44,
+      "teamAScore": 250,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -7107,10 +7107,10 @@
           37.25,
           0,
           12.75,
-          0
+          41.25
         ]
       },
-      "teamBScore": 174.25
+      "teamBScore": 215.5
     },
     {
       "matchup_id": 7,
@@ -7132,17 +7132,17 @@
         ],
         "starters_points": [
           19.75,
-          31,
-          12.5,
+          35.5,
+          50.5,
           21,
-          47.5,
-          18.75,
+          34,
+          20.25,
           12.25,
           19.5,
           0
         ]
       },
-      "teamAScore": 182.25,
+      "teamAScore": 212.75,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -7161,16 +7161,16 @@
         "starters_points": [
           15.75,
           11.25,
-          19.75,
+          40.5,
           28.44,
-          36.25,
-          24.44,
+          29.25,
+          30.75,
           38.5,
           26.75,
           33.25
         ]
       },
-      "teamBScore": 234.38
+      "teamBScore": 254.44
     }
   ],
   "18": [
@@ -7587,12 +7587,12 @@
           24.75,
           31.25,
           27.5,
-          26.25,
-          22.5,
+          18.75,
+          17.25,
           4.69
         ]
       },
-      "teamBScore": 265.69
+      "teamBScore": 252.94
     }
   ],
   "19": [
@@ -7677,16 +7677,16 @@
         "starters_points": [
           30,
           28.75,
-          31.75,
+          43.5,
           24.75,
-          18.75,
+          58.25,
           23.5,
           27,
           25.5,
           24.75
         ]
       },
-      "teamAScore": 234.75,
+      "teamAScore": 286,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -7703,18 +7703,18 @@
           "2284"
         ],
         "starters_points": [
-          44.5,
+          47,
           32,
           14,
           46.44,
-          28,
+          37,
           37.75,
           40,
-          29.75,
+          42.5,
           19.5
         ]
       },
-      "teamBScore": 291.94
+      "teamBScore": 316.19
     },
     {
       "matchup_id": 3,
@@ -7741,12 +7741,12 @@
           30.75,
           21.25,
           27.25,
-          24.75,
+          41.75,
           27.5,
           31.25
         ]
       },
-      "teamAScore": 227.5,
+      "teamAScore": 244.5,
       "teamB": {
         "rosterId": "10",
         "name": "armyjunior",
@@ -7764,7 +7764,7 @@
         ],
         "starters_points": [
           7.75,
-          28,
+          22.5,
           28,
           21.5,
           30.25,
@@ -7774,7 +7774,7 @@
           33.5
         ]
       },
-      "teamBScore": 239.5
+      "teamBScore": 234
     },
     {
       "matchup_id": 4,
@@ -7795,18 +7795,18 @@
           "2603"
         ],
         "starters_points": [
-          41,
+          43.75,
           31,
           26.75,
           38.75,
-          22.75,
+          42.25,
           18.25,
-          24.5,
+          33,
           30.5,
           29.5
         ]
       },
-      "teamAScore": 263,
+      "teamAScore": 293.75,
       "teamB": {
         "rosterId": "4",
         "name": "The Mog Squad",
@@ -7855,10 +7855,10 @@
           "2136"
         ],
         "starters_points": [
-          27,
+          37.5,
           35.75,
           48.25,
-          43.94,
+          48.25,
           48.25,
           30.5,
           37.44,
@@ -7866,7 +7866,7 @@
           46.25
         ]
       },
-      "teamAScore": 352.63,
+      "teamAScore": 367.44,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -7888,13 +7888,13 @@
           35,
           28.25,
           20,
-          31.5,
-          52.75,
+          49.5,
+          53.94,
           45.75,
-          35.5
+          45.25
         ]
       },
-      "teamBScore": 303.5
+      "teamBScore": 332.44
     },
     {
       "matchup_id": 6,
@@ -7943,18 +7943,18 @@
           "2580"
         ],
         "starters_points": [
-          41.75,
-          26.5,
-          27.25,
-          16.75,
-          29,
+          54,
+          51.5,
+          33.69,
+          29.5,
+          32,
           24,
           33.25,
           17.5,
           20
         ]
       },
-      "teamBScore": 236
+      "teamBScore": 295.44
     },
     {
       "matchup_id": 7,
@@ -7975,18 +7975,18 @@
           "2583"
         ],
         "starters_points": [
-          24,
-          31.25,
+          40.25,
+          27.75,
           35.25,
-          28,
+          27.5,
           43.5,
           31.75,
-          35.25,
+          49.75,
           14.5,
           14.75
         ]
       },
-      "teamAScore": 258.25,
+      "teamAScore": 285,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -8037,18 +8037,18 @@
           "2722"
         ],
         "starters_points": [
-          0,
-          34.5,
+          35,
+          29.25,
           29.25,
           26,
           14.25,
-          0,
+          44.25,
           2.25,
           20.5,
           24.25
         ]
       },
-      "teamAScore": 151,
+      "teamAScore": 225,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -8066,17 +8066,17 @@
         ],
         "starters_points": [
           61.25,
-          16.5,
-          23.5,
-          0,
-          0,
+          45.75,
+          37.94,
+          17,
+          32.75,
           38,
           32.5,
           19,
-          24.5
+          38
         ]
       },
-      "teamBScore": 215.25
+      "teamBScore": 322.19
     },
     {
       "matchup_id": 2,
@@ -8101,14 +8101,14 @@
           56.5,
           31,
           21.25,
-          33.5,
+          37.5,
           25.5,
           41.75,
           22,
           11.75
         ]
       },
-      "teamAScore": 271.25,
+      "teamAScore": 275.25,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -8128,15 +8128,15 @@
           34.5,
           33.25,
           25.25,
-          17.75,
+          34.75,
           40.5,
-          35.5,
-          21.75,
+          28.75,
+          28.25,
           33.5,
           45.94
         ]
       },
-      "teamBScore": 287.94
+      "teamBScore": 304.69
     },
     {
       "matchup_id": 3,
@@ -8163,12 +8163,12 @@
           53,
           30.75,
           34.25,
-          23,
+          29.25,
           11.5,
           30
         ]
       },
-      "teamAScore": 263.75,
+      "teamAScore": 270,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -8185,18 +8185,18 @@
           "1846"
         ],
         "starters_points": [
-          24.75,
+          35,
           33.25,
-          27,
           27.5,
-          32.75,
-          0,
+          27.5,
+          30.19,
+          31.5,
           44.75,
           31.75,
           47.44
         ]
       },
-      "teamBScore": 269.19
+      "teamBScore": 308.88
     },
     {
       "matchup_id": 4,
@@ -8225,10 +8225,10 @@
           29.25,
           38.75,
           37.25,
-          35.25
+          30.75
         ]
       },
-      "teamAScore": 311.5,
+      "teamAScore": 307,
       "teamB": {
         "rosterId": "6",
         "name": "Corey’s Shower",
@@ -8247,16 +8247,16 @@
         "starters_points": [
           30,
           34.5,
-          18,
+          28,
           19,
           24.5,
-          22,
-          45.75,
+          50.25,
+          63.25,
           28.25,
-          29.25
+          29
         ]
       },
-      "teamBScore": 251.25
+      "teamBScore": 306.75
     },
     {
       "matchup_id": 5,
@@ -8279,16 +8279,16 @@
         "starters_points": [
           23,
           25,
-          11.75,
+          23,
           33.5,
-          17.25,
+          18.44,
           13,
-          0,
+          10,
           49,
           37.5
         ]
       },
-      "teamAScore": 210,
+      "teamAScore": 232.44,
       "teamB": {
         "rosterId": "14",
         "name": "Harlem Globetrotters",
@@ -8305,18 +8305,18 @@
           "2474"
         ],
         "starters_points": [
-          32,
-          29.75,
-          33.75,
+          20.19,
+          23.75,
+          16.5,
           13.5,
           8,
-          8.5,
-          41,
-          27.75,
-          12.25
+          12,
+          18.75,
+          26.5,
+          12
         ]
       },
-      "teamBScore": 206.5
+      "teamBScore": 151.19
     },
     {
       "matchup_id": 6,
@@ -8366,17 +8366,17 @@
         ],
         "starters_points": [
           24.25,
-          30,
+          31.5,
           32.25,
           20.25,
           16.5,
           33.5,
-          34.75,
+          28,
           0,
           31.25
         ]
       },
-      "teamBScore": 222.75
+      "teamBScore": 217.75
     }
   ],
   "21": [
@@ -8400,17 +8400,17 @@
         ],
         "starters_points": [
           27.75,
-          24,
+          31,
           31.5,
-          43,
-          11.75,
+          42.5,
+          33,
           53.5,
-          53.25,
+          31.5,
           37.25,
           33.75
         ]
       },
-      "teamAScore": 315.75,
+      "teamAScore": 321.75,
       "teamB": {
         "rosterId": "12",
         "name": "Gilbert Arenas",
@@ -8428,17 +8428,17 @@
         ],
         "starters_points": [
           55,
-          16,
-          37,
+          37.5,
+          38,
           42.75,
-          22,
-          20.75,
+          29,
+          23.75,
           38.25,
           30.25,
           28.25
         ]
       },
-      "teamBScore": 290.25
+      "teamBScore": 322.75
     },
     {
       "matchup_id": 2,
@@ -8466,11 +8466,11 @@
           42,
           24.5,
           41.5,
-          31.75,
+          12.5,
           44.25
         ]
       },
-      "teamAScore": 334.19,
+      "teamAScore": 314.94,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -8493,12 +8493,12 @@
           41.75,
           36.5,
           37,
-          62,
+          58,
           23.75,
-          34
+          87.5
         ]
       },
-      "teamBScore": 316.5
+      "teamBScore": 366
     },
     {
       "matchup_id": 3,
@@ -8519,18 +8519,18 @@
           "1975"
         ],
         "starters_points": [
-          45,
-          21.5,
+          42,
+          52.25,
           31.5,
           23.25,
-          31.25,
+          34.75,
           31,
-          26,
+          6.5,
           33.25,
           15.5
         ]
       },
-      "teamAScore": 258.25,
+      "teamAScore": 270,
       "teamB": {
         "rosterId": "2",
         "name": "DAMN!!!!!!!!!!!!!!!!!",
@@ -8547,18 +8547,18 @@
           "1934"
         ],
         "starters_points": [
-          48.5,
+          27.75,
           37.25,
-          7.25,
+          30.75,
           37.75,
           48.25,
           5.5,
-          18,
-          27.25,
+          31.5,
+          26.5,
           16.75
         ]
       },
-      "teamBScore": 246.5
+      "teamBScore": 262
     },
     {
       "matchup_id": 4,
@@ -8579,18 +8579,18 @@
           "2007"
         ],
         "starters_points": [
-          22.25,
-          44.5,
-          26.75,
-          25,
+          43,
+          32.44,
+          30.25,
+          29,
           28.25,
           30.25,
-          60,
+          48.5,
           24.5,
-          34
+          26.5
         ]
       },
-      "teamAScore": 295.5,
+      "teamAScore": 292.69,
       "teamB": {
         "rosterId": "7",
         "name": "Kanto Embers",
@@ -8608,17 +8608,17 @@
         ],
         "starters_points": [
           37,
-          27.25,
+          26.25,
           24.5,
-          15,
-          40.75,
+          31.25,
+          9.5,
           42.75,
-          30.5,
-          34.5,
+          34.75,
+          24.25,
           64.5
         ]
       },
-      "teamBScore": 316.75
+      "teamBScore": 294.75
     },
     {
       "matchup_id": 5,
@@ -8668,17 +8668,17 @@
         ],
         "starters_points": [
           17.75,
-          17.5,
+          33,
           41.5,
           34.75,
-          0,
+          27.5,
           9.5,
           38,
-          28.5,
-          20.25
+          34.25,
+          27.75
         ]
       },
-      "teamBScore": 207.75
+      "teamBScore": 264
     },
     {
       "matchup_id": 6,
@@ -8699,18 +8699,18 @@
           "2146"
         ],
         "starters_points": [
-          41,
+          33.19,
           36.75,
           30,
           18,
-          0,
+          12.75,
           32.75,
-          0,
+          34,
           27.5,
-          14
+          22.75
         ]
       },
-      "teamAScore": 200,
+      "teamAScore": 247.69,
       "teamB": {
         "rosterId": "10",
         "name": "armyjunior",
@@ -8728,17 +8728,17 @@
         ],
         "starters_points": [
           34.25,
-          21.25,
+          23.25,
           31,
           32.75,
           14.5,
           19.5,
           18.75,
-          39,
+          27,
           26
         ]
       },
-      "teamBScore": 237
+      "teamBScore": 227
     },
     {
       "matchup_id": 7,
@@ -8761,16 +8761,16 @@
         "starters_points": [
           33.75,
           40.69,
-          0,
+          26,
           41,
           9.75,
           9.5,
-          29.5,
+          48,
           8.25,
           32.5
         ]
       },
-      "teamAScore": 204.94,
+      "teamAScore": 249.44,
       "teamB": {
         "rosterId": "9",
         "name": "Pact Nicely",
@@ -8827,13 +8827,13 @@
           23,
           14.75,
           34,
-          0,
+          31.25,
           18.25,
           0,
           21.25
         ]
       },
-      "teamAScore": 223.5,
+      "teamAScore": 254.75,
       "teamB": {
         "rosterId": "13",
         "name": "I could gopher a beer",
@@ -8886,15 +8886,15 @@
           50.25,
           30,
           37,
-          24.25,
+          33.5,
           39.5,
-          0,
+          33.5,
           45.25,
           37.75,
           41.75
         ]
       },
-      "teamAScore": 305.75,
+      "teamAScore": 348.5,
       "teamB": {
         "rosterId": "5",
         "name": "The Codfather",
@@ -9168,375 +9168,5 @@
       },
       "teamBScore": 182.75
     }
-  ],
-  "23": [
-    {
-      "matchup_id": 1,
-      "week": 23,
-      "is_finals_leg2": true,
-      "teamA": {
-        "rosterId": "12",
-        "name": "Gilbert Arenas",
-        "ownerName": "zamt",
-        "starters": [
-          "1970",
-          "1747",
-          "1967",
-          "1321",
-          "1362",
-          "1512",
-          "2302",
-          "1546",
-          "1178"
-        ],
-        "starters_points": [
-          49.94,
-          30.5,
-          32.5,
-          0,
-          26.25,
-          0,
-          26.75,
-          0,
-          26.69
-        ]
-      },
-      "teamAScore": 192.63,
-      "teamB": {
-        "rosterId": "13",
-        "name": "I could gopher a beer",
-        "ownerName": "JFK4312",
-        "starters": [
-          "2142",
-          "1240",
-          "2009",
-          "2065",
-          "2285",
-          "2455",
-          "1658",
-          "1964",
-          "1846"
-        ],
-        "starters_points": [
-          34.75,
-          37.5,
-          0,
-          21.5,
-          0,
-          24,
-          46.5,
-          28.25,
-          30
-        ]
-      },
-      "teamBScore": 222.5
-    },
-    {
-      "matchup_id": 2,
-      "week": 23,
-      "is_finals_leg2": true,
-      "teamA": {
-        "rosterId": "3",
-        "name": "The Fraggle Rock 9",
-        "ownerName": "riguy506",
-        "starters": [
-          "2313",
-          "2449",
-          "2090",
-          "2131",
-          "1433",
-          "2712",
-          "2438",
-          "1718",
-          "1308"
-        ],
-        "starters_points": [
-          45.5,
-          0,
-          0,
-          25.5,
-          26.69,
-          0,
-          24.75,
-          22.75,
-          27.25
-        ]
-      },
-      "teamAScore": 172.44,
-      "teamB": {
-        "rosterId": "5",
-        "name": "The Codfather",
-        "ownerName": "samsilverman12",
-        "starters": [
-          "4764",
-          "2255",
-          "2055",
-          "2284",
-          "2135",
-          "2835",
-          "2259",
-          "2728",
-          "2568"
-        ],
-        "starters_points": [
-          17.5,
-          0,
-          41.75,
-          37.25,
-          0,
-          42,
-          36.75,
-          20.75,
-          22
-        ]
-      },
-      "teamBScore": 218
-    },
-    {
-      "matchup_id": 3,
-      "week": 23,
-      "is_finals_leg2": true,
-      "teamA": {
-        "rosterId": "1",
-        "name": "The Emperors",
-        "ownerName": "Kybes",
-        "starters": [
-          "1726",
-          "2725",
-          "1450",
-          "1975",
-          "2458",
-          "1585",
-          "1350",
-          "2036",
-          "1082"
-        ],
-        "starters_points": [
-          18.69,
-          3,
-          29,
-          19.25,
-          7.5,
-          0,
-          24.25,
-          11,
-          22.5
-        ]
-      },
-      "teamAScore": 135.19,
-      "teamB": {
-        "rosterId": "7",
-        "name": "Kanto Embers",
-        "ownerName": "TLupinetti",
-        "starters": [
-          "2574",
-          "4737",
-          "2233",
-          "1831",
-          "1535",
-          "2152",
-          "2733",
-          "2488",
-          "1957"
-        ],
-        "starters_points": [
-          30.75,
-          18,
-          29.75,
-          11.5,
-          16.25,
-          19.75,
-          0,
-          16,
-          27.5
-        ]
-      },
-      "teamBScore": 169.5
-    },
-    {
-      "matchup_id": 4,
-      "week": 23,
-      "is_finals_leg2": true,
-      "teamA": {
-        "rosterId": "2",
-        "name": "DAMN!!!!!!!!!!!!!!!!!",
-        "ownerName": "smallvt",
-        "starters": [
-          "2722",
-          "1711",
-          "2422",
-          "2306",
-          "2308",
-          "2289",
-          "1934",
-          "1595",
-          "4751"
-        ],
-        "starters_points": [
-          39.75,
-          0,
-          12.25,
-          0,
-          66,
-          49.25,
-          17.75,
-          0,
-          14.94
-        ]
-      },
-      "teamAScore": 199.94,
-      "teamB": {
-        "rosterId": "6",
-        "name": "Corey’s Shower",
-        "ownerName": "JakePratt",
-        "starters": [
-          "2143",
-          "1698",
-          "4740",
-          "1913",
-          "0",
-          "1487",
-          "2577",
-          "2445",
-          "2007"
-        ],
-        "starters_points": [
-          15.25,
-          0,
-          14.5,
-          13.5,
-          0,
-          29,
-          43.94,
-          29,
-          25.5
-        ]
-      },
-      "teamBScore": 170.69
-    },
-    {
-      "matchup_id": 5,
-      "week": 23,
-      "is_finals_leg2": true,
-      "teamA": {
-        "rosterId": "10",
-        "name": "armyjunior",
-        "ownerName": "armyjunior",
-        "starters": [
-          "2258",
-          "1803",
-          "1972",
-          "2144",
-          "2119",
-          "2468",
-          "2492",
-          "2309",
-          "2719"
-        ],
-        "starters_points": [
-          11.25,
-          25.75,
-          5.69,
-          0,
-          15.25,
-          12,
-          3.5,
-          37.75,
-          10
-        ]
-      },
-      "teamAScore": 121.19,
-      "teamB": {
-        "rosterId": "11",
-        "name": "WebbWarrior",
-        "ownerName": "WebbWarrior",
-        "starters": [
-          "2586",
-          "1648",
-          "2179",
-          "1822",
-          "2563",
-          "2091",
-          "4777",
-          "1434",
-          "4748"
-        ],
-        "starters_points": [
-          7.5,
-          35.25,
-          19.5,
-          44,
-          0,
-          14,
-          7.5,
-          0,
-          37.5
-        ]
-      },
-      "teamBScore": 165.25
-    },
-    {
-      "matchup_id": 6,
-      "week": 23,
-      "is_finals_leg2": true,
-      "teamA": {
-        "rosterId": "8",
-        "name": "Team Lobster",
-        "ownerName": "noahlap01",
-        "starters": [
-          "1713",
-          "2564",
-          "2181",
-          "2020",
-          "2032",
-          "4793",
-          "1997",
-          "2772",
-          "2146"
-        ],
-        "starters_points": [
-          29,
-          34.5,
-          27.25,
-          11.75,
-          20,
-          20,
-          0,
-          16,
-          27.75
-        ]
-      },
-      "teamAScore": 186.25,
-      "teamB": {
-        "rosterId": "14",
-        "name": "Harlem Globetrotters",
-        "ownerName": "jewishhorsemen",
-        "starters": [
-          "2086",
-          "2157",
-          "1830",
-          "2565",
-          "2156",
-          "2474",
-          "2766",
-          "1872",
-          "1883"
-        ],
-        "starters_points": [
-          35.5,
-          0,
-          0,
-          7,
-          0,
-          9.25,
-          36.75,
-          19,
-          6
-        ]
-      },
-      "teamBScore": 113.5
-    }
-  ],
-  "playoff_week_start": 20,
-  "playoff_week_end": 23
+  ]
 }
