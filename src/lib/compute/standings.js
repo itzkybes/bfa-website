@@ -158,11 +158,11 @@ export async function computeStandingsForLeague(leagueId) {
   const leagueName = leagueMeta?.name ?? null;
   const playoffTeams = leagueMeta?.settings?.playoff_teams ? Number(leagueMeta.settings.playoff_teams) : 8;
 
-  let playoffStart = (leagueMeta?.settings?.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 15;
-  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+  let playoffStart = (leagueMeta?.settings?.playoff_week_start) ? Number(leagueMeta.settings.playoff_week_start) : 20;
+  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 20;
   // League policy: playoffs are always 4 weeks (2 single-elim rounds + a
   // 2-week merged championship final).
-  let playoffEnd = playoffStart + 3;
+  let playoffEnd = playoffStart + 2;
   let finalsLeg2Week = playoffEnd;
 
   // 3. Per-roster stats accumulators.
