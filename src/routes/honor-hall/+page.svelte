@@ -4,9 +4,10 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
-  import { computeStandingsForLeague } from '$lib/compute';
+  import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
 
   let loading = true;
   let error = null;
@@ -21,49 +22,8 @@
   // Stash season results so dropdown switching is instant
   let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, regularMvp }
 
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
-  function fmt(v) {
-    const n = Number(v); if (!isFinite(n)) return '—';
-    return (Math.round(n * 10) / 10).toFixed(1);
-  }
   function placeEmoji(rank) {
     if (rank === 1) return '🏆'; if (rank === 2) return '🥈'; if (rank === 3) return '🥉'; return '';
-  }
-
-  function playerName(pid) {
-    if (!pid) return '';
-    const p = playersMap[pid];
-    if (!p) return String(pid);
-    return p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || String(pid);
-  }
-
-  function aggregatePlayerPoints(matchupEntries) {
-    const byPlayer = {};
-    for (const entry of matchupEntries) {
-      if (!entry) continue;
-      const rid = String(entry.roster_id ?? entry.rosterId ?? '');
-      const starters = Array.isArray(entry.starters) ? entry.starters : [];
-      // SOURCE OF TRUTH: `starters_points` array, zipped with `starters`.
-      // We never fall back to `player_points` — that includes raw
-      // unselected games and would corrupt MVP figures for managers who
-      // manually pick which game counts each week.
-      const sp = entry.starters_points;
-      if (!Array.isArray(sp) || !starters.length) continue;
-      for (let i = 0; i < starters.length; i++) {
-        const pid = starters[i];
-        if (!pid) continue;
-        const n = Number(sp[i] ?? 0);
-        const val = isFinite(n) ? n : 0;
-        if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-        byPlayer[pid].points += val;
-      }
-    }
-    for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
-    return byPlayer;
   }
 
   async function computeSeason(leagueIdOrSeason) {
@@ -144,9 +104,9 @@
 
     const result = {
       finalStandings: finalList,
-      finalsMvp: fm ? { ...fm, playerName: playerName(fm.playerId), roster_meta: standings.rosterMap[fm.rosterId] } : null,
-      playoffsMvp: pm ? { ...pm, playerName: playerName(pm.playerId), roster_meta: standings.rosterMap[pm.rosterId] } : null,
-      regularMvp: om ? { ...om, playerName: playerName(om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
+      finalsMvp: fm ? { ...fm, playerName: playerDisplayName(playersMap, fm.playerId), roster_meta: standings.rosterMap[fm.rosterId] } : null,
+      playoffsMvp: pm ? { ...pm, playerName: playerDisplayName(playersMap, pm.playerId), roster_meta: standings.rosterMap[pm.rosterId] } : null,
+      regularMvp: om ? { ...om, playerName: playerDisplayName(playersMap, om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
     };
     cache[cacheKey] = result;
     finalStandings = result.finalStandings;
@@ -217,7 +177,7 @@
           <div class="card-corner"><span class="rank-tag num">#1</span></div>
           <div class="champion-trophy">🏆</div>
           <div class="card-eyebrow">Champion</div>
-          <img class="champion-avatar" src={avatarOrPh(champion.avatar, champion.team_name)} alt={champion.team_name} />
+          <img class="champion-avatar" src={avatarOrPlaceholder(champion.avatar, champion.team_name)} alt={champion.team_name} />
           <div class="champion-name">{champion.team_name}</div>
           <div class="champion-owner">{#if champion.owner_name}{champion.owner_name} · {/if}Seed #{champion.seed ?? '—'}</div>
         </div>
@@ -228,7 +188,7 @@
           <div class="card-corner"><span class="rank-tag num">#{biggestLoser.rank ?? finalStandings.length}</span></div>
           <div class="loser-icon">😵‍💫</div>
           <div class="card-eyebrow">Biggest Loser</div>
-          <img class="champion-avatar" src={avatarOrPh(biggestLoser.avatar, biggestLoser.team_name)} alt={biggestLoser.team_name} />
+          <img class="champion-avatar" src={avatarOrPlaceholder(biggestLoser.avatar, biggestLoser.team_name)} alt={biggestLoser.team_name} />
           <div class="champion-name dim">{biggestLoser.team_name}</div>
           <div class="champion-owner">{#if biggestLoser.owner_name}{biggestLoser.owner_name} · {/if}Seed #{biggestLoser.seed ?? '—'}</div>
         </div>
@@ -237,9 +197,9 @@
       {#if finalsMvp}
         <div class="bento-card mvp-card" data-testid="finals-mvp-card">
           <div class="card-eyebrow">Finals MVP</div>
-          <img class="mvp-headshot" src={playerHeadshot(finalsMvp.playerId) || avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName)} alt={finalsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName))} />
+          <img class="mvp-headshot" src={playerHeadshot(finalsMvp.playerId) || avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName)} alt={finalsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPlaceholder(finalsMvp.roster_meta?.team_avatar, finalsMvp.playerName))} />
           <div class="mvp-name">{finalsMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num">{fmt(finalsMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-pts num">{formatNumber(finalsMvp.points)}<span class="pts-suffix"> PTS</span></div>
           <div class="mvp-sub">{finalsMvp.roster_meta?.owner_name ?? `Roster ${finalsMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
@@ -247,9 +207,9 @@
       {#if playoffsMvp}
         <div class="bento-card mvp-card" data-testid="playoffs-mvp-card">
           <div class="card-eyebrow">Playoffs MVP</div>
-          <img class="mvp-headshot" src={playerHeadshot(playoffsMvp.playerId) || avatarOrPh(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName)} alt={playoffsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName))} />
+          <img class="mvp-headshot" src={playerHeadshot(playoffsMvp.playerId) || avatarOrPlaceholder(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName)} alt={playoffsMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPlaceholder(playoffsMvp.roster_meta?.team_avatar, playoffsMvp.playerName))} />
           <div class="mvp-name">{playoffsMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num">{fmt(playoffsMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-pts num">{formatNumber(playoffsMvp.points)}<span class="pts-suffix"> PTS</span></div>
           <div class="mvp-sub">{playoffsMvp.roster_meta?.owner_name ?? `Roster ${playoffsMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
@@ -257,9 +217,9 @@
       {#if regularMvp}
         <div class="bento-card mvp-card" data-testid="regular-mvp-card">
           <div class="card-eyebrow">Regular Season MVP</div>
-          <img class="mvp-headshot" src={playerHeadshot(regularMvp.playerId) || avatarOrPh(regularMvp.roster_meta?.team_avatar, regularMvp.playerName)} alt={regularMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(regularMvp.roster_meta?.team_avatar, regularMvp.playerName))} />
+          <img class="mvp-headshot" src={playerHeadshot(regularMvp.playerId) || avatarOrPlaceholder(regularMvp.roster_meta?.team_avatar, regularMvp.playerName)} alt={regularMvp.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPlaceholder(regularMvp.roster_meta?.team_avatar, regularMvp.playerName))} />
           <div class="mvp-name">{regularMvp.playerName ?? '—'}</div>
-          <div class="mvp-pts num">{fmt(regularMvp.points)}<span class="pts-suffix"> PTS</span></div>
+          <div class="mvp-pts num">{formatNumber(regularMvp.points)}<span class="pts-suffix"> PTS</span></div>
           <div class="mvp-sub">{regularMvp.roster_meta?.owner_name ?? `Roster ${regularMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
@@ -272,7 +232,7 @@
           {#each finalStandings as row, idx (row.rosterId)}
             <li class="standings-row" class:gold={row.rank === 1}>
               <div class="rank-col num">{row.rank}{#if placeEmoji(row.rank)}<span class="medal">{placeEmoji(row.rank)}</span>{/if}</div>
-              <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+              <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
               <div class="team-meta"><div class="team-name">{row.team_name}</div><div class="team-owner">{row.owner_name ?? `Roster ${row.rosterId}`}</div></div>
               <div class="seed-col"><span class="num">#{row.seed ?? '—'}</span><span class="seed-label">Seed</span></div>
             </li>

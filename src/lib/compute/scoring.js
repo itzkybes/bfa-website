@@ -63,9 +63,12 @@ export function starterPointsByPid(entry) {
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
   let arr = null;
   for (const k of arrayKeys) {
-    if (Array.isArray(entry[k]) && entry[k].length) { arr = entry[k]; break; }
+    if (Array.isArray(entry[k]) && entry[k].length) {
+      arr = entry[k];
+      break;
+    }
   }
-  if (!arr) return null;   // refuse to silently emit zeros — caller will skip the entry
+  if (!arr) return null; // refuse to silently emit zeros — caller will skip the entry
   const out = {};
   for (let i = 0; i < starters.length; i++) {
     const pid = starters[i];
@@ -76,4 +79,39 @@ export function starterPointsByPid(entry) {
     out[pid] = (out[pid] || 0) + val;
   }
   return out;
+}
+
+/**
+ * Sum STARTER points per player across a list of raw Sleeper matchup entries
+ * (e.g. every week of a season, or just the playoff window).
+ *
+ * Source of truth is the `starters_points` array zipped with `starters`. We
+ * never fall back to `player_points` — it includes raw unselected games and
+ * would corrupt MVP figures for managers who manually pick which game counts
+ * each week.
+ *
+ * @param {Array<object | null>} matchupEntries
+ * @returns {Record<string, { playerId: string, points: number, rosterId: string }>}
+ */
+export function aggregatePlayerPoints(matchupEntries) {
+  const byPlayer = {};
+  for (const entry of matchupEntries) {
+    if (!entry) continue;
+    const rid = String(entry.roster_id ?? entry.rosterId ?? '');
+    const starters = Array.isArray(entry.starters) ? entry.starters : [];
+    const sp = entry.starters_points;
+    if (!Array.isArray(sp) || !starters.length) continue;
+    for (let i = 0; i < starters.length; i++) {
+      const pid = starters[i];
+      if (!pid) continue;
+      const n = Number(sp[i] ?? 0);
+      const val = isFinite(n) ? n : 0;
+      if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
+      byPlayer[pid].points += val;
+    }
+  }
+  for (const k of Object.keys(byPlayer)) {
+    byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
+  }
+  return byPlayer;
 }

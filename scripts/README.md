@@ -29,4 +29,4 @@ Sanity:
 ```
 
 The script exits non-zero if 2026 isn't discovered — useful as a smoke test
-after editing `src/lib/sleeperClient.client.js`.
+after editing `src/lib/api/sleeper.js`.

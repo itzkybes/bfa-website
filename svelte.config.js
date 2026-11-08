@@ -8,10 +8,9 @@ const config = {
     // any stale adapter-auto fallback can't downgrade us to an unsupported
     // older runtime).
     adapter: adapter({
-      runtime: 'nodejs22.x'
-    })
-  }
+      runtime: 'nodejs22.x',
+    }),
+  },
 };
 
 export default config;
-

@@ -27,7 +27,7 @@ export const GROUP_LABELS = {
   shooting: 'Shooting',
   bonuses: 'Bonuses & Milestones',
   penalties: 'Penalties',
-  other: 'Other'
+  other: 'Other',
 };
 
 // ─── internals ──────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ const LABELS = {
   // Other
   sp: 'Game Start',
   min: 'Minute Played',
-  gp: 'Game Played'
+  gp: 'Game Played',
 };
 
 const BASICS = new Set(['pts', 'reb', 'oreb', 'dreb', 'ast', 'stl', 'blk', 'to']);

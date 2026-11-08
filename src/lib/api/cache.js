@@ -30,10 +30,7 @@ function getCached(key) {
 function setCache(key, data, ttl = DEFAULT_TTL) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(
-      CACHE_PREFIX + key,
-      JSON.stringify({ data, timestamp: Date.now(), ttl })
-    );
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now(), ttl }));
   } catch (err) {
     // If we hit the localStorage quota, sweep expired entries and bail.
     if (err && err.name === 'QuotaExceededError') clearExpired();
@@ -55,7 +52,9 @@ function clearExpired() {
         localStorage.removeItem(k);
       }
     }
-  } catch (e) { /* noop */ }
+  } catch (e) {
+    /* noop */
+  }
 }
 
 /**

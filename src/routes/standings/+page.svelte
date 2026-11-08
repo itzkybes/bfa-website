@@ -8,6 +8,7 @@
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
+  import { avatarOrPlaceholder } from '$lib/utils/format';
 
   let loading = true;
   let error = null;
@@ -15,12 +16,6 @@
   let seasonsResults = [];
   let selectedSeasonId = null;
   let playersMap = {};
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
 
   $: selectedResult = (() => {
     if (!seasonsResults.length) return null;
@@ -259,7 +254,7 @@
                   <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
                   <td>
                     <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+                      <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                       <div>
                         <div class="team-name-cell">{row.team_name}</div>
                         {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
@@ -313,7 +308,7 @@
                 <tr class:champion-row={row.champion === true}>
                   <td>
                     <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+                      <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                       <div>
                         <div class="team-name-cell">
                           {row.team_name}

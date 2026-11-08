@@ -62,7 +62,7 @@ function computeParticipantPoints(entry) {
 async function get(url) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(url, { headers: { 'accept': 'application/json' } });
+      const res = await fetch(url, { headers: { accept: 'application/json' } });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return await res.json();
@@ -134,7 +134,10 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
       season: lg.season ? String(lg.season) : null,
       name: lg.name || null,
       status: lg.status || null,
-      playoff_week_start: lg.settings && lg.settings.playoff_week_start ? Number(lg.settings.playoff_week_start) : null
+      playoff_week_start:
+        lg.settings && lg.settings.playoff_week_start
+          ? Number(lg.settings.playoff_week_start)
+          : null,
     });
     curr = lg.previous_league_id ? String(lg.previous_league_id) : null;
     steps += 1;
@@ -165,8 +168,8 @@ async function generateSeasonJson(season) {
   // 2-week merged championship final). `playoff_week_end` is written to the
   // JSON so the consumers don't have to assume.
   const playoffEnd = playoffStart + 3;
-  const finalsWeek1 = playoffStart + 2;   // first half of the merged final
-  const finalsWeek2 = playoffStart + 3;   // second half — usually no matchup_id from Sleeper
+  const finalsWeek1 = playoffStart + 2; // first half of the merged final
+  const finalsWeek2 = playoffStart + 3; // second half — usually no matchup_id from Sleeper
 
   // We need to peek at the previous week (the first half of finals) to know
   // how the championship was paired. Build a roster_id → matchup_id index
@@ -183,7 +186,11 @@ async function generateSeasonJson(season) {
   // before finals-week2 is processed.
   for (let week = 1; week <= 25; week++) {
     let raw = null;
-    try { raw = await getMatchupsForWeek(league_id, week); } catch (_) { continue; }
+    try {
+      raw = await getMatchupsForWeek(league_id, week);
+    } catch (_) {
+      continue;
+    }
     if (!raw || !raw.length) continue;
 
     // For the first half of the merged final, snapshot its roster→matchup_id
@@ -230,16 +237,16 @@ async function generateSeasonJson(season) {
         name: aMeta.team_name ?? null,
         ownerName: aMeta.owner_name ?? null,
         starters: Array.isArray(a.starters) ? a.starters : [],
-        starters_points: Array.isArray(a.starters_points) ? a.starters_points : []
+        starters_points: Array.isArray(a.starters_points) ? a.starters_points : [],
       };
       const teamB = {
         rosterId: bId,
         name: bMeta.team_name ?? null,
         ownerName: bMeta.owner_name ?? null,
         starters: Array.isArray(b.starters) ? b.starters : [],
-        starters_points: Array.isArray(b.starters_points) ? b.starters_points : []
+        starters_points: Array.isArray(b.starters_points) ? b.starters_points : [],
       };
-      const isFinalsLeg2 = (week === finalsWeek2);
+      const isFinalsLeg2 = week === finalsWeek2;
       weekRows.push({
         matchup_id: Number(mid) || mid,
         week,
@@ -250,7 +257,7 @@ async function generateSeasonJson(season) {
         teamA,
         teamAScore: computeParticipantPoints(a),
         teamB,
-        teamBScore: computeParticipantPoints(b)
+        teamBScore: computeParticipantPoints(b),
       });
     }
     if (weekRows.length) {
@@ -263,7 +270,7 @@ async function generateSeasonJson(season) {
   const payload = {
     playoff_week_start: playoffStart,
     playoff_week_end: playoffEnd,
-    ...weeks
+    ...weeks,
   };
   return { year, payload, totalMatchups, weeks: Object.keys(weeks).length, finalsSynthesized };
 }
@@ -277,7 +284,9 @@ async function main() {
   const seasons = await walkSeasons(ANCHOR_LEAGUE_ID);
   console.log(`\n  Discovered ${seasons.length} season(s) in the league chain:`);
   for (const s of seasons) {
-    console.log(`    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${s.playoff_week_start ?? '?'}  status=${s.status ?? '?'}`);
+    console.log(
+      `    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${s.playoff_week_start ?? '?'}  status=${s.status ?? '?'}`
+    );
   }
 
   // Default = every COMPLETED season. The current in-progress season is
@@ -287,7 +296,9 @@ async function main() {
     : seasons.filter((s) => s.status === 'complete' && s.season).map((s) => String(s.season));
 
   if (!requestedYears.length) {
-    console.log(`\n  ⚠︎  No completed seasons found in the chain. Pass year(s) explicitly to override (e.g. node scripts/regenerate-season-matchups.mjs 2026).`);
+    console.log(
+      `\n  ⚠︎  No completed seasons found in the chain. Pass year(s) explicitly to override (e.g. node scripts/regenerate-season-matchups.mjs 2026).`
+    );
     return;
   }
   console.log(`\n  Will write: ${requestedYears.join(', ')}`);
@@ -307,7 +318,9 @@ async function main() {
     await fs.writeFile(outPath, JSON.stringify(result.payload, null, 2) + '\n', 'utf8');
     const size = (await fs.stat(outPath)).size;
     console.log(`    ✓ wrote ${outPath}`);
-    console.log(`      weeks=${result.weeks}  matchups=${result.totalMatchups}  finals_synthesized=${result.finalsSynthesized}  size=${(size / 1024).toFixed(1)}KB`);
+    console.log(
+      `      weeks=${result.weeks}  matchups=${result.totalMatchups}  finals_synthesized=${result.finalsSynthesized}  size=${(size / 1024).toFixed(1)}KB`
+    );
     written += 1;
   }
 

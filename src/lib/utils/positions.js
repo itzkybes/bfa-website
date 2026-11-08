@@ -20,9 +20,9 @@ const POS_EXPAND = {
   SG: ['SG', 'G'],
   SF: ['SF', 'F'],
   PF: ['PF', 'F'],
-  C:  ['C'],
-  G:  ['G'],
-  F:  ['F']
+  C: ['C'],
+  G: ['G'],
+  F: ['F'],
 };
 
 // Render order — guards first, then forwards, then center, then aggregates.

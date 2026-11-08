@@ -122,8 +122,8 @@ If you need to add another field to the static JSON (say, a draft pick
 breakdown or per-week notes):
 
 1. Update `scripts/regenerate-season-matchups.mjs` to write the field.
-2. Update `src/lib/leagueCompute.client.js` — specifically the synthesizer
-   in `computeStandingsForLeague` and the static-path branch in
+2. Update `src/lib/compute/standings.js` and `src/lib/compute/matchups.js` — specifically
+   the synthesizer in `computeStandingsForLeague` and the static-path branch in
    `computeMatchupsForLeagueWeek` — to read the field.
 3. Update `src/routes/admin/generate-season-matchups/+page.svelte` to
    include the same field so UI-driven regens stay consistent.
@@ -139,7 +139,7 @@ yarn dev          # http://localhost:5173
 ```
 
 No env vars needed. The league ID is baked into `BASE_LEAGUE_ID` in
-`src/lib/sleeperClient.client.js`. Hot reload works on save.
+`src/lib/api/sleeper.js`. Hot reload works on save.
 
 ### Don't add `+page.server.js`
 
@@ -153,7 +153,7 @@ By project policy, per-player scoring **only** comes from `starters_points`.
 Our league uses Sleeper's manual game-selection mechanic — the selected
 game's score is natively baked into `starters_points`, while `player_points`
 includes raw unselected games and would corrupt stats for anyone using
-manual selection. See `computeParticipantPoints()` in `leagueCompute.client.js`
+manual selection. See `computeParticipantPoints()` in `src/lib/compute/scoring.js`
 for the canonical precedence: `custom_points → starters_points → points`.
 
 ### `yarn.lock` MUST be committed

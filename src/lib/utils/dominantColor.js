@@ -36,7 +36,9 @@ const _pending = new Map();
 
 const FALLBACK_RGB = null;
 
-function _quantize(r, g, b) { return `${r >> 4},${g >> 4},${b >> 4}`; }
+function _quantize(r, g, b) {
+  return `${r >> 4},${g >> 4},${b >> 4}`;
+}
 
 /**
  * Resolve a dominant `rgb(r,g,b)` color for an image URL, or `null` if the
@@ -62,24 +64,35 @@ export function extractDominantColor(url) {
           if (!ctx) return resolve(FALLBACK_RGB);
           ctx.drawImage(img, 0, 0, size, size);
           let pixels;
-          try { pixels = ctx.getImageData(0, 0, size, size).data; }
-          catch (e) { return resolve(FALLBACK_RGB); }
+          try {
+            pixels = ctx.getImageData(0, 0, size, size).data;
+          } catch (e) {
+            return resolve(FALLBACK_RGB);
+          }
 
           const buckets = {};
           for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3];
+            const r = pixels[i],
+              g = pixels[i + 1],
+              b = pixels[i + 2],
+              a = pixels[i + 3];
             if (a < 200) continue;
             const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
-            if (lum < 30 || lum > 230) continue;        // skip near-black + near-white
-            const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-            if (mx - mn < 25) continue;                  // skip near-gray
+            if (lum < 30 || lum > 230) continue; // skip near-black + near-white
+            const mx = Math.max(r, g, b),
+              mn = Math.min(r, g, b);
+            if (mx - mn < 25) continue; // skip near-gray
             const k = _quantize(r, g, b);
             buckets[k] = (buckets[k] || 0) + 1;
           }
 
-          let bestKey = null, bestCount = 0;
+          let bestKey = null,
+            bestCount = 0;
           for (const k in buckets) {
-            if (buckets[k] > bestCount) { bestCount = buckets[k]; bestKey = k; }
+            if (buckets[k] > bestCount) {
+              bestCount = buckets[k];
+              bestKey = k;
+            }
           }
           if (!bestKey) return resolve(FALLBACK_RGB);
 
@@ -101,7 +114,10 @@ export function extractDominantColor(url) {
   });
 
   _pending.set(url, p);
-  p.then((c) => { _cache.set(url, c); _pending.delete(url); });
+  p.then((c) => {
+    _cache.set(url, c);
+    _pending.delete(url);
+  });
   return p;
 }
 
@@ -121,7 +137,9 @@ export function tintFromImg(node, url) {
       // can emit derived rgba() values for soft/glow surfaces.
       const m = rgb.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
       if (!m) return;
-      const r = m[1], g = m[2], b = m[3];
+      const r = m[1],
+        g = m[2],
+        b = m[3];
       node.style.setProperty('--card-tint', rgb);
       node.style.setProperty('--card-tint-soft', `rgba(${r}, ${g}, ${b}, 0.18)`);
       node.style.setProperty('--card-tint-glow', `rgba(${r}, ${g}, ${b}, 0.32)`);
@@ -129,7 +147,12 @@ export function tintFromImg(node, url) {
   }
   apply(url);
   return {
-    update(newUrl) { lastUrl = newUrl; apply(newUrl); },
-    destroy() { /* no listeners to clean up */ }
+    update(newUrl) {
+      lastUrl = newUrl;
+      apply(newUrl);
+    },
+    destroy() {
+      /* no listeners to clean up */
+    },
   };
 }

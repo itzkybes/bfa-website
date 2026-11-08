@@ -7,9 +7,9 @@
 // brackets endpoint comes back incomplete. Keys are season year, values are
 // the Sleeper username of the actual champion.
 export const HARDCODED_CHAMPIONS = {
-  '2022': 'riguy506',
-  '2023': 'armyjunior',
-  '2024': 'riguy506'
+  2022: 'riguy506',
+  2023: 'armyjunior',
+  2024: 'riguy506',
 };
 
 /**
@@ -29,7 +29,12 @@ export const HARDCODED_CHAMPIONS = {
  * `bracketComplete` is true only when a real `p === 1` match has a winner —
  * we never crown a champion mid-season.
  */
-export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket, regularStandings, playoffTeamCount) {
+export function resolveFinalStandingsFromBrackets(
+  winnersBracket,
+  losersBracket,
+  regularStandings,
+  playoffTeamCount
+) {
   const ranking = new Map(); // rosterId -> rank
   const wbBrackets = Array.isArray(winnersBracket) ? winnersBracket : [];
   const lbBrackets = Array.isArray(losersBracket) ? losersBracket : [];
@@ -37,7 +42,10 @@ export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket,
   // A season is "complete" if the championship match (p === 1) exists AND has a winner.
   let championshipMatch = null;
   for (const m of wbBrackets) {
-    if (m && Number(m.p) === 1 && m.w != null) { championshipMatch = m; break; }
+    if (m && Number(m.p) === 1 && m.w != null) {
+      championshipMatch = m;
+      break;
+    }
   }
   const bracketComplete = championshipMatch != null;
 
@@ -60,7 +68,9 @@ export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket,
   //
   // Sleeper's `p` for the losers bracket: relative (1 = championship of toilet bowl
   // = absolute last place; higher `p` = consolation games closer to playoff cutoff).
-  const totalRosters = Array.isArray(regularStandings) ? regularStandings.length : (playoffTeamCount + lbBrackets.length);
+  const totalRosters = Array.isArray(regularStandings)
+    ? regularStandings.length
+    : playoffTeamCount + lbBrackets.length;
   const lbPs = lbBrackets.map((x) => Number(x.p)).filter((n) => isFinite(n) && n >= 1);
   const lbIsRelative = lbPs.length === 0 || Math.min(...lbPs) <= 2;
   for (const m of lbBrackets) {
@@ -93,7 +103,7 @@ export function resolveFinalStandingsFromBrackets(winnersBracket, losersBracket,
   let fallbackIdx = 0;
   for (const row of regularStandings) {
     if (!ranking.has(String(row.rosterId))) {
-      const rank = remainingRanks[fallbackIdx++] ?? (regularStandings.length + 1);
+      const rank = remainingRanks[fallbackIdx++] ?? regularStandings.length + 1;
       ranking.set(String(row.rosterId), rank);
     }
   }
@@ -123,16 +133,26 @@ export function getChampionshipGame(winnersBracket, playoffStart) {
 
   // Sleeper rounds: round 1 = first playoff week, so week = playoffStart + (r - 1).
   const round = Number(champMatch.r);
-  const week = isFinite(round) && round >= 1 ? (playoffStart + (round - 1)) : null;
+  const week = isFinite(round) && round >= 1 ? playoffStart + (round - 1) : null;
 
-  const t1 = champMatch.t1 != null ? String(champMatch.t1) : (champMatch.w != null ? String(champMatch.w) : null);
-  const t2 = champMatch.t2 != null ? String(champMatch.t2) : (champMatch.l != null ? String(champMatch.l) : null);
+  const t1 =
+    champMatch.t1 != null
+      ? String(champMatch.t1)
+      : champMatch.w != null
+        ? String(champMatch.w)
+        : null;
+  const t2 =
+    champMatch.t2 != null
+      ? String(champMatch.t2)
+      : champMatch.l != null
+        ? String(champMatch.l)
+        : null;
 
   return {
     week,
     rosterIds: [t1, t2].filter(Boolean),
     winnerRosterId: champMatch.w != null ? String(champMatch.w) : null,
     loserRosterId: champMatch.l != null ? String(champMatch.l) : null,
-    match: champMatch
+    match: champMatch,
   };
 }

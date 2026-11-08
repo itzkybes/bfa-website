@@ -3,7 +3,7 @@
 // `HARDCODED_CHAMPIONS` is intentionally NOT re-exported; it's an internal
 // fallback used only by the standings computer.
 
-export { computeParticipantPoints, starterPointsByPid } from './scoring';
+export { computeParticipantPoints, starterPointsByPid, aggregatePlayerPoints } from './scoring';
 export { computeStreaks } from './streaks';
 export { resolveFinalStandingsFromBrackets, getChampionshipGame } from './brackets';
 export { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';

@@ -53,7 +53,7 @@ data shapes — and never mixes them:
 | 📈 Highest / 📉 Lowest Team   | Per-team `points` total                           |
 
 **Critical:** Top 3 and Bust are STRICTLY starter scoring. `starterPointsByPid`
-in `leagueCompute.client.js` returns `null` if a Sleeper matchup entry lacks a
+in `src/lib/compute/scoring.js` returns `null` if a Sleeper matchup entry lacks a
 `starters_points` array — the caller skips that team entirely rather than
 falling back to `player_points`, which would conflate bench contributions with
 starter performance. Sleeper has shipped four different field names over the
@@ -108,16 +108,30 @@ Each team-history page leads with an **H2H block**:
 ```
 src/
 ├── lib/
-│   ├── sleeperClient.client.js    Thin wrapper around Sleeper REST endpoints
-│   ├── leagueCompute.client.js    Standings, brackets, MVPs, matchup rows + `starterPointsByPid`
-│   ├── positions.js               Expand `fantasy_positions` to full slot eligibility (PG→PG,G,UTIL …)
-│   ├── dominantColor.js           Optional canvas-based dominant-color extractor (unused at the moment)
-│   ├── cache.js                   localStorage cache with TTL
-│   ├── vitals.js                  Web Vitals → Vercel Analytics
-│   ├── header/Header.svelte       Sticky top nav
-│   ├── Sparkline.svelte           SVG sparkline (used on standings + power-rankings)
-│   ├── ErrorBoundary.svelte       Friendly error UI with retry
-│   └── SkeletonLoader.svelte      Loading skeletons for tables/cards/rows
+│   ├── api/
+│   │   ├── sleeper.js             Sleeper REST wrapper, season-chain discovery, BASE_LEAGUE_ID
+│   │   ├── cache.js               localStorage cache with TTL
+│   │   ├── staticSeasons.js       Loader for /static/season_matchups/{year}.json snapshots
+│   │   └── index.js               Barrel — `import { … } from '$lib/api'`
+│   ├── compute/
+│   │   ├── scoring.js             computeParticipantPoints, starterPointsByPid, aggregatePlayerPoints
+│   │   ├── standings.js           Season standings, MVPs, static-vs-live switch
+│   │   ├── matchups.js            Weekly matchup rows
+│   │   ├── brackets.js            Final standings + championship game from brackets
+│   │   ├── avatars.js             Overlay each owner's latest team art on historical seasons
+│   │   ├── streaks.js             Win/lose streak helper
+│   │   └── index.js               Barrel — `import { … } from '$lib/compute'`
+│   ├── components/
+│   │   ├── Header.svelte          Sticky top nav
+│   │   ├── Sparkline.svelte       SVG sparkline (standings + power-rankings)
+│   │   ├── ErrorBoundary.svelte   Friendly error UI with retry
+│   │   └── SkeletonLoader.svelte  Loading skeletons for tables/cards/rows
+│   └── utils/
+│       ├── format.js              formatNumber, avatarOrPlaceholder, playerDisplayName
+│       ├── positions.js           Expand `fantasy_positions` to full slot eligibility (PG→PG,G,UTIL …)
+│       ├── scoringLabels.js       Display labels for scoring categories
+│       ├── dominantColor.js       Optional canvas-based dominant-color extractor (unused at the moment)
+│       └── vitals.js              Web Vitals → Vercel Analytics
 ├── routes/                        One folder per page (+ /admin)
 ├── app.css                        BFA color tokens + global type/layout
 └── app.html                       SvelteKit shell
@@ -150,7 +164,7 @@ In practice that means:
 Owners keep the same Sleeper username across seasons, but roster IDs and team
 art change every year. So when you look at the 2022 standings, you see each
 owner's **current** logo, not the one they had three years ago. That overlay
-lives in `getLatestOwnerAvatars()` (in `leagueCompute.client.js`) and runs
+lives in `getLatestOwnerAvatars()` (in `src/lib/compute/avatars.js`) and runs
 once per page load.
 
 ### New seasons show up automatically
@@ -180,7 +194,7 @@ yarn dev          # http://localhost:5173
 ```
 
 You don't need any environment variables. The league ID is baked into
-`src/lib/sleeperClient.client.js` — `BASE_LEAGUE_ID` is just the anchor
+`src/lib/api/sleeper.js` — `BASE_LEAGUE_ID` is just the anchor
 `getSeasonsChain` starts from; new seasons after it are picked up
 automatically via forward-discovery (see above), and historical seasons via
 the backwards `previous_league_id` walk. You only need to touch the constant

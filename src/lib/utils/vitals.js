@@ -35,7 +35,7 @@ function sendToAnalytics(metric, options) {
     href: location.href,
     event_name: metric.name,
     value: metric.value.toString(),
-    speed: getConnectionSpeed()
+    speed: getConnectionSpeed(),
   };
 
   if (options.debug) {
@@ -44,7 +44,7 @@ function sendToAnalytics(metric, options) {
 
   const blob = new Blob([new URLSearchParams(body).toString()], {
     // This content type is necessary for `sendBeacon`
-    type: 'application/x-www-form-urlencoded'
+    type: 'application/x-www-form-urlencoded',
   });
   if (navigator.sendBeacon) {
     navigator.sendBeacon(vitalsUrl, blob);
@@ -53,7 +53,7 @@ function sendToAnalytics(metric, options) {
       body: blob,
       method: 'POST',
       credentials: 'omit',
-      keepalive: true
+      keepalive: true,
     });
 }
 

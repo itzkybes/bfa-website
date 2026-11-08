@@ -82,7 +82,9 @@ export async function getWinnersBracket(leagueId, ttl = CACHE_10_MIN) {
       {},
       ttl
     );
-  } catch (e) { return []; }
+  } catch (e) {
+    return [];
+  }
 }
 
 /**
@@ -96,7 +98,9 @@ export async function getLosersBracket(leagueId, ttl = CACHE_10_MIN) {
       {},
       ttl
     );
-  } catch (e) { return []; }
+  } catch (e) {
+    return [];
+  }
 }
 
 // ─── Players ────────────────────────────────────────────────────────────
@@ -123,10 +127,7 @@ export function playerHeadshot(pid) {
  * card" helper — it joins rosters with users and resolves avatar URLs.
  */
 export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
-  const [rosters, users] = await Promise.all([
-    getRosters(leagueId, ttl),
-    getUsers(leagueId, ttl)
-  ]);
+  const [rosters, users] = await Promise.all([getRosters(leagueId, ttl), getUsers(leagueId, ttl)]);
 
   const usersById = {};
   if (Array.isArray(users)) {
@@ -148,7 +149,9 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
     // Team name preference: explicit roster metadata > user metadata > derived
     // from display name > fallback "Roster N".
     let teamName = null;
-    try { if (r.metadata && r.metadata.team_name) teamName = r.metadata.team_name; } catch (e) {}
+    try {
+      if (r.metadata && r.metadata.team_name) teamName = r.metadata.team_name;
+    } catch (e) {}
     if (!teamName && uobj) {
       try {
         if (uobj.metadata && uobj.metadata.team_name) teamName = uobj.metadata.team_name;
@@ -164,7 +167,7 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
     try {
       if (r.metadata && r.metadata.team_avatar) {
         const c = String(r.metadata.team_avatar);
-        teamAvatar = (c.indexOf('http') === 0) ? c : (SLEEPER_CDN + '/avatars/' + c);
+        teamAvatar = c.indexOf('http') === 0 ? c : SLEEPER_CDN + '/avatars/' + c;
       }
     } catch (e) {}
 
@@ -173,26 +176,27 @@ export async function getRosterMapWithOwners(leagueId, ttl = CACHE_10_MIN) {
       const tryAvatar = (val) => {
         if (!val) return null;
         const s = String(val);
-        return s.indexOf('http') === 0 ? s : (SLEEPER_CDN + '/avatars/' + s);
+        return s.indexOf('http') === 0 ? s : SLEEPER_CDN + '/avatars/' + s;
       };
-      ownerAvatar = tryAvatar(uobj.metadata?.team_avatar)
-        || tryAvatar(uobj.metadata?.avatar)
-        || tryAvatar(uobj.avatar);
+      ownerAvatar =
+        tryAvatar(uobj.metadata?.team_avatar) ||
+        tryAvatar(uobj.metadata?.avatar) ||
+        tryAvatar(uobj.avatar);
     }
 
     map[String(rid)] = {
       roster_id: String(rid),
       owner_id: ownerId != null ? String(ownerId) : null,
       team_name: teamName,
-      owner_name: uobj ? (uobj.display_name || uobj.username || null) : null,
+      owner_name: uobj ? uobj.display_name || uobj.username || null : null,
       // Sleeper privacy settings can null out `username`. For our purposes the
       // `display_name` is the stable handle (it's what owners are known by in
       // the league chat and what the URLs use), so fall back to it.
-      owner_username: uobj ? (uobj.username || uobj.display_name || null) : null,
+      owner_username: uobj ? uobj.username || uobj.display_name || null : null,
       team_avatar: teamAvatar,
       owner_avatar: ownerAvatar,
       roster_raw: r,
-      user_raw: uobj || null
+      user_raw: uobj || null,
     };
   }
   return map;
@@ -249,7 +253,7 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
     league_id: String(mainLeague.league_id || baseLeagueId),
     season: mainLeague.season || null,
     name: mainLeague.name || null,
-    status: mainLeague.status || null
+    status: mainLeague.status || null,
   });
   prevChain.push(String(mainLeague.league_id || baseLeagueId));
 
@@ -265,7 +269,7 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
         league_id: String(prev.league_id || curr),
         season: prev.season || null,
         name: prev.name || null,
-        status: prev.status || null
+        status: prev.status || null,
       });
       prevChain.push(String(prev.league_id || curr));
       curr = prev.previous_league_id ? String(prev.previous_league_id) : null;
@@ -282,21 +286,24 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
     const anchorUsers = await getUsers(String(mainLeague.league_id || baseLeagueId));
     if (Array.isArray(anchorUsers)) {
       seedUserIds = anchorUsers
-        .map(u => u && (u.user_id || u.id || u.userId))
+        .map((u) => u && (u.user_id || u.id || u.userId))
         .filter(Boolean)
         .map(String)
         .slice(0, 4);
     }
-  } catch (e) { /* swallow — backwards-only chain is still valid */ }
+  } catch (e) {
+    /* swallow — backwards-only chain is still valid */
+  }
 
   if (seedUserIds.length > 0) {
     const anchorSeasonNum = Number(mainLeague.season);
     // If the anchor league has no season, fall back to the current calendar
     // year. Sleeper marks NBA seasons by the year the playoffs end in (so the
     // 2025/26 season is `season: "2026"`).
-    const startYear = !isNaN(anchorSeasonNum) && anchorSeasonNum > 0
-      ? anchorSeasonNum
-      : new Date().getUTCFullYear();
+    const startYear =
+      !isNaN(anchorSeasonNum) && anchorSeasonNum > 0
+        ? anchorSeasonNum
+        : new Date().getUTCFullYear();
     const maxYear = Math.max(startYear, new Date().getUTCFullYear()) + 5;
 
     let latestId = String(mainLeague.league_id || baseLeagueId);
@@ -306,12 +313,12 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
       // Probe each seed user in parallel; the first one with a matching
       // league wins.
       const lists = await Promise.all(
-        seedUserIds.map(uid => getUserLeaguesForSeason(uid, String(yr)))
+        seedUserIds.map((uid) => getUserLeaguesForSeason(uid, String(yr)))
       );
       const flat = [];
       const seen = new Set();
       for (const list of lists) {
-        for (const lg of (list || [])) {
+        for (const lg of list || []) {
           if (!lg || !lg.league_id) continue;
           const id = String(lg.league_id);
           if (seen.has(id)) continue;
@@ -319,14 +326,14 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
           flat.push(lg);
         }
       }
-      const next = flat.find(lg => String(lg.previous_league_id || '') === latestId);
+      const next = flat.find((lg) => String(lg.previous_league_id || '') === latestId);
       if (!next) break;
 
       seasons.push({
         league_id: String(next.league_id),
         season: next.season || String(yr),
         name: next.name || null,
-        status: next.status || null
+        status: next.status || null,
       });
       prevChain.push(String(next.league_id));
       latestId = String(next.league_id);
@@ -338,9 +345,10 @@ export async function getSeasonsChain(baseLeagueId, maxSteps = 50) {
     if (a.season == null && b.season == null) return 0;
     if (a.season == null) return 1;
     if (b.season == null) return -1;
-    const na = Number(a.season), nb = Number(b.season);
+    const na = Number(a.season),
+      nb = Number(b.season);
     if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return a.season < b.season ? -1 : (a.season > b.season ? 1 : 0);
+    return a.season < b.season ? -1 : a.season > b.season ? 1 : 0;
   });
 
   return { seasons, prevChain };
@@ -362,7 +370,8 @@ export function pickActiveLeague(chain) {
   if (!Array.isArray(chain) || chain.length === 0) return null;
   // Walk newest → oldest.
   const reversed = [...chain].reverse();
-  let inSeason = null, complete = null;
+  let inSeason = null,
+    complete = null;
   for (const s of reversed) {
     if (!inSeason && s.status === 'in_season') inSeason = s;
     if (!complete && s.status === 'complete') complete = s;
@@ -397,12 +406,15 @@ export async function getCurrentWeekForLeague(leagueId, { maxWeek = 25, minAvg =
         if (avg >= minAvg) return { week: lastNum, avgPoints: avg };
       }
     }
-  } catch (e) { /* fall through to scan */ }
+  } catch (e) {
+    /* fall through to scan */
+  }
 
   for (let wk = maxWeek; wk >= 1; wk--) {
     const m = await getMatchupsForWeek(leagueId, wk).catch(() => null);
     if (!Array.isArray(m) || m.length === 0) continue;
-    let total = 0, count = 0;
+    let total = 0,
+      count = 0;
     for (const e of m) {
       const pts = Number(e?.points ?? 0) || 0;
       total += pts;
@@ -445,7 +457,7 @@ export async function getRecentTrades(leagueId, { weekFrom = 1, weekTo = 25, lim
   const lists = await Promise.all(weeks.map((w) => getTransactionsForWeek(leagueId, w)));
   const all = [];
   for (let i = 0; i < lists.length; i++) {
-    for (const t of (lists[i] || [])) {
+    for (const t of lists[i] || []) {
       if (t.type !== 'trade') continue;
       if (t.status !== 'complete') continue;
       all.push({ ...t, _week: weeks[i] });

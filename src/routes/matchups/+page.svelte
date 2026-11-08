@@ -7,6 +7,7 @@
   import { computeMatchupsForLeagueWeek, starterPointsByPid } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import { avatarOrPlaceholder } from '$lib/utils/format';
 
   let loading = true;
   let error = null;
@@ -36,11 +37,6 @@
   let bgRefreshing = false;
   const cacheKey = (lid, wk) => `${lid}:${wk}`;
 
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
   function fmt2(n) { return Number(n ?? 0).toFixed(2); }
   function fmt1(n) { return Number(n ?? 0).toFixed(1); }
   // Reactive helper — recreated whenever `playersMap` changes so any
@@ -391,7 +387,7 @@
             <div class="recap-card" data-testid="recap-blowout">
               <div class="recap-eyebrow">💥 Biggest Blowout</div>
               <div class="recap-card-body">
-                <img class="recap-team-avatar" src={avatarOrPh(recap.biggestBlowout.winner.avatar, recap.biggestBlowout.winner.name)} alt={recap.biggestBlowout.winner.name} />
+                <img class="recap-team-avatar" src={avatarOrPlaceholder(recap.biggestBlowout.winner.avatar, recap.biggestBlowout.winner.name)} alt={recap.biggestBlowout.winner.name} />
                 <div class="recap-card-meta">
                   <div class="recap-player">{recap.biggestBlowout.winner.name}</div>
                   <div class="recap-card-team muted">def. {recap.biggestBlowout.loser.name}</div>
@@ -405,7 +401,7 @@
             <div class="recap-card" data-testid="recap-closest">
               <div class="recap-eyebrow">🔥 Closest Game</div>
               <div class="recap-card-body">
-                <img class="recap-team-avatar" src={avatarOrPh(recap.closestGame.teams[0].avatar, recap.closestGame.teams[0].name)} alt={recap.closestGame.teams[0].name} />
+                <img class="recap-team-avatar" src={avatarOrPlaceholder(recap.closestGame.teams[0].avatar, recap.closestGame.teams[0].name)} alt={recap.closestGame.teams[0].name} />
                 <div class="recap-card-meta">
                   <div class="recap-player">{recap.closestGame.teams[0].name}</div>
                   <div class="recap-card-team muted">vs {recap.closestGame.teams[1].name}</div>
@@ -419,7 +415,7 @@
             <div class="recap-card" data-testid="recap-exciting">
               <div class="recap-eyebrow">🎯 Highest-Scoring Matchup</div>
               <div class="recap-card-body">
-                <img class="recap-team-avatar" src={avatarOrPh(recap.mostExciting.teams[0].avatar, recap.mostExciting.teams[0].name)} alt={recap.mostExciting.teams[0].name} />
+                <img class="recap-team-avatar" src={avatarOrPlaceholder(recap.mostExciting.teams[0].avatar, recap.mostExciting.teams[0].name)} alt={recap.mostExciting.teams[0].name} />
                 <div class="recap-card-meta">
                   <div class="recap-player">{recap.mostExciting.teams[0].name} <span class="muted">vs</span> {recap.mostExciting.teams[1].name}</div>
                   <div class="recap-card-team muted">{fmt1(recap.mostExciting.teams[0].points)} – {fmt1(recap.mostExciting.teams[1].points)}</div>
@@ -450,7 +446,7 @@
             <div class="recap-card" data-testid="recap-high-team">
               <div class="recap-eyebrow">📈 Highest Team Score</div>
               <div class="recap-card-body">
-                <img class="recap-team-avatar" src={avatarOrPh(recap.highTeam.avatar, recap.highTeam.name)} alt={recap.highTeam.name} />
+                <img class="recap-team-avatar" src={avatarOrPlaceholder(recap.highTeam.avatar, recap.highTeam.name)} alt={recap.highTeam.name} />
                 <div class="recap-card-meta">
                   <div class="recap-player">{recap.highTeam.name}</div>
                   {#if recap.highTeam.owner}<div class="recap-card-team muted">{recap.highTeam.owner}</div>{/if}
@@ -464,7 +460,7 @@
             <div class="recap-card" data-testid="recap-low-team">
               <div class="recap-eyebrow">📉 Lowest Team Score</div>
               <div class="recap-card-body">
-                <img class="recap-team-avatar" src={avatarOrPh(recap.lowTeam.avatar, recap.lowTeam.name)} alt={recap.lowTeam.name} />
+                <img class="recap-team-avatar" src={avatarOrPlaceholder(recap.lowTeam.avatar, recap.lowTeam.name)} alt={recap.lowTeam.name} />
                 <div class="recap-card-meta">
                   <div class="recap-player">{recap.lowTeam.name}</div>
                   {#if recap.lowTeam.owner}<div class="recap-card-team muted">{recap.lowTeam.owner}</div>{/if}
@@ -486,7 +482,7 @@
         {#if row.participantsCount === 2}
           <div class="match-row rise" style="animation-delay: {idx * 40}ms;">
             <div class="m-team" class:winner={row.teamA?.points > row.teamB?.points}>
-              <img class="m-avatar" src={avatarOrPh(row.teamA?.avatar, row.teamA?.name)} alt={row.teamA?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+              <img class="m-avatar" src={avatarOrPlaceholder(row.teamA?.avatar, row.teamA?.name)} alt={row.teamA?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
               <div class="m-meta">
                 <div class="m-name">{row.teamA?.name}</div>
                 {#if row.teamA?.ownerName}<div class="m-owner">{row.teamA.ownerName}</div>{/if}
@@ -506,13 +502,13 @@
                 <div class="m-name">{row.teamB?.name}</div>
                 {#if row.teamB?.ownerName}<div class="m-owner">{row.teamB.ownerName}</div>{/if}
               </div>
-              <img class="m-avatar" src={avatarOrPh(row.teamB?.avatar, row.teamB?.name)} alt={row.teamB?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+              <img class="m-avatar" src={avatarOrPlaceholder(row.teamB?.avatar, row.teamB?.name)} alt={row.teamB?.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
             </div>
           </div>
         {:else if row.participantsCount === 1}
           <div class="match-row bye rise" style="animation-delay: {idx * 40}ms;">
             <div class="m-team">
-              <img class="m-avatar" src={avatarOrPh(row.teamA?.avatar, row.teamA?.name)} alt={row.teamA?.name} />
+              <img class="m-avatar" src={avatarOrPlaceholder(row.teamA?.avatar, row.teamA?.name)} alt={row.teamA?.name} />
               <div class="m-meta">
                 <div class="m-name">{row.teamA?.name}</div>
                 {#if row.teamA?.ownerName}<div class="m-owner">{row.teamA.ownerName}</div>{/if}
@@ -532,7 +528,7 @@
             <div class="multi-list">
               {#each row.combinedParticipants as p (p.rosterId)}
                 <div class="multi-row">
-                  <img class="m-avatar small" src={avatarOrPh(p.avatar, p.name)} alt={p.name} />
+                  <img class="m-avatar small" src={avatarOrPlaceholder(p.avatar, p.name)} alt={p.name} />
                   <div class="m-name">{p.name}</div>
                   <div class="m-score"><span class="num">{fmt2(p.points)}</span></div>
                 </div>

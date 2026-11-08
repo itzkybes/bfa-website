@@ -4,9 +4,10 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/api';
-  import { computeStandingsForLeague } from '$lib/compute';
+  import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
 
   let loading = true;
   let error = null;
@@ -19,22 +20,9 @@
   let allTimeBestByTeam = [];          // per team: best reg-season player + best playoff player
   let playersMap = {};
 
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'P';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
-  function fmt(v) {
-    const n = Number(v); if (!isFinite(n)) return '—';
-    return (Math.round(n * 100) / 100).toFixed(2);
-  }
-
-  function playerName(pid) {
-    if (!pid) return '';
-    const p = playersMap[pid];
-    if (!p) return String(pid);
-    return p.full_name || `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || String(pid);
-  }
+  // Page-specific presets for the shared formatters: 2 decimals, and a 'P' placeholder avatar.
+  const fmt = (v) => formatNumber(v, 2);
+  const avatarOrPh = (url, name) => avatarOrPlaceholder(url, name, 'P');
 
   $: selectedRow = seasonsResults.find(r => String(r.season) === String(selectedSeason)) ?? null;
   $: om = selectedRow?.regularMvp ?? null;
@@ -45,27 +33,6 @@
   // `starters_points` (which already reflects each owner's selected-game
   // choice) — never falls back to `player_points`. Entries that ship
   // without a starters_points array are skipped so we don't inject zeros.
-  function aggregatePlayerPoints(matchupEntries) {
-    const byPlayer = {}; // pid -> { points, rosterId }
-    for (const entry of matchupEntries) {
-      if (!entry) continue;
-      const rid = String(entry.roster_id ?? entry.rosterId ?? '');
-      const starters = Array.isArray(entry.starters) ? entry.starters : [];
-      const sp = entry.starters_points;
-      if (!Array.isArray(sp) || !starters.length) continue;
-      for (let i = 0; i < starters.length; i++) {
-        const pid = starters[i];
-        if (!pid) continue;
-        const n = Number(sp[i] ?? 0);
-        const val = isFinite(n) ? n : 0;
-        if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-        byPlayer[pid].points += val;
-      }
-    }
-    for (const k of Object.keys(byPlayer)) byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
-    return byPlayer;
-  }
-
   async function loadAll() {
     loading = true; error = null;
     try {
@@ -208,15 +175,15 @@
       // re-themed).
       for (const r of seasonsResults) {
         if (r.regularMvp) {
-          r.regularMvp.playerName = playerName(r.regularMvp.playerId);
+          r.regularMvp.playerName = playerDisplayName(playersMap, r.regularMvp.playerId);
           r.regularMvp.roster_meta = latestMetaFor(r.regularMvp.roster_meta) || r.regularMvp.roster_meta;
         }
         if (r.playoffsMvp) {
-          r.playoffsMvp.playerName = playerName(r.playoffsMvp.playerId);
+          r.playoffsMvp.playerName = playerDisplayName(playersMap, r.playoffsMvp.playerId);
           r.playoffsMvp.roster_meta = latestMetaFor(r.playoffsMvp.roster_meta) || r.playoffsMvp.roster_meta;
         }
         if (r.finalsMvp) {
-          r.finalsMvp.playerName = playerName(r.finalsMvp.playerId);
+          r.finalsMvp.playerName = playerDisplayName(playersMap, r.finalsMvp.playerId);
           r.finalsMvp.roster_meta = latestMetaFor(r.finalsMvp.roster_meta) || r.finalsMvp.roster_meta;
         }
       }
@@ -231,7 +198,7 @@
             const meta = r.rosterMap[rid] || {};
             const latestMeta = latestMetaFor(meta) || meta;
             allTimePlayoffMap[rid] = {
-              rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
+              rosterId: rid, playerId: pid, playerName: playerDisplayName(playersMap, pid), points: info.points,
               season: r.season,
               teamName: latestMeta.team_name || meta.team_name,
               owner_name: latestMeta.owner_name || meta.owner_name,
@@ -251,7 +218,7 @@
             const meta = r.rosterMap[rid] || {};
             const latestMeta = latestMetaFor(meta) || meta;
             allTimeFullMap[rid] = {
-              rosterId: rid, playerId: pid, playerName: playerName(pid), points: info.points,
+              rosterId: rid, playerId: pid, playerName: playerDisplayName(playersMap, pid), points: info.points,
               season: r.season,
               teamName: latestMeta.team_name || meta.team_name,
               owner_name: latestMeta.owner_name || meta.owner_name,
@@ -297,7 +264,7 @@
       allTimePlayoffsLeaderboard = Object.values(playoffsByPlayer)
         .map((p) => ({
           ...p,
-          playerName: playerName(p.playerId),
+          playerName: playerDisplayName(playersMap, p.playerId),
           totalPoints: Math.round(p.totalPoints * 100) / 100,
           best: Math.round(p.best * 100) / 100
         }))
@@ -338,7 +305,7 @@
           if (!cur || info.points > cur.points) {
             bestByTeam[key].reg = {
               playerId: pid,
-              playerName: playerName(pid),
+              playerName: playerDisplayName(playersMap, pid),
               points: Math.round(info.points * 100) / 100,
               season: r.season
             };
@@ -355,7 +322,7 @@
           if (!cur || info.points > cur.points) {
             bestByTeam[key].playoff = {
               playerId: pid,
-              playerName: playerName(pid),
+              playerName: playerDisplayName(playersMap, pid),
               points: Math.round(info.points * 100) / 100,
               season: r.season
             };

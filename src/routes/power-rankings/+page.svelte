@@ -20,6 +20,7 @@
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
+  import { avatarOrPlaceholder } from '$lib/utils/format';
 
   let loading = true;
   let error = null;
@@ -35,12 +36,6 @@
     const n = Number(v);
     if (!isFinite(n)) return '—';
     return n.toFixed(places);
-  }
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? String(name)[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
   }
 
   /**
@@ -224,7 +219,7 @@
                 <td class="rank-cell"><span class="num rank-num">{r.rank}</span></td>
                 <td>
                   <div class="team-cell">
-                    <img class="team-avatar small" src={avatarOrPh(r.meta.team_avatar || r.meta.owner_avatar, r.meta.team_name)} alt={r.meta.team_name} />
+                    <img class="team-avatar small" src={avatarOrPlaceholder(r.meta.team_avatar || r.meta.owner_avatar, r.meta.team_name)} alt={r.meta.team_name} />
                     <div>
                       {#if r.meta.owner_username}
                         <a class="team-name-link" href={`/team/${encodeURIComponent(r.meta.owner_username)}`}>{r.meta.team_name}</a>

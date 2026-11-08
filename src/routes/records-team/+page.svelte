@@ -5,6 +5,7 @@
   import { computeStandingsForLeague, computeParticipantPoints } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import { avatarOrPlaceholder } from '$lib/utils/format';
 
   let loading = true;
   let progress = '';
@@ -16,12 +17,6 @@
   let marginsLargest = [];
   let marginsSmallest = [];
   let selectedH2H = null;
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? name[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
 
   function lastLabel(season, week) {
     if (!season) return '—';
@@ -272,7 +267,7 @@
                 <tr>
                   <td>
                     <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+                      <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                       <div>
                         <div class="team-name-cell">{row.team_name}</div>
                         {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
@@ -309,7 +304,7 @@
                 <tr class:champion-row={(row.championships || 0) > 0}>
                   <td>
                     <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.avatar, row.team_name)} alt={row.team_name} />
+                      <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                       <div>
                         <div class="team-name-cell">
                           {row.team_name}
@@ -364,7 +359,7 @@
                 <tr>
                   <td>
                     <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(r.opponentAvatar, r.opponentTeam || r.opponentDisplay)} alt={r.opponentTeam} />
+                      <img class="team-avatar small" src={avatarOrPlaceholder(r.opponentAvatar, r.opponentTeam || r.opponentDisplay)} alt={r.opponentTeam} />
                       <div>
                         <div class="team-name-cell">{r.opponentTeam || r.opponentDisplay}</div>
                         {#if r.opponentDisplay && r.opponentTeam}<div class="team-owner-cell">{r.opponentDisplay}</div>{/if}
@@ -396,9 +391,9 @@
               <div class="margin-row">
                 <div class="margin-rank num">#{row.rank}</div>
                 <div class="margin-teams">
-                  <div class="m-side"><img class="team-avatar small" src={avatarOrPh(row.avatarA, row.teamAName)} alt={row.teamAName} /><div class="m-mini"><div class="m-mini-name">{row.teamAName}</div><div class="m-mini-score num">{row.scoreA}</div></div></div>
+                  <div class="m-side"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatarA, row.teamAName)} alt={row.teamAName} /><div class="m-mini"><div class="m-mini-name">{row.teamAName}</div><div class="m-mini-score num">{row.scoreA}</div></div></div>
                   <div class="margin-value num">+{row.margin}</div>
-                  <div class="m-side right"><div class="m-mini"><div class="m-mini-name">{row.teamBName}</div><div class="m-mini-score num">{row.scoreB}</div></div><img class="team-avatar small" src={avatarOrPh(row.avatarB, row.teamBName)} alt={row.teamBName} /></div>
+                  <div class="m-side right"><div class="m-mini"><div class="m-mini-name">{row.teamBName}</div><div class="m-mini-score num">{row.scoreB}</div></div><img class="team-avatar small" src={avatarOrPlaceholder(row.avatarB, row.teamBName)} alt={row.teamBName} /></div>
                 </div>
                 <div class="margin-meta">S{row.season} · W{row.week}</div>
               </div>
@@ -415,9 +410,9 @@
               <div class="margin-row">
                 <div class="margin-rank num">#{row.rank}</div>
                 <div class="margin-teams">
-                  <div class="m-side"><img class="team-avatar small" src={avatarOrPh(row.avatarA, row.teamAName)} alt={row.teamAName} /><div class="m-mini"><div class="m-mini-name">{row.teamAName}</div><div class="m-mini-score num">{row.scoreA}</div></div></div>
+                  <div class="m-side"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatarA, row.teamAName)} alt={row.teamAName} /><div class="m-mini"><div class="m-mini-name">{row.teamAName}</div><div class="m-mini-score num">{row.scoreA}</div></div></div>
                   <div class="margin-value tight num">{row.margin}</div>
-                  <div class="m-side right"><div class="m-mini"><div class="m-mini-name">{row.teamBName}</div><div class="m-mini-score num">{row.scoreB}</div></div><img class="team-avatar small" src={avatarOrPh(row.avatarB, row.teamBName)} alt={row.teamBName} /></div>
+                  <div class="m-side right"><div class="m-mini"><div class="m-mini-name">{row.teamBName}</div><div class="m-mini-score num">{row.scoreB}</div></div><img class="team-avatar small" src={avatarOrPlaceholder(row.avatarB, row.teamBName)} alt={row.teamBName} /></div>
                 </div>
                 <div class="margin-meta">S{row.season} · W{row.week}</div>
               </div>

@@ -9,7 +9,7 @@ import {
   BASE_LEAGUE_ID,
   getSeasonsChain,
   pickActiveLeague,
-  getRosterMapWithOwners
+  getRosterMapWithOwners,
 } from '$lib/api/sleeper';
 
 /**
@@ -34,7 +34,9 @@ export function getLatestOwnerAvatars() {
         } else if (Array.isArray(seasons) && seasons.length > 0) {
           latestLeagueId = String(seasons[seasons.length - 1].league_id || BASE_LEAGUE_ID);
         }
-      } catch (e) { /* fall back to BASE_LEAGUE_ID */ }
+      } catch (e) {
+        /* fall back to BASE_LEAGUE_ID */
+      }
       const map = await getRosterMapWithOwners(latestLeagueId);
       const out = {};
       for (const rid of Object.keys(map)) {
@@ -44,7 +46,7 @@ export function getLatestOwnerAvatars() {
         out[key] = {
           team_avatar: m.team_avatar || null,
           owner_avatar: m.owner_avatar || null,
-          team_name: m.team_name || null
+          team_name: m.team_name || null,
         };
       }
       return out;

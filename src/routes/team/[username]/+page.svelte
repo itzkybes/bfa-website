@@ -16,6 +16,10 @@
   import { computeStandingsForLeague } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import { formatNumber, avatarOrPlaceholder } from '$lib/utils/format';
+
+  // Page-specific preset for the shared formatter: 2 decimals.
+  const fmt = (v) => formatNumber(v, 2);
 
   let loading = true;
   let error = null;
@@ -105,18 +109,6 @@
       longestStreak: streakLeader && streakLeader.longestWinStreak > 0 ? streakLeader : null
     };
   })();
-
-  function fmt(v) {
-    const n = Number(v);
-    if (!isFinite(n)) return '—';
-    return (Math.round(n * 100) / 100).toFixed(2);
-  }
-
-  function avatarOrPh(url, name) {
-    if (url) return url;
-    const ch = name ? String(name)[0].toUpperCase() : 'T';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(ch)}&background=1a1a1e&color=a1a1aa&size=56&format=svg`;
-  }
 
   /** Find the rosterId belonging to `username` in this league's roster map. */
   function findRosterIdForUser(rosterMap, usernameLower) {
@@ -254,7 +246,7 @@
   <header class="page-head rise">
     <div class="head-row">
       <div class="head-team">
-        <img class="head-avatar" src={avatarOrPh(owner.team_avatar || owner.owner_avatar, owner.team_name)} alt={owner.team_name || username} />
+        <img class="head-avatar" src={avatarOrPlaceholder(owner.team_avatar || owner.owner_avatar, owner.team_name)} alt={owner.team_name || username} />
         <div>
           <div class="eyebrow">Team · Matchup History</div>
           <h1 class="page-title">{owner.team_name || `@${username}`}</h1>
@@ -285,14 +277,14 @@
               <div class="h2h-card-body">
                 {#if h2h.biggestRival.meta?.owner_username}
                   <a class="h2h-link" href={`/team/${encodeURIComponent(h2h.biggestRival.meta.owner_username)}`}>
-                    <img class="h2h-avatar" src={avatarOrPh(h2h.biggestRival.meta.team_avatar, h2h.biggestRival.meta.team_name)} alt={h2h.biggestRival.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                    <img class="h2h-avatar" src={avatarOrPlaceholder(h2h.biggestRival.meta.team_avatar, h2h.biggestRival.meta.team_name)} alt={h2h.biggestRival.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                     <div class="h2h-meta">
                       <div class="h2h-name">{h2h.biggestRival.meta.team_name ?? '—'}</div>
                       <div class="h2h-context">{h2h.biggestRival.gp} games played</div>
                     </div>
                   </a>
                 {:else}
-                  <img class="h2h-avatar" src={avatarOrPh(h2h.biggestRival.meta?.team_avatar, h2h.biggestRival.meta?.team_name)} alt={h2h.biggestRival.meta?.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                  <img class="h2h-avatar" src={avatarOrPlaceholder(h2h.biggestRival.meta?.team_avatar, h2h.biggestRival.meta?.team_name)} alt={h2h.biggestRival.meta?.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                   <div class="h2h-meta">
                     <div class="h2h-name">{h2h.biggestRival.meta?.team_name ?? '—'}</div>
                     <div class="h2h-context">{h2h.biggestRival.gp} games played</div>
@@ -312,14 +304,14 @@
               <div class="h2h-card-body">
                 {#if h2h.longestStreak.meta?.owner_username}
                   <a class="h2h-link" href={`/team/${encodeURIComponent(h2h.longestStreak.meta.owner_username)}`}>
-                    <img class="h2h-avatar" src={avatarOrPh(h2h.longestStreak.meta.team_avatar, h2h.longestStreak.meta.team_name)} alt={h2h.longestStreak.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                    <img class="h2h-avatar" src={avatarOrPlaceholder(h2h.longestStreak.meta.team_avatar, h2h.longestStreak.meta.team_name)} alt={h2h.longestStreak.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                     <div class="h2h-meta">
                       <div class="h2h-name">vs {h2h.longestStreak.meta.team_name ?? '—'}</div>
                       <div class="h2h-context">{h2h.longestStreak.gp} games · {h2h.longestStreak.w}–{h2h.longestStreak.l}{#if h2h.longestStreak.t}–{h2h.longestStreak.t}{/if}</div>
                     </div>
                   </a>
                 {:else}
-                  <img class="h2h-avatar" src={avatarOrPh(h2h.longestStreak.meta?.team_avatar, h2h.longestStreak.meta?.team_name)} alt={h2h.longestStreak.meta?.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                  <img class="h2h-avatar" src={avatarOrPlaceholder(h2h.longestStreak.meta?.team_avatar, h2h.longestStreak.meta?.team_name)} alt={h2h.longestStreak.meta?.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                   <div class="h2h-meta">
                     <div class="h2h-name">vs {h2h.longestStreak.meta?.team_name ?? '—'}</div>
                     <div class="h2h-context">{h2h.longestStreak.gp} games</div>
@@ -352,7 +344,7 @@
                   <td>
                     {#if o.meta?.owner_username}
                       <a class="team-cell-link" href={`/team/${encodeURIComponent(o.meta.owner_username)}`}>
-                        <img class="team-avatar small" src={avatarOrPh(o.meta.team_avatar, o.meta.team_name)} alt={o.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                        <img class="team-avatar small" src={avatarOrPlaceholder(o.meta.team_avatar, o.meta.team_name)} alt={o.meta.team_name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                         <div>
                           <div class="team-name-cell">{o.meta.team_name}</div>
                           {#if o.meta.owner_name}<div class="team-owner-cell">{o.meta.owner_name}</div>{/if}
@@ -422,7 +414,7 @@
                     <td>
                       {#if m.oppMeta}
                         <a class="team-cell-link" href={m.oppMeta.owner_username ? `/team/${encodeURIComponent(m.oppMeta.owner_username)}` : '/rosters'}>
-                          <img class="team-avatar small" src={avatarOrPh(m.oppMeta.team_avatar, m.oppMeta.team_name)} alt={m.oppMeta.team_name} />
+                          <img class="team-avatar small" src={avatarOrPlaceholder(m.oppMeta.team_avatar, m.oppMeta.team_name)} alt={m.oppMeta.team_name} />
                           <div>
                             <div class="team-name-cell">{m.oppMeta.team_name}</div>
                             {#if m.oppMeta.owner_name}<div class="team-owner-cell">{m.oppMeta.owner_name}</div>{/if}
