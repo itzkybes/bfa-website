@@ -7,7 +7,8 @@
   filter to the rows where this owner is one of the participants, and group
   by season.
 
-  Deep-linked from /rosters team cards.
+  Deep-linked from team names on Home (trade ledger), Power Rankings and
+  Player Records, and from other team pages (rival / opponent links).
 -->
 <script>
   import { onMount } from 'svelte';

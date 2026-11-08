@@ -24,6 +24,50 @@ Live on Vercel. No login. No backend. No database.
 | `/honor-hall`     | Champion + Biggest Loser + three MVPs + final standings 1–14   |
 | `/admin/generate-season-matchups` | Browser-based snapshot regenerator. Defaults to every completed season in the chain; override with `?years=2026,2027` |
 
+### Site map
+
+Every page in the box is one click away in the header nav. The two admin tools
+are reachable only from the footer. Arrows show the other links between pages;
+`/team/[username]` is reached from anywhere a team name is listed.
+
+```mermaid
+flowchart LR
+    subgraph nav ["Header nav (also repeated in the footer)"]
+        direction TB
+        home["/<br/>Home"]
+        rosters["/rosters<br/>Owner Hub"]
+        matchups["/matchups<br/>Weekly Recap"]
+        standings["/standings"]
+        power["/power-rankings"]
+        subgraph records ["Records menu"]
+            direction TB
+            rteam["/records-team"]
+            rplayer["/records-player"]
+        end
+        honor["/honor-hall"]
+        rules["/rules"]
+    end
+
+    subgraph footer ["Footer only"]
+        direction TB
+        gen["/admin/generate-season-matchups"]
+        lookup["/admin/player-id-lookup"]
+    end
+
+    team["/team/[username]<br/>Head-to-Head + history"]
+
+    home -- "hero buttons" --> rosters
+    home -- "hero buttons" --> standings
+    home -- "Home: trade ledger" --> team
+    power -- "Power Rankings: team names" --> team
+    rplayer -- "Player Records: team names" --> team
+    team -- "rival / opponent names" --> team
+    team -- "opponent has no username → Owner Hub" --> rosters
+
+    classDef admin stroke-dasharray: 4 3
+    class gen,lookup admin
+```
+
 ### Three different MVPs, three different definitions
 
 The league has three MVP awards per season and they're easy to confuse, so:
@@ -144,6 +188,57 @@ scripts/
 └── test-auto-discovery.mjs        Sanity-checks the season chain walk
 ```
 
+### How the code fits together
+
+Pages never talk to Sleeper directly; they go through `$lib/api` (network +
+cache) and `$lib/compute` (pure scoring logic). The `compute` layer is where
+"static snapshot vs live API" gets decided, so every page agrees on the numbers.
+
+```mermaid
+flowchart TB
+    subgraph routes ["src/routes — every page fetches in onMount"]
+        direction LR
+        apionly["/ · /rules<br/>/admin/player-id-lookup<br/><i>$lib/api only</i>"]
+        hub["/rosters · /standings<br/>/power-rankings<br/>/team/[username]<br/><i>computeStandingsForLeague</i>"]
+        rteam["/records-team<br/><i>computeStandingsForLeague<br/>computeParticipantPoints</i>"]
+        mvp["/honor-hall · /records-player<br/><i>computeStandingsForLeague<br/>aggregatePlayerPoints</i>"]
+        mu["/matchups<br/><i>computeMatchupsForLeagueWeek<br/>starterPointsByPid</i>"]
+        gen["/admin/generate-season-matchups<br/><i>computeParticipantPoints</i>"]
+    end
+
+    subgraph compute ["src/lib/compute — pure scoring logic"]
+        direction LR
+        cs["standings.js<br/>computeStandingsForLeague<br/><i>also uses brackets.js,<br/>streaks.js, avatars.js</i>"]
+        cm["matchups.js<br/>computeMatchupsForLeagueWeek<br/><i>also uses avatars.js</i>"]
+        sc["scoring.js<br/>computeParticipantPoints<br/>starterPointsByPid<br/>aggregatePlayerPoints"]
+    end
+
+    subgraph api ["src/lib/api — network + cache"]
+        direction LR
+        sl["sleeper.js"]
+        st["staticSeasons.js"]
+        ca["cache.js<br/>localStorage + TTL"]
+    end
+
+    sleeper[("Sleeper API<br/>api.sleeper.app/v1")]
+    snap[("static/season_matchups/<br/>{year}.json")]
+
+    routes --> compute
+    routes -- "getSeasonsChain, getPlayersNba,<br/>getRosterMapWithOwners …" --> api
+    compute --> api
+
+    cs --> sc
+    cm --> sc
+
+    sl --> ca
+    ca --> sleeper
+    st --> snap
+```
+
+Shared display helpers (`formatNumber`, `avatarOrPlaceholder`,
+`playerDisplayName`) live in `src/lib/utils/format.js` and are imported by the
+pages directly.
+
 ### Everything runs in the browser
 
 The first version of this site rendered standings server-side. That blew up on
@@ -246,6 +341,20 @@ decision is fully automatic and depends on **two** signals:
    helper `fetchStaticJson()` returns `null` on 404, so a missing file falls
    back to the live API path with no code change.
 
+```mermaid
+flowchart TD
+    A["Page loads → onMount"] --> B["getSeasonsChain<br/>walk previous_league_id back,<br/>user leagues forward"]
+    B --> C{"League status<br/>== complete?"}
+    C -- "no (in_season / pre_draft)" --> L["Live Sleeper API"]
+    C -- yes --> D{"Snapshot file exists?<br/>/season_matchups/year.json"}
+    D -- "yes" --> S["Use the static snapshot"]
+    D -- "404" --> L
+    L --> K[("localStorage cache<br/>60s – 1h TTL")]
+    K --> R["Compute standings / matchups"]
+    S --> R
+    R --> UI["Render the page"]
+```
+
 This means the lifecycle is hands-off:
 
 | Phase                                  | Behaviour                                        |
@@ -254,6 +363,18 @@ This means the lifecycle is hands-off:
 | 2026 ends, no JSON yet                 | `status === 'complete'`, 404 on snapshot → live  |
 | `node scripts/regenerate-season-matchups.mjs` run after 2026 ends | Snapshot dropped in → **all** pages flip to static instantly |
 | 2027 league starts                     | `status !== 'complete'` → live API again         |
+
+```mermaid
+stateDiagram-v2
+    state "Live Sleeper API" as Live
+    state "Live (complete, not frozen yet)" as Pending
+    state "Frozen snapshot" as Frozen
+
+    [*] --> Live : season created in Sleeper
+    Live --> Pending : status becomes complete
+    Pending --> Frozen : snapshot JSON committed
+    Frozen --> [*]
+```
 
 You **never** have to edit a year whitelist in the codebase. The two functions
 above used to keep one but it was removed in favour of "file existence wins"
