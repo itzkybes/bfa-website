@@ -1,72 +1,126 @@
 // src/lib/api/cache.js
 //
-// Tiny localStorage cache so Sleeper's public endpoints stay cheap and snappy
-// on repeat visits. Every entry stores `{ data, timestamp, ttl }` under a
-// `bfa_cache_` prefix; reads check the timestamp and skip anything stale.
+// Small browser cache for Sleeper's public API. Normal responses persist in
+// localStorage; large responses stay in memory so they do not repeatedly
+// trigger storage-quota errors during in-app navigation.
 //
-// All functions are no-ops during SSR (where `window` doesn't exist) — the
-// production deploy is pure CSR anyway, but this keeps the build clean.
+// All cache functions are no-ops during SSR (where `window` does not exist).
 
 const CACHE_PREFIX = 'bfa_cache_';
 const DEFAULT_TTL = 5 * 60 * 1000;
+// localStorage is commonly limited to roughly 5 MB per origin. Keep a
+// conservative per-entry ceiling because values are stored as JSON strings.
+const MAX_PERSISTED_ENTRY_CHARS = 1_500_000;
+const memoryCache = new Map();
 
-/** Return cached data for `key` if still within TTL, otherwise `null`. */
+/** Return cached data and distinguish a cache miss from a cached null value. */
 function getCached(key) {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return { hit: false };
+
+  const now = Date.now();
+  const memoryEntry = memoryCache.get(key);
+  if (memoryEntry) {
+    if (now - memoryEntry.timestamp < memoryEntry.ttl) {
+      return { hit: true, data: memoryEntry.data };
+    }
+    memoryCache.delete(key);
+  }
+
   try {
-    const raw = localStorage.getItem(CACHE_PREFIX + key);
-    if (!raw) return null;
-    const { data, timestamp, ttl } = JSON.parse(raw);
-    if (Date.now() - timestamp < ttl) return data;
-    localStorage.removeItem(CACHE_PREFIX + key);
-    return null;
+    const storageKey = CACHE_PREFIX + key;
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return { hit: false };
+
+    const entry = JSON.parse(raw);
+    if (
+      entry &&
+      Number.isFinite(entry.timestamp) &&
+      Number.isFinite(entry.ttl) &&
+      entry.ttl > 0 &&
+      now - entry.timestamp < entry.ttl &&
+      Object.prototype.hasOwnProperty.call(entry, 'data')
+    ) {
+      memoryCache.set(key, entry);
+      return { hit: true, data: entry.data };
+    }
+
+    localStorage.removeItem(storageKey);
   } catch (err) {
     console.warn('[Cache] read failed:', err);
-    return null;
   }
+
+  return { hit: false };
 }
 
-/** Persist `data` under `key` with a TTL in ms. */
+/** Persist data in memory and, when reasonably small, in localStorage. */
 function setCache(key, data, ttl = DEFAULT_TTL) {
   if (typeof window === 'undefined') return;
+
+  const entry = { data, timestamp: Date.now(), ttl };
+  memoryCache.set(key, entry);
+
   try {
-    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now(), ttl }));
+    const serialized = JSON.stringify(entry);
+    // The full Sleeper NBA player map is several megabytes. Avoid attempting
+    // to put it in localStorage; the in-memory copy still serves page changes.
+    if (serialized.length > MAX_PERSISTED_ENTRY_CHARS) return;
+
+    const storageKey = CACHE_PREFIX + key;
+    try {
+      localStorage.setItem(storageKey, serialized);
+    } catch (err) {
+      if (!err || err.name !== 'QuotaExceededError') throw err;
+      clearExpired();
+      // Retry once after removing stale entries. If storage is still full,
+      // the in-memory cache remains available for this browser session.
+      localStorage.setItem(storageKey, serialized);
+    }
   } catch (err) {
-    // If we hit the localStorage quota, sweep expired entries and bail.
-    if (err && err.name === 'QuotaExceededError') clearExpired();
-    else console.warn('[Cache] write failed:', err);
+    if (!err || err.name !== 'QuotaExceededError') {
+      console.warn('[Cache] write failed:', err);
+    }
   }
 }
 
-/** Drop every cache entry whose TTL has elapsed. Called on quota errors. */
+/** Remove expired or malformed entries from persistent storage. */
 function clearExpired() {
   if (typeof window === 'undefined') return;
+
   try {
     const now = Date.now();
-    for (const k of Object.keys(localStorage)) {
-      if (!k.startsWith(CACHE_PREFIX)) continue;
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(CACHE_PREFIX)) continue;
       try {
-        const { timestamp, ttl } = JSON.parse(localStorage.getItem(k));
-        if (now - timestamp >= ttl) localStorage.removeItem(k);
+        const raw = localStorage.getItem(key);
+        const entry = raw ? JSON.parse(raw) : null;
+        if (
+          !entry ||
+          !Number.isFinite(entry.timestamp) ||
+          !Number.isFinite(entry.ttl) ||
+          now - entry.timestamp >= entry.ttl
+        ) {
+          localStorage.removeItem(key);
+        }
       } catch (_) {
-        localStorage.removeItem(k);
+        localStorage.removeItem(key);
       }
     }
-  } catch (e) {
-    /* noop */
+  } catch (_) {
+    // Storage can be disabled by browser privacy settings.
   }
 }
 
 /**
- * `fetch` + JSON parse + cache, all in one. Cache key is just the URL, so
- * different query strings get distinct entries automatically.
+ * Fetch + JSON parse + cache. Cache key is the URL, so query strings remain
+ * distinct. A failed request is never cached.
  */
 export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
   const cached = getCached(url);
-  if (cached) return cached;
+  if (cached.hit) return cached.data;
 
   const res = await fetch(url, options);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
   const data = await res.json();
   setCache(url, data, ttl);
   return data;
