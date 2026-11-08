@@ -33,7 +33,7 @@
   }
 
   function getBench(rawRoster) {
-    const all = (rawRoster.players || []).slice();
+    const all = Array.isArray(rawRoster?.players) ? rawRoster.players.slice() : [];
     const exclude = new Set([
       ...(getStarters(rawRoster) || []).map(String),
       ...(getTaxi(rawRoster) || []).map(String)
