@@ -174,8 +174,9 @@ export async function computeStandingsForLeague(leagueId) {
     ? Number(leagueMeta.settings.playoff_week_start)
     : 20;
   if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 20;
-  // League policy: 4 playoff weeks (2 single-elim rounds + a 2-week merged final).
-  let playoffEnd = playoffStart + 3;
+  // League policy: playoffs are always 3 weeks (2 single-elim rounds + a
+  // championship final).
+  let playoffEnd = playoffStart + 2;
   let finalsLeg2Week = playoffEnd;
 
   // 3. Per-roster stats accumulators.
