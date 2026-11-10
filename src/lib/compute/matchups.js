@@ -40,8 +40,8 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   let playoffStart = leagueMeta?.settings?.playoff_week_start
     ? Number(leagueMeta.settings.playoff_week_start)
-    : 15;
-  if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+    : 20;
+  if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 20;
   // League policy: 4-week playoffs (last 2 weeks are the merged final).
   let playoffEnd = playoffStart + 3;
 
