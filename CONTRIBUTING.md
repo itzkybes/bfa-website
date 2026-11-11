@@ -38,7 +38,7 @@ node scripts/regenerate-season-matchups.mjs
 
 # 4. Verify the output looks sane
 ls -lh static/season_matchups/*.json
-node -e "const f=require('./static/season_matchups/2026.json');console.log('weeks:',Object.keys(f).filter(k=>k!=='playoff_week_start'&&k!=='playoff_week_end').length,'overrides:',Object.values(f).flat().filter(m=>m&&m.teamA&&(m.teamA.custom_points!=null||m.teamB.custom_points!=null)).length)"
+node -e "const f=require('./static/season_matchups/2026.json');console.log('weeks:',Object.keys(f).filter(k=>/^\\d+$/.test(k)).length,'overrides:',Object.values(f).flat().filter(m=>m&&m.teamA&&(m.teamA.custom_points!=null||m.teamB.custom_points!=null)).length)"
 
 # 5. Sanity-check the live preview
 yarn dev
@@ -60,7 +60,7 @@ The regen script prints a summary per season:
 ```
 → 2026  (league 1521340000000000000)
   ✓ wrote /app/static/season_matchups/2026.json
-    weeks=22  matchups=154  commish_overrides=N  size=165KB
+    weeks=N  matchups=N  commish_overrides=N  size=N
 ```
 
 Check that:
