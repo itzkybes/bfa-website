@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import { getSeasonsChain, getMatchupsForWeek, getRosterMapWithOwners, getLeague, BASE_LEAGUE_ID } from '$lib/api';
   import { computeParticipantPoints } from '$lib/compute';
+  import { getSeasonFormat } from '$lib/compute/seasonFormat';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 
@@ -44,11 +45,11 @@
         messages = [...messages, `Processing ${yr} (league ${target.league_id})…`];
 
         const league = await getLeague(target.league_id);
-        let playoffStart = league?.settings?.playoff_week_start ? Number(league.settings.playoff_week_start) : 15;
-        if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
+        const seasonFormat = getSeasonFormat(yr, league?.settings) ?? getSeasonFormat(2026);
+        const { playoffStart, playoffEnd, playoffTeams, toiletBowlTeams } = seasonFormat;
         const rosterMap = await getRosterMapWithOwners(target.league_id);
         const weeks = {};
-        for (let week = 1; week <= 22; week++) {
+        for (let week = 1; week <= 25; week++) {
           let raw = null;
           try { raw = await getMatchupsForWeek(target.league_id, week); } catch (e) { continue; }
           if (!Array.isArray(raw) || !raw.length) continue;
@@ -83,7 +84,16 @@
             };
           }).filter(Boolean);
         }
-        outputs = [...outputs, { year: yr, meta: { playoff_week_start: playoffStart }, weeks }];
+        outputs = [...outputs, {
+          year: yr,
+          meta: {
+            playoff_week_start: playoffStart,
+            playoff_week_end: playoffEnd,
+            playoff_teams: playoffTeams,
+            toilet_bowl_teams: toiletBowlTeams
+          },
+          weeks
+        }];
         messages = [...messages, `Done ${yr}: ${Object.keys(weeks).length} weeks`];
       }
     } catch (e) {
@@ -121,9 +131,9 @@
         <div class="block-head">
           <div>
             <h2 class="block-title">Season {out.year}</h2>
-            <div class="meta-line">Playoff start: <strong>{out.meta.playoff_week_start ?? '15'}</strong> · Weeks: <strong>{Object.keys(out.weeks).length}</strong></div>
+            <div class="meta-line">Playoffs: <strong>Weeks {out.meta.playoff_week_start}–{out.meta.playoff_week_end}</strong> · Qualifiers: <strong>{out.meta.playoff_teams}</strong> · Toilet Bowl: <strong>{out.meta.toilet_bowl_teams ?? 'Sleeper setting'}</strong> · Weeks: <strong>{Object.keys(out.weeks).length}</strong></div>
           </div>
-          <button class="btn primary sm" on:click={() => copyJSON(JSON.stringify(out.weeks, null, 2))} data-testid={`admin-copy-${out.year}`}>Copy JSON</button>
+          <button class="btn primary sm" on:click={() => copyJSON(JSON.stringify({ ...out.meta, ...out.weeks }, null, 2))} data-testid={`admin-copy-${out.year}`}>Copy JSON</button>
         </div>
         <div class="block-body"><pre class="jsonblob">{JSON.stringify(out.weeks, null, 2)}</pre></div>
       </section>
