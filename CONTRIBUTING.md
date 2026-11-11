@@ -60,7 +60,7 @@ The regen script prints a summary per season:
 ```
 → 2026  (league 1521340000000000000)
   ✓ wrote /app/static/season_matchups/2026.json
-    weeks=24  matchups=165  commish_overrides=N  finals_synthesized=12  size=177KB
+    weeks=22  matchups=154  commish_overrides=N  size=165KB
 ```
 
 Check that:
