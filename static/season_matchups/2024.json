@@ -9960,5 +9960,7 @@
     }
   ],
   "playoff_week_start": 21,
-  "playoff_week_end": 24
+  "playoff_week_end": 23,
+  "playoff_teams": 8,
+  "toilet_bowl_teams": 6
 }
