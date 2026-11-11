@@ -229,7 +229,7 @@ async function main() {
     const size = (await fs.stat(outPath)).size;
     console.log(`    ✓ wrote ${outPath}`);
     console.log(
-      `      weeks=${result.weeks}  matchups=${result.totalMatchups}size=${(size / 1024).toFixed(1)}KB`
+      `      weeks=${result.weeks}  matchups=${result.totalMatchups}  size=${(size / 1024).toFixed(1)}KB`
     );
     written += 1;
   }
