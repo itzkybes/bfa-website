@@ -31,6 +31,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { getSeasonFormat } from '../src/lib/compute/seasonFormat.js';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -138,6 +139,10 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
         lg.settings && lg.settings.playoff_week_start
           ? Number(lg.settings.playoff_week_start)
           : null,
+      playoff_teams:
+        lg.settings && lg.settings.playoff_teams
+          ? Number(lg.settings.playoff_teams)
+          : null,
     });
     curr = lg.previous_league_id ? String(lg.previous_league_id) : null;
     steps += 1;
@@ -145,136 +150,41 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
   return seasons;
 }
 
-/**
- * For one Sleeper league, fetch every week of matchups and shape them
- * into the JSON layout `leagueCompute.client.js → computeStandingsForLeague`
- * already consumes (the existing `static/season_matchups/{year}.json` shape).
- *
- * Playoff window: this league plays a **4-week** playoff every season, with
- * the LAST 2 weeks merged into a single championship matchup (owners pick one
- * game each of those weeks; total score = sum of the two starters_points
- * arrays). The Sleeper API only records `matchup_id` for the first week of
- * the merged final, so we walk forward one week and synthesize the same
- * matchup_id for the second half so downstream code can pair the rounds.
- */
+/** Fetch each weekly matchup. Playoff rules come from the shared season format. */
 async function generateSeasonJson(season) {
   const { league_id, season: year } = season;
   const [rosters, users] = await Promise.all([getRosters(league_id), getUsers(league_id)]);
   const rosterMap = buildRosterMap(rosters, users);
-
-  let playoffStart = season.playoff_week_start;
-  if (!isFinite(playoffStart) || playoffStart < 1) playoffStart = 15;
-  // League policy: playoffs are always 4 weeks (2 single-elim rounds + a
-  // 2-week merged championship final). `playoff_week_end` is written to the
-  // JSON so the consumers don't have to assume.
-  const playoffEnd = playoffStart + 3;
-  const finalsWeek1 = playoffStart + 2; // first half of the merged final
-  const finalsWeek2 = playoffStart + 3; // second half — usually no matchup_id from Sleeper
-
-  // We need to peek at the previous week (the first half of finals) to know
-  // how the championship was paired. Build a roster_id → matchup_id index
-  // for that week first, then apply it to finalsWeek2 entries that come
-  // back without their own matchup_id.
-  let finalsPairingByRoster = {};
-
+  const format = getSeasonFormat(year, { playoff_week_start: season.playoff_week_start, playoff_teams: season.playoff_teams });
+  if (!format) throw new Error(`No BFA season format or valid Sleeper playoff settings found for ${year}`);
   const weeks = {};
   let totalMatchups = 0;
-  let finalsSynthesized = 0;
-
-  // Walk through every plausible playoff week (extend to 25 to cover any
-  // edge cases). We loop in order so the finals-week1 mapping is built
-  // before finals-week2 is processed.
   for (let week = 1; week <= 25; week++) {
     let raw = null;
-    try {
-      raw = await getMatchupsForWeek(league_id, week);
-    } catch (_) {
-      continue;
-    }
-    if (!raw || !raw.length) continue;
-
-    // For the first half of the merged final, snapshot its roster→matchup_id
-    // pairing so the second half can inherit it.
-    if (week === finalsWeek1) {
-      finalsPairingByRoster = {};
-      for (const e of raw) {
-        if (e && e.roster_id != null && e.matchup_id != null) {
-          finalsPairingByRoster[String(e.roster_id)] = e.matchup_id;
-        }
-      }
-    }
-
+    try { raw = await getMatchupsForWeek(league_id, week); } catch (_) { continue; }
+    if (!Array.isArray(raw) || !raw.length) continue;
     const byMatch = {};
-    for (let i = 0; i < raw.length; i++) {
-      const m = raw[i];
-      // Synthesize matchup_id for the merged-final's second half. Sleeper
-      // doesn't pair the W2 entries (matchup_id=null) — we inherit pairing
-      // from W1 so downstream consumers can show the two halves as one
-      // championship rendered across two weeks.
-      let mid = m.matchup_id ?? m.matchupId ?? null;
-      if (mid == null && week === finalsWeek2 && m && m.roster_id != null) {
-        const inherited = finalsPairingByRoster[String(m.roster_id)];
-        if (inherited != null) {
-          mid = inherited;
-          finalsSynthesized += 1;
-        }
-      }
-      if (mid == null) mid = 'auto' + i;
-      if (!byMatch[mid]) byMatch[mid] = [];
-      byMatch[mid].push(m);
+    for (const entry of raw) {
+      const matchupId = entry.matchup_id ?? entry.matchupId ?? null;
+      if (matchupId == null) continue;
+      if (!byMatch[matchupId]) byMatch[matchupId] = [];
+      byMatch[matchupId].push(entry);
     }
-
     const weekRows = [];
-    for (const [mid, arr] of Object.entries(byMatch)) {
-      if (arr.length !== 2) continue;
-      const [a, b] = arr;
-      const aId = String(a.roster_id ?? '');
-      const bId = String(b.roster_id ?? '');
-      const aMeta = rosterMap[aId] || {};
-      const bMeta = rosterMap[bId] || {};
-      const teamA = {
-        rosterId: aId,
-        name: aMeta.team_name ?? null,
-        ownerName: aMeta.owner_name ?? null,
-        starters: Array.isArray(a.starters) ? a.starters : [],
-        starters_points: Array.isArray(a.starters_points) ? a.starters_points : [],
-      };
-      const teamB = {
-        rosterId: bId,
-        name: bMeta.team_name ?? null,
-        ownerName: bMeta.owner_name ?? null,
-        starters: Array.isArray(b.starters) ? b.starters : [],
-        starters_points: Array.isArray(b.starters_points) ? b.starters_points : [],
-      };
-      const isFinalsLeg2 = week === finalsWeek2;
-      weekRows.push({
-        matchup_id: Number(mid) || mid,
-        week,
-        // Mark championship halves explicitly so consumers can recognise the
-        // merged-final shape without re-deriving it.
-        is_finals_leg1: week === finalsWeek1 || undefined,
-        is_finals_leg2: isFinalsLeg2 || undefined,
-        teamA,
-        teamAScore: computeParticipantPoints(a),
-        teamB,
-        teamBScore: computeParticipantPoints(b),
-      });
+    for (const [mid, entries] of Object.entries(byMatch)) {
+      if (entries.length !== 2) continue;
+      const [a, b] = entries;
+      const aId = String(a.roster_id ?? ''), bId = String(b.roster_id ?? '');
+      const aMeta = rosterMap[aId] || {}, bMeta = rosterMap[bId] || {};
+      const teamA = { rosterId: aId, name: aMeta.team_name ?? null, ownerName: aMeta.owner_name ?? null, starters: Array.isArray(a.starters) ? a.starters : [], starters_points: Array.isArray(a.starters_points) ? a.starters_points : [] };
+      const teamB = { rosterId: bId, name: bMeta.team_name ?? null, ownerName: bMeta.owner_name ?? null, starters: Array.isArray(b.starters) ? b.starters : [], starters_points: Array.isArray(b.starters_points) ? b.starters_points : [] };
+      weekRows.push({ matchup_id: Number(mid) || mid, week, teamA, teamAScore: computeParticipantPoints(a), teamB, teamBScore: computeParticipantPoints(b) });
     }
-    if (weekRows.length) {
-      weeks[String(week)] = weekRows;
-      totalMatchups += weekRows.length;
-    }
+    if (weekRows.length) { weeks[String(week)] = weekRows; totalMatchups += weekRows.length; }
   }
-
-  // Final payload — matches existing JSON shape, now with playoff_week_end.
-  const payload = {
-    playoff_week_start: playoffStart,
-    playoff_week_end: playoffEnd,
-    ...weeks,
-  };
-  return { year, payload, totalMatchups, weeks: Object.keys(weeks).length, finalsSynthesized };
+  const payload = { playoff_week_start: format.playoffStart, playoff_week_end: format.playoffEnd, playoff_teams: format.playoffTeams, toilet_bowl_teams: format.toiletBowlTeams, ...weeks };
+  return { year, payload, totalMatchups, weeks: Object.keys(weeks).length };
 }
-
 async function main() {
   const argv = process.argv.slice(2);
   console.log(`▶︎ Regenerating season matchups`);
@@ -285,7 +195,7 @@ async function main() {
   console.log(`\n  Discovered ${seasons.length} season(s) in the league chain:`);
   for (const s of seasons) {
     console.log(
-      `    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${s.playoff_week_start ?? '?'}  status=${s.status ?? '?'}`
+      `    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${getSeasonFormat(s.season, s)?.playoffStart ?? '?'}  status=${s.status ?? '?'}`
     );
   }
 
