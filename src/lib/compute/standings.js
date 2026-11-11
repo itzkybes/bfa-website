@@ -30,6 +30,7 @@ import {
   HARDCODED_CHAMPIONS,
 } from './brackets';
 import { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
+import { getSeasonFormat } from './seasonFormat';
 
 // Sleeper "season" runs for ~24 weeks; we scan a couple extra for safety.
 const MAX_WEEKS = 25;
@@ -166,18 +167,10 @@ export async function computeStandingsForLeague(leagueId) {
   // 2. League-level config.
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   const leagueName = leagueMeta?.name ?? null;
-  const playoffTeams = leagueMeta?.settings?.playoff_teams
-    ? Number(leagueMeta.settings.playoff_teams)
-    : 8;
-
-  let playoffStart = leagueMeta?.settings?.playoff_week_start
-    ? Number(leagueMeta.settings.playoff_week_start)
-    : 20;
-  if (!playoffStart || isNaN(playoffStart) || playoffStart < 1) playoffStart = 20;
-  // League policy: playoffs are always 3 weeks (2 single-elim rounds + a
-  // championship final).
-  let playoffEnd = playoffStart + 2;
-  let finalsLeg2Week = playoffEnd;
+  const seasonFormat =
+    getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
+  const { playoffStart, playoffEnd, playoffTeams, toiletBowlTeams, regularSeasonWeeks, playoffWeeks } =
+    seasonFormat;
 
   // 3. Per-roster stats accumulators.
   const statsByRosterRegular = {},
@@ -218,11 +211,6 @@ export async function computeStandingsForLeague(leagueId) {
     isLeagueComplete && leagueSeason ? loadSeasonMatchups(leagueSeason) : Promise.resolve(null),
   ]);
 
-  if (seasonMatchups && Number.isFinite(seasonMatchups.playoff_week_end)) {
-    playoffEnd = Number(seasonMatchups.playoff_week_end);
-    finalsLeg2Week = playoffEnd;
-  }
-
   // 5. Fetch ALL weeks in parallel — static where available, live otherwise.
   const weekFetches = [];
   for (let week = 1; week <= MAX_WEEKS; week++) {
@@ -244,7 +232,6 @@ export async function computeStandingsForLeague(leagueId) {
 
   // 6. Process week by week.
   const collectedMatchups = {}; // week -> entries (for downstream MVP aggregators)
-  const finalsLeg1Outcomes = {}; // matchup_id -> leg-1 snapshot (for 2-week final merge)
 
   for (const { week, matchups } of allWeekResults) {
     if (!matchups || !matchups.length) continue;
@@ -336,21 +323,6 @@ export async function computeStandingsForLeague(leagueId) {
         }
       }
 
-      // Merged 2-week championship handling — see helper for the strategy.
-      if (isPlayoffWeek && participants.length === 2) {
-        const mid = entries[0]?.matchup_id ?? entries[0]?.matchupId ?? null;
-        if (mid != null) {
-          handleMergedFinal({
-            week,
-            finalsLeg2Week,
-            midKey: String(mid),
-            participants,
-            resultsByRoster,
-            statsByRoster,
-            finalsLeg1Outcomes,
-          });
-        }
-      }
     }
   }
 
@@ -421,6 +393,9 @@ export async function computeStandingsForLeague(leagueId) {
     playoffStart,
     playoffEnd,
     playoffTeams,
+    toiletBowlTeams,
+    regularSeasonWeeks,
+    playoffWeeks,
     winnersBracket,
     losersBracket,
     weeklyPfByRoster,
@@ -477,96 +452,6 @@ function buildStandingsTable(stats, results, pa, rosterMap) {
     return (b.pf || 0) - (a.pf || 0);
   });
   return out;
-}
-
-/**
- * Merged 2-week championship handling.
- *
- * The league plays the FINAL as one matchup spanning the last two playoff
- * weeks (owners pick one game from each week; total score = sum of both
- * weeks' starters_points). For W/L accounting we need to count that as ONE
- * game, not two.
- *
- * Strategy:
- *  · On leg-1 week: remember each participant's leg-1 points and their
- *    result-array index for later rollback.
- *  · On leg-2 week: undo BOTH legs' per-week W/L (each leg already counted
- *    1 W/L per participant), then push a single MERGED W/L per participant
- *    based on the sum of leg-1 + leg-2 scores.
- *
- * PF/PA are intentionally untouched — both weeks DO contribute to playoff
- * PF/PA, so summing them per-week is already correct.
- */
-function handleMergedFinal({
-  week,
-  finalsLeg2Week,
-  midKey,
-  participants,
-  resultsByRoster,
-  statsByRoster,
-  finalsLeg1Outcomes,
-}) {
-  if (week === finalsLeg2Week - 1) {
-    finalsLeg1Outcomes[midKey] = participants.map((p) => ({
-      rosterId: p.rosterId,
-      points: p.points,
-      resultIndex: resultsByRoster[p.rosterId].length - 1,
-    }));
-    return;
-  }
-  if (week !== finalsLeg2Week) return;
-
-  const leg1 = finalsLeg1Outcomes[midKey];
-  if (!leg1 || leg1.length !== 2) return;
-
-  // 1. Roll back leg-1's contribution.
-  for (const l of leg1) {
-    const arr = resultsByRoster[l.rosterId];
-    const idx = l.resultIndex;
-    if (idx >= 0 && idx < arr.length) {
-      const r = arr[idx];
-      if (r === 'W') statsByRoster[l.rosterId].wins -= 1;
-      else if (r === 'L') statsByRoster[l.rosterId].losses -= 1;
-      else if (r === 'T') statsByRoster[l.rosterId].ties -= 1;
-      arr.splice(idx, 1);
-    }
-  }
-  // 2. Roll back leg-2's contribution that was just pushed.
-  for (const p of participants) {
-    const arr = resultsByRoster[p.rosterId];
-    const popped = arr.pop();
-    if (popped === 'W') statsByRoster[p.rosterId].wins -= 1;
-    else if (popped === 'L') statsByRoster[p.rosterId].losses -= 1;
-    else if (popped === 'T') statsByRoster[p.rosterId].ties -= 1;
-  }
-  // 3. Push the single MERGED result based on combined scores.
-  const totals = {};
-  for (const p of participants) totals[p.rosterId] = (totals[p.rosterId] ?? 0) + p.points;
-  for (const l of leg1) totals[l.rosterId] = (totals[l.rosterId] ?? 0) + l.points;
-  const [pa, pb] = participants;
-  const aTotal = totals[pa.rosterId] ?? 0;
-  const bTotal = totals[pb.rosterId] ?? 0;
-  let aRes, bRes;
-  if (aTotal > bTotal + 1e-9) {
-    aRes = 'W';
-    bRes = 'L';
-  } else if (aTotal < bTotal - 1e-9) {
-    aRes = 'L';
-    bRes = 'W';
-  } else {
-    aRes = 'T';
-    bRes = 'T';
-  }
-  resultsByRoster[pa.rosterId].push(aRes);
-  resultsByRoster[pb.rosterId].push(bRes);
-  bumpStat(statsByRoster, pa.rosterId, aRes);
-  bumpStat(statsByRoster, pb.rosterId, bRes);
-}
-
-function bumpStat(statsByRoster, rid, res) {
-  if (res === 'W') statsByRoster[rid].wins += 1;
-  else if (res === 'L') statsByRoster[rid].losses += 1;
-  else statsByRoster[rid].ties += 1;
 }
 
 /**

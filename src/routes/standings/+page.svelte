@@ -230,7 +230,7 @@
     <section class="standings-block" aria-labelledby="reg-h">
       <div class="block-head">
         <h2 id="reg-h" class="block-title">Regular Season</h2>
-        <span class="block-sub">Sorted by W → PF</span>
+        <span class="block-sub">Wins first; points for breaks ties</span>
       </div>
       {#if selectedResult?.regularStandings?.length}
         <div class="table-wrap" data-testid="regular-standings-table">

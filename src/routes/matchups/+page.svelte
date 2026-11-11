@@ -15,8 +15,8 @@
   let selectedSeason = null;     // season number or league_id string
   let selectedLeagueId = null;
   let selectedWeek = 1;
-  let playoffStart = 15;
-  let playoffEnd = 17;
+  let playoffStart = 19;
+  let playoffEnd = 21;
   let matchupsRows = [];
   let weekOptions = { regular: [], playoffs: [] };
   let playersMap = {};
@@ -250,7 +250,7 @@
    */
   async function prefetchSeason(leagueId, playoffStartLocal) {
     if (!leagueId) return;
-    const weeks = Array.from({ length: (playoffStartLocal || 15) - 1 + 3 }, (_, i) => i + 1);
+    const weeks = Array.from({ length: (playoffStartLocal || 19) - 1 + 3 }, (_, i) => i + 1);
     const queue = weeks.filter((w) => !weekCache[cacheKey(leagueId, w)]);
     const CONCURRENCY = 4;
     async function worker() {

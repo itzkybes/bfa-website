@@ -70,10 +70,10 @@
     {
       title: 'Playoffs',
       bullets: [
-        '8 teams qualify based on regular-season record (tiebreaker: points for).',
-        'Bracket is 4 weeks total: 2 single-elimination rounds, then a 2-week merged championship final.',
-        'Championship final score = sum of both weeks\u2019 starters_points.',
-        'Toilet Bowl (consolation) runs for non-playoff teams.'
+        '8 teams qualify based on regular-season record; ties in the standings are broken by points for.',
+        'The playoffs run for 3 weeks: one week per round, with the championship in Week 3.',
+        'Each playoff round, including the championship, is decided by that week’s matchup score.',
+        'The 6 non-playoff teams compete in the Toilet Bowl.'
       ]
     },
     {

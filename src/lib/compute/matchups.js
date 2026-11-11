@@ -8,6 +8,7 @@ import { getLeague, getRosterMapWithOwners, getMatchupsForWeek, safeNum } from '
 import { loadSeasonMatchups } from '$lib/api/staticSeasons';
 import { computeParticipantPoints } from './scoring';
 import { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
+import { getSeasonFormat } from './seasonFormat';
 
 /**
  * Build the matchup rows for one league + week. This is the data the
@@ -38,12 +39,9 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
 
   const leagueMeta = await getLeague(leagueId).catch(() => null);
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
-  let playoffStart = leagueMeta?.settings?.playoff_week_start
-    ? Number(leagueMeta.settings.playoff_week_start)
-    : 15;
-  if (isNaN(playoffStart) || playoffStart < 1) playoffStart = 15;
-  // League policy: 4-week playoffs (last 2 weeks are the merged final).
-  let playoffEnd = playoffStart + 3;
+  const seasonFormat =
+    getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
+  const { playoffStart, playoffEnd } = seasonFormat;
 
   // Static-snapshot path (completed seasons only).
   const isLeagueComplete = leagueMeta?.status === 'complete';
@@ -51,10 +49,6 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   if (isLeagueComplete && leagueSeason) {
     seasonMatchups = await loadSeasonMatchups(leagueSeason);
   }
-  if (seasonMatchups && Number.isFinite(seasonMatchups.playoff_week_end)) {
-    playoffEnd = Number(seasonMatchups.playoff_week_end);
-  }
-
   if (seasonMatchups && Array.isArray(seasonMatchups[String(week)])) {
     const arr = seasonMatchups[String(week)];
     return {

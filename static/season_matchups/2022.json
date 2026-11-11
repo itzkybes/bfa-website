@@ -9538,5 +9538,7 @@
     }
   ],
   "playoff_week_start": 20,
-  "playoff_week_end": 23
+  "playoff_week_end": 22,
+  "playoff_teams": 6,
+  "toilet_bowl_teams": 8
 }
