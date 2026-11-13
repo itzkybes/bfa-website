@@ -9,6 +9,7 @@ import { loadSeasonMatchups } from '$lib/api/staticSeasons';
 import { computeParticipantPoints } from './scoring';
 import { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 import { getSeasonFormat } from './seasonFormat';
+import { getCompletedWeekForLeague } from './weekCutoff';
 
 /**
  * Build the matchup rows for one league + week. This is the data the
@@ -37,11 +38,18 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     applyLatestAvatars(rosterMap, latestAvatars);
   }
 
-  const leagueMeta = await getLeague(leagueId).catch(() => null);
+  const leagueMeta = await getLeague(leagueId, 0).catch(() => null);
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   const seasonFormat =
     getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
   const { playoffStart, playoffEnd } = seasonFormat;
+  const completedThroughWeek = getCompletedWeekForLeague(leagueMeta);
+
+  // Direct URL requests and stale cached selections must not reveal the
+  // active week before its Monday 3:00 a.m. Eastern close.
+  if (completedThroughWeek !== null && Number(week) > completedThroughWeek) {
+    return { week, playoffStart, playoffEnd, leagueSeason, completedThroughWeek, matchupsRows: [] };
+  }
 
   // Static-snapshot path (completed seasons only).
   const isLeagueComplete = leagueMeta?.status === 'complete';
@@ -56,6 +64,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
       playoffStart,
       playoffEnd,
       leagueSeason,
+      completedThroughWeek,
       matchupsRows: arr.map((m) => ({
         matchup_id: m.matchup_id ?? null,
         week,
@@ -130,7 +139,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
       });
     }
   }
-  return { week, playoffStart, playoffEnd, leagueSeason, matchupsRows: rows };
+  return { week, playoffStart, playoffEnd, leagueSeason, completedThroughWeek, matchupsRows: rows };
 }
 
 /**

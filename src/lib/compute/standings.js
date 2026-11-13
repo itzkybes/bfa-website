@@ -31,6 +31,7 @@ import {
 } from './brackets';
 import { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 import { getSeasonFormat } from './seasonFormat';
+import { getCompletedWeekForLeague } from './weekCutoff';
 
 // Sleeper "season" runs for ~24 weeks; we scan a couple extra for safety.
 const MAX_WEEKS = 25;
@@ -153,7 +154,7 @@ function lookupEarlyScore(earlyWeekMap, meta) {
 export async function computeStandingsForLeague(leagueId) {
   // 1. Fetch league + rosters + brackets + LATEST owner avatars in parallel.
   const [leagueMeta, rosterMap, winnersBracket, losersBracket, latestAvatars] = await Promise.all([
-    getLeague(leagueId).catch(() => null),
+    getLeague(leagueId, 0).catch(() => null),
     getRosterMapWithOwners(leagueId).catch(() => ({})),
     getWinnersBracket(leagueId).catch(() => []),
     getLosersBracket(leagueId).catch(() => []),
@@ -171,6 +172,7 @@ export async function computeStandingsForLeague(leagueId) {
     getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
   const { playoffStart, playoffEnd, playoffTeams, toiletBowlTeams, regularSeasonWeeks, playoffWeeks } =
     seasonFormat;
+  const completedThroughWeek = getCompletedWeekForLeague(leagueMeta);
 
   // 3. Per-roster stats accumulators.
   const statsByRosterRegular = {},
@@ -234,6 +236,8 @@ export async function computeStandingsForLeague(leagueId) {
   const collectedMatchups = {}; // week -> entries (for downstream MVP aggregators)
 
   for (const { week, matchups } of allWeekResults) {
+    // Do not expose or aggregate the active scoring week for the live season.
+    if (completedThroughWeek !== null && week > completedThroughWeek) continue;
     if (!matchups || !matchups.length) continue;
     collectedMatchups[week] = matchups;
 
@@ -396,6 +400,7 @@ export async function computeStandingsForLeague(leagueId) {
     toiletBowlTeams,
     regularSeasonWeeks,
     playoffWeeks,
+    completedThroughWeek,
     winnersBracket,
     losersBracket,
     weeklyPfByRoster,
