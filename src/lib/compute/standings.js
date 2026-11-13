@@ -154,7 +154,7 @@ function lookupEarlyScore(earlyWeekMap, meta) {
 export async function computeStandingsForLeague(leagueId) {
   // 1. Fetch league + rosters + brackets + LATEST owner avatars in parallel.
   const [leagueMeta, rosterMap, winnersBracket, losersBracket, latestAvatars] = await Promise.all([
-    getLeague(leagueId).catch(() => null),
+    getLeague(leagueId, 0).catch(() => null),
     getRosterMapWithOwners(leagueId).catch(() => ({})),
     getWinnersBracket(leagueId).catch(() => []),
     getLosersBracket(leagueId).catch(() => []),
