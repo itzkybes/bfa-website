@@ -210,7 +210,6 @@
         matchupsRows: out.matchupsRows || [],
         playoffStart: out.playoffStart,
         playoffEnd: out.playoffEnd,
-        completedThroughWeek: out.completedThroughWeek ?? null,
         completedThroughWeek: out.completedThroughWeek ?? null
       };
       weekCache = { ...weekCache, [key]: snap };
@@ -268,7 +267,6 @@
             matchupsRows: out.matchupsRows || [],
             playoffStart: out.playoffStart,
             playoffEnd: out.playoffEnd,
-        completedThroughWeek: out.completedThroughWeek ?? null,
             completedThroughWeek: out.completedThroughWeek ?? null
           };
           // Late insert — only set if the user hasn't navigated away.
