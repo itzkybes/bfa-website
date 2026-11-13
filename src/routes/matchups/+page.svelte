@@ -210,6 +210,7 @@
         matchupsRows: out.matchupsRows || [],
         playoffStart: out.playoffStart,
         playoffEnd: out.playoffEnd,
+        completedThroughWeek: out.completedThroughWeek ?? null,
         completedThroughWeek: out.completedThroughWeek ?? null
       };
       weekCache = { ...weekCache, [key]: snap };
@@ -234,7 +235,8 @@
       const snap = {
         matchupsRows: out.matchupsRows || [],
         playoffStart: out.playoffStart,
-        playoffEnd: out.playoffEnd
+        playoffEnd: out.playoffEnd,
+        completedThroughWeek: out.completedThroughWeek ?? null
       };
       weekCache = { ...weekCache, [key]: snap };
       // Only re-apply if the user is still viewing this same week.
@@ -266,6 +268,7 @@
             matchupsRows: out.matchupsRows || [],
             playoffStart: out.playoffStart,
             playoffEnd: out.playoffEnd,
+        completedThroughWeek: out.completedThroughWeek ?? null,
             completedThroughWeek: out.completedThroughWeek ?? null
           };
           // Late insert — only set if the user hasn't navigated away.
