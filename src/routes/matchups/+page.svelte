@@ -164,9 +164,10 @@
     matchupsRows = snap.matchupsRows || [];
     playoffStart = snap.playoffStart;
     playoffEnd = snap.playoffEnd;
+    const maxWeek = snap.completedThroughWeek == null ? Infinity : snap.completedThroughWeek;
     weekOptions = {
-      regular: Array.from({ length: Math.max(0, playoffStart - 1) }, (_, i) => i + 1),
-      playoffs: Array.from({ length: 3 }, (_, i) => playoffStart + i)
+      regular: Array.from({ length: Math.max(0, Math.min(playoffStart - 1, maxWeek)) }, (_, i) => i + 1),
+      playoffs: Array.from({ length: Math.max(0, Math.min(3, maxWeek - playoffStart + 1)) }, (_, i) => playoffStart + i)
     };
   }
 
@@ -208,7 +209,8 @@
       const snap = {
         matchupsRows: out.matchupsRows || [],
         playoffStart: out.playoffStart,
-        playoffEnd: out.playoffEnd
+        playoffEnd: out.playoffEnd,
+        completedThroughWeek: out.completedThroughWeek ?? null
       };
       weekCache = { ...weekCache, [key]: snap };
       applySnapshot(snap);
@@ -263,7 +265,8 @@
           const snap = {
             matchupsRows: out.matchupsRows || [],
             playoffStart: out.playoffStart,
-            playoffEnd: out.playoffEnd
+            playoffEnd: out.playoffEnd,
+            completedThroughWeek: out.completedThroughWeek ?? null
           };
           // Late insert — only set if the user hasn't navigated away.
           if (selectedLeagueId === leagueId) {
