@@ -38,7 +38,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     applyLatestAvatars(rosterMap, latestAvatars);
   }
 
-  const leagueMeta = await getLeague(leagueId).catch(() => null);
+  const leagueMeta = await getLeague(leagueId, 0).catch(() => null);
   const leagueSeason = leagueMeta?.season ? String(leagueMeta.season) : null;
   const seasonFormat =
     getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
