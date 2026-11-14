@@ -19,6 +19,7 @@
   let playoffEnd = 21;
   let matchupsRows = [];
   let weekOptions = { regular: [], playoffs: [] };
+  let completedThroughWeek = null;
   let playersMap = {};
 
   // Per-week cache: key = `${leagueId}:${week}` → { matchupsRows, playoffStart, playoffEnd }.
@@ -162,6 +163,7 @@
    */
   function applySnapshot(snap) {
     matchupsRows = snap.matchupsRows || [];
+    completedThroughWeek = snap.completedThroughWeek ?? null;
     playoffStart = snap.playoffStart;
     playoffEnd = snap.playoffEnd;
     const maxWeek = snap.completedThroughWeek == null ? Infinity : snap.completedThroughWeek;
@@ -285,6 +287,7 @@
     if (!found) return;
     selectedSeason = found.season ?? found.league_id;
     selectedLeagueId = found.league_id;
+    completedThroughWeek = null;
     goto(`?season=${encodeURIComponent(val)}&week=${selectedWeek}`, { replaceState: true });
     loadMatchups();
     // Kick off a background prefetch for the new season — week 1 is in
@@ -346,6 +349,11 @@
             </optgroup>
           {/if}
         </select>
+        {#if completedThroughWeek !== null}
+          <span class="week-status-pill" data-testid="completed-through-week" aria-live="polite">
+            {#if completedThroughWeek > 0}Stats through Week {completedThroughWeek}{:else}No completed weeks yet{/if}
+          </span>
+        {/if}
         {#if bgRefreshing}
           <span class="refresh-pill" data-testid="matchups-refresh-pill" aria-live="polite">Refreshing…</span>
         {/if}
@@ -542,6 +550,11 @@
         {/if}
       {/each}
     </div>
+  {:else if completedThroughWeek !== null && selectedWeek > completedThroughWeek}
+    <div class="empty-card week-empty" data-testid="matchups-week-in-progress" role="status">
+      <strong>Week {selectedWeek} is still in progress.</strong>
+      <p>Current-week matchups and stats stay hidden until the weekly cutoff on Monday at 3:00 a.m. Eastern.</p>
+    </div>
   {:else}
     <div class="empty-card" data-testid="matchups-empty">No matchups for the selected season/week.</div>
   {/if}
@@ -583,6 +596,9 @@
   .multi-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.6rem; background: var(--surface-2); border-radius: var(--r-sm); }
   .multi-row .m-name { flex: 1; }
   .empty-card { padding: 2rem; text-align: center; background: var(--surface-1); border: 1px dashed var(--border-strong); border-radius: var(--r-sm); color: var(--text-secondary); }
+  .week-empty strong { display: block; color: var(--text-primary); font-size: 1.05rem; }
+  .week-empty p { margin: 0.5rem 0 0; color: var(--text-secondary); }
+  .week-status-pill { align-self: center; padding: 0.35rem 0.6rem; border: 1px solid var(--border-subtle); border-radius: 999px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
 
   /* Weekly Recap block — 5 stat cards above the matchup grid summarizing
      the most narrative moments from the week. Uses CSS grid auto-fit so
