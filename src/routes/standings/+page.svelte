@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague, getPlayersNba, playerHeadshot } from '$lib/api';
-  import { computeStandingsForLeague } from '$lib/compute';
+  import { computeStandingsForLeague, getStandingsMovement } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
@@ -28,6 +28,11 @@
   // Map of rosterId -> [pf, pf, ...] in week order, for sparklines next to
   // each regular-season row. Pulled out of `weeklyPfByRoster` (built inside
   // `computeStandingsForLeague`) so the chart doesn't need its own data fetch.
+  $: standingsMovement = getStandingsMovement(
+    selectedResult?.collectedMatchups,
+    selectedResult?.playoffStart
+  );
+
   $: weeklyByRoster = (() => {
     const out = {};
     const src = selectedResult?.weeklyPfByRoster || {};
@@ -230,7 +235,13 @@
     <section class="standings-block" aria-labelledby="reg-h">
       <div class="block-head">
         <h2 id="reg-h" class="block-title">Regular Season</h2>
-        <span class="block-sub">Wins first; points for breaks ties</span>
+        <span class="block-sub">
+          Top {selectedResult?.playoffTeams ?? 8} playoffs
+          {#if selectedResult?.toiletBowlTeams != null}
+            · Bottom {selectedResult.toiletBowlTeams} Toilet Bowl
+          {/if}
+          · Wins first, points for breaks ties
+        </span>
       </div>
       {#if selectedResult?.regularStandings?.length}
         <div class="table-wrap" data-testid="regular-standings-table">
@@ -238,6 +249,7 @@
             <thead>
               <tr>
                 <th style="width:60px;">Seed</th>
+                <th class="col-num" title="Rank change from the previous completed regular-season week">Move</th>
                 <th>Team</th>
                 <th class="col-num" title="Regular-season wins">Wins</th>
                 <th class="col-num" title="Regular-season losses">Losses</th>
@@ -252,11 +264,28 @@
               {#each selectedResult.regularStandings as row, idx (row.rosterId)}
                 <tr>
                   <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
+                  <td class="col-num" data-testid={`standings-movement-${row.rosterId}`}>
+                    {@const movement = standingsMovement.byRoster?.[row.rosterId]}
+                    {#if movement == null}
+                      <span class="delta flat" title="Not enough completed weeks to calculate movement">—</span>
+                    {:else if movement > 0}
+                      <span class="delta up" title={`Moved up ${movement} ${movement === 1 ? 'place' : 'places'} since the previous completed week`}>▲ {movement}</span>
+                    {:else if movement < 0}
+                      <span class="delta down" title={`Moved down ${Math.abs(movement)} ${Math.abs(movement) === 1 ? 'place' : 'places'} since the previous completed week`}>▼ {Math.abs(movement)}</span>
+                    {:else}
+                      <span class="delta flat" title="No change since the previous completed week">—</span>
+                    {/if}
+                  </td>
                   <td>
                     <div class="team-cell">
                       <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                       <div>
                         <div class="team-name-cell">{row.team_name}</div>
+                        {#if idx < (selectedResult?.playoffTeams ?? 8)}
+                          <span class="postseason-tag playoff-tag">Playoffs</span>
+                        {:else if selectedResult?.toiletBowlTeams != null && idx >= selectedResult.regularStandings.length - selectedResult.toiletBowlTeams}
+                          <span class="postseason-tag toilet-tag">Toilet Bowl</span>
+                        {/if}
                         {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
                       </div>
                     </div>
@@ -355,6 +384,9 @@
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
+  .postseason-tag { display: inline-block; margin-top: 0.25rem; padding: 0.12rem 0.38rem; border-radius: 999px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .playoff-tag { color: var(--win); background: rgba(16, 185, 129, 0.12); }
+  .toilet-tag { color: var(--loss); background: rgba(239, 68, 68, 0.12); }
   .trophy { margin-left: 0.4rem; }
   .pf .num { color: var(--text-primary); font-weight: 700; }
   .num.muted { color: var(--text-tertiary); }
