@@ -24,6 +24,7 @@ import {
 import { fetchStaticJson, loadSeasonMatchups } from '$lib/api/staticSeasons';
 import { computeParticipantPoints } from './scoring';
 import { computeStreaks } from './streaks';
+import { compareStandings } from './standingsSort';
 import {
   resolveFinalStandingsFromBrackets,
   getChampionshipGame,
@@ -452,10 +453,7 @@ function buildStandingsTable(stats, results, pa, rosterMap) {
       maxLoseStreak: streaks.maxL,
     });
   }
-  out.sort((a, b) => {
-    if ((b.wins || 0) !== (a.wins || 0)) return (b.wins || 0) - (a.wins || 0);
-    return (b.pf || 0) - (a.pf || 0);
-  });
+  out.sort(compareStandings);
   return out;
 }
 
