@@ -265,13 +265,12 @@
                 <tr>
                   <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
                   <td class="col-num" data-testid={`standings-movement-${row.rosterId}`}>
-                    {@const movement = standingsMovement.byRoster?.[row.rosterId]}
-                    {#if movement == null}
+                    {#if standingsMovement.byRoster?.[row.rosterId] == null}
                       <span class="delta flat" title="Not enough completed weeks to calculate movement">—</span>
-                    {:else if movement > 0}
-                      <span class="delta up" title={`Moved up ${movement} ${movement === 1 ? 'place' : 'places'} since the previous completed week`}>▲ {movement}</span>
-                    {:else if movement < 0}
-                      <span class="delta down" title={`Moved down ${Math.abs(movement)} ${Math.abs(movement) === 1 ? 'place' : 'places'} since the previous completed week`}>▼ {Math.abs(movement)}</span>
+                    {:else if standingsMovement.byRoster[row.rosterId] > 0}
+                      <span class="delta up" title={`Moved up ${standingsMovement.byRoster[row.rosterId]} ${standingsMovement.byRoster[row.rosterId] === 1 ? 'place' : 'places'} since the previous completed week`}>▲ {standingsMovement.byRoster[row.rosterId]}</span>
+                    {:else if standingsMovement.byRoster[row.rosterId] < 0}
+                      <span class="delta down" title={`Moved down ${Math.abs(standingsMovement.byRoster[row.rosterId])} ${Math.abs(standingsMovement.byRoster[row.rosterId]) === 1 ? 'place' : 'places'} since the previous completed week`}>▼ {Math.abs(standingsMovement.byRoster[row.rosterId])}</span>
                     {:else}
                       <span class="delta flat" title="No change since the previous completed week">—</span>
                     {/if}
