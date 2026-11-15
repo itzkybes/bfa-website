@@ -450,12 +450,12 @@
           <table class="bfa-table">
             <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total playoff points scored that season">Playoff PTS</th></tr></thead>
             <tbody>
-              {#each allTimePlayoff as row (row.rosterId)}
+              {#each allTimePlayoff as row, idx (row.rosterId)}
                 <tr>
                   <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
                   <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
                   <td><span class="num accent-text">{row.season}</span></td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.points)}</span></td>
                 </tr>
               {/each}
             </tbody>
@@ -588,12 +588,12 @@
           <table class="bfa-table">
             <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total points (regular season + playoffs)">Total PTS</th></tr></thead>
             <tbody>
-              {#each allTimeFull as row (row.rosterId)}
+              {#each allTimeFull as row, idx (row.rosterId)}
                 <tr>
                   <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
                   <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
                   <td><span class="num accent-text">{row.season}</span></td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.points)}</span></td>
                 </tr>
               {/each}
             </tbody>
