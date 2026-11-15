@@ -25,6 +25,7 @@ import { fetchStaticJson, loadSeasonMatchups } from '$lib/api/staticSeasons';
 import { computeParticipantPoints } from './scoring';
 import { computeStreaks } from './streaks';
 import { compareStandings } from './standingsSort';
+import { getStandingsMovementFromSnapshots } from './standingsMovement';
 import {
   resolveFinalStandingsFromBrackets,
   getChampionshipGame,
@@ -235,6 +236,7 @@ export async function computeStandingsForLeague(leagueId) {
 
   // 6. Process week by week.
   const collectedMatchups = {}; // week -> entries (for downstream MVP aggregators)
+  const regularWeekRankSnapshots = [];
 
   for (const { week, matchups } of allWeekResults) {
     // Do not expose or aggregate the active scoring week for the live season.
@@ -329,6 +331,19 @@ export async function computeStandingsForLeague(leagueId) {
       }
 
     }
+
+    // Capture the cumulative table after this completed regular-season week.
+    // These are the same scored totals used for final standings, including
+    // historical score overrides and opponent-average matchup outcomes.
+    if (isRegularWeek) {
+      const ranked = Object.entries(statsByRosterRegular).sort(([, a], [, b]) =>
+        compareStandings(a, b)
+      );
+      regularWeekRankSnapshots.push({
+        week,
+        ranks: Object.fromEntries(ranked.map(([rosterId], index) => [rosterId, index + 1])),
+      });
+    }
   }
 
   // 7. Build the regular + playoff tables.
@@ -344,6 +359,8 @@ export async function computeStandingsForLeague(leagueId) {
     paByRosterPlayoff,
     rosterMap
   );
+
+  const standingsMovement = getStandingsMovementFromSnapshots(regularWeekRankSnapshots);
 
   // 8. Bracket-derived final standings + champion stamp.
   const {
@@ -406,6 +423,7 @@ export async function computeStandingsForLeague(leagueId) {
     losersBracket,
     weeklyPfByRoster,
     collectedMatchups,
+    standingsMovement,
   };
 }
 
