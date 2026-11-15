@@ -7,10 +7,13 @@
  */
 function score(entry) {
   if (entry?.__final_score != null) return round(Number(entry.__final_score) || 0);
-  if (Array.isArray(entry?.starters_points)) {
-    return round(entry.starters_points.reduce((sum, value) => sum + (Number(value) || 0), 0));
+  const starterKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
+  for (const key of starterKeys) {
+    if (Array.isArray(entry?.[key]) && entry[key].length) {
+      return round(entry[key].reduce((sum, value) => sum + (Number(value) || 0), 0));
+    }
   }
-  return round(Number(entry?.points ?? 0) || 0);
+  return round(Number(entry?.points ?? entry?.points_for ?? entry?.pts ?? entry?.score ?? 0) || 0);
 }
 
 function round(value) {
