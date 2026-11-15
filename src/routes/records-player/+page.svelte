@@ -550,7 +550,7 @@
             <tbody>
               {#each allTimePlayoffsLeaderboard as row, idx (row.playerId)}
                 <tr>
-                  <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
+                  <td class="rank-cell"><span class="num rank-num" class:leader-cell={idx === 0}>{idx + 1}</span></td>
                   <td>
                     <div class="player-cell">
                       <img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
