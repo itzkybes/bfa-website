@@ -217,6 +217,30 @@
                 <div class="hub-stat-num">{Math.round(roster.owner_hub.careerPA).toLocaleString()}</div>
                 <div class="hub-stat-label">Career PA</div>
               </div>
+              <div class="hub-stat" title="Total completed regular-season matchups across all seasons">
+                <div class="hub-stat-num">{roster.owner_hub.gamesPlayed}</div>
+                <div class="hub-stat-label">Games Played</div>
+              </div>
+              <div class="hub-stat" title="Average points scored per regular-season matchup">
+                <div class="hub-stat-num">{roster.owner_hub.avgPF.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg PF / Game</div>
+              </div>
+              <div class="hub-stat" title="Average points allowed per regular-season matchup">
+                <div class="hub-stat-num">{roster.owner_hub.avgPA.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg PA / Game</div>
+              </div>
+              <div class="hub-stat" title="Career points scored minus points allowed">
+                <div class="hub-stat-num">{roster.owner_hub.pointDifferential > 0 ? '+' : ''}{Math.round(roster.owner_hub.pointDifferential).toLocaleString()}</div>
+                <div class="hub-stat-label">Point Differential</div>
+              </div>
+              <div class="hub-stat" title="Average points scored minus points allowed per matchup">
+                <div class="hub-stat-num">{roster.owner_hub.avgMargin > 0 ? '+' : ''}{roster.owner_hub.avgMargin.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg Margin</div>
+              </div>
+              <div class="hub-stat" title="Career ties count as half a win in this percentage">
+                <div class="hub-stat-num">{(roster.owner_hub.winPct * 100).toFixed(1)}<span class="hub-stat-pct">%</span></div>
+                <div class="hub-stat-label">Win % (ties = ½)</div>
+              </div>
               <div class="hub-stat" title="Highest single-season PF and the year it happened">
                 <div class="hub-stat-num">{Math.round(roster.owner_hub.bestSeasonPF).toLocaleString()}{#if roster.owner_hub.bestSeasonPFSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestSeasonPFSeason).slice(-2)}</span>{/if}</div>
                 <div class="hub-stat-label">Best Season PF</div>
@@ -355,6 +379,35 @@
                     </div>
                   </div>
                 {/if}
+              </div>
+            </div>
+          {/if}
+          {#if roster.owner_hub.seasonHistory?.length}
+            <div class="season-history" data-testid={`season-history-${roster.rosterId}`}>
+              <div class="records-head">
+                <div class="records-title">Season-by-Season</div>
+                <div class="records-sub">Regular-season totals · PF breaks ties</div>
+              </div>
+              <div class="season-table-wrap">
+                <table class="season-table">
+                  <thead>
+                    <tr><th>Season</th><th>Record</th><th>Finish</th><th>PF</th><th>PA</th><th>Diff</th></tr>
+                  </thead>
+                  <tbody>
+                    {#each roster.owner_hub.seasonHistory as seasonRow (seasonRow.season)}
+                      <tr>
+                        <td>{seasonRow.season}</td>
+                        <td>{seasonRow.wins}–{seasonRow.losses}{#if seasonRow.ties}–{seasonRow.ties}{/if}</td>
+                        <td>{seasonRow.finish ? `#${seasonRow.finish}` : '—'}</td>
+                        <td>{Math.round(seasonRow.pf).toLocaleString()}</td>
+                        <td>{Math.round(seasonRow.pa).toLocaleString()}</td>
+                        <td class:positive={seasonRow.pf > seasonRow.pa} class:negative={seasonRow.pf < seasonRow.pa}>
+                          {seasonRow.pf - seasonRow.pa > 0 ? '+' : ''}{Math.round(seasonRow.pf - seasonRow.pa).toLocaleString()}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
               </div>
             </div>
           {/if}
@@ -615,6 +668,24 @@
     letter-spacing: 0.1em;
     font-weight: 600;
   }
+
+  .season-history {
+    margin: 0.25rem 0 1.1rem;
+    padding: 0.95rem 1rem 1.05rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+  }
+  .season-table-wrap { overflow-x: auto; }
+  .season-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  .season-table th, .season-table td { padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--border-subtle); text-align: right; white-space: nowrap; }
+  .season-table th:first-child, .season-table td:first-child { text-align: left; }
+  .season-table th { color: var(--text-tertiary); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
+  .season-table td { color: var(--text-secondary); }
+  .season-table td:first-child { color: var(--text-primary); font-weight: 700; }
+  .season-table tr:last-child td { border-bottom: 0; }
+  .season-table .positive { color: var(--win); }
+  .season-table .negative { color: var(--loss); }
 
   .franchise-records {
     margin: 0.25rem 0 1.1rem;
