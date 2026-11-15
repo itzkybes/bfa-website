@@ -12,6 +12,7 @@
   let error = null;
   let aggregatedRegular = [];
   let aggregatedPlayoff = [];
+  let singleSeasonRecords = [];
   let marginsLargest = [];
   let marginsSmallest = [];
   // Stable key across seasons: prefer owner_username (Sleeper username), fallback to owner_name.
@@ -36,6 +37,27 @@
       );
 
       progress = 'Aggregating…';
+
+      // Best completed regular-season campaigns (exclude an active/incomplete season).
+      singleSeasonRecords = standingsResults.flatMap((result) => {
+        if (!result?.bracketComplete) return [];
+        return (result.regularStandings || []).map((row) => {
+          const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
+          return {
+            season: result.season,
+            team_name: row.team_name || 'Unknown team',
+            owner_name: row.owner_name || result.rosterMap?.[row.rosterId]?.owner_name || '',
+            wins: row.wins || 0,
+            losses: row.losses || 0,
+            ties: row.ties || 0,
+            games,
+            winPct: games ? (((row.wins || 0) + (row.ties || 0) * 0.5) / games) * 100 : 0,
+            pf: row.pf || 0,
+            pa: row.pa || 0,
+            diff: (row.pf || 0) - (row.pa || 0)
+          };
+        });
+      }).sort((a, b) => (b.winPct - a.winPct) || (b.wins - a.wins) || (b.pf - a.pf)).slice(0, 10);
 
       // ---------- Aggregate regular + playoff by owner_username ----------
       const regAgg = {};
@@ -221,6 +243,35 @@
 
     <section class="block">
       <div class="block-head">
+        <h2 class="block-title">Best Single-Season Records</h2>
+        <span class="block-sub">Completed seasons · win % → wins → PF</span>
+      </div>
+      {#if singleSeasonRecords.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead><tr><th>Season</th><th>Team</th><th class="col-num">Record</th><th class="col-num">Win %</th><th class="col-num">PF</th><th class="col-num">PA</th><th class="col-num">Diff</th></tr></thead>
+            <tbody>
+              {#each singleSeasonRecords as row, idx (row.season + '-' + row.team_name)}
+                <tr>
+                  <td><span class="num">{row.season}</span></td>
+                  <td><div class="team-name-cell">{row.team_name}</div><div class="team-owner-cell">{row.owner_name}</div></td>
+                  <td class="col-num"><span class="num">{row.wins}–{row.losses}{#if row.ties}–{row.ties}{/if}</span></td>
+                  <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.winPct.toFixed(1)}%</span></td>
+                  <td class="col-num"><span class="num">{row.pf.toFixed(2)}</span></td>
+                  <td class="col-num"><span class="num muted">{row.pa.toFixed(2)}</span></td>
+                  <td class="col-num"><span class="num" class:positive={row.diff > 0} class:negative={row.diff < 0}>{row.diff > 0 ? '+' : ''}{row.diff.toFixed(2)}</span></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}
+        <div class="empty-card">No completed-season records are available yet.</div>
+      {/if}
+    </section>
+
+    <section class="block">
+      <div class="block-head">
         <h2 class="block-title">Regular Season — Career Totals</h2>
         <span class="block-sub">Sorted by Wins → PF</span>
       </div>
@@ -229,7 +280,7 @@
           <table class="bfa-table">
             <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">W</th><th class="col-num" title="All-time regular-season losses">L</th><th class="col-num" title="All-time ties">T</th><th class="col-num" title="Win percentage, with ties counting as half a win">Win %</th><th class="col-num" title="Total regular-season games">Games</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst losing streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th><th class="col-num" title="Average points scored per game">PF / Game</th><th class="col-num" title="Number of seasons played">Seasons</th></tr></thead>
             <tbody>
-              {#each aggregatedRegular as row (row.key)}
+              {#each aggregatedRegular as row, idx (row.key)}
                 <tr>
                   <td>
                     <div class="team-cell">
@@ -240,7 +291,7 @@
                       </div>
                     </div>
                   </td>
-                  <td class="col-num"><span class="num">{row.wins}</span></td>
+                  <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
                   <td class="col-num"><span class="num">{row.ties}</span></td>
                   <td class="col-num"><span class="num">{row.winPct.toFixed(1)}%</span></td>
@@ -271,7 +322,7 @@
           <table class="bfa-table">
             <thead><tr><th>Team</th><th class="col-num" title="Total championships won">Titles</th><th class="col-num" title="Playoff wins all-time">W</th><th class="col-num" title="Playoff losses all-time">L</th><th class="col-num" title="Playoff ties all-time">T</th><th class="col-num" title="Playoff win percentage">Win %</th><th class="col-num" title="Number of seasons with playoff games">Playoff Seasons</th><th class="col-num" title="Total playoff points scored">Playoff PF</th><th class="col-num" title="Total playoff points allowed">Playoff PA</th></tr></thead>
             <tbody>
-              {#each aggregatedPlayoff as row (row.key)}
+              {#each aggregatedPlayoff as row, idx (row.key)}
                 <tr class:champion-row={(row.championships || 0) > 0}>
                   <td>
                     <div class="team-cell">
@@ -291,7 +342,7 @@
                   </td>
                   <td class="col-num">
                     {#if (row.championships || 0) > 0}
-                      <span class="num title-count">{row.championships}</span>
+                      <span class="num title-count" class:leader-cell={idx === 0}>{row.championships}</span>
                     {:else}
                       <span class="num muted">—</span>
                     {/if}
