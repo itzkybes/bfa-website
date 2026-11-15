@@ -1,4 +1,5 @@
 import { getSeasonFormat } from './seasonFormat.js';
+import { addAdvancedOwnerStats } from './ownerHubAdvancedStats.js';
 
   /**
    * Roll up every season's standings into a per-owner career snapshot:
@@ -216,5 +217,5 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
       h.avgMargin = games ? h.pointDifferential / games : 0;
       h.seasonHistory = Object.values(seasonRowsByOwner[k] || {}).sort((a, b) => Number(b.season) - Number(a.season));
     }
-    return hubs;
+    return addAdvancedOwnerStats(hubs, allSeasonResults, chain);
   }
