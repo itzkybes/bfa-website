@@ -32,10 +32,6 @@
     }
   }
 
-  function label(row) {
-    return row.owner ? `${row.team} · ${row.owner}` : row.team;
-  }
-
   onMount(loadRecords);
 </script>
 
