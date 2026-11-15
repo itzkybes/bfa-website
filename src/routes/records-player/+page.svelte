@@ -557,7 +557,7 @@
                       <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
                     </div>
                   </td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.totalPoints)}</span></td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.totalPoints)}</span></td>
                   <td class="col-num"><span class="num">{fmt(row.best)} <span class="best-season">'{String(row.bestSeason).slice(-2)}</span></span></td>
                   <td class="col-num"><span class="num">{row.appearances}</span></td>
                   <td>
@@ -644,7 +644,7 @@
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell, .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
-  .bigpts { font-size: 1.15rem; color: var(--accent); font-weight: 700; }
+  .bigpts { font-size: 1.05rem; color: var(--text-secondary); font-weight: 500; }
   .accent-text { color: var(--accent); }
   .best-season { color: var(--text-tertiary); font-size: 0.75rem; font-weight: 700; margin-left: 0.25rem; }
   .rank-cell { width: 60px; }
