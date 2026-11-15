@@ -48,6 +48,7 @@
             rosterId: row.rosterId,
             team_name: row.team_name || 'Unknown team',
             owner_name: row.owner_name || result.rosterMap?.[row.rosterId]?.owner_name || '',
+            avatar: row.avatar || result.rosterMap?.[row.rosterId]?.team_avatar || result.rosterMap?.[row.rosterId]?.owner_avatar || null,
             wins: row.wins || 0,
             losses: row.losses || 0,
             ties: row.ties || 0,
@@ -255,7 +256,15 @@
               {#each singleSeasonRecords as row, idx (row.season + '-' + row.rosterId)}
                 <tr>
                   <td><span class="num">{row.season}</span></td>
-                  <td><div class="team-name-cell">{row.team_name}</div><div class="team-owner-cell">{row.owner_name}</div></td>
+                  <td>
+                    <div class="team-cell">
+                      <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                      <div>
+                        <div class="team-name-cell">{row.team_name}</div>
+                        {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
+                      </div>
+                    </div>
+                  </td>
                   <td class="col-num"><span class="num">{row.wins}–{row.losses}{#if row.ties}–{row.ties}{/if}</span></td>
                   <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.winPct.toFixed(1)}%</span></td>
                   <td class="col-num"><span class="num">{row.pf.toFixed(2)}</span></td>
@@ -442,11 +451,13 @@
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
   .table-wrap { overflow-x: auto; }
-  .bfa-table { min-width: 700px; }
+  .bfa-table { min-width: 700px; font-size: 1.05rem; }
+  .bfa-table thead th { font-size: 0.76rem; padding: 0.95rem 1.05rem; }
+  .bfa-table tbody td { padding: 0.95rem 1.05rem; }
   .team-cell { display: flex; align-items: center; gap: 0.75rem; }
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
-  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
+  .team-name-cell { font-weight: 700; color: var(--text-primary); font-size: 0.98rem; line-height: 1.2; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+  .team-owner-cell { color: var(--text-tertiary); font-size: 0.84rem; margin-top: 0.2rem; }
   .trophies { display: inline-flex; gap: 0.1rem; font-size: 0.95rem; }
   .pf .num { font-weight: 800; }
   .num.muted { color: var(--text-tertiary); }
@@ -480,7 +491,11 @@
     .record-highlights { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
     .highlight-card { padding: 0.85rem; }
     .highlight-label { font-size: 0.6rem; }
-    .team-avatar.small { width: 34px; height: 34px; }
+    .bfa-table { font-size: 0.92rem; }
+    .bfa-table thead th { font-size: 0.68rem; padding: 0.72rem 0.78rem; }
+    .bfa-table tbody td { padding: 0.78rem 0.78rem; }
+    .team-name-cell { font-size: 0.92rem; }
+    .team-avatar.small { width: 38px; height: 38px; }
     .team-owner-cell { display: none; }
     .margin-row { grid-template-columns: 40px 1fr; padding: 0.55rem 0.75rem; }
     .margin-meta { grid-column: 2; }
