@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, playerHeadshot, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague } from '$lib/compute';
+  import { buildOwnerHubs } from '$lib/compute/ownerHubs';
   import { expandPositions } from '$lib/utils/positions';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
