@@ -237,9 +237,9 @@
                 <div class="hub-stat-num">{roster.owner_hub.avgMargin > 0 ? '+' : ''}{roster.owner_hub.avgMargin.toFixed(1)}</div>
                 <div class="hub-stat-label">Avg Margin</div>
               </div>
-              <div class="hub-stat" title="Career ties count as half a win in this percentage">
-                <div class="hub-stat-num">{(roster.owner_hub.winPct * 100).toFixed(1)}<span class="hub-stat-pct">%</span></div>
-                <div class="hub-stat-label">Win % (ties = ½)</div>
+              <div class="hub-stat" title="All-time regular-season ties">
+                <div class="hub-stat-num">{roster.owner_hub.careerTies}</div>
+                <div class="hub-stat-label">Career Ties</div>
               </div>
               <div class="hub-stat" title="Highest single-season PF and the year it happened">
                 <div class="hub-stat-num">{Math.round(roster.owner_hub.bestSeasonPF).toLocaleString()}{#if roster.owner_hub.bestSeasonPFSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestSeasonPFSeason).slice(-2)}</span>{/if}</div>
