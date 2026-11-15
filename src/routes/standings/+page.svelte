@@ -286,7 +286,7 @@
                       </div>
                     </div>
                   </td>
-                  <td class="col-num"><span class="num">{row.wins}</span></td>
+                  <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
