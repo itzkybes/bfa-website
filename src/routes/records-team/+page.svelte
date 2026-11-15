@@ -152,7 +152,7 @@
 
       const sorted = allMargins.slice().sort((a, b) => b.margin - a.margin);
       marginsLargest = sorted.slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
-      marginsSmallest = sorted.slice(-10).reverse().map((r, i) => ({ ...r, rank: i + 1 }));
+      marginsSmallest = sorted.slice().reverse().slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
     } catch (e) {
       console.error('[Records-Team] failed', e);
       error = e;
