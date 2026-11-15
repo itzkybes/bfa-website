@@ -556,7 +556,6 @@
   }
 
   .h2h-table { min-width: 720px; }
-  .h2h-table td, .h2h-table th { padding: 0.55rem 0.7rem; }
   .last3 { display: inline-flex; gap: 0.2rem; justify-content: flex-end; }
   .pellet {
     display: inline-flex; align-items: center; justify-content: center;
