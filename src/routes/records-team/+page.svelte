@@ -45,6 +45,7 @@
           const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
           return {
             season: result.season,
+            rosterId: row.rosterId,
             team_name: row.team_name || 'Unknown team',
             owner_name: row.owner_name || result.rosterMap?.[row.rosterId]?.owner_name || '',
             wins: row.wins || 0,
@@ -251,7 +252,7 @@
           <table class="bfa-table">
             <thead><tr><th>Season</th><th>Team</th><th class="col-num">Record</th><th class="col-num">Win %</th><th class="col-num">PF</th><th class="col-num">PA</th><th class="col-num">Diff</th></tr></thead>
             <tbody>
-              {#each singleSeasonRecords as row, idx (row.season + '-' + row.team_name)}
+              {#each singleSeasonRecords as row, idx (row.season + '-' + row.rosterId)}
                 <tr>
                   <td><span class="num">{row.season}</span></td>
                   <td><div class="team-name-cell">{row.team_name}</div><div class="team-owner-cell">{row.owner_name}</div></td>
