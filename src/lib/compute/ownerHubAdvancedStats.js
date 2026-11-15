@@ -57,34 +57,16 @@ export function addAdvancedOwnerStats(hubs, allSeasonResults, chain) {
           weeklyByOwner[key] ||= [];
           weeklyByOwner[key].push(points);
         }
-        if (week < playoffStart || week > playoffEnd) continue;
+        if (week > playoffEnd) continue;
         const matchup = String(entry.matchup_id ?? 'unmatched-' + String(entry.roster_id ?? entry.rosterId));
         matches[matchup] ||= [];
         matches[matchup].push({ key, points });
       }
 
-      if (week >= playoffStart && week <= playoffEnd) {
+      if (week < playoffStart) {
         for (const participants of Object.values(matches)) {
           const byOwner = {};
           for (const participant of participants) byOwner[participant.key] = (byOwner[participant.key] || 0) + participant.points;
-          const keys = Object.keys(byOwner);
-          for (const key of keys) {
-            for (const opponentKey of keys) {
-              if (key === opponentKey) continue;
-              const record = ensureOpponent(hubs[key], opponentKey, hubs[opponentKey]?.owner_username);
-              const pf = byOwner[key], pa = byOwner[opponentKey];
-              record.pf += pf;
-              record.pa += pa;
-              if (pf > pa) record.wins++;
-              else if (pf < pa) record.losses++;
-              else record.ties++;
-            }
-          }
-        }
-      } else {
-        for (const entriesInMatch of Object.values(matches)) {
-          const byOwner = {};
-          for (const participant of entriesInMatch) byOwner[participant.key] = (byOwner[participant.key] || 0) + participant.points;
           const keys = Object.keys(byOwner);
           for (const key of keys) {
             for (const opponentKey of keys) {
