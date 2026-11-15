@@ -786,12 +786,14 @@
   }
   .season-table-wrap { overflow-x: auto; }
   .season-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-  .season-table th, .season-table td { padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--border-subtle); text-align: right; white-space: nowrap; }
+  .season-table th, .season-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border-subtle); text-align: right; white-space: nowrap; }
   .season-table th:first-child, .season-table td:first-child { text-align: left; }
-  .season-table th { color: var(--text-tertiary); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
-  .season-table td { color: var(--text-secondary); }
+  .season-table th { color: var(--text-secondary); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; background: var(--surface-1); }
+  .season-table td { color: var(--text-secondary); font-weight: 500; }
   .season-table td:first-child { color: var(--text-primary); font-weight: 700; }
   .season-table tr:last-child td { border-bottom: 0; }
+  .season-table .positive { color: var(--win); font-weight: 700; }
+  .season-table .negative { color: var(--loss); font-weight: 700; }
   .season-table .positive { color: var(--win); }
   .season-table .negative { color: var(--loss); }
 
