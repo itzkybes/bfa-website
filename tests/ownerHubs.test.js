@@ -154,3 +154,39 @@ test('Owner Hub merges owner identity case-insensitively and calculates win perc
   assert.equal(result.sameowner.seasonsPlayed, 1);
   assert.equal(result.sameowner.winPct, 0.6);
 });
+
+
+test('Owner Hub adds career efficiency and season-by-season totals', () => {
+  const result = buildOwnerHubs(
+    [{
+      leagueSeason: '2025',
+      bracketComplete: true,
+      regularStandings: [
+        { rosterId: '1', wins: 8, losses: 2, ties: 1, pf: 1100, pa: 1000 },
+        { rosterId: '2', wins: 4, losses: 6, ties: 0, pf: 900, pa: 950 },
+      ],
+      finalStandings: [
+        { rosterId: '1', rank: 2, isChampion: false, isPlayoff: true },
+        { rosterId: '2', rank: 8, isChampion: false, isPlayoff: false },
+      ],
+      rosterMap: {
+        1: { owner_username: 'owner-one' },
+        2: { owner_username: 'owner-two' },
+      },
+      collectedMatchups: {},
+    }],
+    [{ season: '2025' }]
+  );
+
+  const owner = result['owner-one'];
+  assert.equal(owner.careerTies, 1);
+  assert.equal(owner.gamesPlayed, 11);
+  assert.equal(owner.winPct, 8.5 / 11);
+  assert.equal(owner.avgPF, 100);
+  assert.equal(owner.avgPA, 1000 / 11);
+  assert.equal(owner.pointDifferential, 100);
+  assert.equal(owner.avgMargin, 100 / 11);
+  assert.deepEqual(owner.seasonHistory, [{
+    season: '2025', wins: 8, losses: 2, ties: 1, pf: 1100, pa: 1000, finish: 2,
+  }]);
+});
