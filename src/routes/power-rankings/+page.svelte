@@ -272,7 +272,7 @@
   .team-name-cell, .team-name-link { font-weight: 700; color: var(--text-primary); line-height: 1.15; text-decoration: none; }
   a.team-name-link:hover { color: var(--accent); }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
-  .pf { color: var(--text-primary); font-weight: 700; }
+  .pf { color: var(--text-secondary); font-weight: 400; }
   .positive { color: var(--brand); font-weight: 700; }
   .negative { color: var(--accent); }
 
