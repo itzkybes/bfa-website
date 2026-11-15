@@ -484,10 +484,30 @@ select {
 }
 
 .bfa-table tbody td {
-  padding: 0.9rem 1rem;
+  padding: 0.82rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  font-weight: 500;
   vertical-align: middle;
+}
+
+.bfa-table tbody td:first-child {
+  color: var(--text-primary);
+}
+
+.bfa-table .leader-cell {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+.bfa-table tbody tr.leader-row td,
+.bfa-table tbody tr.champion-row td {
+  color: var(--text-primary);
+}
+
+.bfa-table tbody tr.leader-row td:first-child,
+.bfa-table tbody tr.champion-row td:first-child {
+  font-weight: 800;
 }
 
 .bfa-table tbody tr {
@@ -495,7 +515,11 @@ select {
 }
 
 .bfa-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.bfa-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .bfa-table tbody tr.champion-row {
