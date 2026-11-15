@@ -467,7 +467,7 @@
   .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
 
-  .pf { color: var(--text-primary); font-weight: 700; }
+  .pf { color: var(--text-secondary); font-weight: 400; }
   .muted { color: var(--text-tertiary); }
   .positive { color: var(--accent); font-weight: 700; }
   .negative { color: var(--text-tertiary); }
