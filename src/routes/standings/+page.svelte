@@ -260,7 +260,7 @@
             <tbody>
               {#each selectedResult.regularStandings as row, idx (row.rosterId)}
                 <tr>
-                  <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
+                  <td class="rank-cell"><span class="num rank-num" class:leader-cell={idx === 0}>{idx + 1}</span></td>
                   <td class="col-num" data-testid={`standings-movement-${row.rosterId}`}>
                     {#if standingsMovement.byRoster?.[row.rosterId] == null}
                       <span class="delta flat" title="Not enough completed weeks to calculate movement">—</span>
@@ -384,7 +384,7 @@
   .playoff-tag { color: var(--win); background: rgba(16, 185, 129, 0.12); }
   .toilet-tag { color: var(--loss); background: rgba(239, 68, 68, 0.12); }
   .trophy { margin-left: 0.4rem; }
-  .pf .num { color: var(--text-primary); font-weight: 700; }
+  .pf .num { color: var(--text-secondary); font-weight: 400; }
   .num.muted { color: var(--text-tertiary); }
   .empty-card { padding: 2rem; text-align: center; color: var(--text-secondary); }
 
