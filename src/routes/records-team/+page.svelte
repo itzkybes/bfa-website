@@ -12,17 +12,8 @@
   let error = null;
   let aggregatedRegular = [];
   let aggregatedPlayoff = [];
-  let h2hOwners = [];
-  let h2hRecords = {};
   let marginsLargest = [];
   let marginsSmallest = [];
-  let selectedH2H = null;
-
-  function lastLabel(season, week) {
-    if (!season) return '—';
-    return `${season} · W${week || ''}`;
-  }
-
   // Stable key across seasons: prefer owner_username (Sleeper username), fallback to owner_name.
   function stableKey(meta) {
     if (!meta) return null;
@@ -50,8 +41,6 @@
       const regAgg = {};
       const poAgg = {};
       const championCounts = {}; // stableKey -> # championships
-      const seasonOwnersByRid = {}; // {season: {rid: stableKey}}
-
       function addRow(agg, row, meta, season) {
         const key = stableKey(meta) || String(row.team_name || row.rosterId).toLowerCase();
         if (!agg[key]) {
@@ -93,13 +82,6 @@
           const ck = stableKey(cmeta);
           if (ck) championCounts[ck] = (championCounts[ck] || 0) + 1;
         }
-        // build per-roster ownership map for h2h
-        const ridToKey = {};
-        for (const rid of Object.keys(rmap)) {
-          ridToKey[rid] = stableKey(rmap[rid]) || String(rmap[rid].team_name || rid).toLowerCase();
-        }
-        seasonOwnersByRid[result.season] = ridToKey;
-
         for (const row of (result.regularStandings || [])) addRow(regAgg, row, rmap[row.rosterId], result.season);
         for (const row of (result.playoffStandings || [])) addRow(poAgg, row, rmap[row.rosterId], result.season);
       }
@@ -108,121 +90,65 @@
       for (const k of Object.keys(poAgg)) poAgg[k].championships = championCounts[k] || 0;
       for (const k of Object.keys(regAgg)) regAgg[k].championships = championCounts[k] || 0;
 
-      aggregatedRegular = Object.values(regAgg).sort((a, b) => (b.wins - a.wins) || (b.pf - a.pf));
-      aggregatedPlayoff = Object.values(poAgg).sort((a, b) => {
+      aggregatedRegular = Object.values(regAgg).map((row) => {
+        row.seasons = [...new Set(row.seasons)];
+        row.games = row.wins + row.losses + row.ties;
+        row.winPct = row.games ? ((row.wins + row.ties * 0.5) / row.games) * 100 : 0;
+        row.avgPF = row.games ? row.pf / row.games : 0;
+        return row;
+      }).sort((a, b) => (b.wins - a.wins) || (b.pf - a.pf));
+      aggregatedPlayoff = Object.values(poAgg).map((row) => {
+        row.seasons = [...new Set(row.seasons)];
+        row.games = row.wins + row.losses + row.ties;
+        row.winPct = row.games ? ((row.wins + row.ties * 0.5) / row.games) * 100 : 0;
+        return row;
+      }).sort((a, b) => {
         if ((b.championships || 0) !== (a.championships || 0)) return (b.championships || 0) - (a.championships || 0);
         return (b.wins - a.wins) || (b.pf - a.pf);
       });
 
-      // ---------- H2H + margins (reuse collectedMatchups from standings results) ----------
-      const h2h = {};
-      const ownersByKey = {};
+      // ---------- All-time margin records ----------
       const allMargins = [];
-
       for (const result of standingsResults) {
         if (!result) continue;
         const rmap = result.rosterMap || {};
         const matchups = result.collectedMatchups || {};
-        const leagueSeason = result.season;
-
-        for (const rid of Object.keys(rmap)) {
-          const k = stableKey(rmap[rid]) || String(rmap[rid].team_name || rid).toLowerCase();
-          if (!ownersByKey[k]) {
-            ownersByKey[k] = {
-              key: k,
-              team: rmap[rid].team_name,
-              display: rmap[rid].owner_name,
-              avatar: rmap[rid].team_avatar || rmap[rid].owner_avatar
-            };
-          } else {
-            // upgrade missing avatar / team name when a later season has it
-            if (!ownersByKey[k].avatar && (rmap[rid].team_avatar || rmap[rid].owner_avatar)) {
-              ownersByKey[k].avatar = rmap[rid].team_avatar || rmap[rid].owner_avatar;
-            }
-            if ((!ownersByKey[k].team || ownersByKey[k].team.startsWith('Roster ')) && rmap[rid].team_name) {
-              ownersByKey[k].team = rmap[rid].team_name;
-            }
-          }
-        }
-
         for (const wk of Object.keys(matchups)) {
           const weekEntries = matchups[wk];
           if (!Array.isArray(weekEntries)) continue;
-          // group by matchup_id
           const byM = {};
           for (let i = 0; i < weekEntries.length; i++) {
-            const e = weekEntries[i];
-            const mid = e.matchup_id ?? e.matchupId ?? ('auto' + i);
-            if (!byM[mid]) byM[mid] = [];
-            byM[mid].push(e);
+            const entry = weekEntries[i];
+            const matchupId = entry.matchup_id ?? entry.matchupId ?? ('auto' + i);
+            if (!byM[matchupId]) byM[matchupId] = [];
+            byM[matchupId].push(entry);
           }
-          for (const mid of Object.keys(byM)) {
-            const arr = byM[mid];
-            if (arr.length !== 2) continue;
-            const [a, b] = arr;
-            const aId = String(a.roster_id ?? a.rosterId ?? '');
-            const bId = String(b.roster_id ?? b.rosterId ?? '');
+          for (const entries of Object.values(byM)) {
+            if (entries.length !== 2) continue;
+            const [a, b] = entries;
             const aPts = computeParticipantPoints(a);
             const bPts = computeParticipantPoints(b);
-            const ak = stableKey(rmap[aId]);
-            const bk = stableKey(rmap[bId]);
-            if (!ak || !bk) continue;
-            const aMeta = rmap[aId] || {};
-            const bMeta = rmap[bId] || {};
-
-            // margins (skip ties)
-            if (aPts !== bPts) {
-              const winMeta = aPts > bPts ? aMeta : bMeta;
-              const losMeta = aPts > bPts ? bMeta : aMeta;
-              const winPts = aPts > bPts ? aPts : bPts;
-              const losPts = aPts > bPts ? bPts : aPts;
-              allMargins.push({
-                season: leagueSeason, week: Number(wk),
-                margin: Math.round((winPts - losPts) * 100) / 100,
-                teamAName: winMeta.team_name, teamBName: losMeta.team_name,
-                avatarA: winMeta.team_avatar || winMeta.owner_avatar,
-                avatarB: losMeta.team_avatar || losMeta.owner_avatar,
-                scoreA: Math.round(winPts * 100) / 100,
-                scoreB: Math.round(losPts * 100) / 100
-              });
-            }
-
-            // H2H
-            if (!h2h[ak]) h2h[ak] = {};
-            if (!h2h[ak][bk]) h2h[ak][bk] = {
-              wins: 0, losses: 0, games: 0, pf: 0, pa: 0,
-              lastSeason: null, lastWeek: null,
-              opponentTeam: bMeta.team_name, opponentDisplay: bMeta.owner_name,
-              opponentAvatar: bMeta.team_avatar || bMeta.owner_avatar
-            };
-            if (!h2h[bk]) h2h[bk] = {};
-            if (!h2h[bk][ak]) h2h[bk][ak] = {
-              wins: 0, losses: 0, games: 0, pf: 0, pa: 0,
-              lastSeason: null, lastWeek: null,
-              opponentTeam: aMeta.team_name, opponentDisplay: aMeta.owner_name,
-              opponentAvatar: aMeta.team_avatar || aMeta.owner_avatar
-            };
-
-            h2h[ak][bk].games++; h2h[ak][bk].pf += aPts; h2h[ak][bk].pa += bPts;
-            h2h[ak][bk].lastSeason = leagueSeason; h2h[ak][bk].lastWeek = Number(wk);
-            h2h[bk][ak].games++; h2h[bk][ak].pf += bPts; h2h[bk][ak].pa += aPts;
-            h2h[bk][ak].lastSeason = leagueSeason; h2h[bk][ak].lastWeek = Number(wk);
-            if (aPts > bPts) { h2h[ak][bk].wins++; h2h[bk][ak].losses++; }
-            else if (bPts > aPts) { h2h[bk][ak].wins++; h2h[ak][bk].losses++; }
+            if (aPts === bPts) continue;
+            const aMeta = rmap[String(a.roster_id ?? a.rosterId ?? '')] || {};
+            const bMeta = rmap[String(b.roster_id ?? b.rosterId ?? '')] || {};
+            const winner = aPts > bPts ? aMeta : bMeta;
+            const loser = aPts > bPts ? bMeta : aMeta;
+            const winnerPts = Math.max(aPts, bPts);
+            const loserPts = Math.min(aPts, bPts);
+            allMargins.push({
+              season: result.season,
+              week: Number(wk),
+              margin: Math.round((winnerPts - loserPts) * 100) / 100,
+              teamAName: winner.team_name || 'Unknown team',
+              teamBName: loser.team_name || 'Unknown team',
+              avatarA: winner.team_avatar || winner.owner_avatar,
+              avatarB: loser.team_avatar || loser.owner_avatar,
+              scoreA: Math.round(winnerPts * 100) / 100,
+              scoreB: Math.round(loserPts * 100) / 100
+            });
           }
         }
       }
-
-      for (const k of Object.keys(h2h)) for (const o of Object.keys(h2h[k])) {
-        h2h[k][o].pf = Math.round(h2h[k][o].pf * 100) / 100;
-        h2h[k][o].pa = Math.round(h2h[k][o].pa * 100) / 100;
-      }
-      h2hOwners = Object.values(ownersByKey).sort((a, b) => String(a.team || '').localeCompare(String(b.team || '')));
-      h2hRecords = {};
-      for (const k of Object.keys(h2h)) {
-        h2hRecords[k] = Object.values(h2h[k]).sort((a, b) => b.wins - a.wins || b.games - a.games);
-      }
-      if (h2hOwners.length) selectedH2H = h2hOwners[0].key;
 
       const sorted = allMargins.slice().sort((a, b) => b.margin - a.margin);
       marginsLargest = sorted.slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
@@ -235,6 +161,11 @@
     }
   }
 
+  $: regularWinsLeader = aggregatedRegular[0] || null;
+  $: playoffTitlesLeader = aggregatedPlayoff[0] || null;
+  $: largestBlowout = marginsLargest[0] || null;
+  $: closestGame = marginsSmallest[0] || null;
+
   onMount(loadAll);
 </script>
 
@@ -242,7 +173,7 @@
   <header class="page-head rise">
     <div class="eyebrow">All-Time · Team Records</div>
     <h1 class="page-title">Team Records</h1>
-    <p class="page-sub">Aggregated stats across every available season — head-to-head matchups, biggest blowouts and nailbiters.</p>
+    <p class="page-sub">The league’s all-time team leaderboard: career records, postseason success, and the biggest and closest matchups.</p>
   </header>
 
   {#if loading}
@@ -253,15 +184,50 @@
   {:else if error}
     <ErrorBoundary {error} onRetry={loadAll} context="team records" />
   {:else}
+    <section class="record-highlights" aria-label="All-time record highlights">
+      <article class="highlight-card">
+        <div class="highlight-label">Most Regular-Season Wins</div>
+        {#if regularWinsLeader}
+          <div class="highlight-value num">{regularWinsLeader.wins}</div>
+          <div class="highlight-team">{regularWinsLeader.team_name}</div>
+          <div class="highlight-detail">{regularWinsLeader.owner_name || 'BFA manager'} · {regularWinsLeader.games} games</div>
+        {:else}<div class="highlight-empty">No record yet</div>{/if}
+      </article>
+      <article class="highlight-card">
+        <div class="highlight-label">Most Championships</div>
+        {#if playoffTitlesLeader}
+          <div class="highlight-value num">{playoffTitlesLeader.championships}</div>
+          <div class="highlight-team">{playoffTitlesLeader.team_name}</div>
+          <div class="highlight-detail">{playoffTitlesLeader.owner_name || 'BFA manager'} · {playoffTitlesLeader.wins} playoff wins</div>
+        {:else}<div class="highlight-empty">No record yet</div>{/if}
+      </article>
+      <article class="highlight-card">
+        <div class="highlight-label">Biggest Blowout</div>
+        {#if largestBlowout}
+          <div class="highlight-value num">+{largestBlowout.margin}</div>
+          <div class="highlight-team">{largestBlowout.teamAName}</div>
+          <div class="highlight-detail">{largestBlowout.scoreA}–{largestBlowout.scoreB} · {largestBlowout.season} Week {largestBlowout.week}</div>
+        {:else}<div class="highlight-empty">No record yet</div>{/if}
+      </article>
+      <article class="highlight-card">
+        <div class="highlight-label">Closest Game</div>
+        {#if closestGame}
+          <div class="highlight-value num">{closestGame.margin}</div>
+          <div class="highlight-team">{closestGame.teamAName} def. {closestGame.teamBName}</div>
+          <div class="highlight-detail">{closestGame.scoreA}–{closestGame.scoreB} · {closestGame.season} Week {closestGame.week}</div>
+        {:else}<div class="highlight-empty">No record yet</div>{/if}
+      </article>
+    </section>
+
     <section class="block">
       <div class="block-head">
-        <h2 class="block-title">Regular Season — Aggregated</h2>
+        <h2 class="block-title">Regular Season — Career Totals</h2>
         <span class="block-sub">Sorted by Wins → PF</span>
       </div>
       {#if aggregatedRegular.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">Wins</th><th class="col-num" title="All-time regular-season losses">Losses</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst lose streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th></tr></thead>
+            <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">W</th><th class="col-num" title="All-time regular-season losses">L</th><th class="col-num" title="All-time ties">T</th><th class="col-num" title="Win percentage, with ties counting as half a win">Win %</th><th class="col-num" title="Total regular-season games">Games</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst losing streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th><th class="col-num" title="Average points scored per game">PF / Game</th><th class="col-num" title="Number of seasons played">Seasons</th></tr></thead>
             <tbody>
               {#each aggregatedRegular as row (row.key)}
                 <tr>
@@ -276,10 +242,15 @@
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
+                  <td class="col-num"><span class="num">{row.ties}</span></td>
+                  <td class="col-num"><span class="num">{row.winPct.toFixed(1)}%</span></td>
+                  <td class="col-num"><span class="num">{row.games}</span></td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
                   <td class="col-num"><span class="num muted">{row.pa}</span></td>
+                  <td class="col-num"><span class="num">{row.avgPF.toFixed(2)}</span></td>
+                  <td class="col-num"><span class="num muted">{row.seasons.length}</span></td>
                 </tr>
               {/each}
             </tbody>
@@ -292,13 +263,13 @@
 
     <section class="block">
       <div class="block-head">
-        <h2 class="block-title">Playoffs — Aggregated</h2>
-        <span class="block-sub">🏆 = championship · sorted by titles → wins</span>
+        <h2 class="block-title">Playoff Career Records</h2>
+        <span class="block-sub">Championships → wins → points for</span>
       </div>
       {#if aggregatedPlayoff.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th class="col-num" title="Total championships won">Championships</th><th class="col-num" title="Playoff wins all-time">Playoff Wins</th><th class="col-num" title="Playoff losses all-time">Playoff Losses</th><th class="col-num" title="Total playoff points scored">Playoff PF</th><th class="col-num" title="Total playoff points allowed">Playoff PA</th></tr></thead>
+            <thead><tr><th>Team</th><th class="col-num" title="Total championships won">Titles</th><th class="col-num" title="Playoff wins all-time">W</th><th class="col-num" title="Playoff losses all-time">L</th><th class="col-num" title="Playoff ties all-time">T</th><th class="col-num" title="Playoff win percentage">Win %</th><th class="col-num" title="Number of seasons with playoff games">Playoff Seasons</th><th class="col-num" title="Total playoff points scored">Playoff PF</th><th class="col-num" title="Total playoff points allowed">Playoff PA</th></tr></thead>
             <tbody>
               {#each aggregatedPlayoff as row (row.key)}
                 <tr class:champion-row={(row.championships || 0) > 0}>
@@ -327,6 +298,9 @@
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
+                  <td class="col-num"><span class="num">{row.ties}</span></td>
+                  <td class="col-num"><span class="num">{row.winPct.toFixed(1)}%</span></td>
+                  <td class="col-num"><span class="num muted">{row.seasons.length}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
                   <td class="col-num"><span class="num muted">{row.pa}</span></td>
                 </tr>
@@ -336,49 +310,6 @@
         </div>
       {:else}
         <div class="empty-card">No playoff results.</div>
-      {/if}
-    </section>
-
-    <section class="block">
-      <div class="block-head">
-        <h2 class="block-title">Head-to-Head</h2>
-        <div class="h2h-select-wrap">
-          <label for="h2h-select" class="visually-hidden">Team</label>
-          <select id="h2h-select" bind:value={selectedH2H} data-testid="h2h-team-select">
-            {#each h2hOwners as o}<option value={o.key}>{o.team || o.display}</option>{/each}
-          </select>
-        </div>
-      </div>
-
-      {#if selectedH2H && h2hRecords[selectedH2H]?.length}
-        <div class="table-wrap">
-          <table class="bfa-table">
-            <thead><tr><th>Opponent</th><th class="col-num" title="Head-to-head wins vs this opponent">Wins</th><th class="col-num" title="Head-to-head losses vs this opponent">Losses</th><th class="col-num" title="Total times the two teams have played">Games Played</th><th class="col-num" title="Points scored against this opponent">Points For</th><th class="col-num" title="Points allowed to this opponent">Points Against</th><th class="col-num" title="Most recent season they played">Last Met</th></tr></thead>
-            <tbody>
-              {#each h2hRecords[selectedH2H] as r}
-                <tr>
-                  <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPlaceholder(r.opponentAvatar, r.opponentTeam || r.opponentDisplay)} alt={r.opponentTeam} />
-                      <div>
-                        <div class="team-name-cell">{r.opponentTeam || r.opponentDisplay}</div>
-                        {#if r.opponentDisplay && r.opponentTeam}<div class="team-owner-cell">{r.opponentDisplay}</div>{/if}
-                      </div>
-                    </div>
-                  </td>
-                  <td class="col-num"><span class="num win-color">{r.wins}</span></td>
-                  <td class="col-num"><span class="num loss-color">{r.losses}</span></td>
-                  <td class="col-num"><span class="num muted">{r.games}</span></td>
-                  <td class="col-num"><span class="num">{r.pf}</span></td>
-                  <td class="col-num"><span class="num muted">{r.pa}</span></td>
-                  <td class="col-num"><span class="num muted">{lastLabel(r.lastSeason, r.lastWeek)}</span></td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {:else}
-        <div class="empty-card">No head-to-head data for selected team.</div>
       {/if}
     </section>
 
@@ -447,6 +378,13 @@
     margin-top: 0.5rem;
   }
 
+  .record-highlights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.85rem; margin-bottom: 1.25rem; }
+  .highlight-card { min-width: 0; padding: 1.1rem 1.15rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); }
+  .highlight-label { color: var(--text-tertiary); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
+  .highlight-value { margin-top: 0.55rem; color: var(--accent); font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 800; line-height: 1; }
+  .highlight-team { margin-top: 0.45rem; color: var(--text-primary); font-weight: 800; overflow-wrap: anywhere; }
+  .highlight-detail { margin-top: 0.2rem; color: var(--text-tertiary); font-size: 0.75rem; line-height: 1.4; }
+  .highlight-empty { margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.85rem; }
   .block { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 1.25rem; }
   .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; flex-wrap: wrap; }
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
@@ -479,6 +417,7 @@
   .margin-value { background: var(--surface-2); border: 1px solid var(--border-subtle); padding: 0.25rem 0.55rem; border-radius: var(--r-sm); color: var(--accent); font-size: 1.1rem; }
   .margin-value.tight { color: var(--win); border-color: var(--win); }
   .margin-meta { color: var(--text-tertiary); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+  @media (max-width: 1100px) { .record-highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 980px) { .margins-grid { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
@@ -486,8 +425,9 @@
     .page-sub { font-size: 0.9rem; }
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.05rem; }
-    .block-head select { width: 100%; min-width: 0; }
-    .h2h-select-wrap { width: 100%; }
+    .record-highlights { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .highlight-card { padding: 0.85rem; }
+    .highlight-label { font-size: 0.6rem; }
     .team-avatar.small { width: 34px; height: 34px; }
     .team-owner-cell { display: none; }
     .margin-row { grid-template-columns: 40px 1fr; padding: 0.55rem 0.75rem; }
