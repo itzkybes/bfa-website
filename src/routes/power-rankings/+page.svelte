@@ -216,7 +216,7 @@
             {#each rankings as r (r.rosterId)}
               {@const mv = movementOf(r)}
               <tr data-testid={`rank-row-${r.rosterId}`}>
-                <td class="rank-cell"><span class="num rank-num">{r.rank}</span></td>
+                <td class="rank-cell"><span class="num rank-num" class:leader-cell={r.rank === 1}>{r.rank}</span></td>
                 <td>
                   <div class="team-cell">
                     <img class="team-avatar small" src={avatarOrPlaceholder(r.meta.team_avatar || r.meta.owner_avatar, r.meta.team_name)} alt={r.meta.team_name} />
