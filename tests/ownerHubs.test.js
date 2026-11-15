@@ -154,3 +154,90 @@ test('Owner Hub merges owner identity case-insensitively and calculates win perc
   assert.equal(result.sameowner.seasonsPlayed, 1);
   assert.equal(result.sameowner.winPct, 0.6);
 });
+
+
+test('Owner Hub adds career efficiency and season-by-season totals', () => {
+  const result = buildOwnerHubs(
+    [{
+      leagueSeason: '2025',
+      bracketComplete: true,
+      regularStandings: [
+        { rosterId: '1', wins: 8, losses: 2, ties: 1, pf: 1100, pa: 1000 },
+        { rosterId: '2', wins: 4, losses: 6, ties: 0, pf: 900, pa: 950 },
+      ],
+      finalStandings: [
+        { rosterId: '1', rank: 2, isChampion: false, isPlayoff: true },
+        { rosterId: '2', rank: 8, isChampion: false, isPlayoff: false },
+      ],
+      rosterMap: {
+        1: { owner_username: 'owner-one' },
+        2: { owner_username: 'owner-two' },
+      },
+      collectedMatchups: {},
+    }],
+    [{ season: '2025' }]
+  );
+
+  const owner = result['owner-one'];
+  assert.equal(owner.careerTies, 1);
+  assert.equal(owner.gamesPlayed, 11);
+  assert.equal(owner.winPct, 8.5 / 11);
+  assert.equal(owner.avgPF, 100);
+  assert.equal(owner.avgPA, 1000 / 11);
+  assert.equal(owner.pointDifferential, 100);
+  assert.equal(owner.avgMargin, 100 / 11);
+  assert.deepEqual(owner.seasonHistory, [{
+    season: '2025', wins: 8, losses: 2, ties: 1, pf: 1100, pa: 1000, finish: 2,
+  }]);
+});
+
+
+test('Owner Hub calculates rivalries, playoff record, scoring consistency, and league leaders', () => {
+  const result = buildOwnerHubs(
+    [{
+      leagueSeason: '2025',
+      playoffStart: 20,
+      playoffEnd: 22,
+      bracketComplete: true,
+      regularStandings: [
+        { rosterId: '1', wins: 2, losses: 0, ties: 0, pf: 200, pa: 180 },
+        { rosterId: '2', wins: 1, losses: 1, ties: 0, pf: 180, pa: 200 },
+      ],
+      playoffStandings: [
+        { rosterId: '1', wins: 2, losses: 1, ties: 0 },
+        { rosterId: '2', wins: 1, losses: 2, ties: 0 },
+      ],
+      finalStandings: [
+        { rosterId: '1', rank: 1, isChampion: true, isPlayoff: true },
+        { rosterId: '2', rank: 2, isChampion: false, isPlayoff: true },
+      ],
+      rosterMap: {
+        1: { owner_username: 'owner-one', team_name: 'One' },
+        2: { owner_username: 'owner-two', team_name: 'Two' },
+      },
+      collectedMatchups: {
+        1: [entry('1', 'week-1', 120, 10), entry('2', 'week-1', 90, 8)],
+        2: [entry('1', 'week-2', 80, 10), entry('2', 'week-2', 90, 8)],
+        20: [entry('1', 'playoff-1', 100, 10), entry('2', 'playoff-1', 90, 8)],
+      },
+    }],
+    [{ season: '2025' }]
+  );
+
+  const owner = result['owner-one'];
+  assert.deepEqual(owner.playoffRecord, { wins: 2, losses: 1, ties: 0 });
+  assert.equal(owner.headToHeadRecords[0].owner, 'owner-two');
+  assert.equal(owner.headToHeadRecords[0].wins, 1);
+  assert.equal(owner.headToHeadRecords[0].losses, 1);
+  assert.equal(owner.toughestOpponent.key, 'owner-two');
+  assert.equal(owner.favorableOpponent.key, 'owner-two');
+  assert.equal(owner.weeklyScoring.highest, 120);
+  assert.equal(owner.weeklyScoring.lowest, 80);
+  assert.equal(owner.weeklyScoring.average, 100);
+  assert.equal(owner.weeklyScoring.standardDeviation, 20);
+  assert.equal(owner.leagueLeaders.mostPointsForSeasons, 1);
+  assert.equal(owner.leagueLeaders.bestRecordSeasons, 1);
+  assert.equal(owner.leagueLeaders.highestScoringAverageSeasons, 1);
+  assert.equal(owner.averageFinalFinish, 1);
+  assert.equal(owner.topFourFinishes, 1);
+});

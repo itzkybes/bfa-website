@@ -217,6 +217,30 @@
                 <div class="hub-stat-num">{Math.round(roster.owner_hub.careerPA).toLocaleString()}</div>
                 <div class="hub-stat-label">Career PA</div>
               </div>
+              <div class="hub-stat" title="Total completed regular-season matchups across all seasons">
+                <div class="hub-stat-num">{roster.owner_hub.gamesPlayed}</div>
+                <div class="hub-stat-label">Games Played</div>
+              </div>
+              <div class="hub-stat" title="Average points scored per regular-season matchup">
+                <div class="hub-stat-num">{roster.owner_hub.avgPF.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg PF / Game</div>
+              </div>
+              <div class="hub-stat" title="Average points allowed per regular-season matchup">
+                <div class="hub-stat-num">{roster.owner_hub.avgPA.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg PA / Game</div>
+              </div>
+              <div class="hub-stat" title="Career points scored minus points allowed">
+                <div class="hub-stat-num">{roster.owner_hub.pointDifferential > 0 ? '+' : ''}{Math.round(roster.owner_hub.pointDifferential).toLocaleString()}</div>
+                <div class="hub-stat-label">Point Differential</div>
+              </div>
+              <div class="hub-stat" title="Average points scored minus points allowed per matchup">
+                <div class="hub-stat-num">{roster.owner_hub.avgMargin > 0 ? '+' : ''}{roster.owner_hub.avgMargin.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg Margin</div>
+              </div>
+              <div class="hub-stat" title="All-time regular-season ties">
+                <div class="hub-stat-num">{roster.owner_hub.careerTies}</div>
+                <div class="hub-stat-label">Career Ties</div>
+              </div>
               <div class="hub-stat" title="Highest single-season PF and the year it happened">
                 <div class="hub-stat-num">{Math.round(roster.owner_hub.bestSeasonPF).toLocaleString()}{#if roster.owner_hub.bestSeasonPFSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestSeasonPFSeason).slice(-2)}</span>{/if}</div>
                 <div class="hub-stat-label">Best Season PF</div>
@@ -355,6 +379,113 @@
                     </div>
                   </div>
                 {/if}
+              </div>
+            </div>
+          {/if}
+          <div class="advanced-stats" data-testid={`advanced-owner-stats-${roster.rosterId}`}>
+            <div class="records-head">
+              <div class="records-title">Advanced Team Analytics</div>
+              <div class="records-sub">Completed regular seasons and playoff results</div>
+            </div>
+            <div class="owner-hub-grid">
+              <div class="hub-stat" title="Career playoff record">
+                <div class="hub-stat-num">{roster.owner_hub.playoffRecord.wins}–{roster.owner_hub.playoffRecord.losses}{#if roster.owner_hub.playoffRecord.ties}–{roster.owner_hub.playoffRecord.ties}{/if}</div>
+                <div class="hub-stat-label">Playoff Record</div>
+              </div>
+              <div class="hub-stat" title="Average final placement in seasons with completed brackets">
+                <div class="hub-stat-num">{roster.owner_hub.averageFinalFinish == null ? '—' : roster.owner_hub.averageFinalFinish.toFixed(1)}</div>
+                <div class="hub-stat-label">Avg Finish</div>
+              </div>
+              <div class="hub-stat" title="Number of completed seasons finishing in the top four">
+                <div class="hub-stat-num">{roster.owner_hub.topFourFinishes}</div>
+                <div class="hub-stat-label">Top 4 Finishes</div>
+              </div>
+              <div class="hub-stat" title="Seasons leading the league in regular-season points for">
+                <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.mostPointsForSeasons}</div>
+                <div class="hub-stat-label">PF Titles</div>
+              </div>
+              <div class="hub-stat" title="Seasons with the best regular-season record, using points for as the tiebreaker">
+                <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.bestRecordSeasons}</div>
+                <div class="hub-stat-label">Best Records</div>
+              </div>
+              <div class="hub-stat" title="Seasons with the highest average weekly scoring">
+                <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.highestScoringAverageSeasons}</div>
+                <div class="hub-stat-label">Scoring Titles</div>
+              </div>
+              {#if roster.owner_hub.weeklyScoring}
+                <div class="hub-stat" title="Standard deviation of completed regular-season weekly scores; lower means more consistent">
+                  <div class="hub-stat-num">{roster.owner_hub.weeklyScoring.standardDeviation.toFixed(1)}</div>
+                  <div class="hub-stat-label">Scoring Std Dev</div>
+                </div>
+                <div class="hub-stat" title="Highest completed regular-season weekly team score">
+                  <div class="hub-stat-num">{roster.owner_hub.weeklyScoring.highest.toFixed(1)}</div>
+                  <div class="hub-stat-label">Weekly High</div>
+                </div>
+                <div class="hub-stat" title="Lowest completed regular-season weekly team score">
+                  <div class="hub-stat-num">{roster.owner_hub.weeklyScoring.lowest.toFixed(1)}</div>
+                  <div class="hub-stat-label">Weekly Low</div>
+                </div>
+              {/if}
+            </div>
+            {#if roster.owner_hub.toughestOpponent || roster.owner_hub.favorableOpponent}
+              <div class="rivalry-highlights">
+                {#if roster.owner_hub.toughestOpponent}
+                  <div><span>Toughest matchup</span><strong>{roster.owner_hub.toughestOpponent.owner}</strong><small>{roster.owner_hub.toughestOpponent.wins}–{roster.owner_hub.toughestOpponent.losses}{#if roster.owner_hub.toughestOpponent.ties}–{roster.owner_hub.toughestOpponent.ties}{/if} · {(roster.owner_hub.toughestOpponent.winPct * 100).toFixed(0)}% win rate</small></div>
+                {/if}
+                {#if roster.owner_hub.favorableOpponent}
+                  <div><span>Best matchup</span><strong>{roster.owner_hub.favorableOpponent.owner}</strong><small>{roster.owner_hub.favorableOpponent.wins}–{roster.owner_hub.favorableOpponent.losses}{#if roster.owner_hub.favorableOpponent.ties}–{roster.owner_hub.favorableOpponent.ties}{/if} · {(roster.owner_hub.favorableOpponent.winPct * 100).toFixed(0)}% win rate</small></div>
+                {/if}
+              </div>
+            {/if}
+            {#if roster.owner_hub.headToHeadRecords?.length}
+              <div class="records-head h2h-head">
+                <div class="records-title">Head-to-Head Records</div>
+                <div class="records-sub">Regular-season matchups</div>
+              </div>
+              <div class="season-table-wrap">
+                <table class="season-table h2h-table">
+                  <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th><th>PF</th><th>PA</th></tr></thead>
+                  <tbody>
+                    {#each roster.owner_hub.headToHeadRecords as opponent (opponent.key)}
+                      <tr>
+                        <td>{opponent.owner}</td>
+                        <td>{opponent.wins}–{opponent.losses}{#if opponent.ties}–{opponent.ties}{/if}</td>
+                        <td>{(opponent.winPct * 100).toFixed(1)}%</td>
+                        <td>{Math.round(opponent.pf).toLocaleString()}</td>
+                        <td>{Math.round(opponent.pa).toLocaleString()}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            {/if}
+          </div>
+          {#if roster.owner_hub.seasonHistory?.length}
+            <div class="season-history" data-testid={`season-history-${roster.rosterId}`}>
+              <div class="records-head">
+                <div class="records-title">Season-by-Season</div>
+                <div class="records-sub">Regular-season totals · PF breaks ties</div>
+              </div>
+              <div class="season-table-wrap">
+                <table class="season-table">
+                  <thead>
+                    <tr><th>Season</th><th>Record</th><th>Finish</th><th>PF</th><th>PA</th><th>Diff</th></tr>
+                  </thead>
+                  <tbody>
+                    {#each roster.owner_hub.seasonHistory as seasonRow (seasonRow.season)}
+                      <tr>
+                        <td>{seasonRow.season}</td>
+                        <td>{seasonRow.wins}–{seasonRow.losses}{#if seasonRow.ties}–{seasonRow.ties}{/if}</td>
+                        <td>{seasonRow.finish ? `#${seasonRow.finish}` : '—'}</td>
+                        <td>{Math.round(seasonRow.pf).toLocaleString()}</td>
+                        <td>{Math.round(seasonRow.pa).toLocaleString()}</td>
+                        <td class:positive={seasonRow.pf > seasonRow.pa} class:negative={seasonRow.pf < seasonRow.pa}>
+                          {seasonRow.pf - seasonRow.pa > 0 ? '+' : ''}{Math.round(seasonRow.pf - seasonRow.pa).toLocaleString()}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
               </div>
             </div>
           {/if}
@@ -615,6 +746,54 @@
     letter-spacing: 0.1em;
     font-weight: 600;
   }
+
+  .advanced-stats {
+    margin: 0.25rem 0 1.1rem;
+    padding: 0.95rem 1rem 1.05rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+  }
+  .rivalry-highlights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.6rem;
+    margin: 0.85rem 0;
+  }
+  .rivalry-highlights > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    padding: 0.65rem 0.75rem;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+  }
+  .rivalry-highlights span, .rivalry-highlights small {
+    color: var(--text-tertiary);
+    font-size: 0.68rem;
+  }
+  .rivalry-highlights span { text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+  .rivalry-highlights strong { color: var(--text-primary); font-size: 0.9rem; }
+  .h2h-head { margin-top: 1rem; }
+  .h2h-table td:first-child { font-weight: 600; }
+  .season-history {
+    margin: 0.25rem 0 1.1rem;
+    padding: 0.95rem 1rem 1.05rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+  }
+  .season-table-wrap { overflow-x: auto; }
+  .season-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  .season-table th, .season-table td { padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--border-subtle); text-align: right; white-space: nowrap; }
+  .season-table th:first-child, .season-table td:first-child { text-align: left; }
+  .season-table th { color: var(--text-tertiary); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
+  .season-table td { color: var(--text-secondary); }
+  .season-table td:first-child { color: var(--text-primary); font-weight: 700; }
+  .season-table tr:last-child td { border-bottom: 0; }
+  .season-table .positive { color: var(--win); }
+  .season-table .negative { color: var(--loss); }
 
   .franchise-records {
     margin: 0.25rem 0 1.1rem;

@@ -1,4 +1,5 @@
 import { getSeasonFormat } from './seasonFormat.js';
+import { addAdvancedOwnerStats } from './ownerHubAdvancedStats.js';
 
   /**
    * Roll up every season's standings into a per-owner career snapshot:
@@ -10,6 +11,7 @@ import { getSeasonFormat } from './seasonFormat.js';
 export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
     const hubs = {};
     const ownerSeasonsHandled = {};
+    const seasonRowsByOwner = {};
     function ensure(uname) {
       const k = String(uname || '').toLowerCase();
       if (!k) return null;
@@ -18,7 +20,8 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
           owner_username: uname,
           championships: 0, playoffAppearances: 0, finalsAppearances: 0,
           seasonsPlayed: 0,
-          careerWins: 0, careerLosses: 0, careerPF: 0, careerPA: 0,
+          careerWins: 0, careerLosses: 0, careerTies: 0, careerPF: 0, careerPA: 0,
+          seasonHistory: [],
           bestFinish: null, bestFinishSeason: null,
           bestSeasonPF: 0, bestSeasonPFSeason: null,
           bestSeasonRecord: null,
@@ -31,6 +34,7 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
           firstSeason: null, lastSeason: null
         };
         ownerSeasonsHandled[k] = new Set();
+        seasonRowsByOwner[k] = {};
       }
       return hubs[k];
     }
@@ -53,10 +57,22 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
         }
         const wins = Number(reg.wins ?? 0);
         const losses = Number(reg.losses ?? 0);
+        const ties = Number(reg.ties ?? 0);
         const pf = Number(reg.pf ?? 0);
         const pa = Number(reg.pa ?? 0);
+        const seasonKey = String(seasonLabel);
+        const seasonRows = seasonRowsByOwner[k];
+        if (!seasonRows[seasonKey]) {
+          seasonRows[seasonKey] = { season: seasonLabel, wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, finish: null };
+        }
+        seasonRows[seasonKey].wins += wins;
+        seasonRows[seasonKey].losses += losses;
+        seasonRows[seasonKey].ties += ties;
+        seasonRows[seasonKey].pf += pf;
+        seasonRows[seasonKey].pa += pa;
         hub.careerWins += wins;
         hub.careerLosses += losses;
+        hub.careerTies += ties;
         hub.careerPF += pf;
         hub.careerPA += pa;
         if (pf > hub.bestSeasonPF) { hub.bestSeasonPF = pf; hub.bestSeasonPFSeason = seasonLabel; }
@@ -80,6 +96,8 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
           if (fs.isChampion) hub.championships += 1;
           if (fs.isPlayoff) hub.playoffAppearances += 1;
           if (fs.rank === 1 || fs.rank === 2) hub.finalsAppearances += 1;
+          const seasonRow = seasonRowsByOwner[String(hub.owner_username).toLowerCase()]?.[String(seasonLabel)];
+          if (seasonRow && (seasonRow.finish == null || fs.rank < seasonRow.finish)) seasonRow.finish = fs.rank;
           if (hub.bestFinish == null || fs.rank < hub.bestFinish) {
             hub.bestFinish = fs.rank;
             hub.bestFinishSeason = seasonLabel;
@@ -190,8 +208,14 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
 
     for (const k of Object.keys(hubs)) {
       const h = hubs[k];
-      const games = h.careerWins + h.careerLosses;
-      h.winPct = games ? h.careerWins / games : 0;
+      const games = h.careerWins + h.careerLosses + h.careerTies;
+      h.gamesPlayed = games;
+      h.winPct = games ? (h.careerWins + h.careerTies * 0.5) / games : 0;
+      h.avgPF = games ? h.careerPF / games : 0;
+      h.avgPA = games ? h.careerPA / games : 0;
+      h.pointDifferential = h.careerPF - h.careerPA;
+      h.avgMargin = games ? h.pointDifferential / games : 0;
+      h.seasonHistory = Object.values(seasonRowsByOwner[k] || {}).sort((a, b) => Number(b.season) - Number(a.season));
     }
-    return hubs;
+    return addAdvancedOwnerStats(hubs, allSeasonResults, chain);
   }
