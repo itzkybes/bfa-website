@@ -190,7 +190,7 @@
           {#if groupedScoring[g]?.length}
             <div class="scoring-group" data-testid={`scoring-group-${g}`}>
               <div class="group-title">{GROUP_LABELS[g]}</div>
-              <table class="scoring-table">
+              <table class="bfa-table scoring-table">
                 <tbody>
                   {#each groupedScoring[g] as row}
                     <tr class:negative={row.value < 0}>
@@ -346,15 +346,9 @@
     border-bottom: 1px solid var(--border-subtle);
   }
 
-  .scoring-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .scoring-table td {
-    padding: 0.4rem 0;
-    vertical-align: middle;
-  }
+  .scoring-table { font-size: 0.88rem; }
+  .scoring-table tbody td { padding: 0.55rem 0.75rem; }
+  .scoring-table tbody tr:last-child td { border-bottom: 0; }
 
   .scoring-table .lbl {
     color: var(--text-secondary);

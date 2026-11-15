@@ -450,12 +450,12 @@
           <table class="bfa-table">
             <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total playoff points scored that season">Playoff PTS</th></tr></thead>
             <tbody>
-              {#each allTimePlayoff as row (row.rosterId)}
+              {#each allTimePlayoff as row, idx (row.rosterId)}
                 <tr>
                   <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
                   <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
                   <td><span class="num accent-text">{row.season}</span></td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.points)}</span></td>
                 </tr>
               {/each}
             </tbody>
@@ -550,14 +550,14 @@
             <tbody>
               {#each allTimePlayoffsLeaderboard as row, idx (row.playerId)}
                 <tr>
-                  <td class="rank-cell"><span class="num rank-num">{idx + 1}</span></td>
+                  <td class="rank-cell"><span class="num rank-num" class:leader-cell={idx === 0}>{idx + 1}</span></td>
                   <td>
                     <div class="player-cell">
                       <img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                       <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
                     </div>
                   </td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.totalPoints)}</span></td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.totalPoints)}</span></td>
                   <td class="col-num"><span class="num">{fmt(row.best)} <span class="best-season">'{String(row.bestSeason).slice(-2)}</span></span></td>
                   <td class="col-num"><span class="num">{row.appearances}</span></td>
                   <td>
@@ -588,12 +588,12 @@
           <table class="bfa-table">
             <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total points (regular season + playoffs)">Total PTS</th></tr></thead>
             <tbody>
-              {#each allTimeFull as row (row.rosterId)}
+              {#each allTimeFull as row, idx (row.rosterId)}
                 <tr>
                   <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
                   <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
                   <td><span class="num accent-text">{row.season}</span></td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.points)}</span></td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.points)}</span></td>
                 </tr>
               {/each}
             </tbody>
@@ -644,7 +644,7 @@
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell, .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
-  .bigpts { font-size: 1.15rem; color: var(--accent); font-weight: 700; }
+  .bigpts { font-size: 1.05rem; color: var(--text-secondary); font-weight: 500; }
   .accent-text { color: var(--accent); }
   .best-season { color: var(--text-tertiary); font-size: 0.75rem; font-weight: 700; margin-left: 0.25rem; }
   .rank-cell { width: 60px; }

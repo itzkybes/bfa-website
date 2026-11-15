@@ -467,7 +467,7 @@
   .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
 
-  .pf { color: var(--text-primary); font-weight: 700; }
+  .pf { color: var(--text-secondary); font-weight: 400; }
   .muted { color: var(--text-tertiary); }
   .positive { color: var(--accent); font-weight: 700; }
   .negative { color: var(--text-tertiary); }
@@ -556,7 +556,6 @@
   }
 
   .h2h-table { min-width: 720px; }
-  .h2h-table td, .h2h-table th { padding: 0.55rem 0.7rem; }
   .last3 { display: inline-flex; gap: 0.2rem; justify-content: flex-end; }
   .pellet {
     display: inline-flex; align-items: center; justify-content: center;

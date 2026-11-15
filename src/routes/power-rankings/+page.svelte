@@ -216,7 +216,7 @@
             {#each rankings as r (r.rosterId)}
               {@const mv = movementOf(r)}
               <tr data-testid={`rank-row-${r.rosterId}`}>
-                <td class="rank-cell"><span class="num rank-num">{r.rank}</span></td>
+                <td class="rank-cell"><span class="num rank-num" class:leader-cell={r.rank === 1}>{r.rank}</span></td>
                 <td>
                   <div class="team-cell">
                     <img class="team-avatar small" src={avatarOrPlaceholder(r.meta.team_avatar || r.meta.owner_avatar, r.meta.team_name)} alt={r.meta.team_name} />
@@ -272,7 +272,7 @@
   .team-name-cell, .team-name-link { font-weight: 700; color: var(--text-primary); line-height: 1.15; text-decoration: none; }
   a.team-name-link:hover { color: var(--accent); }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
-  .pf { color: var(--text-primary); font-weight: 700; }
+  .pf { color: var(--text-secondary); font-weight: 400; }
   .positive { color: var(--brand); font-weight: 700; }
   .negative { color: var(--accent); }
 

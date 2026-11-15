@@ -443,7 +443,7 @@
                 <div class="records-sub">Regular-season matchups</div>
               </div>
               <div class="season-table-wrap">
-                <table class="season-table h2h-table">
+                <table class="bfa-table season-table h2h-table">
                   <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th><th>PF</th><th>PA</th></tr></thead>
                   <tbody>
                     {#each roster.owner_hub.headToHeadRecords as opponent (opponent.key)}
@@ -467,7 +467,7 @@
                 <div class="records-sub">Regular-season totals · PF breaks ties</div>
               </div>
               <div class="season-table-wrap">
-                <table class="season-table">
+                <table class="bfa-table season-table">
                   <thead>
                     <tr><th>Season</th><th>Record</th><th>Finish</th><th>PF</th><th>PA</th><th>Diff</th></tr>
                   </thead>
@@ -776,7 +776,6 @@
   .rivalry-highlights span { text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
   .rivalry-highlights strong { color: var(--text-primary); font-size: 0.9rem; }
   .h2h-head { margin-top: 1rem; }
-  .h2h-table td:first-child { font-weight: 600; }
   .season-history {
     margin: 0.25rem 0 1.1rem;
     padding: 0.95rem 1rem 1.05rem;
@@ -785,15 +784,8 @@
     border-radius: var(--r-sm);
   }
   .season-table-wrap { overflow-x: auto; }
-  .season-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-  .season-table th, .season-table td { padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--border-subtle); text-align: right; white-space: nowrap; }
-  .season-table th:first-child, .season-table td:first-child { text-align: left; }
-  .season-table th { color: var(--text-tertiary); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
-  .season-table td { color: var(--text-secondary); }
-  .season-table td:first-child { color: var(--text-primary); font-weight: 700; }
-  .season-table tr:last-child td { border-bottom: 0; }
-  .season-table .positive { color: var(--win); }
-  .season-table .negative { color: var(--loss); }
+  .season-table { min-width: 560px; }
+  .h2h-table { min-width: 520px; }
 
   .franchise-records {
     margin: 0.25rem 0 1.1rem;
