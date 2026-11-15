@@ -467,6 +467,7 @@ select {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .bfa-table thead th {
@@ -530,7 +531,19 @@ select {
 .col-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+
+.bfa-table .col-trend,
+.bfa-table .col-mv {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bfa-table tbody td .num {
+  font-variant-numeric: tabular-nums;
+}
+
 
 /* Tables on phones — keep them legible inside their .table-wrap scroll
    container without crushing whitespace. */
