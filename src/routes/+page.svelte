@@ -168,7 +168,7 @@
     transactionsLoading = true;
     try {
       const [transactions, rmap] = await Promise.all([
-        getRecentTransactions(leagueId, { weekFrom: 1, weekTo: 25, limit: 18 }),
+        getRecentTransactions(leagueId, { weekFrom: 0, weekTo: 25, limit: 18 }),
         getRosterMapWithOwners(leagueId).catch(() => ({}))
       ]);
       rawRecentTransactions = transactions;
