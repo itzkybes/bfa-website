@@ -7,7 +7,6 @@
   import { computeStandingsForLeague } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
-  import Sparkline from '$lib/components/Sparkline.svelte';
   import { avatarOrPlaceholder } from '$lib/utils/format';
 
   let loading = true;
@@ -29,15 +28,6 @@
   // each regular-season row. Pulled out of `weeklyPfByRoster` (built inside
   // `computeStandingsForLeague`) so the chart doesn't need its own data fetch.
   $: standingsMovement = selectedResult?.standingsMovement || { byRoster: {} };
-
-  $: weeklyByRoster = (() => {
-    const out = {};
-    const src = selectedResult?.weeklyPfByRoster || {};
-    for (const rid of Object.keys(src)) {
-      out[rid] = (src[rid] || []).map((p) => p.pf);
-    }
-    return out;
-  })();
 
   $: playoffDisplay = (() => {
     if (!selectedResult) return [];
