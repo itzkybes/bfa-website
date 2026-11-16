@@ -51,6 +51,28 @@
     return [...champs, ...others];
   })();
 
+  // Count the weeks each roster tied for the lowest team score league-wide.
+  // This is scoped to the selected season and regular-season weeks only.
+  $: leagueLowWeeksByRoster = (() => {
+    const counts = {};
+    if (!selectedResult) return counts;
+    const collected = selectedResult.collectedMatchups || {};
+    const playoffStart = Number(selectedResult.playoffStart) || 999;
+    for (const [weekKey, entries] of Object.entries(collected)) {
+      const week = Number(weekKey);
+      if (!Number.isFinite(week) || week < 1 || week >= playoffStart) continue;
+      const scores = (entries || []).map((entry) => Number(entry.points)).filter(Number.isFinite);
+      if (!scores.length) continue;
+      const lowest = Math.min(...scores);
+      for (const entry of entries || []) {
+        if (Math.abs(Number(entry.points) - lowest) > 1e-9) continue;
+        const rosterId = String(entry.roster_id ?? entry.rosterId ?? '');
+        if (rosterId) counts[rosterId] = (counts[rosterId] || 0) + 1;
+      }
+    }
+    return counts;
+  })();
+
   // Build the "Regular Season MVP Race" mini-leaderboard: top 5 players by
   // cumulative regular-season points (starters_points summed across every
   // regular-season week in the selected season). For each top-5 player we
@@ -251,6 +273,7 @@
                 <th class="col-num" title="Regular-season wins">Wins</th>
                 <th class="col-num" title="Regular-season losses">Losses</th>
                 <th class="col-num" title="Longest consecutive wins this season">Best Streak</th>
+                <th class="col-num" title="Number of regular-season weeks this team tied for the lowest points total in the league">League Weekly Lows</th>
                 <th class="col-num" title="Longest consecutive losses this season">Worst Streak</th>
                 <th class="col-num" title="Total points scored by this team">Points For</th>
                 <th class="col-num" title="Total points scored against this team">Points Against</th>
@@ -289,6 +312,7 @@
                   <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
+                  <td class="col-num"><span class="num">{leagueLowWeeksByRoster[row.rosterId] || 0}</span></td>
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
                   <td class="col-num"><span class="num muted">{row.pa}</span></td>
