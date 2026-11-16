@@ -122,7 +122,7 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
         const isPlayoff = wk >= playoffStart && wk <= playoffEnd;
         if (!isRegular && !isPlayoff) continue;
         const entries = collected[wkStr] || [];
-        const validScores = entries.map((entry) => Number(entry.points)).filter(Number.isFinite);
+        const validScores = entries.map((entry) => Number(entry.__final_score ?? entry.points)).filter(Number.isFinite);
         const lowestLeagueScore = validScores.length ? Math.min(...validScores) : null;
         const byMatch = {};
         for (const e of entries) {
@@ -136,7 +136,7 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
           const meta = rmap[rid] || {};
           const hub = ensure(meta.owner_username || meta.owner_name);
           if (!hub) continue;
-          const pts = Number(e.points ?? 0);
+          const pts = Number(e.__final_score ?? e.points ?? 0);
           if (isRegular && lowestLeagueScore != null && Math.abs(pts - lowestLeagueScore) < 1e-9) hub.leagueLowestWeeks += 1;
 
           // Regular-season-only metrics: highest/lowest week + blowouts.
@@ -154,7 +154,7 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
               hub.lowestWeek = { points: pts, week: wk, season: seasonLabel };
             }
             if (opp) {
-              const oppPts = Number(opp.points ?? 0);
+              const oppPts = Number(opp.__final_score ?? opp.points ?? 0);
               const margin = pts - oppPts;
               if (margin > 0 && (!hub.biggestBlowoutWin || margin > hub.biggestBlowoutWin.margin)) {
                 hub.biggestBlowoutWin = {
