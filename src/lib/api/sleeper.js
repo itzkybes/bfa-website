@@ -430,8 +430,7 @@ export async function getCurrentWeekForLeague(leagueId, { maxWeek = 25, minAvg =
 
 /**
  * Fetch transactions (trades + waivers + free agent moves) for one round
- * (a.k.a. week) of a league. Cached for 10 min — these change rarely once
- * a week has closed.
+ * (a.k.a. week) of a league. A short cache keeps completed trades current.
  */
 export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_60_SEC) {
   try {
@@ -447,8 +446,9 @@ export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_60_SEC)
 }
 
 /**
- * Pull completed transactions across a range of weeks. Includes trades,
- * waiver claims, and free-agent moves; newest activity is returned first.
+ * Pull completed transactions across a range of weeks. `limit` is applied
+ * independently to each transaction type so high-volume waivers do not hide
+ * less frequent trades from the category filters. Results are globally sorted.
  */
 export async function getRecentTransactions(leagueId, { weekFrom = 1, weekTo = 25, limit = 18 } = {}) {
   const weeks = [];
