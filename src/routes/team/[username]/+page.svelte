@@ -15,6 +15,7 @@
   import { page } from '$app/stores';
   import { getSeasonsChain, BASE_LEAGUE_ID, getRosterMapWithOwners } from '$lib/api';
   import { computeStandingsForLeague } from '$lib/compute';
+  import { computeParticipantPoints } from '$lib/compute/scoring';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import { formatNumber, avatarOrPlaceholder } from '$lib/utils/format';
@@ -142,8 +143,8 @@
         const mine = pair.find((e) => String(e.roster_id ?? e.rosterId ?? '') === String(myRosterId));
         if (!mine) continue;
         const opp = pair.find((e) => e !== mine);
-        const myPts = Number(mine.points ?? 0) || 0;
-        const oppPts = Number(opp?.points ?? 0) || 0;
+        const myPts = computeParticipantPoints(mine);
+        const oppPts = opp ? computeParticipantPoints(opp) : 0;
         const oppRid = opp ? String(opp.roster_id ?? opp.rosterId ?? '') : null;
         const oppMeta = oppRid && rosterMap[oppRid] ? rosterMap[oppRid] : null;
         let result = 'T';
