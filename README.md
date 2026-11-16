@@ -5,7 +5,8 @@ matchup, roster, and bracket from the [Sleeper](https://sleeper.com) public API,
 slices it across every season the league has ever played, and renders it in a
 single dark, brand-themed SvelteKit app.
 
-Live on Vercel. No login. No backend. No database.
+Live on Vercel. No login or application server. League data is fetched directly
+from Sleeper and cached in the browser.
 
 ---
 
@@ -154,7 +155,7 @@ src/
 ├── lib/
 │   ├── api/
 │   │   ├── sleeper.js             Sleeper REST wrapper, season-chain discovery, BASE_LEAGUE_ID
-│   │   ├── cache.js               localStorage cache with TTL
+│   │   ├── cache.js               TTL cache: localStorage for small responses, IndexedDB for large data
 │   │   ├── staticSeasons.js       Loader for /static/season_matchups/{year}.json snapshots
 │   │   └── index.js               Barrel — `import { … } from '$lib/api'`
 │   ├── compute/
@@ -217,7 +218,7 @@ flowchart TB
         direction LR
         sl["sleeper.js"]
         st["staticSeasons.js"]
-        ca["cache.js<br/>localStorage + TTL"]
+        ca["cache.js<br/>localStorage + IndexedDB + TTL"]
     end
 
     sleeper[("Sleeper API<br/>api.sleeper.app/v1")]
@@ -350,7 +351,7 @@ flowchart TD
     C -- yes --> D{"Snapshot file exists?<br/>/season_matchups/year.json"}
     D -- "yes" --> S["Use the static snapshot"]
     D -- "404" --> L
-    L --> K[("localStorage cache<br/>60s – 1h TTL")]
+    L --> K[("Browser cache<br/>localStorage / IndexedDB · TTL")]
     K --> R["Compute standings / matchups"]
     S --> R
     R --> UI["Render the page"]

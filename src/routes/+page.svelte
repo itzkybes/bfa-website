@@ -745,5 +745,19 @@
   @media (max-width: 480px) {
     .hero-title { font-size: clamp(2.2rem, 10vw, 3rem); }
     .hero-sub { font-size: 0.9rem; }
+    .activity-card-head { align-items: flex-start; flex-wrap: wrap; }
+    .activity-when { margin-left: auto; }
+    .activity-team-name { font-size: 0.92rem; }
+    .activity-player img { width: 32px; height: 32px; }
+    .activity-player span { font-size: 0.8rem; }
+    .activity-filters {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding: 0.15rem 0.1rem 0.55rem;
+      margin-right: calc(-1 * var(--page-gutter));
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+    }
+    .activity-filters button { flex: 0 0 auto; }
   }
 </style>
