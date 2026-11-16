@@ -190,7 +190,7 @@
       const player = pmap[pid];
       return {
         pid,
-        name: player?.full_name || (player?.first_name || '') + ' ' + (player?.last_name || '') || 'Player ' + pid,
+        name: player?.full_name || ((player?.first_name || '') + ' ' + (player?.last_name || '')).trim() || 'Player ' + pid,
         team: player?.team || '',
         position: (player?.fantasy_positions && player.fantasy_positions[0]) || player?.position || ''
       };
