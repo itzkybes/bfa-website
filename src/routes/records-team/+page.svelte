@@ -495,8 +495,8 @@
   .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; flex-wrap: wrap; }
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
-  .table-wrap { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
-  .bfa-table { width: 100%; min-width: 0; table-layout: auto; font-size: 0.98rem; }
+  .table-wrap { width: 100%; overflow: hidden; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; font-size: 0.98rem; }
   .bfa-table thead th { font-size: 0.72rem; padding: 0.85rem 0.72rem; white-space: normal; }
   .bfa-table tbody td { padding: 0.85rem 0.72rem; }
   .bfa-table .col-num { white-space: nowrap; }
@@ -540,8 +540,8 @@
     .record-highlights { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
     .highlight-card { padding: 0.85rem; }
     .highlight-label { font-size: 0.6rem; }
-    /* Preserve useful column widths on narrow screens; tables scroll horizontally. */
-    .bfa-table { min-width: 900px; font-size: 0.82rem; table-layout: auto; }
+    /* Keep tables within the viewport; allow labels and values to wrap. */
+    .bfa-table { min-width: 0; font-size: 0.72rem; table-layout: fixed; }
     .bfa-table thead th { font-size: 0.68rem; padding: 0.7rem 0.55rem; letter-spacing: 0.04em; }
     .bfa-table tbody td { padding: 0.7rem 0.55rem; }
     .bfa-table .col-num { white-space: nowrap; }
