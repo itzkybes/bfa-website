@@ -621,25 +621,24 @@
     text-align: center;
   }
 
-  /* ----- SECTION HEAD (shared by trade ledger) ----- */
+  /* ----- SECTION HEAD + RECENT ACTIVITY ----- */
   .section-head {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
     flex-wrap: wrap;
   }
-
   .section-title {
     font-family: var(--font-display);
     font-size: clamp(2rem, 4vw, 3rem);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--text-primary);
-    margin-top: 0.4rem;
+    margin-top: 0.35rem;
   }
-
+  .section-description { color: var(--text-secondary); margin-top: 0.35rem; font-size: 0.92rem; }
   .empty-card {
     padding: 2rem;
     text-align: center;
@@ -648,124 +647,81 @@
     border-radius: var(--r-sm);
     color: var(--text-secondary);
   }
-
-  /* ----- TRADE LEDGER ----- */
-  .trades-section { padding-top: 3rem; padding-bottom: 3rem; }
-  .trades-count { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
-  .trades-list { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
-  .trade-card {
+  .activity-section { padding-top: 3rem; padding-bottom: 3.5rem; }
+  .activity-count { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+  .activity-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1.1rem; }
+  .activity-filters button {
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 0.48rem 0.85rem;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 750;
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  }
+  .activity-filters button:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .activity-filters button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text-primary); }
+  .activity-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
+  .activity-card {
+    min-width: 0;
     background: var(--surface-1);
     border: 1px solid var(--border-subtle);
     border-radius: var(--r-sm);
-    padding: 1.1rem 1.25rem;
-    transition: border-color var(--t-fast);
+    padding: 1rem 1.1rem;
+    transition: border-color var(--t-fast), transform var(--t-fast);
   }
-  .trade-card:hover { border-color: var(--border-strong); }
-  .trade-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.9rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .trade-week {
-    font-family: var(--font-body);
-    font-weight: 800;
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
-    color: var(--brand);
-    text-transform: uppercase;
-  }
-  .trade-when { color: var(--text-tertiary); font-size: 0.78rem; }
-
-  .trade-sides {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 1rem;
-    align-items: stretch;
-  }
-  .trade-side { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
-  .trade-team { display: flex; align-items: center; gap: 0.65rem; }
-  .trade-avatar {
-    width: 40px; height: 40px;
-    border-radius: var(--r-sm);
-    object-fit: cover;
-    background: var(--surface-2);
-    border: 1px solid var(--border-subtle);
-    flex-shrink: 0;
-  }
-  .trade-team-name {
-    font-family: var(--font-display);
-    font-size: 1.05rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-primary);
-    text-decoration: none;
-    line-height: 1.1;
-  }
-  a.trade-team-name:hover { color: var(--accent); }
-  .trade-owner { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; }
-  .gets-label {
-    font-family: var(--font-body);
-    font-weight: 800;
-    font-size: 0.62rem;
-    letter-spacing: 0.18em;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    margin-bottom: 0.3rem;
-  }
-  .trade-gets {
-    background: var(--surface-2);
-    border-radius: var(--r-sm);
-    padding: 0.65rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-    flex: 1;
-  }
-  .trade-player { display: flex; align-items: center; gap: 0.6rem; }
-  .trade-player-headshot {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: var(--surface-1);
-    flex-shrink: 0;
-  }
-  .trade-player-info { min-width: 0; line-height: 1.15; }
-  .trade-player-name { font-weight: 700; color: var(--text-primary); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .trade-player-meta { color: var(--text-tertiary); font-size: 0.7rem; }
-  .trade-pick { color: var(--brand); font-weight: 700; font-size: 0.82rem; }
-  .trade-cash { color: var(--accent); font-weight: 700; font-size: 0.82rem; }
-  .trade-empty { color: var(--text-tertiary); font-size: 0.85rem; padding: 0.5rem 0; }
-  .trade-swap {
-    align-self: center;
-    font-size: 1.5rem;
-    color: var(--accent);
-    padding: 0 0.25rem;
-  }
+  .activity-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .activity-card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.85rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--border-subtle); }
+  .activity-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+  .activity-type { border-radius: 999px; background: var(--surface-2); color: var(--text-primary); padding: 0.28rem 0.58rem; font-size: 0.67rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
+  .activity-type.trade-type { background: var(--accent-soft); color: var(--accent); }
+  .activity-week { color: var(--text-tertiary); font-size: 0.72rem; font-weight: 700; }
+  .activity-when { color: var(--text-tertiary); font-size: 0.75rem; white-space: nowrap; }
+  .activity-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+  .activity-sides.multi-side { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; }
+  .activity-side { min-width: 0; display: flex; flex-direction: column; gap: 0.65rem; }
+  .activity-team { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .activity-avatar { width: 38px; height: 38px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .activity-team-meta { min-width: 0; }
+  .activity-team-name { display: block; font-family: var(--font-display); font-size: 0.98rem; text-transform: uppercase; letter-spacing: 0.035em; color: var(--text-primary); text-decoration: none; line-height: 1.15; overflow-wrap: anywhere; }
+  a.activity-team-name:hover { color: var(--accent); }
+  .activity-owner { color: var(--text-tertiary); font-size: 0.7rem; margin-top: 0.15rem; }
+  .activity-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .activity-detail-group { min-width: 0; background: var(--surface-2); border-radius: var(--r-sm); padding: 0.58rem 0.65rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .detail-label { font-size: 0.61rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
+  .detail-label.positive { color: var(--success, #22c55e); }
+  .detail-label.negative { color: var(--text-tertiary); }
+  .activity-player { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+  .activity-player img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface-1); flex-shrink: 0; }
+  .activity-player span { min-width: 0; color: var(--text-primary); font-size: 0.76rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+  .activity-player small { display: block; color: var(--text-tertiary); font-size: 0.64rem; font-weight: 500; margin-top: 0.12rem; }
+  .activity-asset { color: var(--text-secondary); font-size: 0.75rem; font-weight: 700; }
+  .activity-no-details { color: var(--text-tertiary); font-size: 0.75rem; }
+  .activity-swap { align-self: center; color: var(--accent); font-size: 1.25rem; padding: 0 0.1rem; }
 
   @media (max-width: 980px) {
     .hero-inner { grid-template-columns: 1fr; gap: 2rem; }
     .rando { max-width: 100%; }
+    .activity-list { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 720px) {
     .hero { padding: 2.5rem 0 3rem; }
-    .trade-sides { grid-template-columns: 1fr; }
-    .trade-swap { transform: rotate(90deg); justify-self: center; padding: 0.25rem 0; }
-    .trade-card { padding: 0.9rem 0.95rem; }
-    .trade-team-name { font-size: 0.95rem; }
-    .trade-avatar { width: 36px; height: 36px; }
-    .trade-player-headshot { width: 28px; height: 28px; }
-    .trade-player-name { font-size: 0.82rem; }
-    .trade-player-meta { font-size: 0.65rem; }
+    .activity-card { padding: 0.85rem; }
+    .activity-sides.multi-side { grid-template-columns: 1fr; }
+    .activity-swap { transform: rotate(90deg); justify-self: center; }
+    .activity-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     /* Buttons stack full-width on phones so they never overflow the viewport */
     .hero-actions { flex-direction: column; align-items: stretch; gap: 0.6rem; }
     .hero-actions :global(.btn) { width: 100%; }
     .hero-sub { font-size: 0.95rem; }
     .section-head { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .activity-filters { gap: 0.4rem; }
+    .activity-filters button { padding: 0.42rem 0.68rem; font-size: 0.72rem; }
+    .activity-details { grid-template-columns: 1fr; }
     .rando { padding: 1.1rem; }
     .rando-headshot { width: 80px; height: 80px; }
     .rando-name { font-size: 1.35rem; }
