@@ -12,7 +12,7 @@
   $: initials = String(teamName || 'T').trim().slice(0, 2).toUpperCase();
 </script>
 
-<div class="team-identity" class:large={size === 'large'}>
+<div class="team-identity" class:large={size === 'large'} class:compact={size === 'compact'}>
   {#if avatarUrl}
     <img src={avatarUrl} alt="" loading="lazy" on:error={() => (imageFailed = true)} />
   {:else}
@@ -36,6 +36,9 @@
     background: var(--surface-2);
   }
   .team-identity.large img, .team-identity.large .team-placeholder { width: 54px; height: 54px; }
+  .team-identity.compact img, .team-identity.compact .team-placeholder { width: 38px; height: 38px; }
+  .team-identity.compact .team-name { font-family: var(--font-display); font-size: 0.98rem; text-transform: uppercase; letter-spacing: 0.035em; }
+  .team-identity.compact .team-subtitle { font-size: 0.7rem; }
   .team-placeholder {
     display: grid; place-items: center; color: var(--text-secondary);
     font-family: var(--font-display); font-size: 1rem;
