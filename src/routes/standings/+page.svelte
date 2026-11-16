@@ -51,11 +51,11 @@
     for (const [weekKey, entries] of Object.entries(collected)) {
       const week = Number(weekKey);
       if (!Number.isFinite(week) || week < 1 || week >= playoffStart) continue;
-      const scores = (entries || []).map((entry) => Number(entry.points)).filter(Number.isFinite);
+      const scores = (entries || []).map((entry) => Number(entry.__final_score ?? entry.points)).filter(Number.isFinite);
       if (!scores.length) continue;
       const lowest = Math.min(...scores);
       for (const entry of entries || []) {
-        if (Math.abs(Number(entry.points) - lowest) > 1e-9) continue;
+        if (Math.abs(Number(entry.__final_score ?? entry.points) - lowest) > 1e-9) continue;
         const rosterId = String(entry.roster_id ?? entry.rosterId ?? '');
         if (rosterId) counts[rosterId] = (counts[rosterId] || 0) + 1;
       }
