@@ -562,6 +562,7 @@
   .season-year { font-family: var(--font-display); font-size: 1.35rem; color: var(--accent); }
   .season-award-cell { gap: 0.85rem; }
   .record-headshot { width: 68px; height: 68px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .bfa-table .headshot { width: 58px; height: 58px; }
   .award-points { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
 
   .table-wrap { width: 100%; overflow-x: visible; }
