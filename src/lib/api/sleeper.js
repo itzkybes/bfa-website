@@ -7,7 +7,7 @@
 // The Sleeper API is read-only and unauthenticated, so it works just as well
 // for a static deploy as it does for a dev box.
 
-import { fetchWithCache } from './cache';
+import { fetchWithCache } from './cache.js';
 
 const BASE = 'https://api.sleeper.app/v1';
 const SLEEPER_CDN = 'https://sleepercdn.com';
