@@ -744,6 +744,7 @@
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .table-wrap::after { display: none; }
     .block-head { padding: 0.85rem 1rem; }
     .block-head-text { flex: 1; }
     .block-title { font-size: 1.05rem; }
