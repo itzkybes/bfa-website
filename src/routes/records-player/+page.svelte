@@ -278,8 +278,8 @@
           }
         }
       }
-      // Sort by team name for a stable, alphabetical readout. Overlay each
-       // entry's meta with the latest-league meta so the avatar/name match
+      // Rank franchises by their best single-season scoring performance.
+      // Overlay each entry's meta with the latest-league meta so the avatar/name match
        // the franchise's CURRENT branding (per user requirement: "most recent
        // logos in every table").
       allTimeBestByTeam = Object.values(bestByTeam)
