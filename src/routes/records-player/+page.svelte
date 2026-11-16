@@ -151,6 +151,7 @@
         return {
           season: s.season ?? s.league_id,
           leagueId: s.league_id,
+          bracketComplete: Boolean(standings.bracketComplete),
           regularMvp: regularList[0]
             ? { ...regularList[0], playerName: null, roster_meta: rosterMap[regularList[0].rosterId] }
             : null,
@@ -194,6 +195,7 @@
       // Count each season's three MVP awards by player.
       const mvpAwardCounts = {};
       for (const seasonResult of seasonsResults) {
+        if (!seasonResult.bracketComplete) continue;
         for (const [awardKey, awardField] of [
           ['regular', 'regularMvp'],
           ['playoffs', 'playoffsMvp'],
@@ -222,7 +224,7 @@
           b.finals - a.finals ||
           b.playoffs - a.playoffs ||
           b.regular - a.regular ||
-          a.playerName.localeCompare(b.playerName)
+          String(a.playerName || '').localeCompare(String(b.playerName || ''))
         );
 
 
