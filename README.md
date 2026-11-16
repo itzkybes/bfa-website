@@ -5,7 +5,8 @@ matchup, roster, and bracket from the [Sleeper](https://sleeper.com) public API,
 slices it across every season the league has ever played, and renders it in a
 single dark, brand-themed SvelteKit app.
 
-Live on Vercel. No login or application server. League data is fetched directly from Sleeper and cached in the browser.
+Live on Vercel. No login or application server. League data is fetched directly
+from Sleeper and cached in the browser.
 
 ---
 
