@@ -666,3 +666,119 @@ button:disabled,
 @media (max-width: 720px) {
   .table-wrap .bfa-table { min-width: 560px; }
 }
+
+
+/* ============================================================
+   BFA identity refresh — royal blue, basketball orange, court lines
+   Shared globally so every route feels like the same league brand.
+   ============================================================ */
+:root {
+  --brand: #3432c8;
+  --brand-hover: #514fe0;
+  --brand-soft: rgba(52, 50, 200, .20);
+  --brand-glow: rgba(52, 50, 200, .32);
+  --accent: #d47a35;
+  --accent-hover: #e58c46;
+  --accent-soft: rgba(212, 122, 53, .16);
+  --accent-glow: rgba(212, 122, 53, .28);
+  --surface-1: #10111c;
+  --surface-2: #171a2a;
+  --surface-3: #20243a;
+  --border-subtle: rgba(139, 143, 210, .17);
+  --border-strong: rgba(139, 143, 210, .34);
+  --card-shadow: 0 14px 36px rgba(0, 0, 0, .24);
+}
+
+html, body {
+  background:
+    radial-gradient(ellipse 900px 440px at 50% -240px, rgba(52, 50, 200, .24), transparent 72%),
+    radial-gradient(ellipse 620px 460px at 100% 42%, rgba(212, 122, 53, .055), transparent 72%),
+    var(--bg-base);
+}
+
+/* A subtle court-floor geometry, kept low contrast behind page content. */
+main#content {
+  position: relative;
+  isolation: isolate;
+}
+main#content::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  inset: 0 0 auto;
+  height: 440px;
+  opacity: .23;
+  background:
+    radial-gradient(ellipse 420px 220px at 50% -160px, transparent 98%, rgba(112, 111, 235, .24) 99%, transparent 100%),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(112, 111, 235, .08) 50%, transparent calc(50% + 1px));
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+.surface, .block, .activity-card, .sk-card, .sk-team, .sk-player,
+.card, [class*="stat-card"], [class*="record-card"], [class*="panel"] {
+  border-color: var(--border-subtle);
+  box-shadow: var(--card-shadow);
+}
+
+.surface, .block, .card {
+  background-color: rgba(16, 17, 28, .94);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  text-shadow: 0 1px 0 rgba(255,255,255,.025);
+}
+.eyebrow, .section-eyebrow, .section-kicker {
+  color: #8583ff;
+}
+.eyebrow::before {
+  background: var(--accent);
+}
+
+.btn.primary, button.primary {
+  background: linear-gradient(115deg, var(--brand), #4542d8 68%, #5550e0);
+  border-color: var(--brand);
+  box-shadow: 0 5px 18px rgba(52, 50, 200, .22);
+}
+.btn.primary:hover, button.primary:hover {
+  background: linear-gradient(115deg, var(--brand-hover), #625fe9);
+  border-color: var(--brand-hover);
+}
+.btn:not(.primary):hover {
+  border-color: var(--accent);
+  color: #f0a66b;
+}
+
+.bfa-table thead th {
+  color: #aaa9d7;
+  background: linear-gradient(180deg, rgba(52, 50, 200, .12), rgba(16, 17, 28, .98));
+  border-bottom-color: rgba(112, 111, 235, .34);
+}
+.bfa-table tbody tr:hover {
+  background: rgba(75, 72, 205, .09);
+}
+.bfa-table tbody tr.champion-row {
+  background: linear-gradient(90deg, rgba(212, 122, 53, .13), transparent 82%);
+  border-left-color: var(--accent);
+}
+
+:where(.tabs, .filters, .segmented, .view-toggle) button.active,
+:where(.tabs, .filters, .segmented, .view-toggle) a.active {
+  color: #fff;
+  background: var(--brand-soft);
+  border-color: rgba(112, 111, 235, .62);
+}
+
+:where(input, select, textarea):focus {
+  border-color: #7774f0;
+  box-shadow: 0 0 0 3px rgba(52, 50, 200, .16);
+}
+
+::selection {
+  background: rgba(52, 50, 200, .55);
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  main#content::before { height: 280px; }
+}
