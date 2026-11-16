@@ -39,7 +39,7 @@
         <a href="/rosters" data-testid="footer-link-rosters">Owner Hub</a>
         <a href="/matchups" data-testid="footer-link-matchups">Matchups</a>
         <a href="/standings" data-testid="footer-link-standings">Standings</a>
-        <a href="/power-rankings" data-testid="footer-link-power-rankings">Power Rankings</a>
+        <a href="/power-rankings" data-testid="footer-link-trends">Trends</a>
       </div>
       <div class="footer-col">
         <div class="col-title">Records</div>
