@@ -73,6 +73,41 @@
     return counts;
   })();
 
+  // Estimated playoff odds from a deterministic Monte Carlo simulation.
+  // Remaining games use each team's current win rate; future opponents are not modeled.
+  $: playoffChancesByRoster = (() => {
+    const out = {};
+    if (!selectedResult?.regularStandings?.length) return out;
+    const rows = selectedResult.regularStandings;
+    const playoffTeams = Number(selectedResult.playoffTeams) || 8;
+    const playoffStart = Number(selectedResult.playoffStart) || 999;
+    const completedThrough = Number(selectedResult.completedThroughWeek);
+    const completedRegularWeeks = Object.keys(selectedResult.collectedMatchups || {})
+      .map(Number).filter((week) => week >= 1 && week < playoffStart).length;
+    const playedThrough = Number.isFinite(completedThrough) ? completedThrough : completedRegularWeeks;
+    const remaining = Math.max(0, (Number(selectedResult.regularSeasonWeeks) || (playoffStart - 1)) - playedThrough);
+    if (playedThrough >= playoffStart - 1 || remaining === 0) {
+      rows.forEach((row, index) => { out[row.rosterId] = index < playoffTeams ? 100 : 0; });
+      return out;
+    }
+    const samples = 3000;
+    const chances = Object.fromEntries(rows.map((row) => [row.rosterId, 0]));
+    let seed = rows.reduce((sum, row) => sum + Number(row.rosterId || 0), 0) + Number(selectedResult.season || 0) * 97;
+    const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let sample = 0; sample < samples; sample++) {
+      const projected = rows.map((row) => {
+        const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
+        const winRate = games ? ((row.wins || 0) + (row.ties || 0) * 0.5) / games : 0.5;
+        let projectedWins = (row.wins || 0) + (row.ties || 0) * 0.5;
+        for (let game = 0; game < remaining; game++) if (random() < winRate) projectedWins += 1;
+        return { rosterId: row.rosterId, wins: projectedWins, pf: row.pf || 0 };
+      }).sort((a, b) => (b.wins - a.wins) || (b.pf - a.pf));
+      projected.slice(0, playoffTeams).forEach((row) => { chances[row.rosterId] += 1; });
+    }
+    rows.forEach((row) => { out[row.rosterId] = Math.round(chances[row.rosterId] / samples * 100); });
+    return out;
+  })();
+
   // Build the "Regular Season MVP Race" mini-leaderboard: top 5 players by
   // cumulative regular-season points (starters_points summed across every
   // regular-season week in the selected season). For each top-5 player we
@@ -255,16 +290,12 @@
       <div class="block-head">
         <h2 id="reg-h" class="block-title">Regular Season</h2>
         <span class="block-sub">
-          Top {selectedResult?.playoffTeams ?? 8} playoffs
-          {#if selectedResult?.toiletBowlTeams != null}
-            · Bottom {selectedResult.toiletBowlTeams} Toilet Bowl
-          {/if}
-          · Wins first, points for breaks ties
+          Playoff cutoff marked below · Wins first, points for breaks ties
         </span>
       </div>
       {#if selectedResult?.regularStandings?.length}
         <div class="table-wrap" data-testid="regular-standings-table">
-          <table class="bfa-table">
+          <table class="bfa-table standings-table">
             <thead>
               <tr>
                 <th style="width:60px;">Seed</th>
@@ -272,6 +303,7 @@
                 <th>Team</th>
                 <th class="col-num" title="Regular-season wins">Wins</th>
                 <th class="col-num" title="Regular-season losses">Losses</th>
+                <th class="col-num playoff-chance-head" title="Estimated chance to finish in a playoff position based on current win rate and remaining regular-season games">Playoff Chance</th>
                 <th class="col-num" title="Longest consecutive wins this season">Best Streak</th>
                 <th class="col-num" title="Number of regular-season weeks this team tied for the lowest points total in the league">League Weekly Lows</th>
                 <th class="col-num" title="Longest consecutive losses this season">Worst Streak</th>
@@ -300,17 +332,15 @@
                       <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
                       <div>
                         <div class="team-name-cell">{row.team_name}</div>
-                        {#if idx < (selectedResult?.playoffTeams ?? 8)}
-                          <span class="postseason-tag playoff-tag">Playoffs</span>
-                        {:else if selectedResult?.toiletBowlTeams != null && idx >= selectedResult.regularStandings.length - selectedResult.toiletBowlTeams}
-                          <span class="postseason-tag toilet-tag">Toilet Bowl</span>
-                        {/if}
                         {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
                       </div>
                     </div>
                   </td>
                   <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
+                  <td class="col-num playoff-chance-cell" data-testid={`playoff-chance-${row.rosterId}`}>
+                    <span class="num" title="Estimate based on current win rate; remaining opponents are not modeled">{playoffChancesByRoster[row.rosterId] ?? 0}%</span>
+                  </td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
                   <td class="col-num"><span class="num">{leagueLowWeeksByRoster[row.rosterId] || 0}</span></td>
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
@@ -326,6 +356,11 @@
                     />
                   </td>
                 </tr>
+                {#if idx === (Number(selectedResult?.playoffTeams) || 8) - 1 && idx < selectedResult.regularStandings.length - 1}
+                  <tr class="playoff-cutoff-row" aria-label="Playoff cutoff">
+                    <td colspan="12"><span>PLAYOFF CUTOFF</span></td>
+                  </tr>
+                {/if}
               {/each}
             </tbody>
           </table>
@@ -395,8 +430,13 @@
   .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; }
   .block-title { font-family: var(--font-display); font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600; }
-  .table-wrap { width: 100%; overflow-x: auto; }
-  .bfa-table { min-width: 940px; }
+  .table-wrap { width: 100%; overflow: hidden; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; }
+  .standings-table th, .standings-table td { padding-left: 0.55rem; padding-right: 0.55rem; }
+  .standings-table th { white-space: normal; line-height: 1.2; }
+  .playoff-cutoff-row td { padding: 0.35rem 0.75rem; border-bottom: 1px solid var(--gold); border-top: 1px solid var(--gold); background: rgba(245, 180, 0, 0.07); }
+  .playoff-cutoff-row span { display: block; color: var(--gold); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em; text-align: center; }
+  .playoff-chance-cell .num { color: var(--win); font-weight: 700; }
   .col-trend { width: 160px; min-width: 160px; padding-right: 0.75rem; }
   .rank-cell { width: 60px; }
   .rank-num { font-size: 1.4rem; color: var(--accent); }
@@ -404,9 +444,6 @@
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
-  .postseason-tag { display: inline-block; margin-top: 0.25rem; padding: 0.12rem 0.38rem; border-radius: 999px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-  .playoff-tag { color: var(--win); background: rgba(16, 185, 129, 0.12); }
-  .toilet-tag { color: var(--loss); background: rgba(239, 68, 68, 0.12); }
   .trophy { margin-left: 0.4rem; }
   .pf .num { color: var(--text-secondary); font-weight: 400; }
   .num.muted { color: var(--text-tertiary); }
@@ -508,9 +545,25 @@
     .season-form select { flex: 1; }
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.1rem; }
-    .col-trend { width: 96px; min-width: 96px; padding-right: 0.5rem; }
+    .col-trend { width: auto; min-width: 0; padding-right: 0.5rem; }
     .team-avatar.small { width: 34px; height: 34px; }
     .team-owner-cell { display: none; }
     .rank-num { font-size: 1.2rem; }
+    .standings-table { font-size: 0.72rem; }
+    .standings-table th, .standings-table td { padding: 0.55rem 0.28rem; }
+    .standings-table .team-cell { gap: 0.35rem; }
+    .standings-table .team-name-cell { font-size: 0.72rem; overflow-wrap: anywhere; }
+    .standings-table .team-avatar.small { width: 26px; height: 26px; }
+    .standings-table th:nth-child(2), .standings-table td:nth-child(2),
+    .standings-table th:nth-child(6), .standings-table td:nth-child(6),
+    .standings-table th:nth-child(7), .standings-table td:nth-child(7),
+    .standings-table th:nth-child(8), .standings-table td:nth-child(8),
+    .standings-table th:nth-child(10), .standings-table td:nth-child(10),
+    .standings-table th:nth-child(11), .standings-table td:nth-child(11) { display: none; }
+    .standings-table th:nth-child(1) { width: 8%; }
+    .standings-table th:nth-child(3) { width: 34%; }
+    .standings-table th:nth-child(4), .standings-table th:nth-child(5) { width: 10%; }
+    .standings-table th:nth-child(9) { width: 13%; }
+    .standings-table th:nth-child(12) { width: 15%; }
   }
 </style>
