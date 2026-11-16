@@ -320,76 +320,99 @@
   </div>
 </section>
 
-<!--
-  Trade Ledger — most recent completed trades pulled from Sleeper's
-  /transactions/{week} endpoint, aggregated across every week of the live
-  league. Independent loading state so the section isn't gated on anything
-  upstream.
--->
-<section class="wrap trades-section" aria-labelledby="trades-h" data-testid="trade-ledger">
+<!-- Recent completed league activity across trades, waivers, and free-agent moves. -->
+<section class="wrap activity-section" aria-labelledby="activity-h" data-testid="recent-transactions">
   <div class="section-head">
     <div>
       <div class="eyebrow">League Activity</div>
-      <h2 id="trades-h" class="section-title">Recent Trades</h2>
+      <h2 id="activity-h" class="section-title">Recent Transactions</h2>
+      <p class="section-description">The latest completed moves across the league.</p>
     </div>
-    {#if !tradesLoading && recentTrades.length}
-      <div class="trades-count">{recentTrades.length} most recent</div>
+    {#if !transactionsLoading && recentTransactions.length}
+      <div class="activity-count">{recentTransactions.length} latest moves</div>
     {/if}
   </div>
 
-  {#if tradesLoading}
+  <div class="activity-filters" role="group" aria-label="Filter transactions">
+    <button class:active={activityFilter === 'all'} aria-pressed={activityFilter === 'all'} on:click={() => (activityFilter = 'all')}>All Activity</button>
+    <button class:active={activityFilter === 'trade'} aria-pressed={activityFilter === 'trade'} on:click={() => (activityFilter = 'trade')}>Trades</button>
+    <button class:active={activityFilter === 'waiver'} aria-pressed={activityFilter === 'waiver'} on:click={() => (activityFilter = 'waiver')}>Waivers</button>
+    <button class:active={activityFilter === 'free_agent'} aria-pressed={activityFilter === 'free_agent'} on:click={() => (activityFilter = 'free_agent')}>Free Agents</button>
+  </div>
+
+  {#if transactionsLoading}
     <SkeletonLoader variant="row" count={3} />
-  {:else if !recentTrades.length}
-    <div class="empty-card" data-testid="trades-empty">No completed trades on the books yet.</div>
+  {:else if !recentTransactions.length}
+    <div class="empty-card" data-testid="transactions-empty">No completed transactions yet.</div>
+  {:else if !visibleTransactions.length}
+    <div class="empty-card">No activity in this category yet.</div>
   {:else}
-    <div class="trades-list" data-testid="trades-list">
-      {#each recentTrades as t (t.id)}
-        <article class="trade-card rise" data-testid={`trade-${t.id}`}>
-          <header class="trade-head">
-            <span class="trade-week">Wk {t.week}</span>
-            <span class="trade-when">{relativeTime(t.timestamp)}</span>
+    <div class="activity-list" data-testid="transactions-list">
+      {#each visibleTransactions as transaction (transaction.id)}
+        <article class="activity-card rise" data-testid={'transaction-' + transaction.id}>
+          <header class="activity-card-head">
+            <div class="activity-tags">
+              <span class="activity-type" class:trade-type={transaction.type === 'trade'}>{transaction.typeLabel}</span>
+              <span class="activity-week">Week {transaction.week}</span>
+            </div>
+            <time class="activity-when">{relativeTime(transaction.timestamp)}</time>
           </header>
-          <div class="trade-sides">
-            {#each t.sides as side, i (side.rosterId)}
-              <div class="trade-side">
-                <div class="trade-team">
+          <div class="activity-sides" class:multi-side={transaction.sides.length > 1}>
+            {#each transaction.sides as side, i (side.rosterId)}
+              <div class="activity-side">
+                <div class="activity-team">
                   <img
-                    class="trade-avatar"
-                    src={side.meta.team_avatar || side.meta.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent((side.meta.team_name || 'T')[0])}&background=1a1a1e&color=a1a1aa&size=48&format=svg`}
+                    class="activity-avatar"
+                    src={side.meta.team_avatar || side.meta.owner_avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent((side.meta.team_name || 'T')[0]) + '&background=1a1a1e&color=a1a1aa&size=48&format=svg')}
                     alt={side.meta.team_name}
                     on:error={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                    loading="lazy"
                   />
-                  <div class="trade-team-meta">
+                  <div class="activity-team-meta">
                     {#if side.meta.owner_username}
-                      <a class="trade-team-name" href={`/team/${encodeURIComponent(side.meta.owner_username)}`}>{side.meta.team_name}</a>
+                      <a class="activity-team-name" href={'/team/' + encodeURIComponent(side.meta.owner_username)}>{side.meta.team_name}</a>
                     {:else}
-                      <div class="trade-team-name">{side.meta.team_name}</div>
+                      <div class="activity-team-name">{side.meta.team_name}</div>
                     {/if}
-                    {#if side.meta.owner_name}<div class="trade-owner">{side.meta.owner_name}</div>{/if}
+                    {#if side.meta.owner_name}<div class="activity-owner">{side.meta.owner_name}</div>{/if}
                   </div>
                 </div>
-                <div class="trade-gets">
-                  <div class="gets-label">Receives</div>
-                  {#if side.adds.length || side.picks.length || side.cash > 0}
-                    {#each side.adds as a (a.pid)}
-                      <div class="trade-player">
-                        <img class="trade-player-headshot" src={playerHeadshot(a.pid)} alt={a.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                        <div class="trade-player-info">
-                          <div class="trade-player-name">{a.name}</div>
-                          <div class="trade-player-meta">{a.position}{a.team ? ` · ${a.team}` : ''}</div>
+                <div class="activity-details">
+                  {#if side.adds.length || side.picksIn.length || side.cashIn > 0}
+                    <div class="activity-detail-group">
+                      <span class="detail-label positive">Added / Received</span>
+                      {#each side.adds as player (player.pid)}
+                        <div class="activity-player">
+                          <img src={playerHeadshot(player.pid)} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} loading="lazy" />
+                          <span>{player.name}<small>{player.position}{player.team ? ' · ' + player.team : ''}</small></span>
                         </div>
-                      </div>
-                    {/each}
-                    {#each side.picks as pk (`${pk.season}-${pk.round}-${pk.from}`)}
-                      <div class="trade-pick">{pk.season} Round {pk.round} Pick</div>
-                    {/each}
-                    {#if side.cash > 0}<div class="trade-cash">+${side.cash} FAAB</div>{/if}
-                  {:else}
-                    <div class="trade-empty">—</div>
+                      {/each}
+                      {#each side.picksIn as pick ('in-' + pick.season + '-' + pick.round)}
+                        <div class="activity-asset">{pick.season} Round {pick.round} pick</div>
+                      {/each}
+                      {#if side.cashIn > 0}<div class="activity-asset">+{side.cashIn} FAAB</div>{/if}
+                    </div>
+                  {/if}
+                  {#if side.drops.length || side.picksOut.length}
+                    <div class="activity-detail-group">
+                      <span class="detail-label negative">Dropped / Sent</span>
+                      {#each side.drops as player (player.pid)}
+                        <div class="activity-player">
+                          <img src={playerHeadshot(player.pid)} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} loading="lazy" />
+                          <span>{player.name}<small>{player.position}{player.team ? ' · ' + player.team : ''}</small></span>
+                        </div>
+                      {/each}
+                      {#each side.picksOut as pick ('out-' + pick.season + '-' + pick.round)}
+                        <div class="activity-asset">{pick.season} Round {pick.round} pick</div>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if !side.adds.length && !side.drops.length && !side.picksIn.length && !side.picksOut.length && !side.cashIn}
+                    <span class="activity-no-details">Transaction details unavailable.</span>
                   {/if}
                 </div>
               </div>
-              {#if i < t.sides.length - 1}<div class="trade-swap" aria-hidden="true">⇄</div>{/if}
+              {#if i < transaction.sides.length - 1}<div class="activity-swap" aria-hidden="true">⇄</div>{/if}
             {/each}
           </div>
         </article>
@@ -397,7 +420,6 @@
     </div>
   {/if}
 </section>
-
 <style>
   /* ----- HERO ----- */
   .hero {
