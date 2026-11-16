@@ -10,7 +10,7 @@
   $: imageSrc = playerId && !imageFailed ? playerHeadshot(playerId) : '';
 </script>
 
-<div class="player-identity" class:large={size === 'large'} class:small={size === 'small'}>
+<div class="player-identity" class:large={size === 'large'} class:small={size === 'small'} class:compact={size === 'compact'}>
   {#if imageSrc}
     <img src={imageSrc} alt="" loading="lazy" on:error={() => (imageFailed = true)} />
   {:else}
@@ -31,6 +31,9 @@
   }
   .player-identity.large img, .player-identity.large .player-placeholder { width: 68px; height: 68px; }
   .player-identity.small img, .player-identity.small .player-placeholder { width: 44px; height: 44px; }
+  .player-identity.compact img, .player-identity.compact .player-placeholder { width: 28px; height: 28px; border-radius: 50%; }
+  .player-identity.compact .player-name { font-size: 0.76rem; }
+  .player-identity.compact .player-subtitle { font-size: 0.64rem; text-transform: none; letter-spacing: 0; font-weight: 500; }
   .player-placeholder { display: grid; place-items: center; font-size: 1.35rem; }
   .player-copy { min-width: 0; }
   .player-name { color: var(--text-primary); font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
