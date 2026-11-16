@@ -17,6 +17,7 @@
   import { onMount } from 'svelte';
   import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague } from '$lib/compute';
+  import { computeParticipantPoints } from '$lib/compute/scoring';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
@@ -72,8 +73,10 @@
         const [a, b] = pair;
         const aRid = String(a.roster_id ?? a.rosterId ?? '');
         const bRid = String(b.roster_id ?? b.rosterId ?? '');
-        const aPts = Number(a.points || 0);
-        const bPts = Number(b.points || 0);
+        // Use the shared scorer so completed static seasons honor their
+        // authoritative __final_score values just like live Sleeper entries.
+        const aPts = computeParticipantPoints(a);
+        const bPts = computeParticipantPoints(b);
         marginByRid[aRid] = (marginByRid[aRid] || 0) + (aPts - bPts);
         marginByRid[bRid] = (marginByRid[bRid] || 0) + (bPts - aPts);
         if (aPts > bPts + 1e-9) { winByRid[aRid] = (winByRid[aRid] || 0) + 1; lossByRid[bRid] = (lossByRid[bRid] || 0) + 1; }
@@ -130,7 +133,7 @@
       for (const pair of Object.values(byMatchup)) {
         if (pair.length < 2) continue;
         const [a, b] = pair, aId = String(a.roster_id ?? a.rosterId), bId = String(b.roster_id ?? b.rosterId);
-        const aPts = Number(a.points ?? 0), bPts = Number(b.points ?? 0);
+        const aPts = computeParticipantPoints(a), bPts = computeParticipantPoints(b);
         if (!streaks[aId] || !streaks[bId]) continue;
         if (aPts > bPts + 1e-9) {
           streaks[aId].win++; streaks[aId].loss = 0; streaks[bId].loss++; streaks[bId].win = 0;
