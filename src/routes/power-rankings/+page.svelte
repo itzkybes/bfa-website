@@ -29,6 +29,9 @@
   let leagueStatus = null;
   let weekWindow = []; // [w1, w2, w3, w4] inclusive
   let rankings = []; // sorted: [{ rosterId, meta, avgPf, wins, losses, margin, points, lastFour, score, prevRank, rank }]
+  let biggestRiser = null;
+  let topScorer = null;
+  let bestRecord = null;
 
   const WINDOW = 4;
 
@@ -202,7 +205,7 @@
   {#if loading}
     <SkeletonLoader variant="row" count={10} />
   {:else if error}
-    <ErrorBoundary {error} onRetry={loadAll} context="power rankings" />
+    <ErrorBoundary {error} onRetry={loadAll} context="trends" />
   {:else if rankings.length === 0}
     <div class="empty-card" data-testid="rankings-empty">Not enough completed weeks to show trends yet. Check back after a few games.</div>
   {:else}
