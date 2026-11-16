@@ -11,6 +11,9 @@ const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_ATTEMPTS = 3;
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const memoryCache = new Map();
+// Share identical in-flight reads so concurrent pages/components don't download
+// the same large Sleeper payload more than once.
+const inFlightRequests = new Map();
 
 function getCached(key) {
   if (typeof window === 'undefined') return { hit: false };
@@ -210,6 +213,26 @@ async function requestJson(url, options = {}) {
 export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
   const cached = getCached(url);
   if (cached.hit) return cached.data;
+
+  const method = String(options.method || 'GET').toUpperCase();
+  const canShareRequest = (method === 'GET' || method === 'HEAD') && !options.signal;
+
+  if (canShareRequest) {
+    const existingRequest = inFlightRequests.get(url);
+    if (existingRequest) return existingRequest;
+
+    const request = requestJson(url, options)
+      .then((data) => {
+        setCache(url, data, ttl);
+        return data;
+      })
+      .finally(() => {
+        inFlightRequests.delete(url);
+      });
+
+    inFlightRequests.set(url, request);
+    return request;
+  }
 
   const data = await requestJson(url, options);
   setCache(url, data, ttl);
