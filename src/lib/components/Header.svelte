@@ -46,7 +46,7 @@
     { href: '/rosters', label: 'Owner Hub' },
     { href: '/matchups', label: 'Matchups' },
     { href: '/standings', label: 'Standings' },
-    { href: '/power-rankings', label: 'Power Rankings' },
+    { href: '/power-rankings', label: 'Trends' },
     {
       href: '/records',
       label: 'Records',
