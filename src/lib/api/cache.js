@@ -102,6 +102,12 @@ function setCache(key, data, ttl = DEFAULT_TTL) {
   const entry = { data, timestamp: Date.now(), ttl };
   memoryCache.set(key, entry);
   try {
+    // The NBA directory is several megabytes. Avoid serializing it a second
+    // time just to measure its size; IndexedDB stores structured data.
+    if (key.endsWith('/players/nba')) {
+      writePersistentCache(key, entry);
+      return;
+    }
     const serialized = JSON.stringify(entry);
     if (serialized.length > MAX_PERSISTED_ENTRY_CHARS) {
       writePersistentCache(key, entry);
