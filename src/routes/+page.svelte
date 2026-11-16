@@ -1,10 +1,10 @@
-<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + Trade Ledger -->
+<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + Recent Transactions -->
 <script>
   import { onMount } from 'svelte';
   import {
     fetchWithCache,
     getSeasonsChain, BASE_LEAGUE_ID,
-    pickActiveLeague, getRecentTrades,
+    pickActiveLeague, getRecentTransactions,
     getPlayersNba, getRosterMapWithOwners, playerHeadshot
   } from '$lib/api';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
@@ -16,10 +16,12 @@
   const leagueOverride = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || null;
   let leagueId = leagueOverride || BASE_LEAGUE_ID;
   let seasonLabel = '';
-  let recentTrades = [];            // [{ ...transaction, _week, _teamA, _teamB }]
-  let tradesLoading = true;
+  let recentTransactions = [];
+  let transactionsLoading = true;
+  let activityFilter = 'all';
+  $: visibleTransactions = activityFilter === 'all' ? recentTransactions : recentTransactions.filter((transaction) => transaction.type === activityFilter);
   let playersMap = {};
-  let rosterMap = {};               // for trade ledger team names + avatars
+  let rosterMap = {};               // for transaction team names + avatars
 
   const CACHE_10_MIN = 10 * 60 * 1000;
 
@@ -135,9 +137,8 @@
       users = _users;
       await pickRandoPlayer();
 
-      // Trade ledger loads in the background. We don't block on it — it gets
-      // its own loading state.
-      loadTradeLedger().catch((e) => console.warn('[Home] trade ledger failed', e));
+      // Recent activity loads independently so the hero is never held up by it.
+      loadRecentTransactions().catch((e) => console.warn('[Home] transactions failed', e));
     } catch (err) {
       error = err;
       console.error('[Home] load error:', err);
@@ -146,69 +147,76 @@
     }
   }
 
-  /**
-   * Fetch the most recent ~10 completed trades from the live league and
-   * enrich each one with team metadata + player names so the UI can render
-   * them without any extra lookups.
-   */
-  async function loadTradeLedger() {
-    tradesLoading = true;
+  async function loadRecentTransactions() {
+    transactionsLoading = true;
     try {
-      const [trades, rmap, pmap] = await Promise.all([
-        getRecentTrades(leagueId, { weekFrom: 1, weekTo: 25, limit: 10 }),
+      const [transactions, rmap, pmap] = await Promise.all([
+        getRecentTransactions(leagueId, { weekFrom: 1, weekTo: 25, limit: 18 }),
         getRosterMapWithOwners(leagueId).catch(() => ({})),
         getPlayersNba().catch(() => ({}))
       ]);
       rosterMap = rmap;
       playersMap = pmap;
-      recentTrades = trades.map((t) => enrichTrade(t, rmap, pmap));
+      recentTransactions = transactions.map((transaction) => enrichTransaction(transaction, rmap, pmap));
     } finally {
-      tradesLoading = false;
+      transactionsLoading = false;
     }
   }
 
-  /** Turn one raw Sleeper transaction into the per-roster summary the UI shows. */
-  function enrichTrade(t, rmap, pmap) {
-    const sides = {}; // rosterId -> { meta, adds[], drops[], picks[], cash }
-    const ridList = (t.roster_ids || []).map(String);
-    for (const rid of ridList) {
-      sides[rid] = {
-        rosterId: rid,
-        meta: rmap[rid] || { team_name: `Roster ${rid}`, owner_name: null, team_avatar: null },
-        adds: [],
-        drops: [],
-        picks: [],
-        cash: 0
+  function enrichTransaction(transaction, rmap, pmap) {
+    const rosterIds = new Set((transaction.roster_ids || []).map(String));
+    const addRoster = (id) => { if (id != null) rosterIds.add(String(id)); };
+    for (const id of Object.values(transaction.adds || {})) addRoster(id);
+    for (const id of Object.values(transaction.drops || {})) addRoster(id);
+    for (const pick of transaction.draft_picks || []) {
+      addRoster(pick.owner_id);
+      addRoster(pick.previous_owner_id);
+    }
+    for (const budget of transaction.waiver_budget || []) {
+      addRoster(budget.receiver);
+      addRoster(budget.sender);
+    }
+
+    const sides = {};
+    for (const rosterId of rosterIds) {
+      sides[rosterId] = {
+        rosterId,
+        meta: rmap[rosterId] || { team_name: 'Roster ' + rosterId, owner_name: null, team_avatar: null },
+        adds: [], drops: [], picksIn: [], picksOut: [], cashIn: 0
       };
     }
-    for (const [pid, rid] of Object.entries(t.adds || {})) {
-      const s = sides[String(rid)];
-      if (!s) continue;
-      const p = pmap[pid];
-      s.adds.push({
+
+    const playerSummary = (pid) => {
+      const player = pmap[pid];
+      return {
         pid,
-        name: p?.full_name || `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || `Player ${pid}`,
-        team: p?.team || '',
-        position: (p?.fantasy_positions && p.fantasy_positions[0]) || p?.position || ''
-      });
+        name: player?.full_name || (player?.first_name || '') + ' ' + (player?.last_name || '') || 'Player ' + pid,
+        team: player?.team || '',
+        position: (player?.fantasy_positions && player.fantasy_positions[0]) || player?.position || ''
+      };
+    };
+    for (const [pid, rosterId] of Object.entries(transaction.adds || {})) {
+      if (sides[String(rosterId)]) sides[String(rosterId)].adds.push(playerSummary(pid));
     }
-    for (const dp of (t.draft_picks || [])) {
-      const s = sides[String(dp.owner_id)];
-      if (!s) continue;
-      s.picks.push({ season: dp.season, round: dp.round, from: dp.previous_owner_id });
+    for (const [pid, rosterId] of Object.entries(transaction.drops || {})) {
+      if (sides[String(rosterId)]) sides[String(rosterId)].drops.push(playerSummary(pid));
     }
-    for (const wb of (t.waiver_budget || [])) {
-      const s = sides[String(wb.receiver)];
-      if (!s) continue;
-      s.cash += Number(wb.amount) || 0;
+    for (const pick of transaction.draft_picks || []) {
+      if (sides[String(pick.owner_id)]) sides[String(pick.owner_id)].picksIn.push({ season: pick.season, round: pick.round });
+      if (sides[String(pick.previous_owner_id)]) sides[String(pick.previous_owner_id)].picksOut.push({ season: pick.season, round: pick.round });
     }
-    const sideArr = ridList.map((rid) => sides[rid]);
-    const tsMs = Number(t.status_updated) || 0;
+    for (const budget of transaction.waiver_budget || []) {
+      if (sides[String(budget.receiver)]) sides[String(budget.receiver)].cashIn += Number(budget.amount) || 0;
+    }
+
+    const typeLabels = { trade: 'Trade', waiver: 'Waiver Claim', free_agent: 'Free Agent' };
     return {
-      id: String(t.transaction_id || t.created || `${t._week}-${ridList.join('-')}`),
-      week: t._week,
-      timestamp: tsMs,
-      sides: sideArr
+      id: String(transaction.transaction_id || transaction.created || transaction._week + '-' + [...rosterIds].join('-')),
+      type: transaction.type || 'transaction',
+      typeLabel: typeLabels[transaction.type] || 'Transaction',
+      week: transaction._week,
+      timestamp: Number(transaction.status_updated || transaction.created) || 0,
+      sides: [...rosterIds].map((rosterId) => sides[rosterId])
     };
   }
 
