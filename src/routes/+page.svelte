@@ -321,6 +321,7 @@
     eyebrow="League Activity"
     title="Recent Transactions"
     description="The latest completed moves across the league."
+    titleId="activity-h"
     meta={!transactionsLoading && recentTransactions.length ? `${recentTransactions.length} latest moves` : ''}
   />
 
