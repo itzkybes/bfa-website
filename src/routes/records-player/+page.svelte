@@ -20,9 +20,14 @@
   const fmt = (v) => formatNumber(v, 2);
   const avatarOrPh = (url, name) => avatarOrPlaceholder(url, name, 'P');
 
-  $: seasonMvpRows = [...seasonsResults].sort(
-    (a, b) => (b.regularMvp?.points || 0) - (a.regularMvp?.points || 0)
-  );
+  $: seasonMvpRows = [...seasonsResults].sort((a, b) => {
+    const bestScore = (row) => Math.max(
+      row.regularMvp?.points || 0,
+      row.playoffsMvp?.points || 0,
+      row.finalsMvp?.points || 0
+    );
+    return bestScore(b) - bestScore(a);
+  });
 
   // Aggregate player points across multiple matchups. Reads STRICTLY from
   // `starters_points` (which already reflects each owner's selected-game
@@ -301,8 +306,8 @@
         })
         .filter(Boolean)
         .sort((a, b) =>
-          Math.max(b.regularLeader?.totalPoints || 0, b.playoffLeader?.totalPoints || 0) -
-          Math.max(a.regularLeader?.totalPoints || 0, a.playoffLeader?.totalPoints || 0)
+          ((b.regularLeader?.totalPoints || 0) + (b.playoffLeader?.totalPoints || 0)) -
+          ((a.regularLeader?.totalPoints || 0) + (a.playoffLeader?.totalPoints || 0))
         );
     } catch (e) {
       console.error('[Records-Player] failed', e);
