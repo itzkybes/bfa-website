@@ -561,25 +561,6 @@ select {
   }
 }
 
-/* Horizontal-scroll affordance: subtle right-edge shadow hints there's more
-   table off-screen on touch devices. Pages put their tables inside .table-wrap. */
-.table-wrap {
-  position: relative;
-  -webkit-overflow-scrolling: touch;
-}
-@media (max-width: 720px) {
-  .table-wrap::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 24px;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.35));
-  }
-}
-
 /* Section divider */
 .section-divider {
   display: flex;
@@ -655,11 +636,23 @@ button:disabled,
 
 .table-wrap {
   max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow-x: hidden;
 }
 
-.table-wrap .bfa-table { min-width: 640px; }
+.table-wrap .bfa-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.bfa-table thead th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.bfa-table tbody td {
+  overflow-wrap: anywhere;
+}
 
 .surface,
 .block,
