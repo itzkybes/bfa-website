@@ -227,6 +227,12 @@
     }
   }
 
+  function playoffChanceLabel(rosterId) {
+    const chance = playoffChancesByRoster[rosterId] ?? 0;
+    if (selectedResult?.seasonStatus === 'in_season' && chance === 100) return 'Clinched';
+    return `${chance}%`;
+  }
+
   function onSeasonChange(e) {
     const val = e.target.value;
     selectedSeasonId = val;
@@ -354,7 +360,7 @@
                   <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
                   <td class="col-num playoff-chance-cell" data-testid={`playoff-chance-${row.rosterId}`}>
-                    <span class="num" title="Estimate based on current win rate; remaining opponents are not modeled">{playoffChancesByRoster[row.rosterId] ?? 0}%</span>
+                    <span class="num" class:clinched={playoffChanceLabel(row.rosterId) === 'Clinched'} title={playoffChanceLabel(row.rosterId) === 'Clinched' ? 'Mathematically clinched a playoff berth' : 'Estimate based on current win rate; remaining opponents are not modeled'}>{playoffChanceLabel(row.rosterId)}</span>
                   </td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
                   <td class="col-num"><span class="num">{leagueLowWeeksByRoster[row.rosterId] || 0}</span></td>

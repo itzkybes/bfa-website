@@ -20,14 +20,10 @@
   const fmt = (v) => formatNumber(v, 2);
   const avatarOrPh = (url, name) => avatarOrPlaceholder(url, name, 'P');
 
-  $: seasonMvpRows = [...seasonsResults].sort((a, b) => {
-    const bestScore = (row) => Math.max(
-      row.regularMvp?.points || 0,
-      row.playoffsMvp?.points || 0,
-      row.finalsMvp?.points || 0
-    );
-    return bestScore(b) - bestScore(a);
-  });
+  // Keep the season award table in chronological order, newest season first.
+  $: seasonMvpRows = [...seasonsResults].sort((a, b) =>
+    String(b.season).localeCompare(String(a.season), undefined, { numeric: true })
+  );
 
   // Aggregate player points across multiple matchups. Reads STRICTLY from
   // `starters_points` (which already reflects each owner's selected-game
@@ -229,38 +225,28 @@
           // Always overlay with the latest team_name + avatar we've seen.
           bestByTeam[key].meta = meta;
         }
-        // Regular-season pass
-        for (const [pid, info] of Object.entries(r.regularByPlayer || {})) {
-          if (!info?.points || info.points <= 0) continue;
-          const meta = r.rosterMap[info.rosterId];
-          const key = stableKey(meta);
-          if (!key) continue;
-          if (!bestByTeam[key]) bestByTeam[key] = { key, meta, reg: null, playoff: null };
-          const cur = bestByTeam[key].reg;
-          if (!cur || info.points > cur.points) {
-            bestByTeam[key].reg = {
-              playerId: pid,
-              playerName: playerDisplayName(playersMap, pid),
-              points: Math.round(info.points * 100) / 100,
-              season: r.season
-            };
-          }
-        }
-        // Playoff pass
-        for (const [pid, info] of Object.entries(r.playoffByPlayer || {})) {
-          if (!info?.points || info.points <= 0) continue;
-          const meta = r.rosterMap[info.rosterId];
-          const key = stableKey(meta);
-          if (!key) continue;
-          if (!bestByTeam[key]) bestByTeam[key] = { key, meta, reg: null, playoff: null };
-          const cur = bestByTeam[key].playoff;
-          if (!cur || info.points > cur.points) {
-            bestByTeam[key].playoff = {
-              playerId: pid,
-              playerName: playerDisplayName(playersMap, pid),
-              points: Math.round(info.points * 100) / 100,
-              season: r.season
-            };
+        // Attribute each player's selected-game points to the roster they
+        // actually represented that week. A mid-season trade must not move
+        // the player's entire season total onto just one franchise.
+        for (const [phase, playerMap] of [['reg', r.regularByPlayer || {}], ['playoff', r.playoffByPlayer || {}]]) {
+          for (const [pid, info] of Object.entries(playerMap)) {
+            const rosterPoints = info.pointsByRoster || { [info.rosterId]: info.points };
+            for (const [rosterId, points] of Object.entries(rosterPoints)) {
+              if (!Number.isFinite(Number(points)) || Number(points) <= 0) continue;
+              const meta = r.rosterMap[rosterId];
+              const key = stableKey(meta);
+              if (!key) continue;
+              if (!bestByTeam[key]) bestByTeam[key] = { key, meta, reg: null, playoff: null };
+              const cur = bestByTeam[key][phase];
+              if (!cur || points > cur.points) {
+                bestByTeam[key][phase] = {
+                  playerId: pid,
+                  playerName: playerDisplayName(playersMap, pid),
+                  points: Math.round(points * 100) / 100,
+                  season: r.season
+                };
+              }
+            }
           }
         }
       }
@@ -278,17 +264,20 @@
       for (const r of seasonsResults) {
         for (const [phase, playerMap] of [['regular', r.regularByPlayer || {}], ['playoff', r.playoffByPlayer || {}]]) {
           for (const [pid, info] of Object.entries(playerMap)) {
-            if (!info?.points || info.points <= 0) continue;
-            const meta = r.rosterMap[info.rosterId];
-            const key = stableKey(meta);
-            if (!key) continue;
-            if (!scoringByTeam[key]) scoringByTeam[key] = { key, meta, regular: {}, playoff: {} };
-            scoringByTeam[key].meta = latestMetaFor(meta) || meta;
-            const player = scoringByTeam[key][phase][pid] || {
-              playerId: pid, playerName: playerDisplayName(playersMap, pid), totalPoints: 0
-            };
-            player.totalPoints += info.points;
-            scoringByTeam[key][phase][pid] = player;
+            const rosterPoints = info.pointsByRoster || { [info.rosterId]: info.points };
+            for (const [rosterId, points] of Object.entries(rosterPoints)) {
+              if (!Number.isFinite(Number(points)) || Number(points) <= 0) continue;
+              const meta = r.rosterMap[rosterId];
+              const key = stableKey(meta);
+              if (!key) continue;
+              if (!scoringByTeam[key]) scoringByTeam[key] = { key, meta, regular: {}, playoff: {} };
+              scoringByTeam[key].meta = latestMetaFor(meta) || meta;
+              const player = scoringByTeam[key][phase][pid] || {
+                playerId: pid, playerName: playerDisplayName(playersMap, pid), totalPoints: 0
+              };
+              player.totalPoints += Number(points);
+              scoringByTeam[key][phase][pid] = player;
+            }
           }
         }
       }
@@ -346,7 +335,7 @@
     <ErrorBoundary {error} onRetry={loadAll} context="player records" />
   {:else}
     <section class="block" data-testid="season-mvps">
-      <SectionHeader compact title="Season MVPs" description="Every BFA season · regular season, playoffs, and finals" />
+      <SectionHeader compact title="Season MVPs" description="Newest season first · regular season, playoffs, and finals" />
       {#if seasonMvpRows.length}
         <div class="table-wrap">
           <table class="bfa-table season-mvp-table">
@@ -552,6 +541,9 @@
 
   .season-year { font-family: var(--font-display); font-size: 1.35rem; color: var(--accent); }
   .season-award-cell { gap: 0.85rem; }
+  .season-mvp-table th:first-child { width: 9%; }
+  .season-mvp-table th:not(:first-child) { width: 30.33%; }
+  .season-mvp-table tbody tr { min-height: 88px; }
   .record-headshot { width: 68px; height: 68px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
   .bfa-table .headshot { width: 58px; height: 58px; }
   .award-points { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }

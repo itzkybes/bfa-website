@@ -3,7 +3,7 @@
 // Single source of truth for "how do we turn one Sleeper matchup entry into
 // a team's point total?". Everything below is pure — no API calls, no state.
 
-import { safeNum } from '$lib/api/sleeper';
+import { safeNum } from '../api/sleeper.js';
 
 /**
  * Score a single Sleeper matchup entry.
@@ -91,27 +91,38 @@ export function starterPointsByPid(entry) {
  * each week.
  *
  * @param {Array<object | null>} matchupEntries
- * @returns {Record<string, { playerId: string, points: number, rosterId: string }>}
+ * @returns {Record<string, { playerId: string, points: number, rosterId: string, pointsByRoster: Record<string, number> }>}
  */
 export function aggregatePlayerPoints(matchupEntries) {
   const byPlayer = {};
   for (const entry of matchupEntries) {
     if (!entry) continue;
     const rid = String(entry.roster_id ?? entry.rosterId ?? '');
-    const starters = Array.isArray(entry.starters) ? entry.starters : [];
-    const sp = entry.starters_points;
-    if (!Array.isArray(sp) || !starters.length) continue;
-    for (let i = 0; i < starters.length; i++) {
-      const pid = starters[i];
-      if (!pid) continue;
-      const n = Number(sp[i] ?? 0);
-      const val = isFinite(n) ? n : 0;
-      if (!byPlayer[pid]) byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid };
-      byPlayer[pid].points += val;
+    const playerPoints = starterPointsByPid(entry);
+    if (!playerPoints) continue;
+    for (const [pid, rawPoints] of Object.entries(playerPoints)) {
+      const points = Number(rawPoints);
+      if (!Number.isFinite(points)) continue;
+      if (!byPlayer[pid]) {
+        byPlayer[pid] = { playerId: pid, points: 0, rosterId: rid, pointsByRoster: {} };
+      }
+      const player = byPlayer[pid];
+      player.points += points;
+      if (rid) {
+        player.pointsByRoster[rid] = (player.pointsByRoster[rid] || 0) + points;
+        // For season-wide MVP display, attribute a traded player to the
+        // roster that received the largest share of their selected-game points.
+        if (player.pointsByRoster[rid] > (player.pointsByRoster[player.rosterId] || 0)) {
+          player.rosterId = rid;
+        }
+      }
     }
   }
-  for (const k of Object.keys(byPlayer)) {
-    byPlayer[k].points = Math.round(byPlayer[k].points * 100) / 100;
+  for (const player of Object.values(byPlayer)) {
+    player.points = Math.round(player.points * 100) / 100;
+    for (const rid of Object.keys(player.pointsByRoster)) {
+      player.pointsByRoster[rid] = Math.round(player.pointsByRoster[rid] * 100) / 100;
+    }
   }
   return byPlayer;
 }

@@ -24,6 +24,12 @@
   let playersMap = {};
   let rosterMap = {};
   let rawRecentTransactions = [];
+  $: activityCounts = {
+    all: Math.min(recentTransactions.length, ALL_ACTIVITY_LIMIT),
+    trade: recentTransactions.filter((transaction) => transaction.type === 'trade').length,
+    waiver: recentTransactions.filter((transaction) => transaction.type === 'waiver').length,
+    free_agent: recentTransactions.filter((transaction) => transaction.type === 'free_agent').length
+  };
   $: visibleTransactions = activityFilter === 'all'
     ? recentTransactions.slice(0, ALL_ACTIVITY_LIMIT)
     : recentTransactions.filter((transaction) => transaction.type === activityFilter);
@@ -238,6 +244,11 @@
     };
   }
 
+  function formatTransactionDate(ms) {
+    if (!ms) return 'Date unavailable';
+    return new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
   function relativeTime(ms) {
     if (!ms) return '';
     const now = Date.now();
@@ -349,10 +360,10 @@
   />
 
   <div class="activity-filters" role="group" aria-label="Filter transactions">
-    <button class:active={activityFilter === 'all'} aria-pressed={activityFilter === 'all'} on:click={() => (activityFilter = 'all')}>All Activity</button>
-    <button class:active={activityFilter === 'trade'} aria-pressed={activityFilter === 'trade'} on:click={() => (activityFilter = 'trade')}>Trades</button>
-    <button class:active={activityFilter === 'waiver'} aria-pressed={activityFilter === 'waiver'} on:click={() => (activityFilter = 'waiver')}>Waivers</button>
-    <button class:active={activityFilter === 'free_agent'} aria-pressed={activityFilter === 'free_agent'} on:click={() => (activityFilter = 'free_agent')}>Free Agents</button>
+    <button class:active={activityFilter === 'all'} aria-pressed={activityFilter === 'all'} on:click={() => (activityFilter = 'all')}>All Activity <span class="filter-count">{activityCounts.all}</span></button>
+    <button class:active={activityFilter === 'trade'} aria-pressed={activityFilter === 'trade'} on:click={() => (activityFilter = 'trade')}>Trades <span class="filter-count">{activityCounts.trade}</span></button>
+    <button class:active={activityFilter === 'waiver'} aria-pressed={activityFilter === 'waiver'} on:click={() => (activityFilter = 'waiver')}>Waivers <span class="filter-count">{activityCounts.waiver}</span></button>
+    <button class:active={activityFilter === 'free_agent'} aria-pressed={activityFilter === 'free_agent'} on:click={() => (activityFilter = 'free_agent')}>Free Agents <span class="filter-count">{activityCounts.free_agent}</span></button>
   </div>
 
   {#if transactionsLoading}
@@ -370,7 +381,7 @@
               <span class="activity-type" class:trade-type={transaction.type === 'trade'}>{transaction.typeLabel}</span>
               <span class="activity-week">Week {transaction.week}</span>
             </div>
-            <time class="activity-when">{relativeTime(transaction.timestamp)}</time>
+            <time class="activity-when" datetime={transaction.timestamp ? new Date(transaction.timestamp).toISOString() : undefined} title={formatTransactionDate(transaction.timestamp)}>{relativeTime(transaction.timestamp)}</time>
           </header>
           <div class="activity-sides" class:multi-side={transaction.sides.length > 1}>
             {#each transaction.sides as side, i (side.rosterId)}
@@ -679,6 +690,8 @@
   }
   .activity-filters button:hover { border-color: var(--border-strong); color: var(--text-primary); }
   .activity-filters button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text-primary); }
+  .filter-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; margin-left: 0.2rem; padding: 0 0.25rem; border-radius: 999px; background: var(--surface-2); color: var(--text-tertiary); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+  .activity-filters button.active .filter-count { background: rgba(255,255,255,0.12); color: var(--text-primary); }
   .activity-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
   .activity-card {
     min-width: 0;
