@@ -460,8 +460,8 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(800px 400px at 80% 30%, rgba(255, 69, 0, 0.18), transparent 70%),
-      radial-gradient(600px 500px at 10% 90%, rgba(255, 69, 0, 0.08), transparent 70%);
+      radial-gradient(800px 400px at 80% 30%, rgba(52, 50, 200, 0.22), transparent 70%),
+      radial-gradient(600px 500px at 10% 90%, rgba(212, 122, 53, 0.12), transparent 70%);
     z-index: 0;
   }
 
