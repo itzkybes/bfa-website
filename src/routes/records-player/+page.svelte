@@ -65,7 +65,7 @@
         return latestByOwnerKey[String(k).toLowerCase()] || meta;
       };
 
-      // Fetch players map (~5MB, cached aggressively client-side via fetchWithCache + localStorage)
+      // Fetch players map (~5MB, persisted in IndexedDB by the shared cache layer)
       const playersPromise = getPlayersNba().catch(() => ({}));
 
       // For each season, compute standings (which already collects matchups) then derive MVPs
@@ -556,7 +556,7 @@
   .bfa-table .headshot { width: 58px; height: 58px; }
   .award-points { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
 
-  .table-wrap { width: 100%; overflow-x: auto; }
+  .table-wrap { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
   .bfa-table { width: 100%; min-width: 0; table-layout: auto; }
   .bfa-table thead th { white-space: normal; }
   .team-cell, .player-cell { min-width: 0; }
@@ -575,21 +575,20 @@
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
-    .table-wrap::after { display: none; }
     .record-headshot { width: 52px; height: 52px; }
     .team-avatar.small { width: 34px; height: 34px; }
     .headshot { width: 48px; height: 48px; }
     .team-owner-cell, .player-meta-cell { display: none; }
     .bigpts { font-size: 1rem; }
-    .table-wrap { overflow-x: auto; }
-    .bfa-table { table-layout: fixed; font-size: 0.78rem; }
-    .bfa-table thead th { padding: 0.58rem 0.32rem; font-size: 0.58rem; letter-spacing: 0.04em; overflow-wrap: anywhere; }
-    .bfa-table tbody td { padding: 0.62rem 0.32rem; overflow-wrap: anywhere; }
-    .bfa-table .col-num { white-space: normal; }
-    .bfa-table .team-cell, .bfa-table .player-cell { gap: 0.35rem; }
-    .bfa-table .team-avatar.small { width: 30px; height: 30px; }
-    .bfa-table .headshot { width: 40px; height: 40px; }
-    .bfa-table .record-headshot { width: 42px; height: 42px; }
-    .bfa-table .num { font-size: 0.9rem; }
+    /* Keep table columns readable on phones; scroll the table instead of squeezing every column. */
+    .bfa-table { min-width: 680px; table-layout: auto; font-size: 0.82rem; }
+    .season-mvp-table { min-width: 760px; }
+    .bfa-table thead th { padding: 0.7rem 0.55rem; font-size: 0.68rem; letter-spacing: 0.04em; }
+    .bfa-table tbody td { padding: 0.7rem 0.55rem; }
+    .bfa-table .col-num { white-space: nowrap; }
+    .bfa-table .team-cell, .bfa-table .player-cell { gap: 0.5rem; }
+    .bfa-table .team-avatar.small { width: 34px; height: 34px; }
+    .bfa-table .headshot { width: 44px; height: 44px; }
+    .bfa-table .record-headshot { width: 48px; height: 48px; }
   }
 </style>
