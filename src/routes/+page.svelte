@@ -20,8 +20,13 @@
   let recentTransactions = [];
   let transactionsLoading = true;
   let activityFilter = 'all';
-  $: visibleTransactions = activityFilter === 'all' ? recentTransactions : recentTransactions.filter((transaction) => transaction.type === activityFilter);
+  $: visibleTransactions = activityFilter === 'all'
+    ? recentTransactions.slice(0, ALL_ACTIVITY_LIMIT)
+    : recentTransactions.filter((transaction) => transaction.type === activityFilter);
   let playersMap = {};
+  let rosterMap = {};
+  let rawRecentTransactions = [];
+  const ALL_ACTIVITY_LIMIT = 18;
 
   const CACHE_10_MIN = 10 * 60 * 1000;
 
@@ -125,23 +130,37 @@
         } catch (_) { /* keep fallback leagueId */ }
       }
 
-      const [_rosters, _users, _players] = await Promise.all([
+      const [_rosters, _users] = await Promise.all([
         fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`, {}, CACHE_10_MIN),
-        fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`, {}, CACHE_10_MIN),
-        getPlayersNba().catch(() => ({}))
+        fetchWithCache(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`, {}, CACHE_10_MIN)
       ]);
       rosters = _rosters;
       users = _users;
-      playersMap = _players || {};
       await pickRandoPlayer();
 
-      // Recent activity loads independently so the hero is never held up by it.
+      // Defer the large NBA player directory until after the hero can render.
+      // It is shared with transaction enrichment and persisted by the cache.
+      loadPlayersMap().catch((e) => console.warn('[Home] player directory failed', e));
       loadRecentTransactions().catch((e) => console.warn('[Home] transactions failed', e));
     } catch (err) {
       error = err;
       console.error('[Home] load error:', err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadPlayersMap() {
+    const map = await getPlayersNba();
+    playersMap = map || {};
+    if (potw) {
+      const playerInfo = playersMap[potw.playerId];
+      if (playerInfo) potw = { ...potw, playerInfo };
+    }
+    if (rawRecentTransactions.length) {
+      recentTransactions = rawRecentTransactions.map((transaction) =>
+        enrichTransaction(transaction, rosterMap, playersMap)
+      );
     }
   }
 
@@ -152,7 +171,11 @@
         getRecentTransactions(leagueId, { weekFrom: 1, weekTo: 25, limit: 18 }),
         getRosterMapWithOwners(leagueId).catch(() => ({}))
       ]);
-      recentTransactions = transactions.map((transaction) => enrichTransaction(transaction, rmap, playersMap));
+      rawRecentTransactions = transactions;
+      rosterMap = rmap;
+      recentTransactions = rawRecentTransactions.map((transaction) =>
+        enrichTransaction(transaction, rosterMap, playersMap)
+      );
     } finally {
       transactionsLoading = false;
     }
@@ -322,7 +345,7 @@
     title="Recent Transactions"
     description="The latest completed moves across the league."
     titleId="activity-h"
-    meta={!transactionsLoading && recentTransactions.length ? `${recentTransactions.length} latest moves` : ''}
+    meta={!transactionsLoading && visibleTransactions.length ? `${visibleTransactions.length} latest moves` : ''}
   />
 
   <div class="activity-filters" role="group" aria-label="Filter transactions">
