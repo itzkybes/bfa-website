@@ -20,7 +20,8 @@
   let transactionsLoading = true;
   let activityFilter = 'all';
   $: visibleTransactions = activityFilter === 'all' ? recentTransactions : recentTransactions.filter((transaction) => transaction.type === activityFilter);
-  let playersMap = {};
+  let playersMap = null;
+  let playersMapPromise = null;
   let rosterMap = {};               // for transaction team names + avatars
 
   const CACHE_10_MIN = 10 * 60 * 1000;
@@ -85,6 +86,24 @@
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
+  // One shared player-map promise feeds both the Rando Player card and the
+  // transaction feed. The cache keeps this large response in memory.
+  async function loadPlayersMap() {
+    if (playersMap) return playersMap;
+    if (!playersMapPromise) {
+      playersMapPromise = getPlayersNba()
+        .then((map) => {
+          playersMap = map && typeof map === 'object' ? map : {};
+          return playersMap;
+        })
+        .catch((err) => {
+          playersMapPromise = null;
+          throw err;
+        });
+    }
+    return playersMapPromise;
+  }
+
   async function pickRandoPlayer() {
     potw = null;
     try {
@@ -95,12 +114,9 @@
       if (!pid) return;
       let playerInfo = null;
       try {
-        const res = await fetch('https://api.sleeper.app/v1/players/nba');
-        if (res.ok) {
-          const map = await res.json();
-          playerInfo = map[pid] || null;
-        }
-      } catch (_) { /* noop */ }
+        const map = await loadPlayersMap();
+        playerInfo = map[pid] || null;
+      } catch (_) { /* use the readable player-id fallback below */ }
       if (!playerInfo) playerInfo = { player_id: pid, full_name: prettyNameFromId(pid) || ('Player ' + pid), team: '', position: '' };
       potw = {
         playerId: pid,
@@ -153,7 +169,7 @@
       const [transactions, rmap, pmap] = await Promise.all([
         getRecentTransactions(leagueId, { weekFrom: 1, weekTo: 25, limit: 18 }),
         getRosterMapWithOwners(leagueId).catch(() => ({})),
-        getPlayersNba().catch(() => ({}))
+        loadPlayersMap().catch(() => ({}))
       ]);
       rosterMap = rmap;
       playersMap = pmap;
