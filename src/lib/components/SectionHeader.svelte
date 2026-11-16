@@ -1,6 +1,7 @@
 <script>
   export let eyebrow = '';
   export let title = '';
+  export let titleId = undefined;
   export let description = '';
   export let meta = '';
   export let compact = false;
@@ -8,7 +9,7 @@
 <div class="section-header" class:compact>
   <div class="section-copy">
     {#if eyebrow}<div class="eyebrow">{eyebrow}</div>{/if}
-    <h2 class="section-title">{title}</h2>
+    <h2 id={titleId} class="section-title">{title}</h2>
     {#if description}<p class="section-description">{description}</p>{/if}
   </div>
   {#if meta}<div class="section-meta">{meta}</div>{/if}
