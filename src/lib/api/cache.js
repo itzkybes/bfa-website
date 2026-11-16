@@ -215,10 +215,15 @@ export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
   if (cached.hit) return cached.data;
 
   const method = String(options.method || 'GET').toUpperCase();
-  const canShareRequest = (method === 'GET' || method === 'HEAD') && !options.signal;
+  const canShareRequest =
+    (method === 'GET' || method === 'HEAD') &&
+    !options.signal &&
+    !options.headers &&
+    !options.body;
+  const requestKey = `${method}:${url}`;
 
   if (canShareRequest) {
-    const existingRequest = inFlightRequests.get(url);
+    const existingRequest = inFlightRequests.get(requestKey);
     if (existingRequest) return existingRequest;
 
     const request = requestJson(url, options)
@@ -227,10 +232,10 @@ export async function fetchWithCache(url, options = {}, ttl = DEFAULT_TTL) {
         return data;
       })
       .finally(() => {
-        inFlightRequests.delete(url);
+        inFlightRequests.delete(requestKey);
       });
 
-    inFlightRequests.set(url, request);
+    inFlightRequests.set(requestKey, request);
     return request;
   }
 
