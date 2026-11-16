@@ -447,23 +447,41 @@ export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_10_MIN)
 }
 
 /**
- * Convenience: pull transactions across a range of weeks in parallel and
- * filter to completed trades only (the most interesting subset for a
- * "trade ledger" widget). Newest first.
+ * Pull completed transactions across a range of weeks. Includes trades,
+ * waiver claims, and free-agent moves; newest activity is returned first.
  */
-export async function getRecentTrades(leagueId, { weekFrom = 1, weekTo = 25, limit = 20 } = {}) {
+export async function getRecentTransactions(leagueId, { weekFrom = 1, weekTo = 25, limit = 12 } = {}) {
   const weeks = [];
-  for (let w = weekFrom; w <= weekTo; w++) weeks.push(w);
-  const lists = await Promise.all(weeks.map((w) => getTransactionsForWeek(leagueId, w)));
+  for (let week = weekFrom; week <= weekTo; week++) weeks.push(week);
+  const lists = await Promise.all(weeks.map((week) => getTransactionsForWeek(leagueId, week)));
   const all = [];
+
   for (let i = 0; i < lists.length; i++) {
-    for (const t of lists[i] || []) {
-      if (t.type !== 'trade') continue;
-      if (t.status !== 'complete') continue;
-      all.push({ ...t, _week: weeks[i] });
+    for (const transaction of lists[i] || []) {
+      if (!transaction || transaction.status !== 'complete') continue;
+      all.push({ ...transaction, _week: weeks[i] });
     }
   }
-  // Newest first by `status_updated`
-  all.sort((a, b) => Number(b.status_updated || 0) - Number(a.status_updated || 0));
+
+  all.sort((a, b) =>
+    Number(b.status_updated || b.created || 0) - Number(a.status_updated || a.created || 0)
+  );
   return all.slice(0, limit);
+}
+
+/** Backwards-compatible trade-only helper for existing callers. */
+export async function getRecentTrades(leagueId, { weekFrom = 1, weekTo = 25, limit = 20 } = {}) {
+  const weeks = [];
+  for (let week = weekFrom; week <= weekTo; week++) weeks.push(week);
+  const lists = await Promise.all(weeks.map((week) => getTransactionsForWeek(leagueId, week)));
+  const trades = [];
+  for (let i = 0; i < lists.length; i++) {
+    for (const transaction of lists[i] || []) {
+      if (transaction?.type === 'trade' && transaction.status === 'complete') {
+        trades.push({ ...transaction, _week: weeks[i] });
+      }
+    }
+  }
+  trades.sort((a, b) => Number(b.status_updated || b.created || 0) - Number(a.status_updated || a.created || 0));
+  return trades.slice(0, limit);
 }

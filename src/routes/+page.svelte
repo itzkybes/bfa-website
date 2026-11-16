@@ -1,10 +1,10 @@
-<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + Trade Ledger -->
+<!-- src/routes/+page.svelte — Home: hero + Rando Player spotlight + Recent Transactions -->
 <script>
   import { onMount } from 'svelte';
   import {
     fetchWithCache,
     getSeasonsChain, BASE_LEAGUE_ID,
-    pickActiveLeague, getRecentTrades,
+    pickActiveLeague, getRecentTransactions,
     getPlayersNba, getRosterMapWithOwners, playerHeadshot
   } from '$lib/api';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
@@ -16,10 +16,12 @@
   const leagueOverride = (urlParams && urlParams.get('league')) || import.meta.env.VITE_LEAGUE_ID || null;
   let leagueId = leagueOverride || BASE_LEAGUE_ID;
   let seasonLabel = '';
-  let recentTrades = [];            // [{ ...transaction, _week, _teamA, _teamB }]
-  let tradesLoading = true;
+  let recentTransactions = [];
+  let transactionsLoading = true;
+  let activityFilter = 'all';
+  $: visibleTransactions = activityFilter === 'all' ? recentTransactions : recentTransactions.filter((transaction) => transaction.type === activityFilter);
   let playersMap = {};
-  let rosterMap = {};               // for trade ledger team names + avatars
+  let rosterMap = {};               // for transaction team names + avatars
 
   const CACHE_10_MIN = 10 * 60 * 1000;
 
@@ -135,9 +137,8 @@
       users = _users;
       await pickRandoPlayer();
 
-      // Trade ledger loads in the background. We don't block on it — it gets
-      // its own loading state.
-      loadTradeLedger().catch((e) => console.warn('[Home] trade ledger failed', e));
+      // Recent activity loads independently so the hero is never held up by it.
+      loadRecentTransactions().catch((e) => console.warn('[Home] transactions failed', e));
     } catch (err) {
       error = err;
       console.error('[Home] load error:', err);
@@ -146,69 +147,76 @@
     }
   }
 
-  /**
-   * Fetch the most recent ~10 completed trades from the live league and
-   * enrich each one with team metadata + player names so the UI can render
-   * them without any extra lookups.
-   */
-  async function loadTradeLedger() {
-    tradesLoading = true;
+  async function loadRecentTransactions() {
+    transactionsLoading = true;
     try {
-      const [trades, rmap, pmap] = await Promise.all([
-        getRecentTrades(leagueId, { weekFrom: 1, weekTo: 25, limit: 10 }),
+      const [transactions, rmap, pmap] = await Promise.all([
+        getRecentTransactions(leagueId, { weekFrom: 1, weekTo: 25, limit: 18 }),
         getRosterMapWithOwners(leagueId).catch(() => ({})),
         getPlayersNba().catch(() => ({}))
       ]);
       rosterMap = rmap;
       playersMap = pmap;
-      recentTrades = trades.map((t) => enrichTrade(t, rmap, pmap));
+      recentTransactions = transactions.map((transaction) => enrichTransaction(transaction, rmap, pmap));
     } finally {
-      tradesLoading = false;
+      transactionsLoading = false;
     }
   }
 
-  /** Turn one raw Sleeper transaction into the per-roster summary the UI shows. */
-  function enrichTrade(t, rmap, pmap) {
-    const sides = {}; // rosterId -> { meta, adds[], drops[], picks[], cash }
-    const ridList = (t.roster_ids || []).map(String);
-    for (const rid of ridList) {
-      sides[rid] = {
-        rosterId: rid,
-        meta: rmap[rid] || { team_name: `Roster ${rid}`, owner_name: null, team_avatar: null },
-        adds: [],
-        drops: [],
-        picks: [],
-        cash: 0
+  function enrichTransaction(transaction, rmap, pmap) {
+    const rosterIds = new Set((transaction.roster_ids || []).map(String));
+    const addRoster = (id) => { if (id != null) rosterIds.add(String(id)); };
+    for (const id of Object.values(transaction.adds || {})) addRoster(id);
+    for (const id of Object.values(transaction.drops || {})) addRoster(id);
+    for (const pick of transaction.draft_picks || []) {
+      addRoster(pick.owner_id);
+      addRoster(pick.previous_owner_id);
+    }
+    for (const budget of transaction.waiver_budget || []) {
+      addRoster(budget.receiver);
+      addRoster(budget.sender);
+    }
+
+    const sides = {};
+    for (const rosterId of rosterIds) {
+      sides[rosterId] = {
+        rosterId,
+        meta: rmap[rosterId] || { team_name: 'Roster ' + rosterId, owner_name: null, team_avatar: null },
+        adds: [], drops: [], picksIn: [], picksOut: [], cashIn: 0
       };
     }
-    for (const [pid, rid] of Object.entries(t.adds || {})) {
-      const s = sides[String(rid)];
-      if (!s) continue;
-      const p = pmap[pid];
-      s.adds.push({
+
+    const playerSummary = (pid) => {
+      const player = pmap[pid];
+      return {
         pid,
-        name: p?.full_name || `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || `Player ${pid}`,
-        team: p?.team || '',
-        position: (p?.fantasy_positions && p.fantasy_positions[0]) || p?.position || ''
-      });
+        name: player?.full_name || ((player?.first_name || '') + ' ' + (player?.last_name || '')).trim() || 'Player ' + pid,
+        team: player?.team || '',
+        position: (player?.fantasy_positions && player.fantasy_positions[0]) || player?.position || ''
+      };
+    };
+    for (const [pid, rosterId] of Object.entries(transaction.adds || {})) {
+      if (sides[String(rosterId)]) sides[String(rosterId)].adds.push(playerSummary(pid));
     }
-    for (const dp of (t.draft_picks || [])) {
-      const s = sides[String(dp.owner_id)];
-      if (!s) continue;
-      s.picks.push({ season: dp.season, round: dp.round, from: dp.previous_owner_id });
+    for (const [pid, rosterId] of Object.entries(transaction.drops || {})) {
+      if (sides[String(rosterId)]) sides[String(rosterId)].drops.push(playerSummary(pid));
     }
-    for (const wb of (t.waiver_budget || [])) {
-      const s = sides[String(wb.receiver)];
-      if (!s) continue;
-      s.cash += Number(wb.amount) || 0;
+    for (const pick of transaction.draft_picks || []) {
+      if (sides[String(pick.owner_id)]) sides[String(pick.owner_id)].picksIn.push({ season: pick.season, round: pick.round });
+      if (sides[String(pick.previous_owner_id)]) sides[String(pick.previous_owner_id)].picksOut.push({ season: pick.season, round: pick.round });
     }
-    const sideArr = ridList.map((rid) => sides[rid]);
-    const tsMs = Number(t.status_updated) || 0;
+    for (const budget of transaction.waiver_budget || []) {
+      if (sides[String(budget.receiver)]) sides[String(budget.receiver)].cashIn += Number(budget.amount) || 0;
+    }
+
+    const typeLabels = { trade: 'Trade', waiver: 'Waiver Claim', free_agent: 'Free Agent' };
     return {
-      id: String(t.transaction_id || t.created || `${t._week}-${ridList.join('-')}`),
-      week: t._week,
-      timestamp: tsMs,
-      sides: sideArr
+      id: String(transaction.transaction_id || transaction.created || transaction._week + '-' + [...rosterIds].join('-')),
+      type: transaction.type || 'transaction',
+      typeLabel: typeLabels[transaction.type] || 'Transaction',
+      week: transaction._week,
+      timestamp: Number(transaction.status_updated || transaction.created) || 0,
+      sides: [...rosterIds].map((rosterId) => sides[rosterId])
     };
   }
 
@@ -312,76 +320,99 @@
   </div>
 </section>
 
-<!--
-  Trade Ledger — most recent completed trades pulled from Sleeper's
-  /transactions/{week} endpoint, aggregated across every week of the live
-  league. Independent loading state so the section isn't gated on anything
-  upstream.
--->
-<section class="wrap trades-section" aria-labelledby="trades-h" data-testid="trade-ledger">
+<!-- Recent completed league activity across trades, waivers, and free-agent moves. -->
+<section class="wrap activity-section" aria-labelledby="activity-h" data-testid="recent-transactions">
   <div class="section-head">
     <div>
       <div class="eyebrow">League Activity</div>
-      <h2 id="trades-h" class="section-title">Recent Trades</h2>
+      <h2 id="activity-h" class="section-title">Recent Transactions</h2>
+      <p class="section-description">The latest completed moves across the league.</p>
     </div>
-    {#if !tradesLoading && recentTrades.length}
-      <div class="trades-count">{recentTrades.length} most recent</div>
+    {#if !transactionsLoading && recentTransactions.length}
+      <div class="activity-count">{recentTransactions.length} latest moves</div>
     {/if}
   </div>
 
-  {#if tradesLoading}
+  <div class="activity-filters" role="group" aria-label="Filter transactions">
+    <button class:active={activityFilter === 'all'} aria-pressed={activityFilter === 'all'} on:click={() => (activityFilter = 'all')}>All Activity</button>
+    <button class:active={activityFilter === 'trade'} aria-pressed={activityFilter === 'trade'} on:click={() => (activityFilter = 'trade')}>Trades</button>
+    <button class:active={activityFilter === 'waiver'} aria-pressed={activityFilter === 'waiver'} on:click={() => (activityFilter = 'waiver')}>Waivers</button>
+    <button class:active={activityFilter === 'free_agent'} aria-pressed={activityFilter === 'free_agent'} on:click={() => (activityFilter = 'free_agent')}>Free Agents</button>
+  </div>
+
+  {#if transactionsLoading}
     <SkeletonLoader variant="row" count={3} />
-  {:else if !recentTrades.length}
-    <div class="empty-card" data-testid="trades-empty">No completed trades on the books yet.</div>
+  {:else if !recentTransactions.length}
+    <div class="empty-card" data-testid="transactions-empty">No completed transactions yet.</div>
+  {:else if !visibleTransactions.length}
+    <div class="empty-card">No activity in this category yet.</div>
   {:else}
-    <div class="trades-list" data-testid="trades-list">
-      {#each recentTrades as t (t.id)}
-        <article class="trade-card rise" data-testid={`trade-${t.id}`}>
-          <header class="trade-head">
-            <span class="trade-week">Wk {t.week}</span>
-            <span class="trade-when">{relativeTime(t.timestamp)}</span>
+    <div class="activity-list" data-testid="transactions-list">
+      {#each visibleTransactions as transaction (transaction.id)}
+        <article class="activity-card rise" data-testid={'transaction-' + transaction.id}>
+          <header class="activity-card-head">
+            <div class="activity-tags">
+              <span class="activity-type" class:trade-type={transaction.type === 'trade'}>{transaction.typeLabel}</span>
+              <span class="activity-week">Week {transaction.week}</span>
+            </div>
+            <time class="activity-when">{relativeTime(transaction.timestamp)}</time>
           </header>
-          <div class="trade-sides">
-            {#each t.sides as side, i (side.rosterId)}
-              <div class="trade-side">
-                <div class="trade-team">
+          <div class="activity-sides" class:multi-side={transaction.sides.length > 1}>
+            {#each transaction.sides as side, i (side.rosterId)}
+              <div class="activity-side">
+                <div class="activity-team">
                   <img
-                    class="trade-avatar"
-                    src={side.meta.team_avatar || side.meta.owner_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent((side.meta.team_name || 'T')[0])}&background=1a1a1e&color=a1a1aa&size=48&format=svg`}
+                    class="activity-avatar"
+                    src={side.meta.team_avatar || side.meta.owner_avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent((side.meta.team_name || 'T')[0]) + '&background=1a1a1e&color=a1a1aa&size=48&format=svg')}
                     alt={side.meta.team_name}
                     on:error={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                    loading="lazy"
                   />
-                  <div class="trade-team-meta">
+                  <div class="activity-team-meta">
                     {#if side.meta.owner_username}
-                      <a class="trade-team-name" href={`/team/${encodeURIComponent(side.meta.owner_username)}`}>{side.meta.team_name}</a>
+                      <a class="activity-team-name" href={'/team/' + encodeURIComponent(side.meta.owner_username)}>{side.meta.team_name}</a>
                     {:else}
-                      <div class="trade-team-name">{side.meta.team_name}</div>
+                      <div class="activity-team-name">{side.meta.team_name}</div>
                     {/if}
-                    {#if side.meta.owner_name}<div class="trade-owner">{side.meta.owner_name}</div>{/if}
+                    {#if side.meta.owner_name}<div class="activity-owner">{side.meta.owner_name}</div>{/if}
                   </div>
                 </div>
-                <div class="trade-gets">
-                  <div class="gets-label">Receives</div>
-                  {#if side.adds.length || side.picks.length || side.cash > 0}
-                    {#each side.adds as a (a.pid)}
-                      <div class="trade-player">
-                        <img class="trade-player-headshot" src={playerHeadshot(a.pid)} alt={a.name} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                        <div class="trade-player-info">
-                          <div class="trade-player-name">{a.name}</div>
-                          <div class="trade-player-meta">{a.position}{a.team ? ` · ${a.team}` : ''}</div>
+                <div class="activity-details">
+                  {#if side.adds.length || side.picksIn.length || side.cashIn > 0}
+                    <div class="activity-detail-group">
+                      <span class="detail-label positive">Added / Received</span>
+                      {#each side.adds as player (player.pid)}
+                        <div class="activity-player">
+                          <img src={playerHeadshot(player.pid)} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} loading="lazy" />
+                          <span>{player.name}<small>{player.position}{player.team ? ' · ' + player.team : ''}</small></span>
                         </div>
-                      </div>
-                    {/each}
-                    {#each side.picks as pk (`${pk.season}-${pk.round}-${pk.from}`)}
-                      <div class="trade-pick">{pk.season} Round {pk.round} Pick</div>
-                    {/each}
-                    {#if side.cash > 0}<div class="trade-cash">+${side.cash} FAAB</div>{/if}
-                  {:else}
-                    <div class="trade-empty">—</div>
+                      {/each}
+                      {#each side.picksIn as pick ('in-' + pick.season + '-' + pick.round)}
+                        <div class="activity-asset">{pick.season} Round {pick.round} pick</div>
+                      {/each}
+                      {#if side.cashIn > 0}<div class="activity-asset">+{side.cashIn} FAAB</div>{/if}
+                    </div>
+                  {/if}
+                  {#if side.drops.length || side.picksOut.length}
+                    <div class="activity-detail-group">
+                      <span class="detail-label negative">Dropped / Sent</span>
+                      {#each side.drops as player (player.pid)}
+                        <div class="activity-player">
+                          <img src={playerHeadshot(player.pid)} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} loading="lazy" />
+                          <span>{player.name}<small>{player.position}{player.team ? ' · ' + player.team : ''}</small></span>
+                        </div>
+                      {/each}
+                      {#each side.picksOut as pick ('out-' + pick.season + '-' + pick.round)}
+                        <div class="activity-asset">{pick.season} Round {pick.round} pick</div>
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if !side.adds.length && !side.drops.length && !side.picksIn.length && !side.picksOut.length && !side.cashIn}
+                    <span class="activity-no-details">Transaction details unavailable.</span>
                   {/if}
                 </div>
               </div>
-              {#if i < t.sides.length - 1}<div class="trade-swap" aria-hidden="true">⇄</div>{/if}
+              {#if i < transaction.sides.length - 1}<div class="activity-swap" aria-hidden="true">⇄</div>{/if}
             {/each}
           </div>
         </article>
@@ -389,7 +420,6 @@
     </div>
   {/if}
 </section>
-
 <style>
   /* ----- HERO ----- */
   .hero {
@@ -591,25 +621,24 @@
     text-align: center;
   }
 
-  /* ----- SECTION HEAD (shared by trade ledger) ----- */
+  /* ----- SECTION HEAD + RECENT ACTIVITY ----- */
   .section-head {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
     flex-wrap: wrap;
   }
-
   .section-title {
     font-family: var(--font-display);
     font-size: clamp(2rem, 4vw, 3rem);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--text-primary);
-    margin-top: 0.4rem;
+    margin-top: 0.35rem;
   }
-
+  .section-description { color: var(--text-secondary); margin-top: 0.35rem; font-size: 0.92rem; }
   .empty-card {
     padding: 2rem;
     text-align: center;
@@ -618,124 +647,81 @@
     border-radius: var(--r-sm);
     color: var(--text-secondary);
   }
-
-  /* ----- TRADE LEDGER ----- */
-  .trades-section { padding-top: 3rem; padding-bottom: 3rem; }
-  .trades-count { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
-  .trades-list { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
-  .trade-card {
+  .activity-section { padding-top: 3rem; padding-bottom: 3.5rem; }
+  .activity-count { color: var(--text-tertiary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+  .activity-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1.1rem; }
+  .activity-filters button {
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 0.48rem 0.85rem;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 750;
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  }
+  .activity-filters button:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .activity-filters button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text-primary); }
+  .activity-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
+  .activity-card {
+    min-width: 0;
     background: var(--surface-1);
     border: 1px solid var(--border-subtle);
     border-radius: var(--r-sm);
-    padding: 1.1rem 1.25rem;
-    transition: border-color var(--t-fast);
+    padding: 1rem 1.1rem;
+    transition: border-color var(--t-fast), transform var(--t-fast);
   }
-  .trade-card:hover { border-color: var(--border-strong); }
-  .trade-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.9rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .trade-week {
-    font-family: var(--font-body);
-    font-weight: 800;
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
-    color: var(--brand);
-    text-transform: uppercase;
-  }
-  .trade-when { color: var(--text-tertiary); font-size: 0.78rem; }
-
-  .trade-sides {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 1rem;
-    align-items: stretch;
-  }
-  .trade-side { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
-  .trade-team { display: flex; align-items: center; gap: 0.65rem; }
-  .trade-avatar {
-    width: 40px; height: 40px;
-    border-radius: var(--r-sm);
-    object-fit: cover;
-    background: var(--surface-2);
-    border: 1px solid var(--border-subtle);
-    flex-shrink: 0;
-  }
-  .trade-team-name {
-    font-family: var(--font-display);
-    font-size: 1.05rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-primary);
-    text-decoration: none;
-    line-height: 1.1;
-  }
-  a.trade-team-name:hover { color: var(--accent); }
-  .trade-owner { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; }
-  .gets-label {
-    font-family: var(--font-body);
-    font-weight: 800;
-    font-size: 0.62rem;
-    letter-spacing: 0.18em;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    margin-bottom: 0.3rem;
-  }
-  .trade-gets {
-    background: var(--surface-2);
-    border-radius: var(--r-sm);
-    padding: 0.65rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-    flex: 1;
-  }
-  .trade-player { display: flex; align-items: center; gap: 0.6rem; }
-  .trade-player-headshot {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: var(--surface-1);
-    flex-shrink: 0;
-  }
-  .trade-player-info { min-width: 0; line-height: 1.15; }
-  .trade-player-name { font-weight: 700; color: var(--text-primary); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .trade-player-meta { color: var(--text-tertiary); font-size: 0.7rem; }
-  .trade-pick { color: var(--brand); font-weight: 700; font-size: 0.82rem; }
-  .trade-cash { color: var(--accent); font-weight: 700; font-size: 0.82rem; }
-  .trade-empty { color: var(--text-tertiary); font-size: 0.85rem; padding: 0.5rem 0; }
-  .trade-swap {
-    align-self: center;
-    font-size: 1.5rem;
-    color: var(--accent);
-    padding: 0 0.25rem;
-  }
+  .activity-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .activity-card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.85rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--border-subtle); }
+  .activity-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+  .activity-type { border-radius: 999px; background: var(--surface-2); color: var(--text-primary); padding: 0.28rem 0.58rem; font-size: 0.67rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
+  .activity-type.trade-type { background: var(--accent-soft); color: var(--accent); }
+  .activity-week { color: var(--text-tertiary); font-size: 0.72rem; font-weight: 700; }
+  .activity-when { color: var(--text-tertiary); font-size: 0.75rem; white-space: nowrap; }
+  .activity-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+  .activity-sides.multi-side { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; }
+  .activity-side { min-width: 0; display: flex; flex-direction: column; gap: 0.65rem; }
+  .activity-team { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .activity-avatar { width: 38px; height: 38px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .activity-team-meta { min-width: 0; }
+  .activity-team-name { display: block; font-family: var(--font-display); font-size: 0.98rem; text-transform: uppercase; letter-spacing: 0.035em; color: var(--text-primary); text-decoration: none; line-height: 1.15; overflow-wrap: anywhere; }
+  a.activity-team-name:hover { color: var(--accent); }
+  .activity-owner { color: var(--text-tertiary); font-size: 0.7rem; margin-top: 0.15rem; }
+  .activity-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .activity-detail-group { min-width: 0; background: var(--surface-2); border-radius: var(--r-sm); padding: 0.58rem 0.65rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .detail-label { font-size: 0.61rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
+  .detail-label.positive { color: var(--success, #22c55e); }
+  .detail-label.negative { color: var(--text-tertiary); }
+  .activity-player { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+  .activity-player img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface-1); flex-shrink: 0; }
+  .activity-player span { min-width: 0; color: var(--text-primary); font-size: 0.76rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+  .activity-player small { display: block; color: var(--text-tertiary); font-size: 0.64rem; font-weight: 500; margin-top: 0.12rem; }
+  .activity-asset { color: var(--text-secondary); font-size: 0.75rem; font-weight: 700; }
+  .activity-no-details { color: var(--text-tertiary); font-size: 0.75rem; }
+  .activity-swap { align-self: center; color: var(--accent); font-size: 1.25rem; padding: 0 0.1rem; }
 
   @media (max-width: 980px) {
     .hero-inner { grid-template-columns: 1fr; gap: 2rem; }
     .rando { max-width: 100%; }
+    .activity-list { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 720px) {
     .hero { padding: 2.5rem 0 3rem; }
-    .trade-sides { grid-template-columns: 1fr; }
-    .trade-swap { transform: rotate(90deg); justify-self: center; padding: 0.25rem 0; }
-    .trade-card { padding: 0.9rem 0.95rem; }
-    .trade-team-name { font-size: 0.95rem; }
-    .trade-avatar { width: 36px; height: 36px; }
-    .trade-player-headshot { width: 28px; height: 28px; }
-    .trade-player-name { font-size: 0.82rem; }
-    .trade-player-meta { font-size: 0.65rem; }
+    .activity-card { padding: 0.85rem; }
+    .activity-sides.multi-side { grid-template-columns: 1fr; }
+    .activity-swap { transform: rotate(90deg); justify-self: center; }
+    .activity-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     /* Buttons stack full-width on phones so they never overflow the viewport */
     .hero-actions { flex-direction: column; align-items: stretch; gap: 0.6rem; }
     .hero-actions :global(.btn) { width: 100%; }
     .hero-sub { font-size: 0.95rem; }
     .section-head { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .activity-filters { gap: 0.4rem; }
+    .activity-filters button { padding: 0.42rem 0.68rem; font-size: 0.72rem; }
+    .activity-details { grid-template-columns: 1fr; }
     .rando { padding: 1.1rem; }
     .rando-headshot { width: 80px; height: 80px; }
     .rando-name { font-size: 1.35rem; }
