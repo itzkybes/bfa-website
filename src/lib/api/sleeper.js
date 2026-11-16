@@ -433,7 +433,7 @@ export async function getCurrentWeekForLeague(leagueId, { maxWeek = 25, minAvg =
  * (a.k.a. week) of a league. Cached for 10 min — these change rarely once
  * a week has closed.
  */
-export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_10_MIN) {
+export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_60_SEC) {
   try {
     const d = await fetchWithCache(
       `${BASE}/league/${encodeURIComponent(leagueId)}/transactions/${encodeURIComponent(week)}`,
@@ -450,23 +450,36 @@ export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_10_MIN)
  * Pull completed transactions across a range of weeks. Includes trades,
  * waiver claims, and free-agent moves; newest activity is returned first.
  */
-export async function getRecentTransactions(leagueId, { weekFrom = 1, weekTo = 25, limit = 12 } = {}) {
+export async function getRecentTransactions(leagueId, { weekFrom = 1, weekTo = 25, limit = 18 } = {}) {
   const weeks = [];
   for (let week = weekFrom; week <= weekTo; week++) weeks.push(week);
   const lists = await Promise.all(weeks.map((week) => getTransactionsForWeek(leagueId, week)));
-  const all = [];
+  const byType = new Map();
 
   for (let i = 0; i < lists.length; i++) {
     for (const transaction of lists[i] || []) {
-      if (!transaction || transaction.status !== 'complete') continue;
-      all.push({ ...transaction, _week: weeks[i] });
+      if (!transaction || String(transaction.status || '').toLowerCase() !== 'complete') continue;
+      const type = String(transaction.type || 'other').toLowerCase();
+      const entries = byType.get(type) || [];
+      entries.push({ ...transaction, type, _week: weeks[i] });
+      byType.set(type, entries);
     }
   }
 
-  all.sort((a, b) =>
+  // Keep a recent window for each category so frequent waiver activity cannot
+  // crowd completed trades out before the user selects the Trades filter.
+  const recent = [];
+  for (const entries of byType.values()) {
+    entries.sort((a, b) =>
+      Number(b.status_updated || b.created || 0) - Number(a.status_updated || a.created || 0)
+    );
+    recent.push(...entries.slice(0, limit));
+  }
+
+  recent.sort((a, b) =>
     Number(b.status_updated || b.created || 0) - Number(a.status_updated || a.created || 0)
   );
-  return all.slice(0, limit);
+  return recent;
 }
 
 /** Backwards-compatible trade-only helper for existing callers. */
