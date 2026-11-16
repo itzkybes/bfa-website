@@ -3,7 +3,7 @@
 // Single source of truth for "how do we turn one Sleeper matchup entry into
 // a team's point total?". Everything below is pure — no API calls, no state.
 
-import { safeNum } from '$lib/api/sleeper';
+import { safeNum } from '../api/sleeper.js';
 
 /**
  * Score a single Sleeper matchup entry.
