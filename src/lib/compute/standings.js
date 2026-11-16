@@ -404,6 +404,7 @@ export async function computeStandingsForLeague(leagueId) {
   return {
     leagueId: String(leagueId),
     season: leagueSeason,
+    seasonStatus: leagueMeta?.status || null,
     leagueName,
     regularStandings,
     playoffStandings,
