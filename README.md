@@ -13,16 +13,16 @@ Live on Vercel. No login. No backend. No database.
 
 | Route             | What you'll find                                                |
 | ----------------- | --------------------------------------------------------------- |
-| `/`               | Current-week matchups, "Rando Player" spotlight, recent Trade Ledger |
-| `/rosters`        | Single-team **Owner Hub** picked by dropdown — career stats, Franchise Records, starters / bench / taxi |
-| `/standings`      | Regular-season + playoff records with weekly PF trend sparklines, plus "Regular Season MVP Race" top-5 leaderboard |
-| `/matchups`       | **Weekly Recap** — Top 3 Performances, Biggest Blowout, Closest Game, Highest-Scoring Matchup, Bust of the Week, plus every head-to-head card |
-| `/power-rankings` | Rolling 4-week window: Last 4 W-L, avg score, avg margin, score trend, Δ vs prior |
-| `/team/[username]`| Per-roster matchup history — Head-to-Head block (rival, longest H2H win streak, full opponent table) + every week's opponent and result |
-| `/records-team`   | All-time aggregated W/L, biggest blowouts/nailbiters, head-to-head matrix |
-| `/records-player` | Regular Season / Playoffs / Finals MVP per season + 4 all-time tables (Best By Team, Playoff Best, Full-Season Best, Playoffs Leaderboard) |
-| `/honor-hall`     | Champion + Biggest Loser + three MVPs + final standings 1–14   |
-| `/admin/generate-season-matchups` | Browser-based snapshot regenerator. Defaults to every completed season in the chain; override with `?years=2026,2027` |
+| `/`               | BFA hero, "Rando Player" spotlight, and filterable Recent Transactions (trades, waivers, free agents) |
+| `/rosters`        | Single-team **Owner Hub** — career stats, Franchise Records, starters / bench / taxi |
+| `/standings`      | Regular-season + playoff records with weekly PF trend sparklines and the Regular Season MVP Race |
+| `/matchups`       | **Weekly Recap** — Top 3 Performances, Biggest Blowout, Closest Game, Highest-Scoring Matchup, Bust of the Week, plus head-to-head cards |
+| `/power-rankings` | Rolling four-week form: W-L, average score, margin, score trend, and movement |
+| `/team/[username]`| Per-roster matchup history — H2H summary, opponent records, and weekly results |
+| `/records-team`   | All-time team records, biggest blowouts/nailbiters, and head-to-head matrix |
+| `/records-player` | Season MVPs, All-Time MVP Awards, All-Time Best Player by Team, and cumulative Regular Season / Playoffs scoring leaders by franchise |
+| `/honor-hall`     | Champions, Biggest Loser, three MVPs, and final standings |
+| `/admin/generate-season-matchups` | Browser-based snapshot regenerator for completed seasons |
 
 ### Site map
 
@@ -58,7 +58,7 @@ flowchart LR
 
     home -- "hero buttons" --> rosters
     home -- "hero buttons" --> standings
-    home -- "Home: trade ledger" --> team
+    home -- "Recent transactions: team links" --> team
     power -- "Power Rankings: team names" --> team
     rplayer -- "Player Records: team names" --> team
     team -- "rival / opponent names" --> team
@@ -243,10 +243,11 @@ pages directly.
 
 The first version of this site rendered standings server-side. That blew up on
 Vercel because Sleeper's `/players/nba` response is ~5 MB — every page view
-became a serverless cold start that timed out reading static files. The fix was
-to render every route as a static HTML shell and let the browser fetch from
-Sleeper directly. `localStorage` caches the heavy responses so repeat visits
-are instant.
+became a serverless cold start that timed out reading static files. The app
+renders every route as a static HTML shell and fetches Sleeper data in the
+browser. Small responses use a TTL-based `localStorage` cache; large responses
+such as the NBA player directory use IndexedDB, with an in-memory cache and
+request deduplication for the current page session.
 
 In practice that means:
 
