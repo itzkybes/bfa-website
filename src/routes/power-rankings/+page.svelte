@@ -168,10 +168,19 @@
     return { type: 'flat', delta: 0, label: '—' };
   }
 
+  $: biggestRiser = [...rankings].filter((r) => r.prevRank != null && r.prevRank > r.rank)
+    .sort((a, b) => (b.prevRank - b.rank) - (a.prevRank - a.rank))[0] || null;
+  $: topScorer = [...rankings].sort((a, b) => b.avgPf - a.avgPf)[0] || null;
+  $: bestRecord = [...rankings].sort((a, b) => {
+    const aGames = a.wins + a.losses, bGames = b.wins + b.losses;
+    const aRate = aGames ? a.wins / aGames : 0, bRate = bGames ? b.wins / bGames : 0;
+    return bRate - aRate || b.wins - a.wins || b.margin - a.margin;
+  })[0] || null;
+
   onMount(loadAll);
 </script>
 
-<svelte:head><title>Power Rankings · BFA</title></svelte:head>
+<svelte:head><title>Trends · BFA</title></svelte:head>
 
 <div class="page wrap">
   <header class="page-head rise">
@@ -181,12 +190,11 @@
         {:else if leagueStatus === 'complete'}{leagueSeason} Season Final · 4-Week Window
         {:else}Latest 4 Weeks{/if}
       </div>
-      <h1 class="page-title">Power Rankings</h1>
+      <h1 class="page-title">Trends</h1>
       <p class="page-sub">
-        Blended ranking from the last <strong>{WINDOW}</strong> regular-season weeks
+        A look at who's heating up across the league. Trends use the last <strong>{WINDOW}</strong> completed regular-season weeks
         {#if weekWindow.length}<span class="muted"> · weeks {weekWindow[0]}–{weekWindow[weekWindow.length - 1]}</span>{/if}.
-        Sixty percent weight to average PF, forty to W-L (margin as a tiebreaker).
-        Movement arrows compare to the prior 4-week window.
+        Power Rankings remain below, alongside the latest standout performances.
       </p>
     </div>
   </header>
@@ -196,8 +204,54 @@
   {:else if error}
     <ErrorBoundary {error} onRetry={loadAll} context="power rankings" />
   {:else if rankings.length === 0}
-    <div class="empty-card" data-testid="rankings-empty">Not enough completed weeks to rank yet. Check back after a few games.</div>
+    <div class="empty-card" data-testid="rankings-empty">Not enough completed weeks to show trends yet. Check back after a few games.</div>
   {:else}
+    <section class="trend-grid" aria-label="League trends">
+      <article class="trend-card">
+        <div class="trend-kicker">Biggest riser</div>
+        {#if biggestRiser}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(biggestRiser.meta.team_avatar || biggestRiser.meta.owner_avatar, biggestRiser.meta.team_name)} alt="" />
+            <div><div class="trend-name">{biggestRiser.meta.team_name}</div><div class="trend-detail">{biggestRiser.meta.owner_name || biggestRiser.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value positive">▲ {biggestRiser.prevRank - biggestRiser.rank} spots</div>
+          <div class="trend-caption">Moved up from #{biggestRiser.prevRank} to #{biggestRiser.rank}</div>
+        {:else}
+          <div class="trend-empty">No ranking movement yet</div>
+        {/if}
+      </article>
+      <article class="trend-card">
+        <div class="trend-kicker">Top scoring</div>
+        {#if topScorer}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(topScorer.meta.team_avatar || topScorer.meta.owner_avatar, topScorer.meta.team_name)} alt="" />
+            <div><div class="trend-name">{topScorer.meta.team_name}</div><div class="trend-detail">{topScorer.meta.owner_name || topScorer.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value">{fmt(topScorer.avgPf, 1)} <span>PF / week</span></div>
+          <div class="trend-caption">Highest average points over the last {WINDOW} weeks</div>
+        {:else}
+          <div class="trend-empty">Scoring data unavailable</div>
+        {/if}
+      </article>
+      <article class="trend-card">
+        <div class="trend-kicker">Best recent record</div>
+        {#if bestRecord}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(bestRecord.meta.team_avatar || bestRecord.meta.owner_avatar, bestRecord.meta.team_name)} alt="" />
+            <div><div class="trend-name">{bestRecord.meta.team_name}</div><div class="trend-detail">{bestRecord.meta.owner_name || bestRecord.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value">{bestRecord.wins}–{bestRecord.losses}</div>
+          <div class="trend-caption">Most wins in the last {WINDOW} weeks</div>
+        {:else}
+          <div class="trend-empty">Record data unavailable</div>
+        {/if}
+      </article>
+    </section>
+
+    <div class="section-heading">
+      <div><div class="eyebrow">League snapshot</div><h2>Power Rankings</h2></div>
+      <p>Same rolling 4-week blend: 60% average points, 40% win-loss rank. Movement compares with the prior window.</p>
+    </div>
     <section class="block" aria-label="Power rankings">
       <div class="table-wrap">
         <table class="bfa-table" data-testid="rankings-table">
@@ -259,6 +313,20 @@
   .page-sub { color: var(--text-secondary); margin-top: 0.6rem; max-width: 75ch; }
   .muted { color: var(--text-tertiary); }
 
+  .trend-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0 0 2.5rem; }
+  .trend-card { min-width: 0; padding: 1.25rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); }
+  .trend-kicker { color: var(--text-tertiary); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 1rem; }
+  .trend-team { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+  .trend-team .team-avatar { width: 48px; height: 48px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); flex: 0 0 auto; }
+  .trend-name { font-weight: 800; overflow-wrap: anywhere; }
+  .trend-detail, .trend-caption { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.2rem; }
+  .trend-value { font-family: var(--font-display); font-size: 1.8rem; line-height: 1.1; margin-top: 1rem; }
+  .trend-value span { font-family: var(--font-body); font-size: 0.78rem; color: var(--text-secondary); }
+  .trend-caption { margin-top: 0.35rem; }
+  .trend-empty { color: var(--text-secondary); padding: 1rem 0; }
+  .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; margin: 0 0 1rem; }
+  .section-heading h2 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.3rem); text-transform: uppercase; margin: 0.25rem 0 0; }
+  .section-heading p { color: var(--text-tertiary); font-size: 0.82rem; max-width: 46ch; margin: 0 0 0.25rem; }
   .block { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; }
   .table-wrap { width: 100%; overflow-x: auto; }
   .bfa-table { min-width: 900px; }
@@ -301,6 +369,10 @@
 
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
+    .trend-grid { grid-template-columns: 1fr; gap: 0.75rem; margin-bottom: 2rem; }
+    .trend-card { padding: 1rem; }
+    .section-heading { display: block; }
+    .section-heading p { margin-top: 0.5rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .page-sub { font-size: 0.88rem; }
     .col-trend { width: 90px; min-width: 90px; }
