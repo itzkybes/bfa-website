@@ -412,6 +412,10 @@
                 <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.highestScoringAverageSeasons}</div>
                 <div class="hub-stat-label">Scoring Titles</div>
               </div>
+              <div class="hub-stat" title="Weeks this team finished with the lowest total points among all teams in the league">
+                <div class="hub-stat-num">{roster.owner_hub.leagueLowestWeeks || 0}</div>
+                <div class="hub-stat-label">League Weekly Lows</div>
+              </div>
               {#if roster.owner_hub.weeklyScoring}
                 <div class="hub-stat" title="Standard deviation of completed regular-season weekly scores; lower means more consistent">
                   <div class="hub-stat-num">{roster.owner_hub.weeklyScoring.standardDeviation.toFixed(1)}</div>
