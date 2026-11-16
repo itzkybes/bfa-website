@@ -8,6 +8,7 @@
     getPlayersNba, getRosterMapWithOwners, playerHeadshot
   } from '$lib/api';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
+  import SectionHeader from '$lib/components/SectionHeader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -19,9 +20,13 @@
   let recentTransactions = [];
   let transactionsLoading = true;
   let activityFilter = 'all';
-  $: visibleTransactions = activityFilter === 'all' ? recentTransactions : recentTransactions.filter((transaction) => transaction.type === activityFilter);
+  const ALL_ACTIVITY_LIMIT = 18;
   let playersMap = {};
-  let rosterMap = {};               // for transaction team names + avatars
+  let rosterMap = {};
+  let rawRecentTransactions = [];
+  $: visibleTransactions = activityFilter === 'all'
+    ? recentTransactions.slice(0, ALL_ACTIVITY_LIMIT)
+    : recentTransactions.filter((transaction) => transaction.type === activityFilter);
 
   const CACHE_10_MIN = 10 * 60 * 1000;
 
@@ -62,8 +67,7 @@
   }
 
   function getHeadshot(playerId) {
-    if (!playerId) return '';
-    return `https://sleepercdn.com/content/nba/players/${playerId}.jpg`;
+    return playerHeadshot(playerId);
   }
 
   function prettyNameFromId(id) {
@@ -93,15 +97,12 @@
       const r = chooseRandom(candidates);
       const pid = chooseRandom(r.players);
       if (!pid) return;
-      let playerInfo = null;
-      try {
-        const res = await fetch('https://api.sleeper.app/v1/players/nba');
-        if (res.ok) {
-          const map = await res.json();
-          playerInfo = map[pid] || null;
-        }
-      } catch (_) { /* noop */ }
-      if (!playerInfo) playerInfo = { player_id: pid, full_name: prettyNameFromId(pid) || ('Player ' + pid), team: '', position: '' };
+      const playerInfo = playersMap[pid] || {
+        player_id: pid,
+        full_name: prettyNameFromId(pid) || ('Player ' + pid),
+        team: '',
+        position: ''
+      };
       potw = {
         playerId: pid,
         playerInfo,
@@ -137,7 +138,9 @@
       users = _users;
       await pickRandoPlayer();
 
-      // Recent activity loads independently so the hero is never held up by it.
+      // Defer the large NBA player directory until after the hero can render.
+      // It is shared with transaction enrichment and persisted by the cache.
+      loadPlayersMap().catch((e) => console.warn('[Home] player directory failed', e));
       loadRecentTransactions().catch((e) => console.warn('[Home] transactions failed', e));
     } catch (err) {
       error = err;
@@ -147,17 +150,32 @@
     }
   }
 
+  async function loadPlayersMap() {
+    const map = await getPlayersNba();
+    playersMap = map || {};
+    if (potw) {
+      const playerInfo = playersMap[potw.playerId];
+      if (playerInfo) potw = { ...potw, playerInfo };
+    }
+    if (rawRecentTransactions.length) {
+      recentTransactions = rawRecentTransactions.map((transaction) =>
+        enrichTransaction(transaction, rosterMap, playersMap)
+      );
+    }
+  }
+
   async function loadRecentTransactions() {
     transactionsLoading = true;
     try {
-      const [transactions, rmap, pmap] = await Promise.all([
-        getRecentTransactions(leagueId, { weekFrom: 1, weekTo: 25, limit: 18 }),
-        getRosterMapWithOwners(leagueId).catch(() => ({})),
-        getPlayersNba().catch(() => ({}))
+      const [transactions, rmap] = await Promise.all([
+        getRecentTransactions(leagueId, { weekFrom: 0, weekTo: 25, limit: 18 }),
+        getRosterMapWithOwners(leagueId).catch(() => ({}))
       ]);
+      rawRecentTransactions = transactions;
       rosterMap = rmap;
-      playersMap = pmap;
-      recentTransactions = transactions.map((transaction) => enrichTransaction(transaction, rmap, pmap));
+      recentTransactions = rawRecentTransactions.map((transaction) =>
+        enrichTransaction(transaction, rosterMap, playersMap)
+      );
     } finally {
       transactionsLoading = false;
     }
@@ -322,16 +340,13 @@
 
 <!-- Recent completed league activity across trades, waivers, and free-agent moves. -->
 <section class="wrap activity-section" aria-labelledby="activity-h" data-testid="recent-transactions">
-  <div class="section-head">
-    <div>
-      <div class="eyebrow">League Activity</div>
-      <h2 id="activity-h" class="section-title">Recent Transactions</h2>
-      <p class="section-description">The latest completed moves across the league.</p>
-    </div>
-    {#if !transactionsLoading && recentTransactions.length}
-      <div class="activity-count">{recentTransactions.length} latest moves</div>
-    {/if}
-  </div>
+  <SectionHeader
+    eyebrow="League Activity"
+    title="Recent Transactions"
+    description="The latest completed moves across the league."
+    titleId="activity-h"
+    meta={!transactionsLoading && visibleTransactions.length ? `${visibleTransactions.length} latest moves` : ''}
+  />
 
   <div class="activity-filters" role="group" aria-label="Filter transactions">
     <button class:active={activityFilter === 'all'} aria-pressed={activityFilter === 'all'} on:click={() => (activityFilter = 'all')}>All Activity</button>
