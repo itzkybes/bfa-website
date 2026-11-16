@@ -81,7 +81,7 @@
     const rows = selectedResult.regularStandings;
     const playoffTeams = Number(selectedResult.playoffTeams) || 8;
     const playoffStart = Number(selectedResult.playoffStart) || 999;
-    const completedThrough = Number(selectedResult.completedThroughWeek);
+    const completedThrough = selectedResult.completedThroughWeek != null ? Number(selectedResult.completedThroughWeek) : completedRegularWeeks;
     const completedRegularWeeks = Object.keys(selectedResult.collectedMatchups || {})
       .map(Number).filter((week) => week >= 1 && week < playoffStart).length;
     const playedThrough = Number.isFinite(completedThrough) ? completedThrough : completedRegularWeeks;
@@ -555,15 +555,15 @@
     .standings-table .team-name-cell { font-size: 0.72rem; overflow-wrap: anywhere; }
     .standings-table .team-avatar.small { width: 26px; height: 26px; }
     .standings-table th:nth-child(2), .standings-table td:nth-child(2),
-    .standings-table th:nth-child(6), .standings-table td:nth-child(6),
     .standings-table th:nth-child(7), .standings-table td:nth-child(7),
     .standings-table th:nth-child(8), .standings-table td:nth-child(8),
-    .standings-table th:nth-child(10), .standings-table td:nth-child(10),
-    .standings-table th:nth-child(11), .standings-table td:nth-child(11) { display: none; }
+    .standings-table th:nth-child(9), .standings-table td:nth-child(9),
+    .standings-table th:nth-child(11), .standings-table td:nth-child(11),
+    .standings-table th:nth-child(12), .standings-table td:nth-child(12) { display: none; }
     .standings-table th:nth-child(1) { width: 8%; }
     .standings-table th:nth-child(3) { width: 34%; }
     .standings-table th:nth-child(4), .standings-table th:nth-child(5) { width: 10%; }
-    .standings-table th:nth-child(9) { width: 13%; }
-    .standings-table th:nth-child(12) { width: 15%; }
+    .standings-table th:nth-child(6) { width: 15%; }
+    .standings-table th:nth-child(10) { width: 13%; }
   }
 </style>
