@@ -64,6 +64,7 @@
   })();
 
   // Estimated playoff odds from a deterministic Monte Carlo simulation.
+  // A team only displays 100% once it is mathematically clinched.
   // Remaining games use each team's current win rate; future opponents are not modeled.
   $: playoffChancesByRoster = (() => {
     const out = {};
@@ -80,6 +81,24 @@
       rows.forEach((row, index) => { out[row.rosterId] = index < playoffTeams ? 100 : 0; });
       return out;
     }
+
+    // A team is clinched only when fewer than the available playoff spots
+    // can still be reached by other teams, even if those teams win every
+    // remaining game. Treat a possible points-for tiebreaker as an opponent
+    // that could finish ahead, keeping this check deliberately conservative.
+    const clinched = {};
+    for (const row of rows) {
+      const currentWins = (row.wins || 0) + (row.ties || 0) * 0.5;
+      const teamsThatCanStillFinishAhead = rows.filter((other) => {
+        if (other.rosterId === row.rosterId) return false;
+        const otherCurrentWins = (other.wins || 0) + (other.ties || 0) * 0.5;
+        const otherMaxWins = otherCurrentWins + remaining;
+        return otherMaxWins > currentWins ||
+          (otherMaxWins === currentWins && (other.pf || 0) >= (row.pf || 0));
+      }).length;
+      clinched[row.rosterId] = teamsThatCanStillFinishAhead < playoffTeams;
+    }
+
     const samples = 3000;
     const chances = Object.fromEntries(rows.map((row) => [row.rosterId, 0]));
     let seed = rows.reduce((sum, row) => sum + Number(row.rosterId || 0), 0) + Number(selectedResult.season || 0) * 97;
@@ -98,7 +117,10 @@
       }).sort((a, b) => (b.wins - a.wins) || (b.pf - a.pf));
       projected.slice(0, playoffTeams).forEach((row) => { chances[row.rosterId] += 1; });
     }
-    rows.forEach((row) => { out[row.rosterId] = Math.round(chances[row.rosterId] / samples * 100); });
+    rows.forEach((row) => {
+      const estimated = Math.round(chances[row.rosterId] / samples * 100);
+      out[row.rosterId] = clinched[row.rosterId] ? 100 : Math.min(99, estimated);
+    });
     return out;
   })();
 
