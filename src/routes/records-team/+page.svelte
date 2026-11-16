@@ -186,11 +186,11 @@
         for (const wk of Object.keys(collected)) {
           const week = Number(wk);
           if (!Number.isFinite(week) || week < 1 || week >= playoffStart) continue;
-          const entries = (collected[wk] || []).filter((entry) => Number.isFinite(Number(entry.points)));
+          const entries = (collected[wk] || []).filter((entry) => Number.isFinite(Number(entry.__final_score ?? entry.points)));
           if (!entries.length) continue;
-          const lowest = Math.min(...entries.map((entry) => Number(entry.points)));
+          const lowest = Math.min(...entries.map((entry) => Number(entry.__final_score ?? entry.points)));
           for (const entry of entries) {
-            const points = Number(entry.points);
+            const points = Number(entry.__final_score ?? entry.points);
             if (Math.abs(points - lowest) > 1e-9) continue;
             const rid = String(entry.roster_id ?? entry.rosterId ?? ''), meta = rmap[rid] || {};
             const key = stableKey(meta) || String(meta.team_name || rid).toLowerCase();
