@@ -1,8 +1,6 @@
 <!-- src/routes/records-player/+page.svelte (client-side fetched) -->
 <script>
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
@@ -436,27 +434,6 @@
       {:else}
         <div class="empty-card">No MVP awards recorded yet.</div>
       {/if}
-    </section>
-
-    <section class="block">
-      <div class="block-head"><h2 class="block-title">All-Time Single-Season Playoff Best</h2><span class="block-sub">Per team · 2022 → present</span></div>
-      {#if allTimePlayoff.length}
-        <div class="table-wrap">
-          <table class="bfa-table">
-            <thead><tr><th>Team</th><th>Top Scorer</th><th title="Season the record was set">Season</th><th class="col-num" title="Total playoff points scored that season">Playoff PTS</th></tr></thead>
-            <tbody>
-              {#each allTimePlayoff as row, idx (row.rosterId)}
-                <tr>
-                  <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPh(row.teamAvatar, row.teamName)} alt={row.teamName} /><div><div class="team-name-cell">{row.teamName}</div><div class="team-owner-cell">{row.owner_name}</div></div></div></td>
-                  <td><div class="player-cell"><img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div></div></td>
-                  <td><span class="num accent-text">{row.season}</span></td>
-                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.points)}</span></td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {:else}<div class="empty-card">No playoff data.</div>{/if}
     </section>
 
     <section class="block" data-testid="all-time-best-by-team">
