@@ -782,3 +782,133 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 720px) {
   main#content::before { height: 280px; }
 }
+
+
+/* BFA logo palette — stronger, unmistakable brand presence */
+:root {
+  --brand: #3432c8;
+  --brand-hover: #514fe0;
+  --brand-soft: rgba(52, 50, 200, .30);
+  --brand-glow: rgba(52, 50, 200, .48);
+  --accent: #c97835;
+  --accent-hover: #e18a43;
+  --accent-soft: rgba(201, 120, 53, .24);
+  --accent-glow: rgba(201, 120, 53, .38);
+  --bg-base: #090a16;
+  --surface-1: #11132b;
+  --surface-2: #191b3b;
+  --surface-3: #242653;
+  --border-subtle: rgba(112, 109, 235, .25);
+  --border-strong: rgba(112, 109, 235, .48);
+  --text-muted: #aaa9c9;
+  --card-shadow: 0 16px 38px rgba(0, 0, 0, .32), 0 0 0 1px rgba(52, 50, 200, .08);
+}
+
+html, body {
+  background:
+    radial-gradient(ellipse 1000px 600px at 50% -240px, rgba(52, 50, 200, .42), transparent 72%),
+    radial-gradient(ellipse 700px 520px at 100% 28%, rgba(201, 120, 53, .13), transparent 70%),
+    linear-gradient(180deg, #0b0c1c 0%, #090a16 60%, #0d0d1b 100%);
+}
+
+.site-header, .site-header .header-inner {
+  background: linear-gradient(100deg, rgba(35, 33, 155, .98), rgba(22, 22, 73, .98) 62%, rgba(13, 14, 31, .98));
+}
+.site-header {
+  border-bottom: 3px solid var(--accent);
+  box-shadow: 0 9px 30px rgba(0, 0, 0, .38), 0 2px 20px rgba(52, 50, 200, .22);
+}
+.site-header .brand-logo {
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, .4));
+}
+.site-header .brand-line-1,
+.site-header .brand-line-2 {
+  color: #fff;
+}
+.site-header .nav-link.active,
+.site-header .nav-link:hover {
+  color: #fff;
+  background: rgba(201, 120, 53, .22);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.site-header .hamburger .bar { background: #fff; }
+
+main#content::before {
+  opacity: .55;
+  background:
+    radial-gradient(ellipse 480px 260px at 50% -150px, transparent 97%, rgba(201, 120, 53, .34) 98%, transparent 100%),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(112, 109, 235, .18) 50%, transparent calc(50% + 1px));
+}
+
+.surface, .block, .card, .activity-card, .sk-card, .sk-team, .sk-player,
+[class*="stat-card"], [class*="record-card"], [class*="panel"] {
+  background: linear-gradient(145deg, rgba(27, 28, 66, .96), rgba(15, 16, 37, .98));
+  border: 1px solid rgba(112, 109, 235, .28);
+  box-shadow: var(--card-shadow);
+}
+.surface::before, .block::before, .activity-card::before {
+  border-color: rgba(201, 120, 53, .18);
+}
+
+h1, .page-title {
+  background: linear-gradient(100deg, #fff 8%, #d7d6ff 58%, #e7a36b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+h2, h3 { color: #f0efff; }
+.eyebrow, .section-eyebrow, .section-kicker {
+  color: #e69a5d;
+}
+.eyebrow::before { background: var(--accent); }
+
+.btn.primary, button.primary, .button-primary {
+  background: linear-gradient(115deg, #3432c8 0%, #514fe0 65%, #6865ed 100%);
+  border: 1px solid #7774f4;
+  box-shadow: 0 7px 22px rgba(52, 50, 200, .38);
+}
+.btn.primary:hover, button.primary:hover, .button-primary:hover {
+  background: linear-gradient(115deg, #4946df, #716df5);
+}
+.btn.accent, .badge.accent {
+  background: linear-gradient(110deg, #bd6c2e, #df8a43);
+  color: #fff;
+}
+
+.bfa-table thead th {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(52, 50, 200, .62), rgba(36, 34, 130, .42));
+  border-bottom: 2px solid var(--accent);
+}
+.bfa-table tbody tr:hover { background: rgba(52, 50, 200, .20); }
+.bfa-table tbody tr.champion-row {
+  background: linear-gradient(90deg, rgba(201, 120, 53, .24), rgba(52, 50, 200, .08));
+  border-left: 3px solid var(--accent);
+}
+.bfa-table tbody tr.leader-row {
+  background: linear-gradient(90deg, rgba(52, 50, 200, .18), transparent 80%);
+}
+
+:where(.tabs, .filters, .segmented, .view-toggle) button.active,
+:where(.tabs, .filters, .segmented, .view-toggle) a.active {
+  color: #fff;
+  background: linear-gradient(120deg, rgba(52, 50, 200, .55), rgba(201, 120, 53, .18));
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+:where(input, select, textarea) {
+  background-color: #11132b;
+  border-color: rgba(112, 109, 235, .34);
+}
+:where(input, select, textarea):focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(201, 120, 53, .18);
+}
+a { text-decoration-color: rgba(201, 120, 53, .5); }
+a:hover { text-decoration-color: var(--accent); }
+::selection { background: #3432c8; color: #fff; }
+
+@media (max-width: 720px) {
+  .site-header { border-bottom-width: 2px; }
+}
