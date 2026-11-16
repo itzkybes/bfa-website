@@ -335,7 +335,7 @@
     <ErrorBoundary {error} onRetry={loadAll} context="player records" />
   {:else}
     <section class="block" data-testid="season-mvps">
-      <SectionHeader compact title="Season MVPs" description="Every BFA season · regular season, playoffs, and finals" />
+      <SectionHeader compact title="Season MVPs" description="Newest season first · regular season, playoffs, and finals" />
       {#if seasonMvpRows.length}
         <div class="table-wrap">
           <table class="bfa-table season-mvp-table">
@@ -541,6 +541,9 @@
 
   .season-year { font-family: var(--font-display); font-size: 1.35rem; color: var(--accent); }
   .season-award-cell { gap: 0.85rem; }
+  .season-mvp-table th:first-child { width: 9%; }
+  .season-mvp-table th:not(:first-child) { width: 30.33%; }
+  .season-mvp-table tbody tr { min-height: 88px; }
   .record-headshot { width: 68px; height: 68px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
   .bfa-table .headshot { width: 58px; height: 58px; }
   .award-points { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
