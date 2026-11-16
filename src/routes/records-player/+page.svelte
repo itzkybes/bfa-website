@@ -19,6 +19,7 @@
   let allTimePlayoffsLeaderboard = []; // cumulative playoff points across every season, per player
   let allTimeRegularLeaderboard = []; // cumulative regular-season points across every season, per player
   let allTimeBestByTeam = [];          // per team: best reg-season player + best playoff player
+  let allTimeMvpAwards = [];
   let playersMap = {};
 
   // Page-specific presets for the shared formatters: 2 decimals, and a 'P' placeholder avatar.
@@ -150,6 +151,7 @@
         return {
           season: s.season ?? s.league_id,
           leagueId: s.league_id,
+          bracketComplete: Boolean(standings.bracketComplete),
           regularMvp: regularList[0]
             ? { ...regularList[0], playerName: null, roster_meta: rosterMap[regularList[0].rosterId] }
             : null,
@@ -189,6 +191,42 @@
         }
       }
       seasonsResults = seasonsResults; // force reactivity
+
+      // Count each season's three MVP awards by player.
+      const mvpAwardCounts = {};
+      for (const seasonResult of seasonsResults) {
+        if (!seasonResult.bracketComplete) continue;
+        for (const [awardKey, awardField] of [
+          ['regular', 'regularMvp'],
+          ['playoffs', 'playoffsMvp'],
+          ['finals', 'finalsMvp']
+        ]) {
+          const award = seasonResult[awardField];
+          if (!award?.playerId) continue;
+          const pid = String(award.playerId);
+          const row = mvpAwardCounts[pid] || {
+            playerId: pid, regular: 0, playoffs: 0, finals: 0, total: 0,
+            latestRoster: null
+          };
+          row[awardKey] += 1;
+          row.total += 1;
+          row.latestRoster = award.roster_meta || row.latestRoster;
+          mvpAwardCounts[pid] = row;
+        }
+      }
+      allTimeMvpAwards = Object.values(mvpAwardCounts)
+        .map((row) => ({
+          ...row,
+          playerName: playerDisplayName(playersMap, row.playerId)
+        }))
+        .sort((a, b) =>
+          b.total - a.total ||
+          b.finals - a.finals ||
+          b.playoffs - a.playoffs ||
+          b.regular - a.regular ||
+          String(a.playerName || '').localeCompare(String(b.playerName || ''))
+        );
+
 
       // All-time playoff best per roster
       const allTimePlayoffMap = {}; // rid -> { rosterId, playerId, points, season, ... }
@@ -400,7 +438,7 @@
       <div>
         <div class="eyebrow">All-Time · Player Records</div>
         <h1 class="page-title">Player Records</h1>
-        <p class="page-sub">Per-season MVP awards and the all-time single-season scoring leaders by team.</p>
+        <p class="page-sub">Season MVPs, all-time award leaders, and the league's top single-season scorers.</p>
       </div>
     </div>
   </header>
@@ -473,6 +511,62 @@
           {:else}<div class="mvp-empty">No Finals MVP data.</div>{/if}
         </div>
       </div>
+    </section>
+
+    <section class="block" data-testid="all-time-mvp-awards">
+      <div class="block-head">
+        <div class="block-head-text">
+          <h2 class="block-title">All-Time MVP Awards</h2>
+          <span class="block-sub">Award counts across every completed BFA season</span>
+        </div>
+      </div>
+      {#if allTimeMvpAwards.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead>
+              <tr>
+                <th class="rank-cell">Rank</th>
+                <th>Player</th>
+                <th class="col-num">Total Awards</th>
+                <th class="col-num">Regular MVP</th>
+                <th class="col-num">Playoffs MVP</th>
+                <th class="col-num">Finals MVP</th>
+                <th>Most Recent Team</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each allTimeMvpAwards as row, idx (row.playerId)}
+                <tr>
+                  <td class="rank-cell"><span class="num rank-num" class:leader-cell={idx === 0}>{idx + 1}</span></td>
+                  <td>
+                    <div class="player-cell">
+                      <img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                      <div class="player-name-cell">{row.playerName}</div>
+                    </div>
+                  </td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{row.total}</span></td>
+                  <td class="col-num"><span class="num">{row.regular}</span></td>
+                  <td class="col-num"><span class="num">{row.playoffs}</span></td>
+                  <td class="col-num"><span class="num">{row.finals}</span></td>
+                  <td>
+                    {#if row.latestRoster}
+                      <div class="team-cell">
+                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar || row.latestRoster.owner_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
+                        <div>
+                          <div class="team-name-cell">{row.latestRoster.team_name}</div>
+                          <div class="team-owner-cell">{row.latestRoster.owner_name}</div>
+                        </div>
+                      </div>
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}
+        <div class="empty-card">No MVP awards recorded yet.</div>
+      {/if}
     </section>
 
     <section class="block">
