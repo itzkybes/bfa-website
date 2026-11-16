@@ -787,9 +787,8 @@
     border: 1px solid var(--border-subtle);
     border-radius: var(--r-sm);
   }
-  .season-table-wrap { overflow-x: auto; }
-  .season-table { min-width: 560px; }
-  .h2h-table { min-width: 520px; }
+  .season-table-wrap { overflow: hidden; }
+  .season-table, .h2h-table { width: 100%; min-width: 0; table-layout: fixed; }
 
   .franchise-records {
     margin: 0.25rem 0 1.1rem;

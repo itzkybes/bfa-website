@@ -347,8 +347,8 @@
   .section-heading h2 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.3rem); text-transform: uppercase; margin: 0.25rem 0 0; }
   .section-heading p { color: var(--text-tertiary); font-size: 0.82rem; max-width: 46ch; margin: 0 0 0.25rem; }
   .block { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; }
-  .table-wrap { width: 100%; overflow-x: auto; }
-  .bfa-table { min-width: 900px; }
+  .table-wrap { width: 100%; overflow: hidden; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; }
   .col-trend { width: 140px; }
   .col-mv { width: 110px; }
   .rank-cell { width: 54px; }
@@ -394,8 +394,8 @@
     .section-heading p { margin-top: 0.5rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .page-sub { font-size: 0.88rem; }
-    .col-trend { width: 90px; min-width: 90px; }
-    .col-mv { width: 78px; min-width: 78px; }
+    .col-trend { width: auto; min-width: 0; }
+    .col-mv { width: auto; min-width: 0; }
     .mv-pill { min-width: 38px; padding: 0.15rem 0.4rem; font-size: 0.72rem; }
     .team-avatar.small { width: 34px; height: 34px; }
     .rank-num { font-size: 1.25rem; }
