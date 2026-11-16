@@ -489,6 +489,7 @@
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .table-wrap::after { display: none; }
     .page-sub { font-size: 0.9rem; }
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.05rem; }
