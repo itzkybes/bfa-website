@@ -17,6 +17,7 @@
   let allTimePlayoff = [];
   let allTimeFull = [];
   let allTimePlayoffsLeaderboard = []; // cumulative playoff points across every season, per player
+  let allTimeRegularLeaderboard = []; // cumulative regular-season points across every season, per player
   let allTimeBestByTeam = [];          // per team: best reg-season player + best playoff player
   let playersMap = {};
 
@@ -228,6 +229,37 @@
         }
       }
       allTimeFull = Object.values(allTimeFullMap).sort((a,b) => b.points - a.points);
+
+      // -- All-Time Regular-Season Scoring Leaderboard ----------------------
+      // Sum each player's regular-season points across every BFA season.
+      const regularByPlayer = {};
+      for (const r of seasonsResults) {
+        for (const [pid, info] of Object.entries(r.regularByPlayer || {})) {
+          if (!info?.points || info.points <= 0) continue;
+          const slot = regularByPlayer[pid] || {
+            playerId: pid, totalPoints: 0, appearances: 0,
+            best: 0, bestSeason: null, latestRoster: null
+          };
+          slot.totalPoints += info.points;
+          slot.appearances += 1;
+          if (info.points > slot.best) {
+            slot.best = info.points;
+            slot.bestSeason = r.season;
+          }
+          const playerSeasonMeta = r.rosterMap[info.rosterId] || slot.latestRoster;
+          slot.latestRoster = latestMetaFor(playerSeasonMeta) || playerSeasonMeta;
+          regularByPlayer[pid] = slot;
+        }
+      }
+      allTimeRegularLeaderboard = Object.values(regularByPlayer)
+        .map((p) => ({
+          ...p,
+          playerName: playerDisplayName(playersMap, p.playerId),
+          totalPoints: Math.round(p.totalPoints * 100) / 100,
+          best: Math.round(p.best * 100) / 100
+        }))
+        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .slice(0, 25);
 
       // -- All-Time Playoffs MVP Leaderboard --------------------------------
       // Sum each player's playoff points across EVERY season they appeared in.
@@ -529,6 +561,53 @@
       {:else}<div class="empty-card">No team data yet.</div>{/if}
     </section>
 
+    <section class="block" data-testid="all-time-regular-leaderboard">
+      <div class="block-head">
+        <h2 class="block-title">Regular Season Scoring · All-Time Leaderboard</h2>
+        <span class="block-sub">Cumulative regular-season points · every season</span>
+      </div>
+      {#if allTimeRegularLeaderboard.length}
+        <div class="table-wrap">
+          <table class="bfa-table">
+            <thead>
+              <tr>
+                <th style="width:60px;" title="Rank by cumulative regular-season scoring">Rank</th>
+                <th>Player</th>
+                <th class="col-num" title="Sum of regular-season points across every season played">Total Regular PTS</th>
+                <th class="col-num" title="Highest single-season regular-season total">Best Single Season</th>
+                <th class="col-num" title="Number of seasons with regular-season scoring">Seasons Played</th>
+                <th>Most Recent Team</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each allTimeRegularLeaderboard as row, idx (row.playerId)}
+                <tr>
+                  <td class="rank-cell"><span class="num rank-num" class:leader-cell={idx === 0}>{idx + 1}</span></td>
+                  <td>
+                    <div class="player-cell">
+                      <img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                      <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
+                    </div>
+                  </td>
+                  <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{fmt(row.totalPoints)}</span></td>
+                  <td class="col-num"><span class="num">{fmt(row.best)} <span class="best-season">'{String(row.bestSeason).slice(-2)}</span></span></td>
+                  <td class="col-num"><span class="num">{row.appearances}</span></td>
+                  <td>
+                    {#if row.latestRoster}
+                      <div class="team-cell">
+                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar || row.latestRoster.owner_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
+                        <div><div class="team-name-cell">{row.latestRoster.team_name}</div><div class="team-owner-cell">{row.latestRoster.owner_name}</div></div>
+                      </div>
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}<div class="empty-card">No regular-season scoring data yet.</div>{/if}
+    </section>
+
     <section class="block" data-testid="all-time-playoffs-leaderboard">
       <div class="block-head">
         <h2 class="block-title">Playoffs MVP · All-Time Leaderboard</h2>
@@ -605,6 +684,7 @@
 </div>
 
 <style>
+  .page.wrap { max-width: 1600px; }
   .page { padding: 2.5rem 0 4rem; }
   .page-head { margin-bottom: 2rem; }
   .head-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
@@ -638,8 +718,11 @@
   .t-owner { color: var(--text-tertiary); font-size: 0.75rem; }
   .mvp-empty { color: var(--text-tertiary); padding: 1rem 0; font-style: italic; }
 
-  .table-wrap { overflow-x: auto; }
-  .bfa-table { min-width: 720px; }
+  .table-wrap { width: 100%; overflow-x: visible; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: auto; }
+  .bfa-table thead th { white-space: normal; }
+  .team-cell, .player-cell { min-width: 0; }
+  .team-name-cell, .player-name-cell { overflow-wrap: anywhere; }
   .team-cell, .player-cell { display: flex; align-items: center; gap: 0.7rem; }
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell, .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
@@ -661,6 +744,7 @@
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
+    .table-wrap::after { display: none; }
     .block-head { padding: 0.85rem 1rem; }
     .block-head-text { flex: 1; }
     .block-title { font-size: 1.05rem; }
@@ -674,5 +758,13 @@
     .headshot { width: 36px; height: 36px; }
     .team-owner-cell, .player-meta-cell { display: none; }
     .bigpts { font-size: 1rem; }
+    .table-wrap { overflow: visible; }
+    .bfa-table { table-layout: fixed; font-size: 0.78rem; }
+    .bfa-table thead th { padding: 0.58rem 0.32rem; font-size: 0.58rem; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+    .bfa-table tbody td { padding: 0.62rem 0.32rem; overflow-wrap: anywhere; }
+    .bfa-table .col-num { white-space: normal; }
+    .bfa-table .team-cell, .bfa-table .player-cell { gap: 0.35rem; }
+    .bfa-table .team-avatar.small, .bfa-table .headshot { width: 28px; height: 28px; }
+    .bfa-table .num { font-size: 0.9rem; }
   }
 </style>
