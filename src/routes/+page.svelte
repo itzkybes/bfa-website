@@ -5,10 +5,12 @@
     fetchWithCache,
     getSeasonsChain, BASE_LEAGUE_ID,
     pickActiveLeague, getRecentTransactions,
-    getPlayersNba, getRosterMapWithOwners, playerHeadshot
+    getPlayersNba, getRosterMapWithOwners
   } from '$lib/api';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
+  import PlayerIdentity from '$lib/components/PlayerIdentity.svelte';
+  import TeamIdentity from '$lib/components/TeamIdentity.svelte';
 
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   // URL override > env override > resolved-at-runtime "live" league
@@ -376,32 +378,23 @@
           <div class="activity-sides" class:multi-side={transaction.sides.length > 1}>
             {#each transaction.sides as side, i (side.rosterId)}
               <div class="activity-side">
-                <div class="activity-team">
-                  <img
-                    class="activity-avatar"
-                    src={side.meta.team_avatar || side.meta.owner_avatar || ('https://ui-avatars.com/api/?name=' + encodeURIComponent((side.meta.team_name || 'T')[0]) + '&background=1a1a1e&color=a1a1aa&size=48&format=svg')}
-                    alt={side.meta.team_name}
-                    on:error={(e) => (e.currentTarget.style.visibility = 'hidden')}
-                    loading="lazy"
-                  />
-                  <div class="activity-team-meta">
-                    {#if side.meta.owner_username}
-                      <a class="activity-team-name" href={'/team/' + encodeURIComponent(side.meta.owner_username)}>{side.meta.team_name}</a>
-                    {:else}
-                      <div class="activity-team-name">{side.meta.team_name}</div>
-                    {/if}
-                    {#if side.meta.owner_name}<div class="activity-owner">{side.meta.owner_name}</div>{/if}
-                  </div>
-                </div>
+                <TeamIdentity
+                  meta={side.meta}
+                  href={side.meta.owner_username ? '/team/' + encodeURIComponent(side.meta.owner_username) : null}
+                  subtitle={side.meta.owner_name || ''}
+                  size="compact"
+                />
                 <div class="activity-details">
                   {#if side.adds.length || side.picksIn.length || side.cashIn > 0}
                     <div class="activity-detail-group">
                       <span class="detail-label positive">Added / Received</span>
                       {#each side.adds as player (player.pid)}
-                        <div class="activity-player">
-                          <img src={playerHeadshot(player.pid)} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} loading="lazy" />
-                          <span>{player.name}<small>{player.position}{player.team ? ' · ' + player.team : ''}</small></span>
-                        </div>
+                        <PlayerIdentity
+                          playerId={player.pid}
+                          playerName={player.name}
+                          subtitle={player.position + (player.team ? ' · ' + player.team : '')}
+                          size="compact"
+                        />
                       {/each}
                       {#each side.picksIn as pick ('in-' + pick.season + '-' + pick.round)}
                         <div class="activity-asset">{pick.season} Round {pick.round} pick</div>
@@ -413,10 +406,12 @@
                     <div class="activity-detail-group">
                       <span class="detail-label negative">Dropped / Sent</span>
                       {#each side.drops as player (player.pid)}
-                        <div class="activity-player">
-                          <img src={playerHeadshot(player.pid)} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} loading="lazy" />
-                          <span>{player.name}<small>{player.position}{player.team ? ' · ' + player.team : ''}</small></span>
-                        </div>
+                        <PlayerIdentity
+                          playerId={player.pid}
+                          playerName={player.name}
+                          subtitle={player.position + (player.team ? ' · ' + player.team : '')}
+                          size="compact"
+                        />
                       {/each}
                       {#each side.picksOut as pick ('out-' + pick.season + '-' + pick.round)}
                         <div class="activity-asset">{pick.season} Round {pick.round} pick</div>
@@ -699,21 +694,11 @@
   .activity-sides { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
   .activity-sides.multi-side { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; }
   .activity-side { min-width: 0; display: flex; flex-direction: column; gap: 0.65rem; }
-  .activity-team { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
-  .activity-avatar { width: 38px; height: 38px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
-  .activity-team-meta { min-width: 0; }
-  .activity-team-name { display: block; font-family: var(--font-display); font-size: 0.98rem; text-transform: uppercase; letter-spacing: 0.035em; color: var(--text-primary); text-decoration: none; line-height: 1.15; overflow-wrap: anywhere; }
-  a.activity-team-name:hover { color: var(--accent); }
-  .activity-owner { color: var(--text-tertiary); font-size: 0.7rem; margin-top: 0.15rem; }
   .activity-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   .activity-detail-group { min-width: 0; background: var(--surface-2); border-radius: var(--r-sm); padding: 0.58rem 0.65rem; display: flex; flex-direction: column; gap: 0.4rem; }
   .detail-label { font-size: 0.61rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
   .detail-label.positive { color: var(--success, #22c55e); }
   .detail-label.negative { color: var(--text-tertiary); }
-  .activity-player { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
-  .activity-player img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface-1); flex-shrink: 0; }
-  .activity-player span { min-width: 0; color: var(--text-primary); font-size: 0.76rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
-  .activity-player small { display: block; color: var(--text-tertiary); font-size: 0.64rem; font-weight: 500; margin-top: 0.12rem; }
   .activity-asset { color: var(--text-secondary); font-size: 0.75rem; font-weight: 700; }
   .activity-no-details { color: var(--text-tertiary); font-size: 0.75rem; }
   .activity-swap { align-self: center; color: var(--accent); font-size: 1.25rem; padding: 0 0.1rem; }
