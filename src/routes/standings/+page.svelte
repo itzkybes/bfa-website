@@ -81,9 +81,9 @@
     const rows = selectedResult.regularStandings;
     const playoffTeams = Number(selectedResult.playoffTeams) || 8;
     const playoffStart = Number(selectedResult.playoffStart) || 999;
-    const completedThrough = selectedResult.completedThroughWeek != null ? Number(selectedResult.completedThroughWeek) : completedRegularWeeks;
     const completedRegularWeeks = Object.keys(selectedResult.collectedMatchups || {})
       .map(Number).filter((week) => week >= 1 && week < playoffStart).length;
+    const completedThrough = selectedResult.completedThroughWeek != null ? Number(selectedResult.completedThroughWeek) : completedRegularWeeks;
     const playedThrough = Number.isFinite(completedThrough) ? completedThrough : completedRegularWeeks;
     const remaining = Math.max(0, (Number(selectedResult.regularSeasonWeeks) || (playoffStart - 1)) - playedThrough);
     if (playedThrough >= playoffStart - 1 || remaining === 0) {
