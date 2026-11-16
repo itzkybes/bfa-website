@@ -97,7 +97,11 @@
     for (let sample = 0; sample < samples; sample++) {
       const projected = rows.map((row) => {
         const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
-        const winRate = games ? ((row.wins || 0) + (row.ties || 0) * 0.5) / games : 0.5;
+        // Early records are noisy. Blend the observed rate with a neutral
+        // .500 baseline equivalent to 10 games before projecting the rest
+        // of the season, so one or two results cannot swing the odds wildly.
+        const priorGames = 10;
+        const winRate = ((row.wins || 0) + (row.ties || 0) * 0.5 + priorGames * 0.5) / (games + priorGames);
         let projectedWins = (row.wins || 0) + (row.ties || 0) * 0.5;
         for (let game = 0; game < remaining; game++) if (random() < winRate) projectedWins += 1;
         return { rosterId: row.rosterId, wins: projectedWins, pf: row.pf || 0 };
@@ -309,7 +313,6 @@
                 <th class="col-num" title="Longest consecutive losses this season">Worst Streak</th>
                 <th class="col-num" title="Total points scored by this team">Points For</th>
                 <th class="col-num" title="Total points scored against this team">Points Against</th>
-                <th class="col-trend" title="Points-for trend across every regular-season week">Weekly Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -346,19 +349,10 @@
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
                   <td class="col-num"><span class="num muted">{row.pa}</span></td>
-                  <td class="col-trend" data-testid={`trend-${row.rosterId}`}>
-                    <Sparkline
-                      points={weeklyByRoster[row.rosterId] || []}
-                      width={140}
-                      height={32}
-                      stroke="var(--accent)"
-                      ariaLabel={`${row.team_name} PF by week`}
-                    />
-                  </td>
                 </tr>
                 {#if idx === (Number(selectedResult?.playoffTeams) || 8) - 1 && idx < selectedResult.regularStandings.length - 1}
                   <tr class="playoff-cutoff-row" aria-label="Playoff cutoff">
-                    <td colspan="12"><span>PLAYOFF CUTOFF</span></td>
+                    <td colspan="11"><span>PLAYOFF CUTOFF</span></td>
                   </tr>
                 {/if}
               {/each}
@@ -436,8 +430,15 @@
   .standings-table th { white-space: normal; line-height: 1.2; }
   .playoff-cutoff-row td { padding: 0.35rem 0.75rem; border-bottom: 1px solid var(--gold); border-top: 1px solid var(--gold); background: rgba(245, 180, 0, 0.07); }
   .playoff-cutoff-row span { display: block; color: var(--gold); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.18em; text-align: center; }
-  .playoff-chance-cell .num { color: var(--win); font-weight: 700; }
-  .col-trend { width: 160px; min-width: 160px; padding-right: 0.75rem; }
+  .playoff-chance-cell .num { color: var(--win); font-weight: 400; }
+  .standings-table th:nth-child(3) { width: 24%; }
+  .standings-table .team-cell { min-width: 0; }
+  .standings-table .team-cell > div { min-width: 0; }
+  .standings-table .team-name-cell { font-weight: 400; overflow-wrap: anywhere; }
+  /* Keep all data values on this page visually even-weighted. */
+  .page .bfa-table tbody td { font-weight: 400; }
+  .page .bfa-table .leader-cell { font-weight: 400; }
+  .page .num, .page .delta, .page .mvp-race-player { font-weight: 400; }
   .rank-cell { width: 60px; }
   .rank-num { font-size: 1.4rem; color: var(--accent); }
   .team-cell { display: flex; align-items: center; gap: 0.75rem; }
@@ -545,7 +546,6 @@
     .season-form select { flex: 1; }
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.1rem; }
-    .col-trend { width: auto; min-width: 0; padding-right: 0.5rem; }
     .team-avatar.small { width: 34px; height: 34px; }
     .team-owner-cell { display: none; }
     .rank-num { font-size: 1.2rem; }
@@ -561,7 +561,7 @@
     .standings-table th:nth-child(11), .standings-table td:nth-child(11),
     .standings-table th:nth-child(12), .standings-table td:nth-child(12) { display: none; }
     .standings-table th:nth-child(1) { width: 8%; }
-    .standings-table th:nth-child(3) { width: 34%; }
+    .standings-table th:nth-child(3) { width: 38%; }
     .standings-table th:nth-child(4), .standings-table th:nth-child(5) { width: 10%; }
     .standings-table th:nth-child(6) { width: 15%; }
     .standings-table th:nth-child(10) { width: 13%; }
