@@ -91,7 +91,7 @@ export function starterPointsByPid(entry) {
  * each week.
  *
  * @param {Array<object | null>} matchupEntries
- * @returns {Record<string, { playerId: string, points: number, rosterId: string }>}
+ * @returns {Record<string, { playerId: string, points: number, rosterId: string, pointsByRoster: Record<string, number> }>}
  */
 export function aggregatePlayerPoints(matchupEntries) {
   const byPlayer = {};
