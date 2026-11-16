@@ -169,7 +169,9 @@ src/
 │   │   ├── Header.svelte          Sticky top nav
 │   │   ├── Sparkline.svelte       SVG sparkline (standings + power-rankings)
 │   │   ├── ErrorBoundary.svelte   Friendly error UI with retry
-│   │   └── SkeletonLoader.svelte  Loading skeletons for tables/cards/rows
+│   │   ├── SkeletonLoader.svelte  Loading skeletons for tables/cards/rows
+│   │   ├── PlayerIdentity.svelte  Consistent player headshot, name, and context
+│   │   └── TeamIdentity.svelte    Consistent franchise avatar, name, owner, and link
 │   └── utils/
 │       ├── format.js              formatNumber, avatarOrPlaceholder, playerDisplayName
 │       ├── positions.js           Expand `fantasy_positions` to full slot eligibility (PG→PG,G,UTIL …)
