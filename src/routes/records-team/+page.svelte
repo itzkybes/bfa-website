@@ -15,6 +15,7 @@
   let singleSeasonRecords = [];
   let marginsLargest = [];
   let marginsSmallest = [];
+  let lowestWeeklyTotals = [];
   // Stable key across seasons: prefer owner_username (Sleeper username), fallback to owner_name.
   function stableKey(meta) {
     if (!meta) return null;
@@ -174,6 +175,36 @@
         }
       }
 
+
+      // Lowest team total in each regular-season week across the entire league.
+      // Tied lowest scores all count as a league low.
+      const lowestByTeam = {};
+      for (const result of standingsResults) {
+        if (!result) continue;
+        const rmap = result.rosterMap || {}, collected = result.collectedMatchups || {};
+        const playoffStart = Number(result.playoffStart) || 19;
+        for (const wk of Object.keys(collected)) {
+          const week = Number(wk);
+          if (!Number.isFinite(week) || week < 1 || week >= playoffStart) continue;
+          const entries = (collected[wk] || []).filter((entry) => Number.isFinite(Number(entry.points)));
+          if (!entries.length) continue;
+          const lowest = Math.min(...entries.map((entry) => Number(entry.points)));
+          for (const entry of entries) {
+            const points = Number(entry.points);
+            if (Math.abs(points - lowest) > 1e-9) continue;
+            const rid = String(entry.roster_id ?? entry.rosterId ?? ''), meta = rmap[rid] || {};
+            const key = stableKey(meta) || String(meta.team_name || rid).toLowerCase();
+            if (!lowestByTeam[key]) lowestByTeam[key] = {
+              key, team_name: meta.team_name || 'Unknown team', owner_name: meta.owner_name || '',
+              avatar: meta.team_avatar || meta.owner_avatar || null, count: 0, weeks: []
+            };
+            lowestByTeam[key].count++;
+            lowestByTeam[key].weeks.push({ season: result.season, week, points });
+          }
+        }
+      }
+      lowestWeeklyTotals = Object.values(lowestByTeam).sort((a,b)=>b.count-a.count || a.team_name.localeCompare(b.team_name));
+
       const sorted = allMargins.slice().sort((a, b) => b.margin - a.margin);
       marginsLargest = sorted.slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
       marginsSmallest = sorted.slice().reverse().slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
@@ -243,6 +274,19 @@
       </article>
     </section>
 
+    <section class="block">
+      <div class="block-head"><h2 class="block-title">Most Weekly League Lows</h2><span class="block-sub">Lowest team total in each regular-season week · ties count</span></div>
+      {#if lowestWeeklyTotals.length}
+        <div class="table-wrap"><table class="bfa-table">
+          <thead><tr><th>Rank</th><th>Team</th><th>Owner</th><th class="col-num">Weekly Lows</th><th>Weeks</th></tr></thead>
+          <tbody>{#each lowestWeeklyTotals as row, i (row.key)}
+            <tr><td class="num">{i + 1}</td><td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="" /><strong>{row.team_name}</strong></div></td>
+              <td>{row.owner_name || '—'}</td><td class="col-num num">{row.count}</td>
+              <td>{row.weeks.map((w) => `${w.season} W${w.week} (${w.points.toFixed(1)})`).join(' · ')}</td></tr>
+          {/each}</tbody>
+        </table></div>
+      {:else}<div class="empty-row">No completed regular-season weekly scores yet.</div>{/if}
+    </section>
     <section class="block">
       <div class="block-head">
         <h2 class="block-title">Best Single-Season Records</h2>
