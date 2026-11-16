@@ -13,14 +13,14 @@ Live on Vercel. No login. No backend. No database.
 
 | Route             | What you'll find                                                |
 | ----------------- | --------------------------------------------------------------- |
-| `/`               | Current-week matchups, "Rando Player" spotlight, recent Trade Ledger |
+| `/`               | Current-week matchups, "Rando Player" spotlight, and recent transactions (trades, waivers, free agents) |
 | `/rosters`        | Single-team **Owner Hub** picked by dropdown — career stats, Franchise Records, starters / bench / taxi |
 | `/standings`      | Regular-season + playoff records with weekly PF trend sparklines, plus "Regular Season MVP Race" top-5 leaderboard |
 | `/matchups`       | **Weekly Recap** — Top 3 Performances, Biggest Blowout, Closest Game, Highest-Scoring Matchup, Bust of the Week, plus every head-to-head card |
 | `/power-rankings` | Rolling 4-week window: Last 4 W-L, avg score, avg margin, score trend, Δ vs prior |
 | `/team/[username]`| Per-roster matchup history — Head-to-Head block (rival, longest H2H win streak, full opponent table) + every week's opponent and result |
 | `/records-team`   | All-time aggregated W/L, biggest blowouts/nailbiters, head-to-head matrix |
-| `/records-player` | Regular Season / Playoffs / Finals MVP per season + 4 all-time tables (Best By Team, Playoff Best, Full-Season Best, Playoffs Leaderboard) |
+| `/records-player` | Season MVPs, all-time MVP award counts, each franchise's best single-season scorer, and cumulative regular-season + playoff scoring leaders |
 | `/honor-hall`     | Champion + Biggest Loser + three MVPs + final standings 1–14   |
 | `/admin/generate-season-matchups` | Browser-based snapshot regenerator. Defaults to every completed season in the chain; override with `?years=2026,2027` |
 
@@ -58,7 +58,7 @@ flowchart LR
 
     home -- "hero buttons" --> rosters
     home -- "hero buttons" --> standings
-    home -- "Home: trade ledger" --> team
+    home -- "Home: recent transactions" --> team
     power -- "Power Rankings: team names" --> team
     rplayer -- "Player Records: team names" --> team
     team -- "rival / opponent names" --> team
@@ -154,7 +154,7 @@ src/
 ├── lib/
 │   ├── api/
 │   │   ├── sleeper.js             Sleeper REST wrapper, season-chain discovery, BASE_LEAGUE_ID
-│   │   ├── cache.js               localStorage cache with TTL
+│   │   ├── cache.js               in-memory + localStorage cache, TTLs, and in-flight request deduplication
 │   │   ├── staticSeasons.js       Loader for /static/season_matchups/{year}.json snapshots
 │   │   └── index.js               Barrel — `import { … } from '$lib/api'`
 │   ├── compute/
@@ -217,7 +217,7 @@ flowchart TB
         direction LR
         sl["sleeper.js"]
         st["staticSeasons.js"]
-        ca["cache.js<br/>localStorage + TTL"]
+        ca["cache.js<br/>memory + localStorage + TTL"]
     end
 
     sleeper[("Sleeper API<br/>api.sleeper.app/v1")]
@@ -245,8 +245,9 @@ The first version of this site rendered standings server-side. That blew up on
 Vercel because Sleeper's `/players/nba` response is ~5 MB — every page view
 became a serverless cold start that timed out reading static files. The fix was
 to render every route as a static HTML shell and let the browser fetch from
-Sleeper directly. `localStorage` caches the heavy responses so repeat visits
-are instant.
+Sleeper directly. Small responses persist in `localStorage`; large responses (including the NBA player map)
+are kept in memory for the current app session. Identical concurrent GET requests share
+one in-flight request, preventing components from downloading the same large payload twice.
 
 In practice that means:
 
@@ -349,7 +350,7 @@ flowchart TD
     C -- yes --> D{"Snapshot file exists?<br/>/season_matchups/year.json"}
     D -- "yes" --> S["Use the static snapshot"]
     D -- "404" --> L
-    L --> K[("localStorage cache<br/>60s – 1h TTL")]
+    L --> K[("memory + localStorage cache<br/>60s – 1h TTL")]
     K --> R["Compute standings / matchups"]
     S --> R
     R --> UI["Render the page"]
