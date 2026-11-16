@@ -470,7 +470,18 @@ export async function getRecentTransactions(leagueId, { weekFrom = 1, weekTo = 2
 }
 
 /** Backwards-compatible trade-only helper for existing callers. */
-export async function getRecentTrades(leagueId, options = {}) {
-  const transactions = await getRecentTransactions(leagueId, options);
-  return transactions.filter((transaction) => transaction.type === 'trade').slice(0, options.limit ?? 20);
+export async function getRecentTrades(leagueId, { weekFrom = 1, weekTo = 25, limit = 20 } = {}) {
+  const weeks = [];
+  for (let week = weekFrom; week <= weekTo; week++) weeks.push(week);
+  const lists = await Promise.all(weeks.map((week) => getTransactionsForWeek(leagueId, week)));
+  const trades = [];
+  for (let i = 0; i < lists.length; i++) {
+    for (const transaction of lists[i] || []) {
+      if (transaction?.type === 'trade' && transaction.status === 'complete') {
+        trades.push({ ...transaction, _week: weeks[i] });
+      }
+    }
+  }
+  trades.sort((a, b) => Number(b.status_updated || b.created || 0) - Number(a.status_updated || a.created || 0));
+  return trades.slice(0, limit);
 }
