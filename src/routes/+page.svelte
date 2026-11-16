@@ -20,13 +20,13 @@
   let recentTransactions = [];
   let transactionsLoading = true;
   let activityFilter = 'all';
-  $: visibleTransactions = activityFilter === 'all'
-    ? recentTransactions.slice(0, ALL_ACTIVITY_LIMIT)
-    : recentTransactions.filter((transaction) => transaction.type === activityFilter);
+  const ALL_ACTIVITY_LIMIT = 18;
   let playersMap = {};
   let rosterMap = {};
   let rawRecentTransactions = [];
-  const ALL_ACTIVITY_LIMIT = 18;
+  $: visibleTransactions = activityFilter === 'all'
+    ? recentTransactions.slice(0, ALL_ACTIVITY_LIMIT)
+    : recentTransactions.filter((transaction) => transaction.type === activityFilter);
 
   const CACHE_10_MIN = 10 * 60 * 1000;
 
