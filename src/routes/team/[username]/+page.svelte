@@ -457,8 +457,8 @@
   .block-sub { color: var(--text-tertiary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
   .trophy { margin-left: 0.4rem; }
 
-  .table-wrap { width: 100%; overflow-x: auto; }
-  .bfa-table { min-width: 720px; }
+  .table-wrap { width: 100%; overflow: hidden; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; }
   .wk-cell { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; }
   .playoff-pill { background: var(--brand); color: var(--brand-foreground, #fff); font-size: 0.62rem; font-weight: 800; padding: 0.1rem 0.4rem; border-radius: 999px; letter-spacing: 0.08em; }
   .team-cell-link { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: inherit; transition: opacity 0.2s; }
@@ -555,7 +555,7 @@
     margin-left: 0.25rem;
   }
 
-  .h2h-table { min-width: 720px; }
+  .h2h-table { width: 100%; min-width: 0; table-layout: fixed; }
   .last3 { display: inline-flex; gap: 0.2rem; justify-content: flex-end; }
   .pellet {
     display: inline-flex; align-items: center; justify-content: center;
