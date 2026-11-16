@@ -912,3 +912,82 @@ a:hover { text-decoration-color: var(--accent); }
 @media (max-width: 720px) {
   .site-header { border-bottom-width: 2px; }
 }
+
+
+/* Final palette correction: true court-side blue, not violet/purple */
+:root {
+  --brand: #1554d1;
+  --brand-hover: #2869ed;
+  --brand-soft: rgba(21, 84, 209, .30);
+  --brand-glow: rgba(21, 84, 209, .42);
+  --accent: #cf762f;
+  --accent-hover: #e18b43;
+  --accent-soft: rgba(207, 118, 47, .24);
+  --accent-glow: rgba(207, 118, 47, .36);
+  --bg-base: #080d1b;
+  --surface-1: #101a32;
+  --surface-2: #142344;
+  --surface-3: #1c3159;
+  --border-subtle: rgba(72, 125, 220, .24);
+  --border-strong: rgba(72, 125, 220, .44);
+  --text-muted: #aab7ce;
+  --card-shadow: 0 16px 38px rgba(0, 0, 0, .34), 0 0 0 1px rgba(21, 84, 209, .08);
+}
+html, body {
+  background:
+    radial-gradient(ellipse 1000px 600px at 50% -240px, rgba(21, 84, 209, .34), transparent 72%),
+    radial-gradient(ellipse 700px 520px at 100% 28%, rgba(207, 118, 47, .13), transparent 70%),
+    linear-gradient(180deg, #0b1428 0%, #080d1b 60%, #0c1222 100%);
+}
+.site-header {
+  background: linear-gradient(100deg, #123f9f, #102b63 62%, #0b1428);
+  border-bottom-color: var(--accent);
+}
+.site-header .nav-link.active,
+.site-header .nav-link:hover {
+  background: rgba(207, 118, 47, .22);
+}
+main#content::before {
+  background:
+    radial-gradient(ellipse 480px 260px at 50% -150px, transparent 97%, rgba(207, 118, 47, .30) 98%, transparent 100%),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(72, 125, 220, .16) 50%, transparent calc(50% + 1px));
+}
+.surface, .block, .card, .activity-card, .sk-card, .sk-team, .sk-player,
+[class*="stat-card"], [class*="record-card"], [class*="panel"] {
+  background: linear-gradient(145deg, rgba(20, 36, 68, .97), rgba(12, 20, 39, .99));
+  border-color: rgba(72, 125, 220, .26);
+}
+h1, .page-title {
+  background: linear-gradient(100deg, #fff 8%, #d8e6ff 58%, #e7a36b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.eyebrow, .section-eyebrow, .section-kicker { color: #e69a5d; }
+.btn.primary, button.primary, .button-primary {
+  background: linear-gradient(115deg, #1554d1, #2869ed 65%, #4380f4);
+  border-color: #4a85f5;
+  box-shadow: 0 7px 22px rgba(21, 84, 209, .34);
+}
+.btn.primary:hover, button.primary:hover, .button-primary:hover {
+  background: linear-gradient(115deg, #2869ed, #5790ff);
+}
+.bfa-table thead th {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(21, 84, 209, .58), rgba(16, 43, 99, .48));
+  border-bottom-color: var(--accent);
+}
+.bfa-table tbody tr:hover { background: rgba(21, 84, 209, .17); }
+.bfa-table tbody tr.leader-row {
+  background: linear-gradient(90deg, rgba(21, 84, 209, .15), transparent 80%);
+}
+:where(.tabs, .filters, .segmented, .view-toggle) button.active,
+:where(.tabs, .filters, .segmented, .view-toggle) a.active {
+  background: linear-gradient(120deg, rgba(21, 84, 209, .48), rgba(207, 118, 47, .17));
+  border-color: var(--accent);
+}
+:where(input, select, textarea) { border-color: rgba(72, 125, 220, .34); }
+:where(input, select, textarea):focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(207, 118, 47, .18);
+}
+::selection { background: #1554d1; color: #fff; }
