@@ -371,7 +371,7 @@
               <span class="activity-type" class:trade-type={transaction.type === 'trade'}>{transaction.typeLabel}</span>
               <span class="activity-week">Week {transaction.week}</span>
             </div>
-            <time class="activity-when">{relativeTime(transaction.timestamp)}</time>
+            <time class="activity-when" datetime={transaction.timestamp ? new Date(transaction.timestamp).toISOString() : undefined}>{relativeTime(transaction.timestamp)}</time>
           </header>
           <div class="activity-sides" class:multi-side={transaction.sides.length > 1}>
             {#each transaction.sides as side, i (side.rosterId)}
