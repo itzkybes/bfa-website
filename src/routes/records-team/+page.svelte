@@ -417,6 +417,7 @@
 </div>
 
 <style>
+  .page.wrap { max-width: 1760px; }
   .page { padding: 2.5rem 0 4rem; }
   .page-head { margin-bottom: 2rem; }
   .page-title { font-family: var(--font-display); font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1; text-transform: uppercase; margin: 0.4rem 0 0.5rem; }
@@ -450,10 +451,13 @@
   .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; flex-wrap: wrap; }
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
-  .table-wrap { overflow-x: auto; }
-  .bfa-table { min-width: 700px; font-size: 1.05rem; }
-  .bfa-table thead th { font-size: 0.76rem; padding: 0.95rem 1.05rem; }
-  .bfa-table tbody td { padding: 0.95rem 1.05rem; }
+  .table-wrap { width: 100%; overflow-x: visible; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: auto; font-size: 0.98rem; }
+  .bfa-table thead th { font-size: 0.72rem; padding: 0.85rem 0.72rem; white-space: normal; }
+  .bfa-table tbody td { padding: 0.85rem 0.72rem; }
+  .bfa-table .col-num { white-space: nowrap; }
+  .team-cell { min-width: 0; }
+  .team-name-cell { overflow-wrap: anywhere; }
   .team-cell { display: flex; align-items: center; gap: 0.75rem; }
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell { font-weight: 700; color: var(--text-primary); font-size: 0.98rem; line-height: 1.2; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
@@ -491,9 +495,14 @@
     .record-highlights { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
     .highlight-card { padding: 0.85rem; }
     .highlight-label { font-size: 0.6rem; }
-    .bfa-table { font-size: 0.92rem; }
-    .bfa-table thead th { font-size: 0.68rem; padding: 0.72rem 0.78rem; }
-    .bfa-table tbody td { padding: 0.78rem 0.78rem; }
+    .bfa-table { font-size: 0.78rem; table-layout: fixed; }
+    .bfa-table thead th { font-size: 0.58rem; padding: 0.58rem 0.32rem; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+    .bfa-table tbody td { padding: 0.62rem 0.32rem; overflow-wrap: anywhere; }
+    .bfa-table .col-num { white-space: normal; }
+    .bfa-table .team-cell { gap: 0.35rem; }
+    .bfa-table .team-avatar.small { width: 28px; height: 28px; }
+    .bfa-table .num { font-size: 0.9rem; }
+    .bfa-table th, .bfa-table td { min-width: 0; }
     .team-name-cell { font-size: 0.92rem; }
     .team-avatar.small { width: 38px; height: 38px; }
     .team-owner-cell { display: none; }
