@@ -280,7 +280,7 @@
         <div class="table-wrap"><table class="bfa-table">
           <thead><tr><th>Rank</th><th>Team</th><th>Owner</th><th class="col-num">Weekly Lows</th><th>Weeks</th></tr></thead>
           <tbody>{#each lowestWeeklyTotals as row, i (row.key)}
-            <tr><td class="num">{i + 1}</td><td><div class="team-cell"><img class="team-avatar" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="" /><strong>{row.team_name}</strong></div></td>
+            <tr><td class="num">{i + 1}</td><td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="" /><strong>{row.team_name}</strong></div></td>
               <td>{row.owner_name || '—'}</td><td class="col-num num">{row.count}</td>
               <td>{row.weeks.map((w) => `${w.season} W${w.week} (${w.points.toFixed(1)})`).join(' · ')}</td></tr>
           {/each}</tbody>
