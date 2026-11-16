@@ -1,11 +1,13 @@
 <!-- src/routes/records-player/+page.svelte (client-side fetched) -->
 <script>
   import { onMount } from 'svelte';
-  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/api';
+  import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, pickActiveLeague, getRosterMapWithOwners } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
-  import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
+  import { formatNumber, playerDisplayName } from '$lib/utils/format';
+  import PlayerIdentity from '$lib/components/PlayerIdentity.svelte';
+  import TeamIdentity from '$lib/components/TeamIdentity.svelte';
 
   let loading = true;
   let error = null;
@@ -15,11 +17,14 @@
   let allTimeMvpAwards = [];
   let playersMap = {};
 
-  // Page-specific presets for the shared formatters: 2 decimals, and a 'P' placeholder avatar.
   const fmt = (v) => formatNumber(v, 2);
-  const avatarOrPh = (url, name) => avatarOrPlaceholder(url, name, 'P');
+  const teamHref = (meta) => meta?.owner_username ? `/team/${encodeURIComponent(meta.owner_username)}` : null;
+  const seasonMvpScore = (row) => Math.max(0, ...[row.regularMvp?.points, row.playoffsMvp?.points, row.finalsMvp?.points].map((value) => Number(value) || 0));
 
-  $: seasonMvpRows = [...seasonsResults].reverse();
+  // Keep the season with the highest MVP scoring performance at the top.
+  $: seasonMvpRows = [...seasonsResults].sort((a, b) =>
+    seasonMvpScore(b) - seasonMvpScore(a) || String(b.season).localeCompare(String(a.season), undefined, { numeric: true })
+  );
 
   // Aggregate player points across multiple matchups. Reads STRICTLY from
   // `starters_points` (which already reflects each owner's selected-game
@@ -280,48 +285,70 @@
       allTimeBestByTeam = Object.values(bestByTeam)
         .filter((r) => r.reg || r.playoff)
         .map((r) => ({ ...r, meta: latestMetaFor(r.meta) || r.meta }))
-        .sort((a, b) => String(a.meta?.team_name || '').localeCompare(String(b.meta?.team_name || '')));
+        .sort((a, b) =>
+          Math.max(b.reg?.points || 0, b.playoff?.points || 0) - Math.max(a.reg?.points || 0, a.playoff?.points || 0) ||
+          String(a.meta?.team_name || '').localeCompare(String(b.meta?.team_name || ''))
+        );
 
-      // Cumulative all-time scoring leader for each franchise. Includes
-      // regular-season and playoff points across every season.
+      // Cumulative all-time scoring leaders by franchise, split into
+      // regular-season and playoff totals while keeping both in one table.
       const scoringByTeam = {};
-      for (const r of seasonsResults) {
-        for (const [pid, info] of Object.entries(r.fullByPlayer || {})) {
+      const addScoringTotals = (team, collection, category) => {
+        for (const [pid, info] of Object.entries(collection || {})) {
           if (!info?.points || info.points <= 0) continue;
-          const meta = r.rosterMap[info.rosterId];
+          const meta = team.rosterMap[info.rosterId];
           const key = stableKey(meta);
           if (!key) continue;
-          if (!scoringByTeam[key]) scoringByTeam[key] = { key, meta, players: {} };
-          scoringByTeam[key].meta = latestMetaFor(meta) || meta;
-          const player = scoringByTeam[key].players[pid] || {
-            playerId: pid, playerName: playerDisplayName(playersMap, pid), totalPoints: 0
+          if (!scoringByTeam[key]) {
+            scoringByTeam[key] = { key, meta, regularPlayers: {}, playoffPlayers: {} };
+          }
+          const bucket = category === 'regular' ? scoringByTeam[key].regularPlayers : scoringByTeam[key].playoffPlayers;
+          const player = bucket[pid] || {
+            playerId: pid,
+            playerName: playerDisplayName(playersMap, pid),
+            totalPoints: 0
           };
           player.totalPoints += info.points;
-          scoringByTeam[key].players[pid] = player;
+          bucket[pid] = player;
+          scoringByTeam[key].meta = latestMetaFor(meta) || meta;
         }
+      };
+
+      for (const seasonResult of seasonsResults) {
+        addScoringTotals(seasonResult, seasonResult.regularByPlayer, 'regular');
+        addScoringTotals(seasonResult, seasonResult.playoffByPlayer, 'playoffs');
       }
+
+      const topScorer = (players) => {
+        const leader = Object.values(players || {}).sort((a, b) => b.totalPoints - a.totalPoints)[0];
+        return leader
+          ? { ...leader, totalPoints: Math.round(leader.totalPoints * 100) / 100 }
+          : null;
+      };
+
       allTimeScoringByTeam = Object.values(scoringByTeam)
         .map((team) => {
-          const leader = Object.values(team.players).sort((a, b) => b.totalPoints - a.totalPoints)[0];
-          return leader ? { key: team.key, meta: team.meta, ...leader, totalPoints: Math.round(leader.totalPoints * 100) / 100 } : null;
+          const regularLeader = topScorer(team.regularPlayers);
+          const playoffLeader = topScorer(team.playoffPlayers);
+          return {
+            key: team.key,
+            meta: team.meta,
+            regularLeader,
+            playoffLeader,
+            combinedPoints: (regularLeader?.totalPoints || 0) + (playoffLeader?.totalPoints || 0)
+          };
         })
-        .filter(Boolean)
-        .sort((a, b) => String(a.meta?.team_name || '').localeCompare(String(b.meta?.team_name || '')));
+        .filter((team) => team.regularLeader || team.playoffLeader)
+        .sort((a, b) =>
+          b.combinedPoints - a.combinedPoints ||
+          String(a.meta?.team_name || '').localeCompare(String(b.meta?.team_name || ''))
+        );
     } catch (e) {
       console.error('[Records-Player] failed', e);
       error = e;
     } finally {
       loading = false;
     }
-  }
-
-  function rosterInfo(row) {
-    if (!row) return { teamName: null, ownerName: null, teamAvatar: null };
-    return {
-      teamName: row.teamName || row.roster_meta?.team_name || row.owner_name || `Roster ${row.rosterId}`,
-      ownerName: row.owner_name || row.roster_meta?.owner_name || (row.rosterId ? `Roster ${row.rosterId}` : null),
-      teamAvatar: row.teamAvatar || row.roster_meta?.team_avatar || row.roster_meta?.owner_avatar || null
-    };
   }
 
   onMount(loadAll);
@@ -361,14 +388,12 @@
                   {#each [row.regularMvp, row.playoffsMvp, row.finalsMvp] as award}
                     <td>
                       {#if award}
-                        <div class="player-cell season-award-cell">
-                          <img class="record-headshot" src={playerHeadshot(award.playerId) || avatarOrPh(rosterInfo(award).teamAvatar, award.playerName)} alt={award.playerName} on:error={(e) => (e.currentTarget.src = avatarOrPh(rosterInfo(award).teamAvatar, award.playerName))} />
-                          <div>
-                            <div class="player-name-cell">{award.playerName ?? `Player ${award.playerId}`}</div>
-                            <div class="award-points num">{fmt(award.points)} PTS</div>
-                            <div class="team-owner-cell">{rosterInfo(award).teamName}</div>
-                          </div>
-                        </div>
+                        <PlayerIdentity
+                          playerId={award.playerId}
+                          playerName={award.playerName}
+                          subtitle={`${fmt(award.points)} PTS · ${award.roster_meta?.team_name || 'Team'}`}
+                          size="large"
+                        />
                       {:else}<span class="muted">{row.bracketComplete ? '—' : 'Pending'}</span>{/if}
                     </td>
                   {/each}
@@ -406,10 +431,7 @@
                 <tr>
                   <td class="rank-cell"><span class="num rank-num" class:leader-cell={idx === 0}>{idx + 1}</span></td>
                   <td>
-                    <div class="player-cell">
-                      <img class="headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                      <div class="player-name-cell">{row.playerName}</div>
-                    </div>
+                    <PlayerIdentity playerId={row.playerId} playerName={row.playerName} size="small" />
                   </td>
                   <td class="col-num"><span class="num bigpts" class:leader-cell={idx === 0}>{row.total}</span></td>
                   <td class="col-num"><span class="num">{row.regular}</span></td>
@@ -417,13 +439,11 @@
                   <td class="col-num"><span class="num">{row.finals}</span></td>
                   <td>
                     {#if row.latestRoster}
-                      <div class="team-cell">
-                        <img class="team-avatar small" src={avatarOrPh(row.latestRoster.team_avatar || row.latestRoster.owner_avatar, row.latestRoster.team_name)} alt={row.latestRoster.team_name} />
-                        <div>
-                          <div class="team-name-cell">{row.latestRoster.team_name}</div>
-                          <div class="team-owner-cell">{row.latestRoster.owner_name}</div>
-                        </div>
-                      </div>
+                      <TeamIdentity
+                        meta={row.latestRoster}
+                        href={teamHref(row.latestRoster)}
+                        subtitle={row.latestRoster.owner_name || ''}
+                      />
                     {:else}<span class="muted">—</span>{/if}
                   </td>
                 </tr>
@@ -457,39 +477,25 @@
               {#each allTimeBestByTeam as row (row.key)}
                 <tr>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.meta?.team_avatar || row.meta?.owner_avatar, row.meta?.team_name)} alt={row.meta?.team_name} />
-                      <div>
-                        {#if row.meta?.owner_username}
-                          <a class="team-name-link" href={`/team/${encodeURIComponent(row.meta.owner_username)}`}>{row.meta?.team_name || `Roster ${row.key}`}</a>
-                        {:else}
-                          <div class="team-name-cell">{row.meta?.team_name || `Roster ${row.key}`}</div>
-                        {/if}
-                        {#if row.meta?.owner_name}<div class="team-owner-cell">{row.meta.owner_name}</div>{/if}
-                      </div>
-                    </div>
+                    <TeamIdentity meta={row.meta} href={teamHref(row.meta)} subtitle={row.meta?.owner_name || ''} />
                   </td>
                   <td>
                     {#if row.reg}
-                      <div class="player-cell">
-                        <img class="headshot" src={playerHeadshot(row.reg.playerId)} alt={row.reg.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                        <div>
-                          <div class="player-name-cell">{row.reg.playerName ?? `Player ${row.reg.playerId}`}</div>
-                          <div class="player-meta-cell">'{String(row.reg.season).slice(-2)} season</div>
-                        </div>
-                      </div>
+                      <PlayerIdentity
+                        playerId={row.reg.playerId}
+                        playerName={row.reg.playerName}
+                        subtitle={`'${String(row.reg.season).slice(-2)} season`}
+                      />
                     {:else}<span class="muted">—</span>{/if}
                   </td>
                   <td class="col-num">{#if row.reg}<span class="num bigpts">{fmt(row.reg.points)}</span>{:else}<span class="muted">—</span>{/if}</td>
                   <td>
                     {#if row.playoff}
-                      <div class="player-cell">
-                        <img class="headshot" src={playerHeadshot(row.playoff.playerId)} alt={row.playoff.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                        <div>
-                          <div class="player-name-cell">{row.playoff.playerName ?? `Player ${row.playoff.playerId}`}</div>
-                          <div class="player-meta-cell">'{String(row.playoff.season).slice(-2)} playoffs</div>
-                        </div>
-                      </div>
+                      <PlayerIdentity
+                        playerId={row.playoff.playerId}
+                        playerName={row.playoff.playerName}
+                        subtitle={`'${String(row.playoff.season).slice(-2)} playoffs`}
+                      />
                     {:else}<span class="muted">—</span>{/if}
                   </td>
                   <td class="col-num">{#if row.playoff}<span class="num bigpts">{fmt(row.playoff.points)}</span>{:else}<span class="muted">—</span>{/if}</td>
@@ -504,34 +510,41 @@
       <div class="block-head">
         <div>
           <h2 class="block-title">All-Time Scoring Leader · By Team</h2>
-          <span class="block-sub">Most total points scored for each franchise · regular season + playoffs</span>
+          <span class="block-sub">Top cumulative regular-season and playoff scorers for each franchise</span>
         </div>
       </div>
       {#if allTimeScoringByTeam.length}
         <div class="table-wrap">
-          <table class="bfa-table">
-            <thead><tr><th>Team</th><th>All-Time Scoring Leader</th><th class="col-num">Total BFA PTS</th></tr></thead>
+          <table class="bfa-table scoring-leaders-table">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Regular Season Leader</th>
+                <th class="col-num">Regular Season PTS</th>
+                <th>Playoffs Leader</th>
+                <th class="col-num">Playoff PTS</th>
+              </tr>
+            </thead>
             <tbody>
               {#each allTimeScoringByTeam as row (row.key)}
                 <tr>
+                  <td><TeamIdentity meta={row.meta} href={teamHref(row.meta)} subtitle={row.meta?.owner_name || ''} /></td>
                   <td>
-                    <div class="team-cell">
-                      <img class="team-avatar small" src={avatarOrPh(row.meta?.team_avatar || row.meta?.owner_avatar, row.meta?.team_name)} alt={row.meta?.team_name} />
-                      <div>
-                        {#if row.meta?.owner_username}
-                          <a class="team-name-link" href={`/team/${encodeURIComponent(row.meta.owner_username)}`}>{row.meta?.team_name || `Roster ${row.key}`}</a>
-                        {:else}<div class="team-name-cell">{row.meta?.team_name || `Roster ${row.key}`}</div>{/if}
-                        {#if row.meta?.owner_name}<div class="team-owner-cell">{row.meta.owner_name}</div>{/if}
-                      </div>
-                    </div>
+                    {#if row.regularLeader}
+                      <PlayerIdentity playerId={row.regularLeader.playerId} playerName={row.regularLeader.playerName} size="small" />
+                    {:else}<span class="muted">—</span>{/if}
+                  </td>
+                  <td class="col-num">
+                    {#if row.regularLeader}<span class="num bigpts">{fmt(row.regularLeader.totalPoints)}</span>{:else}<span class="muted">—</span>{/if}
                   </td>
                   <td>
-                    <div class="player-cell">
-                      <img class="record-headshot" src={playerHeadshot(row.playerId)} alt={row.playerName} on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />
-                      <div class="player-name-cell">{row.playerName ?? `Player ${row.playerId}`}</div>
-                    </div>
+                    {#if row.playoffLeader}
+                      <PlayerIdentity playerId={row.playoffLeader.playerId} playerName={row.playoffLeader.playerName} size="small" />
+                    {:else}<span class="muted">—</span>{/if}
                   </td>
-                  <td class="col-num"><span class="num bigpts">{fmt(row.totalPoints)}</span></td>
+                  <td class="col-num">
+                    {#if row.playoffLeader}<span class="num bigpts">{fmt(row.playoffLeader.totalPoints)}</span>{:else}<span class="muted">—</span>{/if}
+                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -555,55 +568,32 @@
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
 
-  .team-name-link { font-weight: 700; color: var(--text-primary); line-height: 1.15; text-decoration: none; }
-  .team-name-link:hover { color: var(--accent); }
-  .player-meta-cell { color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
-
   .season-year { font-family: var(--font-display); font-size: 1.35rem; color: var(--accent); }
-  .season-award-cell { gap: 0.85rem; }
-  .record-headshot { width: 68px; height: 68px; object-fit: cover; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border-subtle); flex-shrink: 0; }
-  .bfa-table .headshot { width: 58px; height: 58px; }
-  .award-points { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
-
-  .table-wrap { width: 100%; overflow-x: visible; }
-  .bfa-table { width: 100%; min-width: 0; table-layout: auto; }
+  .table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .bfa-table { width: 100%; min-width: 760px; table-layout: auto; }
+  .season-mvp-table { min-width: 980px; }
+  .scoring-leaders-table { min-width: 900px; }
   .bfa-table thead th { white-space: normal; }
-  .team-cell, .player-cell { min-width: 0; }
-  .team-name-cell, .player-name-cell { overflow-wrap: anywhere; }
-  .team-cell, .player-cell { display: flex; align-items: center; gap: 0.7rem; }
-  .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
-  .team-name-cell, .player-name-cell { font-weight: 700; color: var(--text-primary); line-height: 1.15; }
-  .team-owner-cell { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.15rem; }
-  .bigpts { font-size: 1.05rem; color: var(--text-secondary); font-weight: 500; }
-  .accent-text { color: var(--accent); }
-  .best-season { color: var(--text-tertiary); font-size: 0.75rem; font-weight: 700; margin-left: 0.25rem; }
+  .bigpts { font-size: 1.05rem; color: var(--text-secondary); font-weight: 600; }
   .rank-cell { width: 60px; }
   .rank-num { font-size: 1.4rem; color: var(--accent); font-family: var(--font-display); }
   .muted { color: var(--text-tertiary); }
   .empty-card { padding: 1.5rem; text-align: center; color: var(--text-secondary); }
-  @media (max-width: 980px) {
-  }
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
-    .table-wrap::after { display: none; }
     .block-head { padding: 0.85rem 1rem; }
     .block-head-text { flex: 1; }
     .block-title { font-size: 1.05rem; }
-    .record-headshot { width: 52px; height: 52px; }
-    .team-avatar.small { width: 34px; height: 34px; }
-    .headshot { width: 48px; height: 48px; }
-    .team-owner-cell, .player-meta-cell { display: none; }
-    .bigpts { font-size: 1rem; }
-    .table-wrap { overflow: visible; }
-    .bfa-table { table-layout: fixed; font-size: 0.78rem; }
-    .bfa-table thead th { padding: 0.58rem 0.32rem; font-size: 0.58rem; letter-spacing: 0.04em; overflow-wrap: anywhere; }
-    .bfa-table tbody td { padding: 0.62rem 0.32rem; overflow-wrap: anywhere; }
-    .bfa-table .col-num { white-space: normal; }
-    .bfa-table .team-cell, .bfa-table .player-cell { gap: 0.35rem; }
-    .bfa-table .team-avatar.small { width: 30px; height: 30px; }
-    .bfa-table .headshot { width: 40px; height: 40px; }
-    .bfa-table .record-headshot { width: 42px; height: 42px; }
+    .bfa-table { font-size: 0.8rem; }
+    .bfa-table thead th { padding: 0.65rem 0.55rem; font-size: 0.62rem; letter-spacing: 0.06em; }
+    .bfa-table tbody td { padding: 0.68rem 0.55rem; }
+    .bigpts { font-size: 0.95rem; }
     .bfa-table .num { font-size: 0.9rem; }
   }
 </style>
