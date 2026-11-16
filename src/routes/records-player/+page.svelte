@@ -556,8 +556,8 @@
   .bfa-table .headshot { width: 58px; height: 58px; }
   .award-points { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
 
-  .table-wrap { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
-  .bfa-table { width: 100%; min-width: 0; table-layout: auto; }
+  .table-wrap { width: 100%; overflow: hidden; }
+  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; }
   .bfa-table thead th { white-space: normal; }
   .team-cell, .player-cell { min-width: 0; }
   .team-name-cell, .player-name-cell { overflow-wrap: anywhere; }
@@ -580,9 +580,9 @@
     .headshot { width: 48px; height: 48px; }
     .team-owner-cell, .player-meta-cell { display: none; }
     .bigpts { font-size: 1rem; }
-    /* Keep table columns readable on phones; scroll the table instead of squeezing every column. */
-    .bfa-table { min-width: 680px; table-layout: auto; font-size: 0.82rem; }
-    .season-mvp-table { min-width: 760px; }
+    /* Keep every table within the viewport; long cell content wraps. */
+    .bfa-table { min-width: 0; table-layout: fixed; font-size: 0.76rem; }
+    .season-mvp-table { min-width: 0; }
     .bfa-table thead th { padding: 0.7rem 0.55rem; font-size: 0.68rem; letter-spacing: 0.04em; }
     .bfa-table tbody td { padding: 0.7rem 0.55rem; }
     .bfa-table .col-num { white-space: nowrap; }
