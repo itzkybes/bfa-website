@@ -199,7 +199,8 @@
     background: linear-gradient(105deg, rgba(13, 14, 28, .96), rgba(15, 16, 30, .91));
     backdrop-filter: saturate(140%) blur(12px);
     -webkit-backdrop-filter: saturate(140%) blur(12px);
-    border-bottom: 1px solid rgba(112, 111, 235, .28);\n    box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
+    border-bottom: 1px solid rgba(112, 111, 235, .28);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
   }
 
   .header-inner {
