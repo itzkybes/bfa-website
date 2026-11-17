@@ -457,7 +457,6 @@
     border-bottom: 2px solid var(--accent);
     box-shadow: inset 0 -1px 0 rgba(255,255,255,.05), 0 18px 48px rgba(0,0,0,.24);
     overflow: hidden;
-    border-bottom: 1px solid var(--border-subtle);
     padding-top: 4rem;
     padding-bottom: 4rem;
   }
