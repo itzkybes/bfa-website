@@ -991,3 +991,17 @@ h1, .page-title {
   box-shadow: 0 0 0 3px rgba(207, 118, 47, .18);
 }
 ::selection { background: #1554d1; color: #fff; }
+
+
+/* Consistent page-heading contrast across every route */
+.page-title,
+.page-head .page-title,
+.section-header .section-title {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .48);
+}
+.page-head .eyebrow,
+.section-header .eyebrow {
+  color: #f0a064;
+}
