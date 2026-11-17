@@ -277,12 +277,17 @@
     <section class="block">
       <div class="block-head"><h2 class="block-title">Most Weekly League Lows</h2><span class="block-sub">Lowest team total in each regular-season week · ties count</span></div>
       {#if lowestWeeklyTotals.length}
-        <div class="table-wrap"><table class="bfa-table">
-          <thead><tr><th>Rank</th><th>Team</th><th>Owner</th><th class="col-num">Weekly Lows</th><th>Weeks</th></tr></thead>
+        <div class="table-wrap low-weeks-wrap"><table class="bfa-table low-weeks-table">
+          <colgroup><col class="lw-rank-col" /><col class="lw-team-col" /><col class="lw-owner-col" /><col class="lw-count-col" /><col class="lw-weeks-col" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th>Owner</th><th class="col-num">Weekly Lows</th><th>Weeks · Score</th></tr></thead>
           <tbody>{#each lowestWeeklyTotals as row, i (row.key)}
-            <tr><td class="num">{i + 1}</td><td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="" /><strong>{row.team_name}</strong></div></td>
-              <td>{row.owner_name || '—'}</td><td class="col-num num">{row.count}</td>
-              <td>{row.weeks.map((w) => `${w.season} W${w.week} (${w.points.toFixed(1)})`).join(' · ')}</td></tr>
+            <tr>
+              <td class="num lw-rank">{i + 1}</td>
+              <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="" /><strong>{row.team_name}</strong></div></td>
+              <td class="lw-owner">{row.owner_name || '—'}</td>
+              <td class="col-num"><span class="lw-count num">{row.count}</span></td>
+              <td><div class="lw-week-list">{#each row.weeks as w}<span class="lw-week"><span>{w.season} · W{w.week}</span><strong>{w.points.toFixed(1)} pts</strong></span>{/each}</div></td>
+            </tr>
           {/each}</tbody>
         </table></div>
       {:else}<div class="empty-row">No completed regular-season weekly scores yet.</div>{/if}
@@ -506,6 +511,22 @@
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell { font-weight: 700; color: var(--text-primary); font-size: 0.98rem; line-height: 1.2; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.84rem; margin-top: 0.2rem; }
+  /* Weekly-low history: give the dense weeks column room and make each score scannable. */
+  .low-weeks-table { font-size: 0.9rem; }
+  .low-weeks-table .lw-rank-col { width: 7%; }
+  .low-weeks-table .lw-team-col { width: 24%; }
+  .low-weeks-table .lw-owner-col { width: 16%; }
+  .low-weeks-table .lw-count-col { width: 12%; }
+  .low-weeks-table .lw-weeks-col { width: 41%; }
+  .low-weeks-table thead th { color: #fff; font-size: .76rem; letter-spacing: .08em; }
+  .low-weeks-table tbody tr:nth-child(even) { background: rgba(72, 125, 220, .055); }
+  .low-weeks-table .lw-rank { color: #d9e6ff; font-weight: 800; }
+  .low-weeks-table .lw-owner { color: #d4deef; font-weight: 600; overflow-wrap: anywhere; }
+  .low-weeks-table .lw-count { display: inline-flex; justify-content: center; min-width: 2.2rem; padding: .35rem .55rem; border-radius: 6px; color: #fff; background: rgba(207, 118, 47, .2); border: 1px solid rgba(207, 118, 47, .62); font-size: 1rem; font-weight: 850; }
+  .lw-week-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .lw-week { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .25rem .45rem; padding: .35rem .55rem; border-radius: 5px; background: rgba(21, 84, 209, .14); border: 1px solid rgba(91, 145, 235, .3); color: #dce8ff; font-size: .76rem; line-height: 1.25; }
+  .lw-week strong { color: #fff; font-variant-numeric: tabular-nums; }
+
   .trophies { display: inline-flex; gap: 0.1rem; font-size: 0.95rem; }
   .pf .num { font-weight: 800; }
   .num.muted { color: var(--text-tertiary); }
@@ -551,6 +572,20 @@
     .team-name-cell { font-size: 0.92rem; }
     .team-avatar.small { width: 38px; height: 38px; }
     .team-owner-cell { display: none; }
+    .low-weeks-table { font-size: .72rem; }
+    .low-weeks-table .lw-rank-col { width: 8%; }
+    .low-weeks-table .lw-team-col { width: 27%; }
+    .low-weeks-table .lw-owner-col { width: 15%; }
+    .low-weeks-table .lw-count-col { width: 15%; }
+    .low-weeks-table .lw-weeks-col { width: 35%; }
+    .low-weeks-table thead th { font-size: .62rem; padding: .65rem .35rem; letter-spacing: .02em; }
+    .low-weeks-table tbody td { padding: .6rem .35rem; }
+    .low-weeks-table .team-cell { gap: .35rem; }
+    .low-weeks-table .team-avatar.small { width: 28px; height: 28px; }
+    .low-weeks-table .lw-count { min-width: 1.7rem; padding: .25rem .35rem; font-size: .85rem; }
+    .lw-week-list { gap: .25rem; }
+    .lw-week { gap: .15rem .3rem; padding: .25rem .35rem; font-size: .64rem; }
+
     .margin-row { grid-template-columns: 40px 1fr; padding: 0.55rem 0.75rem; }
     .margin-meta { grid-column: 2; }
     .margin-teams { grid-template-columns: 1fr; gap: 0.4rem; }
