@@ -1005,3 +1005,14 @@ h1, .page-title {
 .section-header .eyebrow {
   color: #f0a064;
 }
+
+
+/* Readable display headings on every page, including route-specific h1 markup */
+main#content :is(h1, h2, h3, .page-title, .section-title) {
+  color: #f8fbff !important;
+  -webkit-text-fill-color: #f8fbff !important;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .48);
+}
+main#content :is(.page-head, .page-header, .section-header) .eyebrow {
+  color: #f0a064 !important;
+}
