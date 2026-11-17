@@ -450,6 +450,12 @@
   /* ----- HERO ----- */
   .hero {
     position: relative;
+    isolation: isolate;
+    background:
+      radial-gradient(ellipse 780px 440px at 78% 42%, rgba(21, 84, 209, .42), transparent 72%),
+      linear-gradient(112deg, #101f3d 0%, #0d1931 56%, #11172a 100%);
+    border-bottom: 2px solid var(--accent);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,.05), 0 18px 48px rgba(0,0,0,.24);
     overflow: hidden;
     border-bottom: 1px solid var(--border-subtle);
     padding-top: 4rem;
@@ -488,8 +494,21 @@
 
   .hero-copy { max-width: 640px; }
 
-  .eyebrow {
-    margin-bottom: 1.2rem;
+  .hero-copy > .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 1.35rem;
+    padding: .48rem .8rem;
+    color: #fff;
+    background: linear-gradient(100deg, #174fae, #123875);
+    border: 1px solid rgba(255,255,255,.24);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    font-size: .76rem;
+    font-weight: 850;
+    letter-spacing: .16em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.45);
+    box-shadow: 0 8px 22px rgba(0,0,0,.2);
   }
 
   .hero-title {
@@ -498,12 +517,13 @@
     line-height: 0.9;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: var(--text-primary);
-    margin-bottom: 1.25rem;
+    color: #fff;
+    text-shadow: 0 4px 24px rgba(0,0,0,.42);
+    margin-bottom: 1.4rem;
   }
 
   .title-accent {
-    color: var(--brand);
+    color: #f0a064;
     display: inline-block;
     position: relative;
   }
@@ -514,8 +534,9 @@
     left: 0;
     right: 0;
     bottom: -8px;
-    height: 4px;
-    background: var(--accent);
+    height: 5px;
+    background: linear-gradient(90deg, #f0a064, #d87935);
+    box-shadow: 0 2px 12px rgba(207,118,47,.38);
   }
 
   .hero-sub {
