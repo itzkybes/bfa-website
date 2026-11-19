@@ -731,7 +731,7 @@
     display: flex;
     gap: 0.85rem;
     align-items: center;
-    padding: 1.1rem 1.1rem;
+    padding: 1.1rem 1.5rem 1.1rem 1.5rem;
     background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
     border-bottom: 1px solid var(--border-subtle);
   }
@@ -887,7 +887,7 @@
     margin: 0.25rem 0 1.1rem; padding: 0.95rem 1rem 1.05rem;
     background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: var(--r-sm);
   }
-  .schedule-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+  .schedule-list { display: grid; grid-template-columns: 1fr; gap: .45rem; }
   .schedule-row { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; align-items: center; gap: .55rem; padding: .55rem .65rem; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; min-width: 0; }
   .schedule-week { color: var(--text-primary); font-size: .8rem; font-weight: 600; white-space: nowrap; }
   .schedule-week small { display: block; margin-top: .12rem; color: var(--text-tertiary); font-size: .58rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 400; }
@@ -1081,7 +1081,7 @@
     .head-row { gap: 1rem; }
     .team-select { width: 100%; min-width: 0; }
     .picker { width: 100%; }
-    .team-head { padding: 0.9rem; gap: 0.7rem; }
+    .team-head { padding: 0.9rem 1.2rem; gap: 0.7rem; }
     .team-avatar { width: 52px; height: 52px; }
     .team-name { font-size: 1.2rem; }
     .team-stats { gap: 0.3rem; }
