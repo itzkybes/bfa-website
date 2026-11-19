@@ -520,12 +520,12 @@
   .low-weeks-table .lw-weeks-col { width: 41%; }
   .low-weeks-table thead th { color: #fff; font-size: .76rem; letter-spacing: .08em; }
   .low-weeks-table tbody tr:nth-child(even) { background: rgba(72, 125, 220, .055); }
-  .low-weeks-table .lw-rank { color: #d9e6ff; font-weight: 800; }
+  .low-weeks-table .lw-rank { color: #d9e6ff; font-size: 1.02rem; font-weight: 650; font-variant-numeric: tabular-nums; }
   .low-weeks-table .lw-owner { color: #d4deef; font-weight: 600; overflow-wrap: anywhere; }
-  .low-weeks-table .lw-count { display: inline-flex; justify-content: center; min-width: 2.2rem; padding: .35rem .55rem; border-radius: 6px; color: #fff; background: rgba(207, 118, 47, .2); border: 1px solid rgba(207, 118, 47, .62); font-size: 1rem; font-weight: 850; }
+  .low-weeks-table .lw-count { display: inline-flex; justify-content: center; min-width: 2.2rem; padding: .35rem .55rem; border-radius: 6px; color: #fff; background: rgba(207, 118, 47, .2); border: 1px solid rgba(207, 118, 47, .62); font-size: 1.2rem; font-weight: 650; font-variant-numeric: tabular-nums; }
   .lw-week-list { display: flex; flex-wrap: wrap; gap: .4rem; }
   .lw-week { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .25rem .45rem; padding: .35rem .55rem; border-radius: 5px; background: rgba(21, 84, 209, .14); border: 1px solid rgba(91, 145, 235, .3); color: #dce8ff; font-size: .76rem; line-height: 1.25; }
-  .lw-week strong { color: #fff; font-variant-numeric: tabular-nums; }
+  .lw-week strong { color: #fff; font-size: .84rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 
   .trophies { display: inline-flex; gap: 0.1rem; font-size: 0.95rem; }
   .pf .num { font-weight: 800; }
@@ -582,7 +582,8 @@
     .low-weeks-table tbody td { padding: .6rem .35rem; }
     .low-weeks-table .team-cell { gap: .35rem; }
     .low-weeks-table .team-avatar.small { width: 28px; height: 28px; }
-    .low-weeks-table .lw-count { min-width: 1.7rem; padding: .25rem .35rem; font-size: .85rem; }
+    .low-weeks-table .lw-count { min-width: 1.7rem; padding: .25rem .35rem; font-size: 1rem; font-weight: 650; }
+    .lw-week strong { font-size: .72rem; }
     .lw-week-list { gap: .25rem; }
     .lw-week { gap: .15rem .3rem; padding: .25rem .35rem; font-size: .64rem; }
 
