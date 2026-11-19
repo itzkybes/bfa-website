@@ -507,14 +507,14 @@
               <div class="rivalry-highlights">
                 {#if roster.owner_hub.activeToughestOpponent}
                   <div>
-                    <span>Toughest active team</span>
+                    <span>Toughest matchup</span>
                     <div class="rivalry-team"><img src={roster.owner_hub.activeToughestOpponent.avatar || ''} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><strong>{roster.owner_hub.activeToughestOpponent.owner}</strong></div>
                     <small>{roster.owner_hub.activeToughestOpponent.wins}–{roster.owner_hub.activeToughestOpponent.losses}{#if roster.owner_hub.activeToughestOpponent.ties}–{roster.owner_hub.activeToughestOpponent.ties}{/if} · {(roster.owner_hub.activeToughestOpponent.winPct * 100).toFixed(0)}% win rate</small>
                   </div>
                 {/if}
                 {#if roster.owner_hub.activeFavorableOpponent}
                   <div>
-                    <span>Best active team matchup</span>
+                    <span>Best matchup</span>
                     <div class="rivalry-team"><img src={roster.owner_hub.activeFavorableOpponent.avatar || ''} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><strong>{roster.owner_hub.activeFavorableOpponent.owner}</strong></div>
                     <small>{roster.owner_hub.activeFavorableOpponent.wins}–{roster.owner_hub.activeFavorableOpponent.losses}{#if roster.owner_hub.activeFavorableOpponent.ties}–{roster.owner_hub.activeFavorableOpponent.ties}{/if} · {(roster.owner_hub.activeFavorableOpponent.winPct * 100).toFixed(0)}% win rate</small>
                   </div>
