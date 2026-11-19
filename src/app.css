@@ -1016,3 +1016,14 @@ main#content :is(h1, h2, h3, .page-title, .section-title) {
 main#content :is(.page-head, .page-header, .section-header) .eyebrow {
   color: #f0a064 !important;
 }
+
+/* Keep table data crisp: reserve heavier weights for column headings only. */
+.bfa-table tbody td,
+.bfa-table tbody td strong,
+.bfa-table tbody td b,
+.bfa-table tbody td .num,
+.bfa-table tbody td [class*="count"],
+.bfa-table tbody td [class*="score"],
+.bfa-table tbody td [class*="value"] {
+  font-weight: 400 !important;
+}
