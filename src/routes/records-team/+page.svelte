@@ -298,13 +298,20 @@
       <div class="block-head"><h2 class="block-title">Most Weekly League Lows</h2><span class="block-sub">Lowest team total in each regular-season week · ties count</span></div>
       {#if lowestWeeklyTotals.length}
         <div class="table-wrap low-weeks-wrap"><table class="bfa-table low-weeks-table">
-          <colgroup><col class="lw-rank-col" /><col class="lw-team-col" /><col class="lw-owner-col" /><col class="lw-count-col" /><col class="lw-weeks-col" /></colgroup>
-          <thead><tr><th>Rank</th><th>Team</th><th>Owner</th><th class="col-num">Weekly Lows</th><th>Weeks · Score</th></tr></thead>
+          <colgroup><col class="lw-rank-col" /><col class="lw-team-col" /><col class="lw-count-col" /><col class="lw-weeks-col" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th class="col-num">Weekly Lows</th><th>Weeks · Score</th></tr></thead>
           <tbody>{#each lowestWeeklyTotals as row, i (row.key)}
             <tr>
               <td class="num lw-rank">{i + 1}</td>
-              <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt="" /><strong>{row.team_name}</strong></div></td>
-              <td class="lw-owner">{row.owner_name || '—'}</td>
+              <td>
+                <div class="team-cell">
+                  <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                  <div>
+                    <div class="team-name-cell">{row.team_name}</div>
+                    {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
+                  </div>
+                </div>
+              </td>
               <td class="col-num"><span class="lw-count num">{row.count}</span></td>
               <td><div class="lw-week-list">{#each row.weeks as w}<span class="lw-week"><span>{w.season} · W{w.week}</span><strong>{w.points.toFixed(1)} pts</strong></span>{/each}</div></td>
             </tr>
@@ -534,9 +541,8 @@
   /* Weekly-low history: give the dense weeks column room and make each score scannable. */
   .low-weeks-table { font-size: 0.9rem; }
   .low-weeks-table .lw-rank-col { width: 7%; }
-  .low-weeks-table .lw-team-col { width: 24%; }
-  .low-weeks-table .lw-owner-col { width: 16%; }
-  .low-weeks-table .lw-count-col { width: 12%; }
+  .low-weeks-table .lw-team-col { width: 38%; }
+  .low-weeks-table .lw-count-col { width: 14%; }
   .low-weeks-table .lw-weeks-col { width: 41%; }
   .low-weeks-table thead th { color: #fff; font-size: .76rem; letter-spacing: .08em; }
   .low-weeks-table tbody tr:nth-child(even) { background: rgba(72, 125, 220, .055); }
@@ -594,9 +600,8 @@
     .team-owner-cell { display: none; }
     .low-weeks-table { font-size: .72rem; }
     .low-weeks-table .lw-rank-col { width: 8%; }
-    .low-weeks-table .lw-team-col { width: 27%; }
-    .low-weeks-table .lw-owner-col { width: 15%; }
-    .low-weeks-table .lw-count-col { width: 15%; }
+    .low-weeks-table .lw-team-col { width: 40%; }
+    .low-weeks-table .lw-count-col { width: 17%; }
     .low-weeks-table .lw-weeks-col { width: 35%; }
     .low-weeks-table thead th { font-size: .62rem; padding: .65rem .35rem; letter-spacing: .02em; }
     .low-weeks-table tbody td { padding: .6rem .35rem; }
