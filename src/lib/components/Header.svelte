@@ -196,10 +196,11 @@
     position: sticky;
     top: 0;
     z-index: 60;
-    background: rgba(10, 10, 10, 0.85);
+    background: linear-gradient(105deg, rgba(13, 14, 28, .96), rgba(15, 16, 30, .91));
     backdrop-filter: saturate(140%) blur(12px);
     -webkit-backdrop-filter: saturate(140%) blur(12px);
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 2px solid rgba(207, 118, 47, .9);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
   }
 
   .header-inner {
@@ -241,7 +242,7 @@
 
   .brand-line-1 {
     font-size: 1.7rem;
-    color: var(--brand);
+    color: #f0a064; text-shadow: 0 2px 12px rgba(0,0,0,.35);
   }
 
   .brand-line-2 {
@@ -269,7 +270,7 @@
     text-transform: uppercase;
     letter-spacing: 0.12em;
     font-size: 0.78rem;
-    color: var(--text-secondary);
+    color: #e8efff;
     background: transparent;
     border: none;
     cursor: pointer;

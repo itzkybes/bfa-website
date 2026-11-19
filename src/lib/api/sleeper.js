@@ -453,7 +453,14 @@ export async function getTransactionsForWeek(leagueId, week, ttl = CACHE_60_SEC)
 export async function getRecentTransactions(leagueId, { weekFrom = 1, weekTo = 25, limit = 18 } = {}) {
   const weeks = [];
   for (let week = weekFrom; week <= weekTo; week++) weeks.push(week);
-  const lists = await Promise.all(weeks.map((week) => getTransactionsForWeek(leagueId, week)));
+  // Avoid a 26-request burst against Sleeper's public API. Fetch in small
+  // batches so a transient rate limit cannot silently omit a week of trades.
+  const lists = [];
+  const batchSize = 4;
+  for (let offset = 0; offset < weeks.length; offset += batchSize) {
+    const batch = weeks.slice(offset, offset + batchSize);
+    lists.push(...await Promise.all(batch.map((week) => getTransactionsForWeek(leagueId, week))));
+  }
   const byType = new Map();
 
   for (let i = 0; i < lists.length; i++) {
