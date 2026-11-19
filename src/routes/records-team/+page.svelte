@@ -176,9 +176,29 @@
       }
 
 
+      // Seed every team from every season first, so teams with zero
+      // lowest-scoring weeks remain visible in the all-time table.
+      const lowestByTeam = {};
+      for (const result of standingsResults) {
+        if (!result) continue;
+        const rmap = result.rosterMap || {};
+        for (const row of (result.regularStandings || [])) {
+          const rid = String(row.rosterId ?? row.roster_id ?? '');
+          const meta = rmap[rid] || {};
+          const key = stableKey(meta) || String(row.team_name || rid).toLowerCase();
+          if (!lowestByTeam[key]) lowestByTeam[key] = {
+            key,
+            team_name: row.team_name || meta.team_name || 'Unknown team',
+            owner_name: row.owner_name || meta.owner_name || '',
+            avatar: row.avatar || meta.team_avatar || meta.owner_avatar || null,
+            count: 0,
+            weeks: []
+          };
+        }
+      }
+
       // Lowest team total in each regular-season week across the entire league.
       // Tied lowest scores all count as a league low.
-      const lowestByTeam = {};
       for (const result of standingsResults) {
         if (!result) continue;
         const rmap = result.rosterMap || {}, collected = result.collectedMatchups || {};
