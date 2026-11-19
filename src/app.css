@@ -1027,3 +1027,10 @@ main#content :is(.page-head, .page-header, .section-header) .eyebrow {
 .bfa-table tbody td [class*="value"] {
   font-weight: 400 !important;
 }
+
+/* Standings table: keep every numeric value regular-weight, including leader cells. */
+main#content .standings-table tbody td .num,
+main#content .standings-table tbody td .leader-cell,
+main#content .standings-table tbody td .pf .num {
+  font-weight: 400 !important;
+}
