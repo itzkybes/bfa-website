@@ -357,7 +357,7 @@
                       </div>
                     </div>
                   </td>
-                  <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
+                  <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
                   <td class="col-num playoff-chance-cell" data-testid={`playoff-chance-${row.rosterId}`}>
                     <span class="num" class:clinched={playoffChanceLabel(row.rosterId) === 'Clinched'} title={playoffChanceLabel(row.rosterId) === 'Clinched' ? 'Mathematically clinched a playoff berth' : 'Estimate based on current win rate; remaining opponents are not modeled'}>{playoffChanceLabel(row.rosterId)}</span>
