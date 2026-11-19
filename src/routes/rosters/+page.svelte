@@ -55,7 +55,10 @@
   }
 
   async function buildCurrentSeasonSchedule(leagueId, standings, rosterMap) {
-    const lastWeek = Number(standings?.playoffEnd || standings?.playoffStart + 2 || 21);
+    const playoffStart = Number(standings?.playoffStart || 19);
+    const completedThrough = Number(standings?.completedThroughWeek || 0);
+    const regularSeasonComplete = completedThrough >= playoffStart - 1;
+    const lastWeek = Number(standings?.playoffEnd || playoffStart + 2 || 21);
     const weeks = Array.from({ length: Math.max(0, lastWeek) }, (_, i) => i + 1);
     const fetched = [];
     for (let offset = 0; offset < weeks.length; offset += 4) {
@@ -82,7 +85,8 @@
         const opponent = participants.find((entry) => String(entry.roster_id ?? entry.rosterId) !== String(rid));
         const opponentId = opponent ? String(opponent.roster_id ?? opponent.rosterId) : null;
         const opponentMeta = opponentId ? rosterMap[opponentId] : null;
-        const completedThrough = Number(standings?.completedThroughWeek || 0);
+        // Keep playoff weeks hidden until the final regular-season week is complete.
+        if (week >= playoffStart && !regularSeasonComplete) continue;
         const completed = Boolean(opponent && week <= completedThrough && mine.points != null && opponent.points != null);
         let result = null;
         if (completed) {
