@@ -57,7 +57,6 @@
   async function buildCurrentSeasonSchedule(leagueId, standings, rosterMap) {
     const playoffStart = Number(standings?.playoffStart || 19);
     const completedThrough = Number(standings?.completedThroughWeek || 0);
-    const regularSeasonComplete = completedThrough >= playoffStart - 1;
     const lastWeek = Number(standings?.playoffEnd || playoffStart + 2 || 21);
     const weeks = Array.from({ length: Math.max(0, lastWeek) }, (_, i) => i + 1);
     const fetched = [];
@@ -67,6 +66,17 @@
         getMatchupsForWeek(leagueId, week).catch(() => [])
       )));
     }
+
+    // Only reveal playoff weeks once every roster has a final score for the
+    // last regular-season week. The standings progress counter can advance
+    // before the final week's matchup scores are actually available.
+    const finalRegularSeasonEntries = fetched[playoffStart - 2] || [];
+    const finalWeekScores = new Map(finalRegularSeasonEntries.map((entry) => [
+      String(entry.roster_id ?? entry.rosterId),
+      entry.points
+    ]));
+    const regularSeasonComplete = Object.keys(rosterMap).length > 0 &&
+      Object.keys(rosterMap).every((rid) => finalWeekScores.get(String(rid)) != null);
 
     const schedule = Object.fromEntries(Object.keys(rosterMap).map((rid) => [String(rid), []]));
     for (let index = 0; index < weeks.length; index++) {
@@ -892,7 +902,7 @@
     background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: var(--r-sm);
   }
   .schedule-list { display: grid; grid-template-columns: 1fr; gap: .45rem; }
-  .schedule-row { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; align-items: center; gap: .55rem; padding: .55rem .65rem; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; min-width: 0; }
+  .schedule-row { display: grid; grid-template-columns: 102px minmax(0, 1fr) auto; align-items: center; gap: .55rem; padding: .55rem .65rem; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; min-width: 0; }
   .schedule-week { color: var(--text-primary); font-size: .8rem; font-weight: 600; white-space: nowrap; }
   .schedule-week small { display: block; margin-top: .12rem; color: var(--text-tertiary); font-size: .58rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 400; }
   .schedule-opponent { display: flex; align-items: center; gap: .45rem; min-width: 0; color: var(--text-secondary); font-size: .78rem; }
