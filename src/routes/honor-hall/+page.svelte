@@ -18,9 +18,10 @@
   let playoffsMvp = null;
   let regularMvp = null;
   let playersMap = {};
+  let bracketData = { winners: [], losers: [], rosterMap: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
 
   // Stash season results so dropdown switching is instant
-  let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, regularMvp }
+  let cache = {}; // season -> all computed season honors + both brackets
 
   function placeEmoji(rank) {
     if (rank === 1) return '🏆'; if (rank === 2) return '🥈'; if (rank === 3) return '🥉'; return '';
@@ -37,6 +38,7 @@
       finalsMvp = cache[cacheKey].finalsMvp;
       playoffsMvp = cache[cacheKey].playoffsMvp;
       regularMvp = cache[cacheKey].regularMvp;
+      bracketData = cache[cacheKey].bracketData;
       return;
     }
 
@@ -102,17 +104,72 @@
     const pm = playoffsList[0] || null;
     const fm = finalsList[0] || null;
 
+    const scoresByWeek = {};
+    for (const [week, entries] of Object.entries(collected)) {
+      scoresByWeek[week] = {};
+      for (const entry of entries || []) {
+        const rosterId = String(entry.roster_id ?? entry.rosterId ?? '');
+        if (!rosterId) continue;
+        const score = entry.__final_score != null
+          ? Number(entry.__final_score)
+          : Array.isArray(entry.starters_points)
+            ? entry.starters_points.reduce((sum, value) => sum + (Number(value) || 0), 0)
+            : null;
+        if (score != null && Number.isFinite(score)) scoresByWeek[week][rosterId] = score;
+      }
+    }
+    const nextBracketData = {
+      winners: standings.winnersBracket || [],
+      losers: standings.losersBracket || [],
+      rosterMap: standings.rosterMap || {},
+      playoffStart,
+      playoffTeams: playoffTeamCount,
+      scoresByWeek
+    };
     const result = {
       finalStandings: finalList,
       finalsMvp: fm ? { ...fm, playerName: playerDisplayName(playersMap, fm.playerId), roster_meta: standings.rosterMap[fm.rosterId] } : null,
       playoffsMvp: pm ? { ...pm, playerName: playerDisplayName(playersMap, pm.playerId), roster_meta: standings.rosterMap[pm.rosterId] } : null,
-      regularMvp: om ? { ...om, playerName: playerDisplayName(playersMap, om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
+      regularMvp: om ? { ...om, playerName: playerDisplayName(playersMap, om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null,
+      bracketData: nextBracketData
     };
     cache[cacheKey] = result;
     finalStandings = result.finalStandings;
     finalsMvp = result.finalsMvp;
     playoffsMvp = result.playoffsMvp;
     regularMvp = result.regularMvp;
+    bracketData = result.bracketData;
+  }
+
+  function bracketRounds(matches) {
+    const grouped = {};
+    for (const match of matches || []) {
+      const round = Number(match.r) || 1;
+      if (!grouped[round]) grouped[round] = [];
+      grouped[round].push(match);
+    }
+    return Object.keys(grouped).map(Number).sort((a, b) => a - b).map((round) => ({
+      round,
+      matches: grouped[round].slice().sort((a, b) => (Number(a.m) || 0) - (Number(b.m) || 0))
+    }));
+  }
+
+  function bracketTeam(rosterId) {
+    return rosterId == null ? null : bracketData.rosterMap[String(rosterId)] || null;
+  }
+
+  function bracketScore(round, rosterId) {
+    if (rosterId == null) return null;
+    const week = Number(bracketData.playoffStart) + Number(round) - 1;
+    const value = bracketData.scoresByWeek?.[String(week)]?.[String(rosterId)];
+    return Number.isFinite(Number(value)) ? formatNumber(Number(value)) : '—';
+  }
+
+  function bracketMatchLabel(match) {
+    const place = Number(match.p);
+    if (place === 1) return 'Championship';
+    if (Number.isFinite(place) && place > 1) return `Placement game · ${place}`;
+    return `Match ${match.m ?? ''}`;
   }
 
   async function loadAll() {
@@ -223,6 +280,79 @@
           <div class="mvp-sub">{regularMvp.roster_meta?.owner_name ?? `Roster ${regularMvp.rosterId ?? '—'}`}</div>
         </div>
       {/if}
+    </section>
+
+    <section class="block bracket-section" data-testid="season-brackets">
+      <div class="block-head">
+        <h2 class="block-title">Season Brackets</h2>
+        <span class="block-sub">{bracketData.playoffTeams}-team championship field · all rounds & consolation games</span>
+      </div>
+      <div class="bracket-grid">
+        <div class="bracket-column" data-testid="championship-bracket">
+          <h3 class="bracket-title">Championship Playoff Bracket</h3>
+          {#if bracketData.winners.length}
+            <div class="bracket-rounds">
+              {#each bracketRounds(bracketData.winners) as round (round.round)}
+                <div class="bracket-round">
+                  <h4 class="bracket-round-title">Round {round.round}</h4>
+                  {#each round.matches as match (match.m ?? `${round.round}-${match.p}`)}
+                    <div class="bracket-match">
+                      {#each [match.t1, match.t2] as rosterId, idx}
+                        {#if rosterId != null}
+                          {@const team = bracketTeam(rosterId)}
+                          <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
+                            <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
+                            <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
+                            <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
+                          </div>
+                        {:else}
+                          <div class="bracket-team bracket-empty"><span>—</span><span class="bracket-score">—</span></div>
+                        {/if}
+                      {/each}
+                      <div class="bracket-match-label">{bracketMatchLabel(match)}</div>
+                    </div>
+                  {/each}
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="empty-card">Championship bracket results are not available for this season.</div>
+          {/if}
+        </div>
+
+        <div class="bracket-column" data-testid="toilet-bowl-bracket">
+          <h3 class="bracket-title">Toilet Bowl Bracket</h3>
+          {#if bracketData.losers.length}
+            <div class="bracket-rounds">
+              {#each bracketRounds(bracketData.losers) as round (round.round)}
+                <div class="bracket-round">
+                  <h4 class="bracket-round-title">Round {round.round}</h4>
+                  {#each round.matches as match (match.m ?? `${round.round}-${match.p}`)}
+                    <div class="bracket-match">
+                      {#each [match.t1, match.t2] as rosterId, idx}
+                        {#if rosterId != null}
+                          {@const team = bracketTeam(rosterId)}
+                          <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
+                            <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
+                            <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
+                            <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
+                          </div>
+                        {:else}
+                          <div class="bracket-team bracket-empty"><span>—</span><span class="bracket-score">—</span></div>
+                        {/if}
+                      {/each}
+                      <div class="bracket-match-label">{bracketMatchLabel(match)}</div>
+                    </div>
+                  {/each}
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="empty-card">Toilet Bowl bracket results are not available for this season.</div>
+          {/if}
+        </div>
+      </div>
+      <p class="bracket-note">Consolation and placement games are included in their respective brackets. Scores appear only when the season matchup data contains a recorded result.</p>
     </section>
 
     <section class="block">
@@ -344,4 +474,25 @@
     .team-owner { font-size: 0.72rem; }
     .seed-col .num { font-size: 1rem; }
   }
+
+  .bracket-section { margin-bottom: 1.25rem; }
+  .bracket-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 1rem; }
+  .bracket-column { min-width: 0; }
+  .bracket-title { margin: 0 0 0.85rem; font-family: var(--font-display); font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .bracket-rounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.8rem; align-items: start; }
+  .bracket-round { min-width: 0; }
+  .bracket-round-title { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 0.5rem; }
+  .bracket-match { border: 1px solid var(--border-subtle); border-radius: var(--r-sm); padding: 0.55rem; margin-bottom: 0.65rem; background: var(--surface-2); }
+  .bracket-team { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 0.45rem; min-height: 34px; color: var(--text-secondary); font-size: 0.78rem; }
+  .bracket-team img { width: 27px; height: 27px; border-radius: 5px; object-fit: cover; background: var(--surface-1); }
+  .bracket-team-name { overflow-wrap: anywhere; line-height: 1.15; }
+  .bracket-score { color: var(--text-primary); font-size: 0.8rem; white-space: nowrap; }
+  .bracket-team.match-winner { color: var(--text-primary); font-weight: 700; }
+  .bracket-team.match-winner .bracket-score { color: var(--accent); }
+  .bracket-empty { opacity: 0.45; }
+  .bracket-match-label { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--border-subtle); color: var(--text-tertiary); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .bracket-note { margin: 0; padding: 0 1rem 1rem; color: var(--text-tertiary); font-size: 0.72rem; }
+  @media (max-width: 900px) { .bracket-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .bracket-rounds { grid-template-columns: 1fr; } }
+
 </style>
