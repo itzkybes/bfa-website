@@ -1,9 +1,6 @@
 name: Sync season matchup files
 
 on:
-  push:
-    branches:
-      - fix/starter-only-team-scoring
   workflow_dispatch:
   schedule:
     - cron: '20 9 * * 1'
@@ -21,13 +18,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Refresh one JSON file per season
-        run: node scripts/regenerate-season-matchups.mjs
+      - name: Refresh only the latest completed week in the current season
+        run: node scripts/regenerate-season-matchups.mjs --current-week
       - name: Commit updated season files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add static/season_matchups/*.json
+          git add -u static/season_matchups/
           if git diff --cached --quiet; then
             echo "Season matchup files are already current."
           else
