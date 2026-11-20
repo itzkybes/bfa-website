@@ -175,7 +175,19 @@
   }
 
   function bracketRoundLabel(round) {
-    return ({ 1: 'Quarterfinals', 2: 'Semifinals', 3: 'Finals' })[Number(round)] || `Round ${round}`;
+    return ({ 1: 'Week 1', 2: 'Week 2', 3: 'Championship Week' })[Number(round)] || `Week ${round}`;
+  }
+
+  function bracketMainTitle(round, bracketType, matches) {
+    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType));
+    if (!mainMatches.length) return '';
+    if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Quarterfinals';
+    if (round === 2) {
+      if (bracketType === 'losers') return '9th/10th Place Game';
+      return 'Semifinals';
+    }
+    if (round >= 3) return bracketType === 'losers' ? 'Final Placement Games' : 'Championship & Placement';
+    return '';
   }
 
   function bracketMatchKey(match) {
@@ -425,6 +437,9 @@
                   <div class="bracket-round">
                     <h4 class="bracket-round-title">{bracketRoundLabel(round.round)}</h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
+                      {#if round.matches.some(match => !isConsolationMatch(match, bracket.type))}
+                        <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketData[bracket.key])}</h5>
+                      {/if}
                       {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={el => setBracketMatchRef(bracket.type, match, el)}>
                           {#each [match.t1, match.t2] as rosterId}
@@ -611,12 +626,13 @@
   .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
   .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
   .bracket-round { flex: 1 0 220px; min-width: 220px; display: flex; flex-direction: column; }
-  .bracket-round-title { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 0.65rem; text-align: center; }
+  .bracket-round-title { color: var(--text-tertiary); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; margin: 0 0 0.55rem; text-align: center; }
+  .bracket-main-title { margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; }
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
    .bracket-match { position: relative; z-index: 1; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); padding: 0.55rem; background: var(--surface-2); min-width: 0; }
   .bracket-consolation-group { margin-top: 1.15rem; padding-top: 0.85rem; border-top: 1px dashed var(--border-subtle); }
-  .bracket-consolation-title { margin: 0 0 0.65rem; color: var(--text-tertiary); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; text-align: left; }
+  .bracket-consolation-title { margin: 0 0 0.65rem; color: var(--accent); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; }
   .bracket-consolation-games { display: flex; flex-direction: column; gap: 0.7rem; }
   .bracket-match-consolation { background: var(--surface-1); border-style: dashed; border-color: var(--border-subtle); }
   .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
