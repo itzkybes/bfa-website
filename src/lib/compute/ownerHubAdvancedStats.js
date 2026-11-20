@@ -108,9 +108,9 @@ export function addAdvancedOwnerStats(hubs, allSeasonResults, chain) {
     const topAverage = Math.max(-Infinity, ...means.map((row) => row.mean));
 
     for (const row of rows) {
-      const stat = seasonStats[row.key] ||= { topPfSeasons: 0, bestRecordSeasons: 0, topScoringAverageSeasons: 0, topFourFinishes: 0, completedFinishes: [] };
-      if (row.pf === pfLeader && row.pf > 0) stat.topPfSeasons++;
-      if (row.wins === recordLeaderWins && row.pf === recordLeaderPf && row.games > 0) stat.bestRecordSeasons++;
+      const stat = seasonStats[row.key] ||= { topPfSeasons: 0, bestRecordSeasons: 0, topScoringAverageSeasons: 0, topFourFinishes: 0, completedFinishes: [], pfTitleYears: [], bestRecordYears: [] };
+      if (row.pf === pfLeader && row.pf > 0) { stat.topPfSeasons++; stat.pfTitleYears.push(season); }
+      if (row.wins === recordLeaderWins && row.pf === recordLeaderPf && row.games > 0) { stat.bestRecordSeasons++; stat.bestRecordYears.push(season); }
       const mean = means.find((item) => item.key === row.key)?.mean;
       if (mean != null && mean === topAverage) stat.topScoringAverageSeasons++;
       if (Array.isArray(result.finalStandings) && result.bracketComplete) {
@@ -151,7 +151,9 @@ export function addAdvancedOwnerStats(hubs, allSeasonResults, chain) {
       : null;
     hub.leagueLeaders = {
       mostPointsForSeasons: stats.topPfSeasons || 0,
+      mostPointsForYears: [...new Set(stats.pfTitleYears || [])].sort((a, b) => Number(a) - Number(b)),
       bestRecordSeasons: stats.bestRecordSeasons || 0,
+      bestRecordYears: [...new Set(stats.bestRecordYears || [])].sort((a, b) => Number(a) - Number(b)),
       highestScoringAverageSeasons: stats.topScoringAverageSeasons || 0,
     };
   }
