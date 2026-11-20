@@ -56,7 +56,9 @@
           14.55,
           23.05
         ]
-      }
+      },
+      "teamAScore": 183.2,
+      "teamBScore": 185.03
     },
     {
       "matchup_id": 2,
@@ -114,7 +116,9 @@
           24.8,
           20.95
         ]
-      }
+      },
+      "teamAScore": 203.79,
+      "teamBScore": 295.14
     },
     {
       "matchup_id": 3,
@@ -172,7 +176,9 @@
           26.65,
           24.8
         ]
-      }
+      },
+      "teamAScore": 255.2,
+      "teamBScore": 256.44
     },
     {
       "matchup_id": 4,
@@ -230,7 +236,9 @@
           50.5,
           30.24
         ]
-      }
+      },
+      "teamAScore": 220.8,
+      "teamBScore": 309.94
     },
     {
       "matchup_id": 5,
@@ -288,7 +296,9 @@
           44.75,
           20.7
         ]
-      }
+      },
+      "teamAScore": 253.29,
+      "teamBScore": 209.5
     },
     {
       "matchup_id": 6,
@@ -346,7 +356,9 @@
           16.85,
           3.5
         ]
-      }
+      },
+      "teamAScore": 254.24,
+      "teamBScore": 235.5
     },
     {
       "matchup_id": 7,
@@ -404,7 +416,9 @@
           37.4,
           31.75
         ]
-      }
+      },
+      "teamAScore": 239.6,
+      "teamBScore": 271.75
     }
   ],
   "2": [
@@ -464,7 +478,9 @@
           34.65,
           49.05
         ]
-      }
+      },
+      "teamAScore": 202.75,
+      "teamBScore": 224.44
     },
     {
       "matchup_id": 2,
@@ -522,7 +538,9 @@
           31.95,
           28.1
         ]
-      }
+      },
+      "teamAScore": 233.3,
+      "teamBScore": 265
     },
     {
       "matchup_id": 3,
@@ -580,7 +598,9 @@
           31.45,
           32.55
         ]
-      }
+      },
+      "teamAScore": 300.6,
+      "teamBScore": 227
     },
     {
       "matchup_id": 4,
@@ -638,7 +658,9 @@
           38.15,
           32.85
         ]
-      }
+      },
+      "teamAScore": 232.75,
+      "teamBScore": 227.69
     },
     {
       "matchup_id": 5,
@@ -696,7 +718,9 @@
           42.4,
           25.95
         ]
-      }
+      },
+      "teamAScore": 218.5,
+      "teamBScore": 230.6
     },
     {
       "matchup_id": 6,
@@ -754,7 +778,9 @@
           33.45,
           22.05
         ]
-      }
+      },
+      "teamAScore": 259.64,
+      "teamBScore": 136.8
     },
     {
       "matchup_id": 7,
@@ -812,7 +838,9 @@
           23.5,
           25.35
         ]
-      }
+      },
+      "teamAScore": 266.45,
+      "teamBScore": 247.3
     }
   ],
   "3": [
@@ -872,7 +900,9 @@
           21.35,
           36.95
         ]
-      }
+      },
+      "teamAScore": 227.09,
+      "teamBScore": 252.3
     },
     {
       "matchup_id": 2,
@@ -930,7 +960,9 @@
           18.55,
           39.3
         ]
-      }
+      },
+      "teamAScore": 253.39,
+      "teamBScore": 228.25
     },
     {
       "matchup_id": 3,
@@ -988,7 +1020,9 @@
           16.6,
           15.05
         ]
-      }
+      },
+      "teamAScore": 285.85,
+      "teamBScore": 186.05
     },
     {
       "matchup_id": 4,
@@ -1046,7 +1080,9 @@
           30,
           15.25
         ]
-      }
+      },
+      "teamAScore": 254.7,
+      "teamBScore": 221
     },
     {
       "matchup_id": 5,
@@ -1104,7 +1140,9 @@
           31.6,
           21.9
         ]
-      }
+      },
+      "teamAScore": 262.49,
+      "teamBScore": 270.2
     },
     {
       "matchup_id": 6,
@@ -1162,7 +1200,9 @@
           40.5,
           23.2
         ]
-      }
+      },
+      "teamAScore": 250.1,
+      "teamBScore": 307.85
     },
     {
       "matchup_id": 7,
@@ -1220,7 +1260,9 @@
           32.9,
           16.25
         ]
-      }
+      },
+      "teamAScore": 229.45,
+      "teamBScore": 196.04
     }
   ],
   "4": [
@@ -1280,7 +1322,9 @@
           22.35,
           34.95
         ]
-      }
+      },
+      "teamAScore": 245.25,
+      "teamBScore": 223.4
     },
     {
       "matchup_id": 2,
@@ -1338,7 +1382,9 @@
           42.85,
           34.9
         ]
-      }
+      },
+      "teamAScore": 275.05,
+      "teamBScore": 197.5
     },
     {
       "matchup_id": 3,
@@ -1396,7 +1442,9 @@
           16.45,
           0
         ]
-      }
+      },
+      "teamAScore": 231,
+      "teamBScore": 153.7
     },
     {
       "matchup_id": 4,
@@ -1454,7 +1502,9 @@
           0,
           9.85
         ]
-      }
+      },
+      "teamAScore": 295.95,
+      "teamBScore": 144.65
     },
     {
       "matchup_id": 5,
@@ -1512,7 +1562,9 @@
           35.8,
           29
         ]
-      }
+      },
+      "teamAScore": 252.85,
+      "teamBScore": 275.4
     },
     {
       "matchup_id": 6,
@@ -1570,7 +1622,9 @@
           27.29,
           28.85
         ]
-      }
+      },
+      "teamAScore": 272.69,
+      "teamBScore": 266.7
     },
     {
       "matchup_id": 7,
@@ -1628,7 +1682,9 @@
           41.1,
           34.15
         ]
-      }
+      },
+      "teamAScore": 175.64,
+      "teamBScore": 315.35
     }
   ],
   "5": [
@@ -1688,7 +1744,9 @@
           22.15,
           34.25
         ]
-      }
+      },
+      "teamAScore": 286.04,
+      "teamBScore": 236.79
     },
     {
       "matchup_id": 2,
@@ -1746,7 +1804,9 @@
           0,
           26.95
         ]
-      }
+      },
+      "teamAScore": 161,
+      "teamBScore": 189.88
     },
     {
       "matchup_id": 3,
@@ -1804,7 +1864,9 @@
           0,
           28.6
         ]
-      }
+      },
+      "teamAScore": 228.6,
+      "teamBScore": 201.7
     },
     {
       "matchup_id": 4,
@@ -1862,7 +1924,9 @@
           22.15,
           27.3
         ]
-      }
+      },
+      "teamAScore": 227.3,
+      "teamBScore": 239.75
     },
     {
       "matchup_id": 5,
@@ -1920,7 +1984,9 @@
           26.2,
           29.35
         ]
-      }
+      },
+      "teamAScore": 194.04,
+      "teamBScore": 219.3
     },
     {
       "matchup_id": 6,
@@ -1978,7 +2044,9 @@
           27,
           19.45
         ]
-      }
+      },
+      "teamAScore": 224.7,
+      "teamBScore": 196.39
     },
     {
       "matchup_id": 7,
@@ -2036,7 +2104,9 @@
           36.85,
           11
         ]
-      }
+      },
+      "teamAScore": 278.04,
+      "teamBScore": 207.75
     }
   ],
   "6": [

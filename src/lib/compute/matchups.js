@@ -43,18 +43,19 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   const seasonFormat =
     getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
   const { playoffStart, playoffEnd } = seasonFormat;
-  const completedThroughWeek = getCompletedWeekForLeague(leagueMeta);
+  const completedThroughWeek = getCompletedWeekForLeague(leagueMeta, playoffEnd);
 
   // Direct URL requests and stale cached selections must not reveal the
   // active week before its Monday 3:00 a.m. Eastern close.
-  if (completedThroughWeek !== null && Number(week) > completedThroughWeek) {
+  const requestedWeek = Number(week);
+  if (!Number.isInteger(requestedWeek) || requestedWeek < 1 || requestedWeek > playoffEnd || requestedWeek > completedThroughWeek) {
     return { week, playoffStart, playoffEnd, leagueSeason, completedThroughWeek, matchupsRows: [] };
   }
 
-  // Static-snapshot path (completed seasons only).
-  const isLeagueComplete = leagueMeta?.status === 'complete';
+  // Use the saved matchup snapshot for active and completed seasons alike.
+  // Explicit teamAScore/teamBScore values are authoritative when present.
   let seasonMatchups = null;
-  if (isLeagueComplete && leagueSeason) {
+  if (leagueSeason) {
     seasonMatchups = await loadSeasonMatchups(leagueSeason);
   }
   if (seasonMatchups && Array.isArray(seasonMatchups[String(week)])) {

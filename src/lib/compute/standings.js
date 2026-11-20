@@ -177,7 +177,7 @@ export async function computeStandingsForLeague(leagueId) {
     getSeasonFormat(leagueSeason, leagueMeta?.settings) ?? getSeasonFormat(2026);
   const { playoffStart, playoffEnd, playoffTeams, toiletBowlTeams, regularSeasonWeeks, playoffWeeks } =
     seasonFormat;
-  const completedThroughWeek = getCompletedWeekForLeague(leagueMeta);
+  const completedThroughWeek = getCompletedWeekForLeague(leagueMeta, playoffEnd);
 
   // 3. Per-roster stats accumulators.
   const statsByRosterRegular = {},
@@ -235,7 +235,7 @@ export async function computeStandingsForLeague(leagueId) {
 
   for (const { week, matchups } of allWeekResults) {
     // Do not expose or aggregate the active scoring week for the live season.
-    if (completedThroughWeek !== null && week > completedThroughWeek) continue;
+    if (week > completedThroughWeek || week > playoffEnd) continue;
     if (!matchups || !matchups.length) continue;
     collectedMatchups[week] = matchups;
 
