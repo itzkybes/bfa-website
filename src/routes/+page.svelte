@@ -76,7 +76,9 @@
   function ownerUsernameForRoster(roster) {
     if (!roster) return null;
     const u = findUserByOwner(roster.owner_id);
-    return u?.username ? String(u.username).trim() : null;
+    // Keep the route segment human-readable; ownerId in the query is the
+    // authoritative identifier used by the Owner's Hub lookup.
+    return u?.username || u?.display_name || String(roster.owner_id || '') || null;
   }
 
   function getHeadshot(playerId) {
@@ -336,7 +338,7 @@
 
         <div class="rando-actions">
           {#if potw.ownerUsername}
-            <a class="btn sm" href={`/team/${encodeURIComponent(potw.ownerUsername)}`} data-testid="rando-view-roster">Owner's Hub</a>
+            <a class="btn sm" href={`/team/${encodeURIComponent(potw.ownerUsername)}?ownerId=${encodeURIComponent(potw.roster.owner_id)}`} data-testid="rando-view-roster">Owner's Hub</a>
           {:else}
             <a class="btn sm" href="/rosters" data-testid="rando-view-roster">View Rosters</a>
           {/if}
