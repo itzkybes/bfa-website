@@ -432,7 +432,7 @@
                       <div class="bracket-consolation-group">
                         <h5 class="bracket-consolation-title">Consolation Games</h5>
                         <div class="bracket-consolation-games">
-                          {#each round.matches.filter(match => isConsolationMatch(match, bracketData[bracket.key])) as match (bracketMatchKey(match))}
+                          {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={el => setBracketMatchRef(bracket.type, match, el)}>
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
