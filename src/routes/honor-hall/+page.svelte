@@ -298,7 +298,7 @@
               <div class="bracket-track">
                 {#each bracketRounds(bracketData[bracket.key]) as round, roundIndex (round.round)}
                   <div class="bracket-round">
-                    <h4 class="bracket-round-title">{round.round === 3 && bracket.type === 'winners' ? 'Finals' : `Round ${round.round}`}</h4>
+                    <h4 class="bracket-round-title">{({ 1: 'Quarterfinals', 2: 'Semifinals', 3: 'Finals' })[round.round] || `Round ${round.round}`}</h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
                       {#each round.matches as match (match.m ?? `${round.round}-${match.p}`)}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1}>
