@@ -232,6 +232,7 @@ export async function computeStandingsForLeague(leagueId) {
   // 6. Process week by week.
   const collectedMatchups = {}; // week -> entries (for downstream MVP aggregators)
   const regularWeekRankSnapshots = [];
+  let playoffRosterSet = null;
 
   for (const { week, matchups } of allWeekResults) {
     // Do not expose or aggregate the active scoring week for the live season.
@@ -242,6 +243,18 @@ export async function computeStandingsForLeague(leagueId) {
     const isRegularWeek = week >= 1 && week < playoffStart;
     const isPlayoffWeek = week >= playoffStart && week <= playoffEnd;
     if (!isRegularWeek && !isPlayoffWeek) continue;
+
+    // Seed the championship field from the completed regular-season standings.
+    // Every playoff round and its consolation games belong to this same field;
+    // the separate Toilet Bowl field is deliberately excluded.
+    if (isPlayoffWeek && !playoffRosterSet) {
+      playoffRosterSet = new Set(
+        Object.entries(statsByRosterRegular)
+          .sort(([, a], [, b]) => compareStandings(a, b))
+          .slice(0, playoffTeams)
+          .map(([rosterId]) => String(rosterId))
+      );
+    }
 
     const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
     const resultsByRoster = isPlayoffWeek ? resultsByRosterPlayoff : resultsByRosterRegular;
@@ -277,6 +290,12 @@ export async function computeStandingsForLeague(leagueId) {
     for (const key of Object.keys(byMatch)) {
       const entries = byMatch[key];
       if (!entries || entries.length === 0) continue;
+      // Do not count Toilet Bowl games (including its consolation rounds) as
+      // playoff statistics. Keep only complete matchups inside the seeded
+      // championship playoff field, including its own consolation matches.
+      if (isPlayoffWeek && entries.some((entry) =>
+        !playoffRosterSet?.has(String(entry.roster_id ?? entry.rosterId ?? ''))
+      )) continue;
 
       // Single-entry "BYE" — score it but skip H2H accounting.
       if (entries.length === 1) {
@@ -353,7 +372,7 @@ export async function computeStandingsForLeague(leagueId) {
     resultsByRosterPlayoff,
     paByRosterPlayoff,
     rosterMap
-  );
+  ).filter((row) => playoffRosterSet?.has(String(row.rosterId)));
 
   const standingsMovement = getStandingsMovementFromSnapshots(regularWeekRankSnapshots);
 
