@@ -16,6 +16,8 @@
   let marginsLargest = [];
   let marginsSmallest = [];
   let lowestWeeklyTotals = [];
+  let highestScoringWeeks = [];
+  let lowestScoringWeeks = [];
   // Stable key across seasons: prefer owner_username (Sleeper username), fallback to owner_name.
   function stableKey(meta) {
     if (!meta) return null;
@@ -225,6 +227,40 @@
       }
       lowestWeeklyTotals = Object.values(lowestByTeam).sort((a,b)=>b.count-a.count || a.team_name.localeCompare(b.team_name));
 
+      // Top and bottom individual team scores across completed regular-season weeks.
+      const weeklyTeamScores = [];
+      for (const result of standingsResults) {
+        if (!result) continue;
+        const rmap = result.rosterMap || {};
+        const playoffStart = Number(result.playoffStart) || 19;
+        for (const [weekText, entries] of Object.entries(result.collectedMatchups || {})) {
+          const week = Number(weekText);
+          if (!Number.isInteger(week) || week < 1 || week >= playoffStart) continue;
+          for (const entry of entries || []) {
+            const rawPoints = Number(entry.__final_score ?? entry.points);
+            if (!Number.isFinite(rawPoints)) continue;
+            const rid = String(entry.roster_id ?? entry.rosterId ?? '');
+            const meta = rmap[rid] || {};
+            weeklyTeamScores.push({
+              key: `${result.season}-${week}-${rid}`,
+              season: result.season,
+              week,
+              points: Math.round(rawPoints * 100) / 100,
+              rosterId: rid,
+              team_name: meta.team_name || entry.__team_name || 'Unknown team',
+              owner_name: meta.owner_name || entry.__owner_name || '',
+              avatar: meta.team_avatar || meta.owner_avatar || null
+            });
+          }
+        }
+      }
+      highestScoringWeeks = weeklyTeamScores.slice().sort((a, b) =>
+        b.points - a.points || Number(b.season) - Number(a.season) || b.week - a.week
+      ).slice(0, 10);
+      lowestScoringWeeks = weeklyTeamScores.slice().sort((a, b) =>
+        a.points - b.points || Number(b.season) - Number(a.season) || b.week - a.week
+      ).slice(0, 10);
+
       const sorted = allMargins.slice().sort((a, b) => b.margin - a.margin);
       marginsLargest = sorted.slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
       marginsSmallest = sorted.slice().reverse().slice(0, 10).map((r, i) => ({ ...r, rank: i + 1 }));
@@ -320,6 +356,38 @@
       {:else}<div class="empty-row">No completed regular-season weekly scores yet.</div>{/if}
     </section>
     <section class="block">
+      <div class="block-head"><h2 class="block-title">Highest Scoring Week — Top 10</h2><span class="block-sub">Top completed regular-season team scores</span></div>
+      {#if highestScoringWeeks.length}
+        <div class="table-wrap"><table class="bfa-table weekly-record-table">
+          <colgroup><col style="width:8%" /><col style="width:42%" /><col style="width:16%" /><col style="width:14%" /><col style="width:20%" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th>Season</th><th>Week</th><th class="col-num">Points</th></tr></thead>
+          <tbody>{#each highestScoringWeeks as row, i (row.key)}
+            <tr>
+              <td class="num">{i + 1}</td>
+              <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} /><div><div class="team-name-cell">{row.team_name}</div>{#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}</div></div></td>
+              <td>{row.season}</td><td>{row.week}</td><td class="col-num"><span class="num">{row.points.toFixed(2)}</span></td>
+            </tr>
+          {/each}</tbody>
+        </table></div>
+      {:else}<div class="empty-card">No completed regular-season weekly scores yet.</div>{/if}
+    </section>
+    <section class="block">
+      <div class="block-head"><h2 class="block-title">Lowest Scoring Week — Top 10</h2><span class="block-sub">Lowest completed regular-season team scores</span></div>
+      {#if lowestScoringWeeks.length}
+        <div class="table-wrap"><table class="bfa-table weekly-record-table">
+          <colgroup><col style="width:8%" /><col style="width:42%" /><col style="width:16%" /><col style="width:14%" /><col style="width:20%" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th>Season</th><th>Week</th><th class="col-num">Points</th></tr></thead>
+          <tbody>{#each lowestScoringWeeks as row, i (row.key)}
+            <tr>
+              <td class="num">{i + 1}</td>
+              <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} /><div><div class="team-name-cell">{row.team_name}</div>{#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}</div></div></td>
+              <td>{row.season}</td><td>{row.week}</td><td class="col-num"><span class="num">{row.points.toFixed(2)}</span></td>
+            </tr>
+          {/each}</tbody>
+        </table></div>
+      {:else}<div class="empty-card">No completed regular-season weekly scores yet.</div>{/if}
+    </section>
+    <section class="block">
       <div class="block-head">
         <h2 class="block-title">Best Single-Season Records</h2>
         <span class="block-sub">Completed seasons · win % → wins → PF</span>
@@ -363,7 +431,8 @@
       </div>
       {#if aggregatedRegular.length}
         <div class="table-wrap">
-          <table class="bfa-table">
+          <table class="bfa-table career-totals-table">
+            <colgroup><col style="width:24%" /><col style="width:6%" /><col style="width:6%" /><col style="width:5%" /><col style="width:7%" /><col style="width:7%" /><col style="width:7%" /><col style="width:7%" /><col style="width:9%" /><col style="width:9%" /><col style="width:7%" /><col style="width:6%" /></colgroup>
             <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">W</th><th class="col-num" title="All-time regular-season losses">L</th><th class="col-num" title="All-time ties">T</th><th class="col-num" title="Win percentage, with ties counting as half a win">Win %</th><th class="col-num" title="Total regular-season games">Games</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst losing streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th><th class="col-num" title="Average points scored per game">PF / Game</th><th class="col-num" title="Number of seasons played">Seasons</th></tr></thead>
             <tbody>
               {#each aggregatedRegular as row, idx (row.key)}
@@ -534,6 +603,11 @@
   .bfa-table .col-num { white-space: nowrap; }
   .team-cell { min-width: 0; }
   .team-name-cell { overflow-wrap: anywhere; }
+  .career-totals-table .team-name-cell { overflow-wrap: normal; word-break: normal; }
+  .career-totals-table .team-cell { min-width: 0; width: 100%; }
+  .career-totals-table .team-avatar { flex: 0 0 auto; }
+  .weekly-record-table .team-cell { min-width: 0; }
+  .weekly-record-table .team-name-cell { overflow-wrap: anywhere; }
   .team-cell { display: flex; align-items: center; gap: 0.75rem; }
   .team-avatar.small { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); }
   .team-name-cell { font-weight: 700; color: var(--text-primary); font-size: 0.98rem; line-height: 1.2; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
@@ -593,6 +667,8 @@
     .bfa-table tbody td { padding: 0.7rem 0.55rem; }
     .bfa-table .col-num { white-space: nowrap; }
     .bfa-table .team-cell { gap: 0.5rem; }
+    .career-totals-table .team-name-cell { font-size: .82rem; line-height: 1.15; }
+    .career-totals-table .team-avatar.small { width: 30px; height: 30px; }
     .bfa-table .team-avatar.small { width: 34px; height: 34px; }
     .bfa-table .num { font-size: 0.9rem; }
     .team-name-cell { font-size: 0.92rem; }
