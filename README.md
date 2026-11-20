@@ -111,8 +111,18 @@ use the selected starters and their aligned `starters_points` values. Raw
 `player_points` / `players_points` are not used: they can include unselected
 games when a manager uses Sleeper's manual game-selection feature.
 
-The site excludes the current, unfinished fantasy week from season stats. A
-fantasy week runs Monday at 3:00 AM through the following Monday at 2:59 AM.
+The site applies one shared completed-week cutoff to every stats page:
+Standings, Trends / Power Rankings, Team Records, Player Records, Honor Hall,
+Owner Hub, and team matchup history. During an active season, only weeks before
+Sleeper's current `settings.leg` are eligible. The in-progress week is never
+counted. A fantasy week runs Monday at 3:00 AM through the following Monday at
+2:59 AM Eastern.
+
+Completed seasons are capped at that season's configured final playoff week;
+pre-draft, drafting, and unknown seasons expose no weekly stats. The Owner Hub
+uses the same completed matchup snapshots for scores and results. Its live
+schedule lookup is used only to label upcoming opponents, never to count an
+upcoming week as a played result.
 
 ### Owner Hub (rosters page)
 
