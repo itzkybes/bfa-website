@@ -29,3 +29,33 @@ test('aggregatePlayerPoints uses starter points aliases without reading raw play
   assert.equal(result['player-a'].points, 12);
   assert.deepEqual(result['player-a'].pointsByRoster, { '4': 12 });
 });
+
+import { computeParticipantPoints } from '../src/lib/compute/scoring.js';
+
+test('computeParticipantPoints sums only starter points and ignores full-roster totals', () => {
+  const result = computeParticipantPoints({
+    starters: ['starter-a', 'starter-b'],
+    starters_points: [24.5, 18],
+    players_points: { 'starter-a': 24.5, 'starter-b': 18, 'bench-c': 42 },
+    points: 84.5,
+  });
+
+  assert.equal(result, 42.5);
+});
+
+test('computeParticipantPoints does not fall back to ambiguous team points when starter data is missing', () => {
+  assert.equal(computeParticipantPoints({
+    starters: ['starter-a'],
+    player_points: { 'starter-a': 20, 'bench-b': 35 },
+    points: 55,
+  }), 0);
+});
+
+test('computeParticipantPoints preserves explicit historical score overrides', () => {
+  assert.equal(computeParticipantPoints({
+    __final_score: 91.25,
+    starters: ['starter-a'],
+    starters_points: [20],
+    points: 120,
+  }), 91.25);
+});
