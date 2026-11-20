@@ -18,7 +18,7 @@
   let playoffsMvp = null;
   let regularMvp = null;
   let playersMap = {};
-  let bracketData = { winners: [], losers: [], rosterMap: {}, regularSeeds: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
+  let bracketData = { winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
 
   // Stash season results so dropdown switching is instant
   let cache = {}; // season -> all computed season honors + both brackets
@@ -122,7 +122,7 @@
       winners: standings.winnersBracket || [],
       losers: standings.losersBracket || [],
       rosterMap: standings.rosterMap || {},
-      regularSeeds: Object.fromEntries((standings.regularStandings || []).map((row, index) => [String(row.rosterId), index + 1])),
+      finalSeeds: Object.fromEntries(finalList.map((row, index) => [String(row.rosterId), Number(row.rank) || index + 1])),
       playoffStart,
       playoffTeams: playoffTeamCount,
       scoresByWeek
@@ -159,10 +159,9 @@
     return rosterId == null ? null : bracketData.rosterMap[String(rosterId)] || null;
   }
 
-  function bracketSeed(rosterId, bracketType) {
-    const overallSeed = bracketData.regularSeeds?.[String(rosterId)];
-    if (!overallSeed) return '—';
-    return bracketType === 'losers' ? `TB ${overallSeed - bracketData.playoffTeams}` : `#${overallSeed}`;
+  function bracketSeed(rosterId) {
+    const finalPlace = bracketData.finalSeeds?.[String(rosterId)];
+    return finalPlace ? `#${finalPlace}` : '—';
   }
 
   function bracketScore(round, rosterId) {
@@ -307,7 +306,7 @@
                             {#if rosterId != null}
                               {@const team = bracketTeam(rosterId)}
                               <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
-                                <span class="bracket-seed num">{bracketSeed(rosterId, bracket.type)}</span>
+                                <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
                                 <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
                                 <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
                                 <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
@@ -327,7 +326,7 @@
           </div>
         {/each}
       </div>
-      <p class="bracket-note">Seeds reflect regular-season finish. Toilet Bowl seeds are numbered from the first team below the playoff cutoff. Consolation games remain within their respective brackets.</p>
+      <p class="bracket-note">Team numbers reflect final season placement across both brackets. Consolation games remain within their respective brackets.</p>
     </section>
     <section class="block">
       <div class="block-head"><h2 class="block-title">Final Standings</h2><span class="block-sub">Playoff results · champion pinned</span></div>
