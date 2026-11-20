@@ -274,11 +274,6 @@
     }
   }
 
-  $: regularWinsLeader = aggregatedRegular[0] || null;
-  $: playoffTitlesLeader = aggregatedPlayoff[0] || null;
-  $: largestBlowout = marginsLargest[0] || null;
-  $: closestGame = marginsSmallest[0] || null;
-
   onMount(loadAll);
 </script>
 
@@ -297,41 +292,6 @@
   {:else if error}
     <ErrorBoundary {error} onRetry={loadAll} context="team records" />
   {:else}
-    <section class="record-highlights" aria-label="All-time record highlights">
-      <article class="highlight-card">
-        <div class="highlight-label">Most Regular-Season Wins</div>
-        {#if regularWinsLeader}
-          <div class="highlight-value num">{regularWinsLeader.wins}</div>
-          <div class="highlight-team">{regularWinsLeader.team_name}</div>
-          <div class="highlight-detail">{regularWinsLeader.owner_name || 'BFA manager'} · {regularWinsLeader.games} games</div>
-        {:else}<div class="highlight-empty">No record yet</div>{/if}
-      </article>
-      <article class="highlight-card">
-        <div class="highlight-label">Most Championships</div>
-        {#if playoffTitlesLeader}
-          <div class="highlight-value num">{playoffTitlesLeader.championships}</div>
-          <div class="highlight-team">{playoffTitlesLeader.team_name}</div>
-          <div class="highlight-detail">{playoffTitlesLeader.owner_name || 'BFA manager'} · {playoffTitlesLeader.wins} playoff wins</div>
-        {:else}<div class="highlight-empty">No record yet</div>{/if}
-      </article>
-      <article class="highlight-card">
-        <div class="highlight-label">Biggest Blowout</div>
-        {#if largestBlowout}
-          <div class="highlight-value num">+{largestBlowout.margin}</div>
-          <div class="highlight-team">{largestBlowout.teamAName}</div>
-          <div class="highlight-detail">{largestBlowout.scoreA}–{largestBlowout.scoreB} · {largestBlowout.season} Week {largestBlowout.week}</div>
-        {:else}<div class="highlight-empty">No record yet</div>{/if}
-      </article>
-      <article class="highlight-card">
-        <div class="highlight-label">Closest Game</div>
-        {#if closestGame}
-          <div class="highlight-value num">{closestGame.margin}</div>
-          <div class="highlight-team">{closestGame.teamAName} def. {closestGame.teamBName}</div>
-          <div class="highlight-detail">{closestGame.scoreA}–{closestGame.scoreB} · {closestGame.season} Week {closestGame.week}</div>
-        {:else}<div class="highlight-empty">No record yet</div>{/if}
-      </article>
-    </section>
-
     <section class="block">
       <div class="block-head"><h2 class="block-title">Most Weekly League Lows</h2><span class="block-sub">Lowest team total in each regular-season week · ties count</span></div>
       {#if lowestWeeklyTotals.length}
@@ -587,21 +547,20 @@
     margin-top: 0.5rem;
   }
 
-  .record-highlights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.85rem; margin-bottom: 1.25rem; }
-  .highlight-card { min-width: 0; padding: 1.1rem 1.15rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); }
-  .highlight-label { color: var(--text-tertiary); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
-  .highlight-value { margin-top: 0.55rem; color: var(--accent); font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 800; line-height: 1; }
-  .highlight-team { margin-top: 0.45rem; color: var(--text-primary); font-weight: 800; overflow-wrap: anywhere; }
-  .highlight-detail { margin-top: 0.2rem; color: var(--text-tertiary); font-size: 0.75rem; line-height: 1.4; }
-  .highlight-empty { margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.85rem; }
   .block { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 1.25rem; }
   .block-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); gap: 1rem; flex-wrap: wrap; }
   .block-title { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
   .block-sub { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 700; }
   .table-wrap { width: 100%; overflow: hidden; }
-  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; font-size: 0.98rem; }
-  .bfa-table thead th { font-size: 0.72rem; padding: 0.85rem 0.72rem; white-space: normal; }
-  .bfa-table tbody td { padding: 0.85rem 0.72rem; }
+  /* Compact tables preserve every column and statistic while using the page width efficiently. */
+  .bfa-table { width: 100%; min-width: 0; table-layout: fixed; font-size: 0.84rem; }
+  .bfa-table thead th { font-size: 0.66rem; line-height: 1.2; padding: 0.58rem 0.42rem; white-space: normal; }
+  .bfa-table tbody td { padding: 0.58rem 0.42rem; line-height: 1.25; }
+  .bfa-table .num { font-size: 0.88rem; }
+  .bfa-table .team-cell { gap: 0.48rem; }
+  .bfa-table .team-avatar.small { width: 32px; height: 32px; }
+  .bfa-table .team-name-cell { font-size: 0.84rem; line-height: 1.15; }
+  .bfa-table .team-owner-cell { font-size: 0.7rem; }
   .bfa-table .col-num { white-space: nowrap; }
   .team-cell { min-width: 0; }
   .team-name-cell { overflow-wrap: anywhere; }
@@ -615,7 +574,12 @@
   .team-name-cell { font-weight: 700; color: var(--text-primary); font-size: 0.98rem; line-height: 1.2; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
   .team-owner-cell { color: var(--text-tertiary); font-size: 0.84rem; margin-top: 0.2rem; }
   /* Weekly-low history: give the dense weeks column room and make each score scannable. */
-  .low-weeks-table { font-size: 0.9rem; }
+  .low-weeks-table { font-size: 0.8rem; }
+  .low-weeks-table thead th { padding: 0.58rem 0.42rem; }
+  .low-weeks-table tbody td { padding: 0.58rem 0.42rem; }
+  .weekly-record-table .team-avatar.small { width: 30px; height: 30px; }
+  .career-totals-table .team-name-cell { font-size: 0.78rem; }
+  .career-totals-table .team-avatar.small { width: 29px; height: 29px; }
   .low-weeks-table .lw-rank-col { width: 7%; }
   .low-weeks-table .lw-team-col { width: 38%; }
   .low-weeks-table .lw-count-col { width: 14%; }
@@ -646,11 +610,11 @@
   .m-side.right { justify-content: flex-end; flex-direction: row; }
   .m-mini { min-width: 0; }
   .m-side.right .m-mini { text-align: right; }
-  .m-mini-name { font-weight: 600; font-size: 0.82rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .m-mini-score { color: var(--text-secondary); font-size: 0.85rem; }
+  .m-mini-name { font-weight: 600; font-size: 0.76rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-mini-score { color: var(--text-secondary); font-size: 0.78rem; }
   .margin-value { background: var(--surface-2); border: 1px solid var(--border-subtle); padding: 0.25rem 0.55rem; border-radius: var(--r-sm); color: var(--accent); font-size: 1.1rem; }
   .margin-value.tight { color: var(--win); border-color: var(--win); }
-  .margin-meta { color: var(--text-tertiary); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+  .margin-meta { color: var(--text-tertiary); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
   @media (max-width: 1100px) { .record-highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 980px) { .margins-grid { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {
@@ -660,9 +624,6 @@
     .page-sub { font-size: 0.9rem; }
     .block-head { padding: 0.85rem 1rem; }
     .block-title { font-size: 1.05rem; }
-    .record-highlights { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-    .highlight-card { padding: 0.85rem; }
-    .highlight-label { font-size: 0.6rem; }
     /* Keep tables within the viewport; allow labels and values to wrap. */
     .bfa-table { min-width: 0; font-size: 0.72rem; table-layout: fixed; }
     .bfa-table thead th { font-size: 0.68rem; padding: 0.7rem 0.55rem; letter-spacing: 0.04em; }
