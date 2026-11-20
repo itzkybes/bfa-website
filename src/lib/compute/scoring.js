@@ -113,17 +113,24 @@ export function aggregatePlayerPoints(matchupEntries) {
         player.pointsByRoster[rid] = (player.pointsByRoster[rid] || 0) + points;
         // For season-wide MVP display, attribute a traded player to the
         // roster that received the largest share of their selected-game points.
-        if (player.pointsByRoster[rid] > (player.pointsByRoster[player.rosterId] || 0)) {
-          player.rosterId = rid;
-        }
+  
       }
     }
   }
   for (const player of Object.values(byPlayer)) {
     player.points = Math.round(player.points * 100) / 100;
+    let topRoster = player.rosterId;
+    let topPoints = -Infinity;
+    // Keep the first-seen roster on a tie; choose the roster with the
+    // largest final share after all weeks have been aggregated.
     for (const rid of Object.keys(player.pointsByRoster)) {
       player.pointsByRoster[rid] = Math.round(player.pointsByRoster[rid] * 100) / 100;
+      if (player.pointsByRoster[rid] > topPoints) {
+        topPoints = player.pointsByRoster[rid];
+        topRoster = rid;
+      }
     }
+    player.rosterId = topRoster;
   }
   return byPlayer;
 }
