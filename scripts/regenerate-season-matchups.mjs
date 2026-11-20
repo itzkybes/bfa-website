@@ -8,11 +8,10 @@
  * historical shape that `lib/leagueCompute.client.js` already consumes.
  *
  * Key correctness rules (matches project policy):
- *   1. Team-total score precedence:
- *        a. Sum of `starters_points` (zip with `starters` by index)
- *        b. Fallback to `entry.points`
- *      To manually override a team's score for a week after regen, edit
- *      `teamAScore` / `teamBScore` directly in the generated JSON.
+ *   1. Team totals are derived ONLY from selected starters' `starters_points`.
+ *      No whole-roster or top-level score fallback is permitted.
+ *   2. Existing `teamAScore` / `teamBScore` values are preserved as manual
+ *      historical overrides. New season files omit these fields by default.
  *   2. `player_points` is NEVER written to the JSON — that field includes
  *      raw unselected games and would corrupt scores for managers using
  *      Sleeper's manual game-selection feature.
@@ -23,10 +22,8 @@
  *   node scripts/regenerate-season-matchups.mjs            # every completed season in the chain
  *   node scripts/regenerate-season-matchups.mjs 2024 2025  # only the years given
  *
- * The "current" in-progress season is intentionally skipped by default. While
- * the league is live, `computeStandingsForLeague` always reads the Sleeper API
- * so newly-played games show up immediately. Once the season ends, re-run this
- * script (or pass the year explicitly) to lock the snapshot in.
+ * Every discovered season, including the in-progress season, is written to its
+ * own JSON file. Re-run after completed scoring weeks to refresh snapshots.
  */
 
 import fs from 'node:fs/promises';
@@ -51,13 +48,10 @@ function safeNum(v) {
  */
 function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
-  if (Array.isArray(entry.starters_points) && entry.starters_points.length) {
-    let s = 0;
-    for (const v of entry.starters_points) s += safeNum(v);
-    return Math.round(s * 100) / 100;
-  }
-  const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
-  return Math.round(fallback * 100) / 100;
+  const starters = Array.isArray(entry.starters) ? entry.starters : [];
+  const points = Array.isArray(entry.starters_points) ? entry.starters_points : [];
+  if (!starters.length || points.length !== starters.length) return 0;
+  return Math.round(points.reduce((sum, value) => sum + safeNum(value), 0) * 100) / 100;
 }
 
 async function get(url) {
@@ -147,12 +141,52 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
     curr = lg.previous_league_id ? String(lg.previous_league_id) : null;
     steps += 1;
   }
+    // Discover future seasons through Sleeper's user-leagues endpoint.
+  let seedUserIds = [];
+  try {
+    const anchorUsers = await getUsers(anchorLeagueId);
+    seedUserIds = anchorUsers.map((u) => u?.user_id).filter(Boolean).map(String).slice(0, 4);
+  } catch (_) {}
+  if (seedUserIds.length) {
+    const startYear = Number(mainLeague.season) || new Date().getUTCFullYear();
+    const maxYear = Math.max(startYear, new Date().getUTCFullYear()) + 5;
+    let latestId = String(mainLeague.league_id || anchorLeagueId);
+    for (let year = startYear + 1; year <= maxYear; year++) {
+      const lists = await Promise.all(seedUserIds.map((uid) =>
+        get(`${BASE}/user/${encodeURIComponent(uid)}/leagues/nba/${year}`).catch(() => [])
+      ));
+      const candidates = new Map();
+      for (const list of lists) for (const league of list || []) if (league?.league_id) candidates.set(String(league.league_id), league);
+      const next = [...candidates.values()].find((league) => String(league.previous_league_id || '') === latestId);
+      if (!next) break;
+      const discovered = await getLeague(String(next.league_id));
+      if (!discovered) break;
+      seasons.push({
+        league_id: String(discovered.league_id || next.league_id),
+        season: String(discovered.season || year),
+        name: discovered.name || null,
+        status: discovered.status || null,
+        playoff_week_start: Number(discovered.settings?.playoff_week_start) || null,
+        playoff_teams: Number(discovered.settings?.playoff_teams) || null,
+      });
+      latestId = String(discovered.league_id || next.league_id);
+    }
+  }
+  const unique = new Map();
+  for (const item of seasons) unique.set(String(item.season), item);
+  seasons.splice(0, seasons.length, ...[...unique.values()].sort((a, b) => Number(a.season) - Number(b.season)));
   return seasons;
 }
 
 /** Fetch each weekly matchup. Playoff rules come from the shared season format. */
 async function generateSeasonJson(season) {
   const { league_id, season: year } = season;
+  let previous = {};
+  try {
+    previous = JSON.parse(await fs.readFile(path.join(STATIC_DIR, `${year}.json`), 'utf8'));
+  } catch (_) {
+    // No prior snapshot means there are no manual overrides to retain.
+  }
   const [rosters, users] = await Promise.all([getRosters(league_id), getUsers(league_id)]);
   const rosterMap = buildRosterMap(rosters, users);
   const format = getSeasonFormat(year, { playoff_week_start: season.playoff_week_start, playoff_teams: season.playoff_teams });
@@ -178,7 +212,14 @@ async function generateSeasonJson(season) {
       const aMeta = rosterMap[aId] || {}, bMeta = rosterMap[bId] || {};
       const teamA = { rosterId: aId, name: aMeta.team_name ?? null, ownerName: aMeta.owner_name ?? null, starters: Array.isArray(a.starters) ? a.starters : [], starters_points: Array.isArray(a.starters_points) ? a.starters_points : [] };
       const teamB = { rosterId: bId, name: bMeta.team_name ?? null, ownerName: bMeta.owner_name ?? null, starters: Array.isArray(b.starters) ? b.starters : [], starters_points: Array.isArray(b.starters_points) ? b.starters_points : [] };
-      weekRows.push({ matchup_id: Number(mid) || mid, week, teamA, teamAScore: computeParticipantPoints(a), teamB, teamBScore: computeParticipantPoints(b) });
+      const row = { matchup_id: Number(mid) || mid, week, teamA, teamB };
+      const previousRow = (previous[String(week)] || []).find(
+        (candidate) => String(candidate.matchup_id) === String(row.matchup_id)
+      );
+      // Preserve manually pinned historical totals; new rows calculate from starters.
+      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore')) row.teamAScore = safeNum(previousRow.teamAScore);
+      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore')) row.teamBScore = safeNum(previousRow.teamBScore);
+      weekRows.push(row);
     }
     if (weekRows.length) { weeks[String(week)] = weekRows; totalMatchups += weekRows.length; }
   }
@@ -199,11 +240,10 @@ async function main() {
     );
   }
 
-  // Default = every COMPLETED season. The current in-progress season is
-  // intentionally skipped — we want fresh API data while the league is live.
+  // Default = every discovered season, including the current season.
   const requestedYears = argv.length
     ? argv
-    : seasons.filter((s) => s.status === 'complete' && s.season).map((s) => String(s.season));
+    : seasons.filter((s) => s.season).map((s) => String(s.season));
 
   if (!requestedYears.length) {
     console.log(

@@ -1,32 +1,29 @@
 # Scripts
 
-Manual sanity-check helpers. Not run in CI — invoke them by hand when touching
-the core data layer.
+## Regenerate season matchup files
 
-## `test-auto-discovery.mjs`
+The generator writes one compact JSON file per Sleeper season:
+`static/season_matchups/{year}.json`. It discovers historical seasons through
+`previous_league_id` and future seasons through the league members' Sleeper
+user-leagues lists.
 
-Runs the full bidirectional season-discovery logic against the **live Sleeper
-API** and prints the discovered seasons.
+Run locally with Node 20+:
 
 ```bash
-node scripts/test-auto-discovery.mjs
+node scripts/regenerate-season-matchups.mjs
 ```
 
-Expected output (as of Feb 2026):
+Pass season years to update only selected files:
 
-```
-Discovered 5 season(s):
-
-  2022  → 851213309523931136   (The Badger Bowl)
-  2023  → 984892318991929344   (The Badger Bowl)
-  2024  → 1081206702122377216  (The Badger Bowl)
-  2025  → 1219816671624048640  (The Badger Bowl)
-  2026  → 1344133146307739648  (The Badger Bowl)
-
-Sanity:
-  2025 present?  true
-  2026 present?  true  ← forward-discovery result
+```bash
+node scripts/regenerate-season-matchups.mjs 2025 2026
 ```
 
-The script exits non-zero if 2026 isn't discovered — useful as a smoke test
-after editing `src/lib/api/sleeper.js`.
+The GitHub Actions workflow **Sync season matchup files** also runs weekly and
+can be started manually from the Actions tab. It commits only changed files in
+`static/season_matchups/`.
+
+Each matchup stores the team/owner labels, roster ID, starter player IDs, and
+the corresponding `starters_points` values. Ordinary team totals are calculated
+from those starter points by the site. Existing `teamAScore`/`teamBScore`
+values are retained as explicit historical overrides when regenerating files.

@@ -16,7 +16,6 @@
 import {
   getLeague,
   getRosterMapWithOwners,
-  getMatchupsForWeek,
   getWinnersBracket,
   getLosersBracket,
   safeNum,
@@ -62,7 +61,9 @@ function synthesizeWeekFromStatic(week, weekRows) {
           matchup_id: m.matchup_id ?? null,
           // `__final_score` is the authoritative team total. Editing `teamAScore`
           // / `teamBScore` in the JSON flows through everywhere.
-          __final_score: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points ?? 0),
+          ...(m.teamAScore != null || m.teamA?.score != null || m.teamA?.points != null
+            ? { __final_score: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points) }
+            : {}),
           // Per-player figures from `starters_points` (the only authoritative
           // source for per-player scoring — `player_points` is intentionally
           // not propagated since manual game-selection corrupts it).
@@ -79,7 +80,9 @@ function synthesizeWeekFromStatic(week, weekRows) {
           week,
           roster_id: ridB,
           matchup_id: m.matchup_id ?? null,
-          __final_score: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points ?? 0),
+          ...(m.teamBScore != null || m.teamB?.score != null || m.teamB?.points != null
+            ? { __final_score: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points) }
+            : {}),
           starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
           starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,
           __team_name: m.teamB.name ?? null,
@@ -211,26 +214,19 @@ export async function computeStandingsForLeague(leagueId) {
 
   // 4. Decide static vs live and load any historical patches.
   const isLeagueComplete = leagueMeta?.status === 'complete';
-  const [seasonMatchups, earlyData] = await Promise.all([
-    isLeagueComplete && leagueSeason ? loadSeasonMatchups(leagueSeason) : Promise.resolve(null),
-  ]);
+  const seasonMatchups = leagueSeason ? await loadSeasonMatchups(leagueSeason) : null;
+  const earlyData = null;
 
   // 5. Fetch ALL weeks in parallel — static where available, live otherwise.
   const weekFetches = [];
   for (let week = 1; week <= MAX_WEEKS; week++) {
     const staticRows = seasonMatchups?.[String(week)];
-    if (Array.isArray(staticRows)) {
-      weekFetches.push(
-        Promise.resolve({ week, matchups: synthesizeWeekFromStatic(week, staticRows) })
-      );
-    } else {
-      weekFetches.push(
-        getMatchupsForWeek(leagueId, week).then(
-          (m) => ({ week, matchups: m }),
-          () => ({ week, matchups: null })
-        )
-      );
-    }
+    weekFetches.push(
+      Promise.resolve({
+        week,
+        matchups: Array.isArray(staticRows) ? synthesizeWeekFromStatic(week, staticRows) : null,
+      })
+    );
   }
   const allWeekResults = await Promise.all(weekFetches);
 
