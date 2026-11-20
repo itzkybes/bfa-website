@@ -75,7 +75,8 @@
       String(entry.roster_id ?? entry.rosterId),
       entry.points
     ]));
-    const regularSeasonComplete = Object.keys(rosterMap).length > 0 &&
+    const regularSeasonComplete = completedThrough >= playoffStart - 1 &&
+      Object.keys(rosterMap).length > 0 &&
       Object.keys(rosterMap).every((rid) => finalWeekScores.get(String(rid)) != null);
 
     const schedule = Object.fromEntries(Object.keys(rosterMap).map((rid) => [String(rid), []]));
@@ -554,30 +555,6 @@
               </div>
             {/if}
           </div>
-          <section class="season-schedule" data-testid={`current-season-schedule-${roster.rosterId}`}>
-            <div class="records-head">
-              <div class="records-title">Current Season Schedule</div>
-              <div class="records-sub">{season} · {selectedSchedule.length} weeks</div>
-            </div>
-            {#if selectedSchedule.length}
-              <div class="schedule-list">
-                {#each selectedSchedule as game (game.week)}
-                  <div class="schedule-row">
-                    <div class="schedule-week">Week {game.week}<small>{game.isPlayoff ? 'Playoffs' : 'Regular season'}</small></div>
-                    <div class="schedule-opponent">
-                      {#if game.opponentAvatar}<img src={game.opponentAvatar} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />{/if}
-                      <span>{game.opponentName}</span>
-                    </div>
-                    <div class="schedule-outcome" class:win={game.result === 'W'} class:loss={game.result === 'L'} class:tie={game.result === 'T'}>
-                      {game.score || game.status}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="empty-row">No schedule has been published for this season yet.</div>
-            {/if}
-          </section>
           {#if roster.owner_hub.seasonHistory?.length}
             <div class="season-history" data-testid={`season-history-${roster.rosterId}`}>
               <div class="records-head">
@@ -607,6 +584,31 @@
               </div>
             </div>
           {/if}
+          <section class="season-schedule" data-testid={`current-season-schedule-${roster.rosterId}`}>
+            <div class="records-head">
+              <div class="records-title">Current Season Schedule</div>
+              <div class="records-sub">{season} · {selectedSchedule.length} weeks</div>
+            </div>
+            {#if selectedSchedule.length}
+              <div class="schedule-list">
+                {#each selectedSchedule as game (game.week)}
+                  <div class="schedule-row">
+                    <div class="schedule-week">Week {game.week}<small>{game.isPlayoff ? 'Playoffs' : 'Regular season'}</small></div>
+                    <div class="schedule-opponent">
+                      {#if game.opponentAvatar}<img src={game.opponentAvatar} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} />{/if}
+                      <span>{game.opponentName}</span>
+                    </div>
+                    <div class="schedule-outcome" class:win={game.result === 'W'} class:loss={game.result === 'L'} class:tie={game.result === 'T'}>
+                      {game.score || game.status}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {:else}
+              <div class="empty-row">No schedule has been published for this season yet.</div>
+            {/if}
+          </section>
+
         {/if}
 
         <div class="section-label">Starters</div>
