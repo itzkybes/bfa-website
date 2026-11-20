@@ -338,7 +338,7 @@
 
         <div class="rando-actions">
           {#if potw.ownerUsername}
-            <a class="btn sm" href={`/team/${encodeURIComponent(potw.ownerUsername)}?ownerId=${encodeURIComponent(potw.roster.owner_id)}`} data-testid="rando-view-roster">Owner's Hub</a>
+            <a class="btn sm" href={`/rosters?rosterId=${encodeURIComponent(potw.roster.roster_id)}`} data-testid="rando-view-roster">Owner's Hub</a>
           {:else}
             <a class="btn sm" href="/rosters" data-testid="rando-view-roster">View Rosters</a>
           {/if}
