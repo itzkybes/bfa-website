@@ -423,7 +423,7 @@
           <div class="bracket-column" data-testid={bracket.type === 'winners' ? 'championship-bracket' : 'toilet-bowl-bracket'}>
             <h3 class="bracket-title">{bracket.title}</h3>
             {#if bracketData[bracket.key].length}
-              <div class="bracket-track" bind:this={el => setBracketTrackRef(bracket.type, el)} on:scroll={updateBracketConnectors}>
+              <div class="bracket-track" bind:this={bracketTrackRefs[bracket.type]} on:scroll={updateBracketConnectors}>
                 <svg class="bracket-connectors" aria-hidden="true" width={bracketTrackRefs[bracket.type]?.scrollWidth || 1000} height={bracketTrackRefs[bracket.type]?.scrollHeight || 600}>
                   <defs>
                     <marker id={`winner-arrow-${bracket.type}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3.5 L0,7 z" class="connector-arrow-winner" /></marker>
@@ -441,7 +441,7 @@
                         <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketData[bracket.key])}</h5>
                       {/if}
                       {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
-                        <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={el => setBracketMatchRef(bracket.type, match, el)}>
+                        <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                           {#each [match.t1, match.t2] as rosterId}
                             {#if rosterId != null}
                               {@const team = bracketTeam(rosterId)}
@@ -464,7 +464,7 @@
                         <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
                         <div class="bracket-consolation-games">
                           {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
-                            <div class="bracket-match bracket-match-consolation" bind:this={el => setBracketMatchRef(bracket.type, match, el)}>
+                            <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
                                   {@const team = bracketTeam(rosterId)}
