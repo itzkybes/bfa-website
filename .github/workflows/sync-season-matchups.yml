@@ -1,6 +1,9 @@
 name: Sync season matchup files
 
 on:
+  push:
+    branches:
+      - fix/starter-only-team-scoring
   workflow_dispatch:
   schedule:
     - cron: '20 9 * * 1'
