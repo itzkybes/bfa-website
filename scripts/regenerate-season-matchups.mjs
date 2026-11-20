@@ -141,7 +141,8 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
     curr = lg.previous_league_id ? String(lg.previous_league_id) : null;
     steps += 1;
   }
-    // Discover future seasons through Sleeper's user-leagues endpoint.
+  const mainLeague = seasons[0];
+  // Discover future seasons through Sleeper's user-leagues endpoint.
   let seedUserIds = [];
   try {
     const anchorUsers = await getUsers(anchorLeagueId);
