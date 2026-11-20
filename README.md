@@ -23,7 +23,7 @@ from Sleeper and cached in the browser.
 | `/records-team`   | All-time team records, biggest blowouts/nailbiters, and head-to-head matrix |
 | `/records-player` | Season MVPs, All-Time MVP Awards, All-Time Best Player by Team, and cumulative Regular Season / Playoffs scoring leaders by franchise |
 | `/honor-hall`     | Champions, Biggest Loser, three MVPs, and final standings |
-| `/admin/generate-season-matchups` | Browser-based snapshot regenerator for completed seasons |
+| `/admin/generate-season-matchups` | Browser-based season snapshot utility |
 
 ### Site map
 
@@ -158,7 +158,7 @@ src/
 │   │   └── index.js               Barrel — `import { … } from '$lib/api'`
 │   ├── compute/
 │   │   ├── scoring.js             computeParticipantPoints, starterPointsByPid, aggregatePlayerPoints
-│   │   ├── standings.js           Season standings, MVPs, static-vs-live switch
+│   │   ├── standings.js           Season standings, MVPs, snapshot-only scoring
 │   │   ├── matchups.js            Weekly matchup rows
 │   │   ├── brackets.js            Final standings + championship game from brackets
 │   │   ├── avatars.js             Overlay each owner's latest team art on historical seasons
