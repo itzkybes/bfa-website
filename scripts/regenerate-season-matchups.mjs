@@ -194,9 +194,16 @@ async function generateSeasonJson(season) {
   if (!format) throw new Error(`No BFA season format or valid Sleeper playoff settings found for ${year}`);
   const weeks = {};
   let totalMatchups = 0;
-  for (let week = 1; week <= 25; week++) {
-    let raw = null;
-    try { raw = await getMatchupsForWeek(league_id, week); } catch (_) { continue; }
+  // Fetch week endpoints concurrently; each season still writes a separate
+  // file, but this avoids 25 sequential network round-trips per year.
+  const weeklyResults = await Promise.all(
+    Array.from({ length: 25 }, (_, index) =>
+      getMatchupsForWeek(league_id, index + 1).catch(() => null)
+    )
+  );
+  for (let index = 0; index < weeklyResults.length; index++) {
+    const week = index + 1;
+    const raw = weeklyResults[index];
     if (!Array.isArray(raw) || !raw.length) continue;
     const byMatch = {};
     for (const entry of raw) {
