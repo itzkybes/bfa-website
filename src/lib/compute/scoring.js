@@ -15,12 +15,13 @@ import { safeNum } from '../api/sleeper.js';
  *      static-load synthesis carries those values through under this key.
  *   2. `starters_points` array — project policy: per-player figures only
  *      ever come from this; the team total is the sum.
- *   3. Top-level `points` field — last-resort fallback (still a Sleeper
- *      starter-only total).
+ *   3. If starter scoring is unavailable, return 0 rather than using
+ *      an ambiguous team-level total that may include non-starters.
  *
- * `player_points` / `players_points` is deliberately NOT consulted, since
- * for our league with manual game-selection it includes raw unselected
- * games.
+ * `points`, `points_for`, `pts`, `score`, `player_points` and
+ * `players_points` are deliberately NOT consulted. Team results must be
+ * derived from the selected starters only (unless a static score override
+ * has been explicitly pinned above).
  */
 export function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
@@ -38,9 +39,9 @@ export function computeParticipantPoints(entry) {
       return Math.round(s * 100) / 100;
     }
   }
-  // 3. Top-level points fallback.
-  const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
-  return Math.round(fallback * 100) / 100;
+  // 3. Missing starter scoring is unknown, not permission to count the
+  // whole roster (which can include bench/non-selected players).
+  return 0;
 }
 
 /**
