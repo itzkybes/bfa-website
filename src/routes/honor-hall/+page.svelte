@@ -197,7 +197,6 @@
 
   function bracketMatchLabel(match, round, matches) {
     if (Number(match.p) === 1) return 'Championship';
-    if (isConsolationMatch(match, matches)) return 'Consolation Game';
     if (Number(match.p) > 1 && (hasBracketFollowup(matches, match, match.w) || hasBracketFollowup(matches, match, match.l))) return 'Consolation Game';
     if (Number(match.p) > 1) return 'Placement Game';
     return bracketRoundLabel(round);
