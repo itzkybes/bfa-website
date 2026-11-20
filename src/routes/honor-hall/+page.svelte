@@ -209,7 +209,8 @@
     if (bracketType === 'losers') {
       if (round === 1) return 'Toilet Bowl Quarterfinal';
       if (round === 2) {
-        // The two teams who won their round-1 games meet for 9th/10th.
+        // The two round-1 winners play for 9th/10th. The other games
+        // feed into the 11th/12th game or the Toilet Bowl Championship.
         const priorWinners = new Set(
           (matches || [])
             .filter((candidate) => (Number(candidate.r) || 1) === 1)
@@ -218,7 +219,7 @@
         const bothAdvancedAsWinners = [match.t1, match.t2].every(
           (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
         );
-        return bothAdvancedAsWinners ? '9th/10th Place Game' : 'Toilet Bowl Semifinal';
+        return bothAdvancedAsWinners ? '9th/10th Place Game' : '11th–14th Place Qualifier';
       }
       if (round >= 3) return placement === 1 ? 'Toilet Bowl Championship' : '11th/12th Place Game';
     }
@@ -227,9 +228,17 @@
       if (round === 3) {
         return ({ 1: 'Championship', 2: '3rd/4th Place Game', 3: '5th/6th Place Game', 4: '7th/8th Place Game' })[placement] || 'Placement Game';
       }
-      if (round === 2 && placement > 1) return 'Consolation Game';
+      if (round === 2 && placement > 1) return '5th–8th Place Qualifier';
     }
     return bracketRoundLabel(round);
+  }
+
+  function bracketConsolationTitle(round, bracketType) {
+    if (bracketType === 'winners' && round === 2) return '5th–8th Place Games';
+    if (bracketType === 'losers' && round === 2) return '11th–14th Place Games';
+    if (bracketType === 'winners' && round === 3) return 'Placement Games';
+    if (bracketType === 'losers' && round === 3) return 'Placement Games';
+    return 'Consolation Games';
   }
 
   function setBracketTrackRef(type, element) {
@@ -261,16 +270,19 @@
           const target = bracketMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
           if (!source || !target) continue;
           const sourceRows = source.querySelectorAll('.bracket-team');
+          const targetRows = target.querySelectorAll('.bracket-team');
           const sourceIndex = String(rosterId) === String(match.t1) ? 0 : 1;
+          const targetIndex = String(rosterId) === String(nextMatch.t1) ? 0 : 1;
           const sourceRow = sourceRows[sourceIndex];
-          if (!sourceRow) continue;
+          const targetRow = targetRows[targetIndex];
+          if (!sourceRow || !targetRow) continue;
           const sourceRect = sourceRow.getBoundingClientRect();
-          const targetRect = target.getBoundingClientRect();
+          const targetRect = targetRow.getBoundingClientRect();
           const x1 = sourceRect.right - trackRect.left + track.scrollLeft;
           const y1 = sourceRect.top + sourceRect.height / 2 - trackRect.top + track.scrollTop;
           const x2 = targetRect.left - trackRect.left + track.scrollLeft;
           const y2 = targetRect.top + targetRect.height / 2 - trackRect.top + track.scrollTop;
-          const bend = Math.max(12, (x2 - x1) * 0.48);
+          const bend = Math.max(18, (x2 - x1) * 0.5);
           nextPaths[type].push({
             d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`,
             outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser'
@@ -401,8 +413,12 @@
             {#if bracketData[bracket.key].length}
               <div class="bracket-track" bind:this={el => setBracketTrackRef(bracket.type, el)} on:scroll={updateBracketConnectors}>
                 <svg class="bracket-connectors" aria-hidden="true" width={bracketTrackRefs[bracket.type]?.scrollWidth || 1000} height={bracketTrackRefs[bracket.type]?.scrollHeight || 600}>
+                  <defs>
+                    <marker id={`winner-arrow-${bracket.type}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3.5 L0,7 z" class="connector-arrow-winner" /></marker>
+                    <marker id={`loser-arrow-${bracket.type}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3.5 L0,7 z" class="connector-arrow-loser" /></marker>
+                  </defs>
                   {#each bracketConnectorPaths[bracket.type] || [] as path, pathIndex}
-                    <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} />
+                    <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} marker-end={`url(#${path.outcome}-arrow-${bracket.type})`} />
                   {/each}
                 </svg>
                 {#each bracketRounds(bracketData[bracket.key]) as round, roundIndex (round.round)}
@@ -430,7 +446,7 @@
                     </div>
                     {#if round.matches.some(match => isConsolationMatch(match, bracket.type))}
                       <div class="bracket-consolation-group">
-                        <h5 class="bracket-consolation-title">Consolation Games</h5>
+                        <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
                         <div class="bracket-consolation-games">
                           {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={el => setBracketMatchRef(bracket.type, match, el)}>
@@ -591,7 +607,9 @@
   .bracket-connectors { position: absolute; inset: 0 auto auto 0; z-index: 0; overflow: visible; pointer-events: none; }
   .bracket-connectors path { fill: none; stroke-width: 1.7; }
   .bracket-connectors .connector-winner { stroke: var(--accent); opacity: 0.9; }
-  .bracket-connectors .connector-loser { stroke: var(--text-tertiary); opacity: 0.48; stroke-dasharray: 4 4; }
+  .bracket-connectors .connector-loser { stroke: var(--text-tertiary); opacity: 0.62; stroke-dasharray: 4 4; }
+  .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
+  .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
   .bracket-round { flex: 1 0 220px; min-width: 220px; display: flex; flex-direction: column; }
   .bracket-round-title { color: var(--text-tertiary); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 0.65rem; text-align: center; }
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1rem; }
