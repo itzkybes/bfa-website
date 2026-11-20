@@ -745,8 +745,8 @@
 </div>
 
 
-  .hub-stat-years { margin-top: .2rem; color: var(--text-tertiary); font-size: .68rem; line-height: 1.35; overflow-wrap: anywhere; }
 <style>
+  .hub-stat-years { margin-top: .2rem; color: var(--text-tertiary); font-size: .68rem; line-height: 1.35; overflow-wrap: anywhere; }
   .page { padding: 2.5rem 0 4rem; }
   .page-head { margin-bottom: 2rem; }
   .head-row {
