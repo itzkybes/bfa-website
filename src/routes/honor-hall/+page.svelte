@@ -1,6 +1,6 @@
 <!-- src/routes/honor-hall/+page.svelte (client-side fetched, simplified final standings) -->
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, afterUpdate } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
@@ -18,9 +18,13 @@
   let playoffsMvp = null;
   let regularMvp = null;
   let playersMap = {};
+  let bracketData = { winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
+  let bracketTrackRefs = {};
+  let bracketMatchRefs = {};
+  let bracketConnectorPaths = { winners: [], losers: [] };
 
   // Stash season results so dropdown switching is instant
-  let cache = {}; // season -> { finalStandings, finalsMvp, playoffsMvp, regularMvp }
+  let cache = {}; // season -> all computed season honors + both brackets
 
   function placeEmoji(rank) {
     if (rank === 1) return '🏆'; if (rank === 2) return '🥈'; if (rank === 3) return '🥉'; return '';
@@ -37,6 +41,7 @@
       finalsMvp = cache[cacheKey].finalsMvp;
       playoffsMvp = cache[cacheKey].playoffsMvp;
       regularMvp = cache[cacheKey].regularMvp;
+      bracketData = cache[cacheKey].bracketData;
       return;
     }
 
@@ -102,17 +107,232 @@
     const pm = playoffsList[0] || null;
     const fm = finalsList[0] || null;
 
+    const scoresByWeek = {};
+    for (const [week, entries] of Object.entries(collected)) {
+      scoresByWeek[week] = {};
+      for (const entry of entries || []) {
+        const rosterId = String(entry.roster_id ?? entry.rosterId ?? '');
+        if (!rosterId) continue;
+        const score = entry.__final_score != null
+          ? Number(entry.__final_score)
+          : Array.isArray(entry.starters_points)
+            ? entry.starters_points.reduce((sum, value) => sum + (Number(value) || 0), 0)
+            : null;
+        if (score != null && Number.isFinite(score)) scoresByWeek[week][rosterId] = score;
+      }
+    }
+    const nextBracketData = {
+      winners: standings.winnersBracket || [],
+      losers: standings.losersBracket || [],
+      rosterMap: standings.rosterMap || {},
+      finalSeeds: Object.fromEntries(finalList.map((row, index) => [String(row.rosterId), Number(row.rank) || index + 1])),
+      playoffStart,
+      playoffTeams: playoffTeamCount,
+      scoresByWeek
+    };
     const result = {
       finalStandings: finalList,
       finalsMvp: fm ? { ...fm, playerName: playerDisplayName(playersMap, fm.playerId), roster_meta: standings.rosterMap[fm.rosterId] } : null,
       playoffsMvp: pm ? { ...pm, playerName: playerDisplayName(playersMap, pm.playerId), roster_meta: standings.rosterMap[pm.rosterId] } : null,
-      regularMvp: om ? { ...om, playerName: playerDisplayName(playersMap, om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null
+      regularMvp: om ? { ...om, playerName: playerDisplayName(playersMap, om.playerId), roster_meta: standings.rosterMap[om.rosterId] } : null,
+      bracketData: nextBracketData
     };
     cache[cacheKey] = result;
     finalStandings = result.finalStandings;
     finalsMvp = result.finalsMvp;
     playoffsMvp = result.playoffsMvp;
     regularMvp = result.regularMvp;
+    bracketData = result.bracketData;
+  }
+
+  function bracketRounds(matches) {
+    const grouped = {};
+    for (const match of matches || []) {
+      const round = Number(match.r) || 1;
+      if (!grouped[round]) grouped[round] = [];
+      grouped[round].push(match);
+    }
+    return Object.keys(grouped).map(Number).sort((a, b) => a - b).map((round) => ({
+      round,
+      matches: grouped[round].slice().sort((a, b) => (Number(a.m) || 0) - (Number(b.m) || 0))
+    }));
+  }
+
+  function bracketTeam(rosterId) {
+    return rosterId == null ? null : bracketData.rosterMap[String(rosterId)] || null;
+  }
+
+  function bracketSeed(rosterId) {
+    const finalPlace = bracketData.finalSeeds?.[String(rosterId)];
+    return finalPlace ? `#${finalPlace}` : '—';
+  }
+
+  function bracketScore(round, rosterId) {
+    if (rosterId == null) return null;
+    const week = Number(bracketData.playoffStart) + Number(round) - 1;
+    const value = bracketData.scoresByWeek?.[String(week)]?.[String(rosterId)];
+    return Number.isFinite(Number(value)) ? formatNumber(Number(value)) : '—';
+  }
+
+  function bracketRoundLabel(round) {
+    return ({ 1: 'Week 1', 2: 'Week 2', 3: 'Championship Week' })[Number(round)] || `Week ${round}`;
+  }
+
+  function bracketMainTitle(round, bracketType, matches) {
+    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType));
+    if (!mainMatches.length) return '';
+    if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Quarterfinals';
+    if (round === 2) {
+      if (bracketType === 'losers') return 'Toilet Bowl Semifinals';
+      return 'Semifinals';
+    }
+    if (round >= 3) return bracketType === 'losers' ? 'Final Placement Games' : 'Championship & 3rd–8th Place Games';
+    return '';
+  }
+
+  function bracketMatchKey(match) {
+    return `${Number(match.r) || 1}-${match.m ?? 'x'}-${match.p ?? 'x'}`;
+  }
+
+  function bracketMatchOrder(match, bracketType) {
+    // Keep championship placement games in standings order:
+    // 3rd/4th, then 5th/6th, then 7th/8th.
+    if (bracketType === 'winners' && Number(match.r) === 3) {
+      const places = [match.t1, match.t2]
+        .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+        .filter(Number.isFinite);
+      return places.length ? Math.min(...places) : Number(match.m) || 0;
+    }
+    return Number(match.m) || 0;
+  }
+
+  function hasBracketFollowup(matches, match, rosterId) {
+    if (rosterId == null) return false;
+    const round = Number(match.r) || 1;
+    return (matches || []).some((candidate) =>
+      (Number(candidate.r) || 1) > round &&
+      [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
+    );
+  }
+
+  function isConsolationMatch(match, bracketType) {
+    const round = Number(match.r) || 1;
+    if (bracketType === 'losers') {
+      // Toilet Bowl round 1 is the 9v12 / 10v11 quarterfinals.
+      // Week 2 contains the 9th/10th game plus two Toilet Bowl semifinals.
+      // Keep all three together under the round's semifinals heading.
+      // Only the non-championship Week 3 placement game is in the consolation group.
+      return round >= 3 && Number(match.p) !== 1;
+    }
+    // In the championship bracket, p>1 identifies the placement/consolation
+    // path alongside the championship path.
+    return Number(match.p) > 1;
+  }
+
+  function bracketMatchLabel(match, round, matches, bracketType) {
+    const placement = Number(match.p);
+    if (bracketType === 'losers') {
+      if (round === 1) return 'Toilet Bowl Quarterfinal';
+      if (round === 2) {
+        // The two round-1 winners play for 9th/10th. The other games
+        // feed into the 11th/12th game or the Toilet Bowl Championship.
+        const priorWinners = new Set(
+          (matches || [])
+            .filter((candidate) => (Number(candidate.r) || 1) === 1)
+            .flatMap((candidate) => candidate.w == null ? [] : [String(candidate.w)])
+        );
+        const bothAdvancedAsWinners = [match.t1, match.t2].every(
+          (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
+        );
+        return bothAdvancedAsWinners ? '9th/10th Place Game' : 'Toilet Bowl Semifinal';
+      }
+      if (round >= 3) {
+        const places = [match.t1, match.t2]
+          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+          .filter(Number.isFinite).sort((a, b) => a - b);
+        if (places[0] === 9 && places[1] === 10) return '9th/10th Place Game';
+        if (places[0] === 11 && places[1] === 12) return '11th/12th Place Game';
+        if (places[0] === 13 && places[1] === 14) return 'Toilet Bowl Championship';
+        return placement === 1 ? 'Toilet Bowl Championship' : 'Placement Game';
+      }
+    }
+
+    if (bracketType === 'winners') {
+      if (round === 3) {
+        const places = [match.t1, match.t2]
+          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+          .filter(Number.isFinite).sort((a, b) => a - b);
+        const pair = places.join('-');
+        return ({
+          '1-2': 'Championship',
+          '3-4': '3rd/4th Place Game',
+          '5-6': '5th/6th Place Game',
+          '7-8': '7th/8th Place Game'
+        })[pair] || ({ 1: 'Championship', 2: '3rd/4th Place Game', 3: '5th/6th Place Game', 4: '7th/8th Place Game' })[placement] || 'Placement Game';
+      }
+      if (round === 2 && placement > 1) return '5th–8th Place Qualifier';
+    }
+    return bracketRoundLabel(round);
+  }
+
+  function bracketConsolationTitle(round, bracketType) {
+    if (bracketType === 'winners' && round === 2) return '5th–8th Place Games';
+    if (bracketType === 'losers' && round === 2) return '11th–14th Place Games';
+    if (bracketType === 'winners' && round === 3) return '3rd–8th Place Games';
+    if (bracketType === 'losers' && round === 3) return 'Placement Games';
+    return 'Consolation Games';
+  }
+
+  function setBracketTrackRef(type, element) {
+    if (element) bracketTrackRefs[type] = element;
+  }
+
+  function setBracketMatchRef(type, match, element) {
+    const key = `${type}:${bracketMatchKey(match)}`;
+    if (element) bracketMatchRefs[key] = element;
+    else delete bracketMatchRefs[key];
+  }
+
+  function updateBracketConnectors() {
+    const nextPaths = { winners: [], losers: [] };
+    for (const type of ['winners', 'losers']) {
+      const matches = bracketData[type] || [];
+      const track = bracketTrackRefs[type];
+      if (!track) continue;
+      const trackRect = track.getBoundingClientRect();
+      for (const match of matches) {
+        for (const rosterId of [match.w, match.l]) {
+          if (rosterId == null) continue;
+          const nextMatch = matches.find((candidate) =>
+            (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
+            [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
+          );
+          if (!nextMatch) continue;
+          const source = bracketMatchRefs[`${type}:${bracketMatchKey(match)}`];
+          const target = bracketMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
+          if (!source || !target) continue;
+          const sourceRows = source.querySelectorAll('.bracket-team');
+          const targetRows = target.querySelectorAll('.bracket-team');
+          const sourceIndex = String(rosterId) === String(match.t1) ? 0 : 1;
+          const targetIndex = String(rosterId) === String(nextMatch.t1) ? 0 : 1;
+          const sourceRow = sourceRows[sourceIndex];
+          const targetRow = targetRows[targetIndex];
+          if (!sourceRow || !targetRow) continue;
+          const sourceRect = sourceRow.getBoundingClientRect();
+          const targetRect = targetRow.getBoundingClientRect();
+          const x1 = sourceRect.right - trackRect.left + track.scrollLeft;
+          const y1 = sourceRect.top + sourceRect.height / 2 - trackRect.top + track.scrollTop;
+          const x2 = targetRect.left - trackRect.left + track.scrollLeft;
+          const y2 = targetRect.top + targetRect.height / 2 - trackRect.top + track.scrollTop;
+          const bend = Math.max(18, (x2 - x1) * 0.5);
+          nextPaths[type].push({
+            d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`,
+            outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser'
+          });
+        }
+      }
+    }
+    if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) bracketConnectorPaths = nextPaths;
   }
 
   async function loadAll() {
@@ -147,6 +367,7 @@
   $: biggestLoser = finalStandings.length ? finalStandings[finalStandings.length - 1] : null;
 
   onMount(loadAll);
+  afterUpdate(updateBracketConnectors);
 </script>
 
 <div class="page wrap">
@@ -225,6 +446,83 @@
       {/if}
     </section>
 
+    <section class="block bracket-section" data-testid="season-brackets">
+      <div class="block-head"><h2 class="block-title">Season Brackets</h2><span class="block-sub">{bracketData.playoffTeams}-team championship field</span></div>
+      <div class="bracket-grid">
+        {#each [{ key: 'winners', title: 'Championship Playoff Bracket', type: 'winners' }, { key: 'losers', title: 'Toilet Bowl Bracket', type: 'losers' }] as bracket}
+          <div class="bracket-column" data-testid={bracket.type === 'winners' ? 'championship-bracket' : 'toilet-bowl-bracket'}>
+            <h3 class="bracket-title">{bracket.title}</h3>
+            {#if bracketData[bracket.key].length}
+              <div class="bracket-track" bind:this={bracketTrackRefs[bracket.type]} on:scroll={updateBracketConnectors}>
+                <svg class="bracket-connectors" aria-hidden="true" width={bracketTrackRefs[bracket.type]?.scrollWidth || 1000} height={bracketTrackRefs[bracket.type]?.scrollHeight || 600}>
+                  <defs>
+                    <marker id={`winner-arrow-${bracket.type}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3.5 L0,7 z" class="connector-arrow-winner" /></marker>
+                    <marker id={`loser-arrow-${bracket.type}`} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3.5 L0,7 z" class="connector-arrow-loser" /></marker>
+                  </defs>
+                  {#each bracketConnectorPaths[bracket.type] || [] as path, pathIndex}
+                    <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} marker-end={`url(#${path.outcome}-arrow-${bracket.type})`} />
+                  {/each}
+                </svg>
+                {#each bracketRounds(bracketData[bracket.key]) as round, roundIndex (round.round)}
+                  <div class="bracket-round">
+                    <h4 class="bracket-round-title">{bracketRoundLabel(round.round)}</h4>
+                    <div class="bracket-round-games" class:later-round={roundIndex > 0}>
+                      {#if round.matches.some(match => !isConsolationMatch(match, bracket.type))}
+                        <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketData[bracket.key])}</h5>
+                      {/if}
+                      {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type)).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                        <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
+                          {#each [match.t1, match.t2] as rosterId}
+                            {#if rosterId != null}
+                              {@const team = bracketTeam(rosterId)}
+                              <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
+                                <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
+                                <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
+                                <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
+                                <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
+                              </div>
+                            {:else}
+                              <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
+                            {/if}
+                          {/each}
+                          <div class="bracket-match-label">{bracketMatchLabel(match, round.round, bracketData[bracket.key], bracket.type)}</div>
+                        </div>
+                      {/each}
+                    </div>
+                    {#if round.matches.some(match => isConsolationMatch(match, bracket.type))}
+                      <div class="bracket-consolation-group">
+                        <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
+                        <div class="bracket-consolation-games">
+                          {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                            <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
+                              {#each [match.t1, match.t2] as rosterId}
+                                {#if rosterId != null}
+                                  {@const team = bracketTeam(rosterId)}
+                                  <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
+                                    <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
+                                    <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
+                                    <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
+                                    <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
+                                  </div>
+                                {:else}
+                                  <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
+                                {/if}
+                              {/each}
+                              <div class="bracket-match-label">{bracketMatchLabel(match, round.round, bracketData[bracket.key], bracket.type)}</div>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {:else}<div class="empty-card">Bracket results are not available for this season.</div>{/if}
+          </div>
+        {/each}
+      </div>
+      <p class="bracket-note">Team numbers reflect final season placement across both brackets. Consolation games remain within their respective brackets.</p>
+    </section>
     <section class="block">
       <div class="block-head"><h2 class="block-title">Final Standings</h2><span class="block-sub">Playoff results · champion pinned</span></div>
       {#if finalStandings.length}
@@ -344,4 +642,47 @@
     .team-owner { font-size: 0.72rem; }
     .seed-col .num { font-size: 1rem; }
   }
+
+  .bracket-section { margin-bottom: 1.25rem; }
+  .bracket-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; padding: 1.1rem; }
+  .bracket-column { min-width: 0; }
+  .bracket-title { margin: 0 0 0.9rem; font-family: var(--font-display); font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .bracket-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: clamp(0.65rem, 2vw, 1.5rem); width: 100%; box-sizing: border-box; overflow: visible; padding: 0.2rem 0 1rem; position: relative; }
+  .bracket-connectors { position: absolute; inset: 0 auto auto 0; z-index: 0; overflow: visible; pointer-events: none; }
+  .bracket-connectors path { fill: none; stroke-width: 1.7; }
+  .bracket-connectors .connector-winner { stroke: var(--accent); opacity: 0.9; }
+  .bracket-connectors .connector-loser { stroke: var(--text-tertiary); opacity: 0.62; stroke-dasharray: 4 4; }
+  .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
+  .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
+  .bracket-round { min-width: 0; width: 100%; display: flex; flex-direction: column; }
+  .bracket-round-title { color: var(--text-tertiary); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; margin: 0 0 0.55rem; text-align: center; }
+  .bracket-main-title { margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; }
+  .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1.35rem; }
+  .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
+  .bracket-match { position: relative; z-index: 1; width: 100%; max-width: none; box-sizing: border-box; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); padding: 0.4rem; background: var(--surface-2); min-width: 0; }
+  .bracket-consolation-group { margin-top: 1.15rem; padding-top: 0.85rem; border-top: 1px dashed var(--border-subtle); }
+  .bracket-consolation-title { margin: 0 0 0.65rem; color: var(--accent); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; }
+  .bracket-consolation-games { display: flex; flex-direction: column; gap: 0.95rem; }
+  .bracket-match-consolation { background: var(--surface-1); border-style: dashed; border-color: var(--border-subtle); }
+  .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
+  .bracket-round:not(:last-child) .bracket-match::after { content: none; }
+  .bracket-team { display: grid; grid-template-columns: 30px 24px minmax(0, 1fr) auto; align-items: center; gap: 0.32rem; min-height: 32px; color: var(--text-secondary); font-size: 0.74rem; }
+  .bracket-seed { color: var(--text-tertiary); font-size: 0.68rem; text-align: center; white-space: nowrap; }
+  .bracket-team img { width: 23px; height: 23px; border-radius: 5px; object-fit: cover; background: var(--surface-1); }
+  .bracket-team-name { overflow-wrap: anywhere; line-height: 1.15; }
+  .bracket-score { color: var(--text-primary); font-size: 0.8rem; white-space: nowrap; }
+  .bracket-team.match-winner { color: var(--text-primary); font-weight: 700; }
+  .bracket-team.match-winner .bracket-score, .bracket-team.match-winner .bracket-seed { color: var(--accent); }
+  .bracket-empty { opacity: 0.45; }
+  .bracket-final { border-color: var(--gold); background: linear-gradient(180deg, rgba(245,180,0,.08), var(--surface-2)); }
+  .bracket-match-label { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--border-subtle); color: var(--text-tertiary); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .bracket-note { margin: 0; padding: 0 1.1rem 1rem; color: var(--text-tertiary); font-size: 0.72rem; }
+  @media (max-width: 700px) {
+    .bracket-track { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+    .bracket-round { width: 100%; }
+    .bracket-connectors { display: none; }
+    .bracket-round-games, .bracket-round-games.later-round { padding: 0; gap: 0.8rem; }
+    .bracket-match { max-width: none; }
+  }
+
 </style>
