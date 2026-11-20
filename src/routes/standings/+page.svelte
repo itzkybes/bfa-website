@@ -63,67 +63,6 @@
     return counts;
   })();
 
-  // Estimated playoff odds from a deterministic Monte Carlo simulation.
-  // A team only displays 100% once it is mathematically clinched.
-  // Remaining games use each team's current win rate; future opponents are not modeled.
-  $: playoffChancesByRoster = (() => {
-    const out = {};
-    if (!selectedResult?.regularStandings?.length) return out;
-    const rows = selectedResult.regularStandings;
-    const playoffTeams = Number(selectedResult.playoffTeams) || 8;
-    const playoffStart = Number(selectedResult.playoffStart) || 999;
-    const completedRegularWeeks = Object.keys(selectedResult.collectedMatchups || {})
-      .map(Number).filter((week) => week >= 1 && week < playoffStart).length;
-    const completedThrough = selectedResult.completedThroughWeek != null ? Number(selectedResult.completedThroughWeek) : completedRegularWeeks;
-    const playedThrough = Number.isFinite(completedThrough) ? completedThrough : completedRegularWeeks;
-    const remaining = Math.max(0, (Number(selectedResult.regularSeasonWeeks) || (playoffStart - 1)) - playedThrough);
-    if (playedThrough >= playoffStart - 1 || remaining === 0) {
-      rows.forEach((row, index) => { out[row.rosterId] = index < playoffTeams ? 100 : 0; });
-      return out;
-    }
-
-    // A team is clinched only when fewer than the available playoff spots
-    // can still be reached by other teams, even if those teams win every
-    // remaining game. Treat a possible points-for tiebreaker as an opponent
-    // that could finish ahead, keeping this check deliberately conservative.
-    const clinched = {};
-    for (const row of rows) {
-      const currentWins = (row.wins || 0) + (row.ties || 0) * 0.5;
-      const teamsThatCanStillFinishAhead = rows.filter((other) => {
-        if (other.rosterId === row.rosterId) return false;
-        const otherCurrentWins = (other.wins || 0) + (other.ties || 0) * 0.5;
-        const otherMaxWins = otherCurrentWins + remaining;
-        return otherMaxWins > currentWins ||
-          (otherMaxWins === currentWins && (other.pf || 0) >= (row.pf || 0));
-      }).length;
-      clinched[row.rosterId] = teamsThatCanStillFinishAhead < playoffTeams;
-    }
-
-    const samples = 3000;
-    const chances = Object.fromEntries(rows.map((row) => [row.rosterId, 0]));
-    let seed = rows.reduce((sum, row) => sum + Number(row.rosterId || 0), 0) + Number(selectedResult.season || 0) * 97;
-    const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-    for (let sample = 0; sample < samples; sample++) {
-      const projected = rows.map((row) => {
-        const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
-        // Early records are noisy. Blend the observed rate with a neutral
-        // .500 baseline equivalent to 10 games before projecting the rest
-        // of the season, so one or two results cannot swing the odds wildly.
-        const priorGames = 10;
-        const winRate = ((row.wins || 0) + (row.ties || 0) * 0.5 + priorGames * 0.5) / (games + priorGames);
-        let projectedWins = (row.wins || 0) + (row.ties || 0) * 0.5;
-        for (let game = 0; game < remaining; game++) if (random() < winRate) projectedWins += 1;
-        return { rosterId: row.rosterId, wins: projectedWins, pf: row.pf || 0 };
-      }).sort((a, b) => (b.wins - a.wins) || (b.pf - a.pf));
-      projected.slice(0, playoffTeams).forEach((row) => { chances[row.rosterId] += 1; });
-    }
-    rows.forEach((row) => {
-      const estimated = Math.round(chances[row.rosterId] / samples * 100);
-      out[row.rosterId] = clinched[row.rosterId] ? 100 : Math.min(99, estimated);
-    });
-    return out;
-  })();
-
   // Build the "Regular Season MVP Race" mini-leaderboard: top 5 players by
   // cumulative regular-season points (starters_points summed across every
   // regular-season week in the selected season). For each top-5 player we
@@ -227,10 +166,9 @@
     }
   }
 
-  function playoffChanceLabel(rosterId) {
-    const chance = playoffChancesByRoster[rosterId] ?? 0;
-    if (selectedResult?.seasonStatus === 'in_season' && chance === 100) return 'Clinched';
-    return `${chance}%`;
+  function winPercentage(row) {
+    const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
+    return games ? (((row.wins || 0) + (row.ties || 0) * 0.5) / games) * 100 : 0;
   }
 
   function onSeasonChange(e) {
@@ -325,7 +263,7 @@
                 <th>Team</th>
                 <th class="col-num" title="Regular-season wins">Wins</th>
                 <th class="col-num" title="Regular-season losses">Losses</th>
-                <th class="col-num playoff-chance-head" title="Estimated chance to finish in a playoff position based on current win rate and remaining regular-season games">Playoff Chance</th>
+                <th class="col-num" title="Regular-season win percentage; ties count as half a win">Win %</th>
                 <th class="col-num" title="Longest consecutive wins this season">Best Streak</th>
                 <th class="col-num" title="Number of regular-season weeks this team tied for the lowest points total in the league">League Weekly Lows</th>
                 <th class="col-num" title="Longest consecutive losses this season">Worst Streak</th>
@@ -359,8 +297,8 @@
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
-                  <td class="col-num playoff-chance-cell" data-testid={`playoff-chance-${row.rosterId}`}>
-                    <span class="num" class:clinched={playoffChanceLabel(row.rosterId) === 'Clinched'} title={playoffChanceLabel(row.rosterId) === 'Clinched' ? 'Mathematically clinched a playoff berth' : 'Estimate based on current win rate; remaining opponents are not modeled'}>{playoffChanceLabel(row.rosterId)}</span>
+                  <td class="col-num" data-testid={`win-percentage-${row.rosterId}`}>
+                    <span class="num">{winPercentage(row).toFixed(1)}%</span>
                   </td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
                   <td class="col-num"><span class="num">{leagueLowWeeksByRoster[row.rosterId] || 0}</span></td>

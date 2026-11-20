@@ -285,7 +285,7 @@
 
   <div class="wrap hero-inner">
     <div class="hero-copy rise">
-      <div class="eyebrow">{seasonLabel ? `Season ${Number(seasonLabel) - 1} / ${String(seasonLabel).slice(-2)} · Live` : 'Live'}</div>
+      <div class="eyebrow">{seasonLabel ? `Season ${seasonLabel} / ${String(Number(seasonLabel) + 1).slice(-2)} · Live` : 'Live'}</div>
       <h1 class="hero-title">
         Welcome to the<br />
         <span class="title-accent">Badger Bowl</span>

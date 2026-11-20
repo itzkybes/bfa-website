@@ -544,14 +544,12 @@
               <div class="hub-stat" title="Seasons leading the league in regular-season points for">
                 <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.mostPointsForSeasons}</div>
                 <div class="hub-stat-label">PF Titles</div>
+                <div class="hub-stat-years">{roster.owner_hub.leagueLeaders.mostPointsForYears.join(', ') || '—'}</div>
               </div>
               <div class="hub-stat" title="Seasons with the best regular-season record, using points for as the tiebreaker">
                 <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.bestRecordSeasons}</div>
                 <div class="hub-stat-label">Best Records</div>
-              </div>
-              <div class="hub-stat" title="Seasons with the highest average weekly scoring">
-                <div class="hub-stat-num">{roster.owner_hub.leagueLeaders.highestScoringAverageSeasons}</div>
-                <div class="hub-stat-label">Scoring Titles</div>
+                <div class="hub-stat-years">{roster.owner_hub.leagueLeaders.bestRecordYears.join(', ') || '—'}</div>
               </div>
               <div class="hub-stat" title="Weeks this team finished with the lowest total points among all teams in the league">
                 <div class="hub-stat-num">{roster.owner_hub.leagueLowestWeeks || 0}</div>
@@ -746,7 +744,9 @@
   {/if}
 </div>
 
+
 <style>
+  .hub-stat-years { margin-top: .2rem; color: var(--text-tertiary); font-size: .68rem; line-height: 1.35; overflow-wrap: anywhere; }
   .page { padding: 2.5rem 0 4rem; }
   .page-head { margin-bottom: 2rem; }
   .head-row {
