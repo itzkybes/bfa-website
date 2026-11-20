@@ -52,10 +52,10 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     return { week, playoffStart, playoffEnd, leagueSeason, completedThroughWeek, matchupsRows: [] };
   }
 
-  // Static-snapshot path (completed seasons only).
-  const isLeagueComplete = leagueMeta?.status === 'complete';
+  // Use the saved matchup snapshot for active and completed seasons alike.
+  // Explicit teamAScore/teamBScore values are authoritative when present.
   let seasonMatchups = null;
-  if (isLeagueComplete && leagueSeason) {
+  if (leagueSeason) {
     seasonMatchups = await loadSeasonMatchups(leagueSeason);
   }
   if (seasonMatchups && Array.isArray(seasonMatchups[String(week)])) {
