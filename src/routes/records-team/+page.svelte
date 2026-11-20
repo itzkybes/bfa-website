@@ -293,31 +293,6 @@
     <ErrorBoundary {error} onRetry={loadAll} context="team records" />
   {:else}
     <section class="block">
-      <div class="block-head"><h2 class="block-title">Most Weekly League Lows</h2><span class="block-sub">Lowest team total in each regular-season week · ties count</span></div>
-      {#if lowestWeeklyTotals.length}
-        <div class="table-wrap low-weeks-wrap"><table class="bfa-table low-weeks-table">
-          <colgroup><col class="lw-rank-col" /><col class="lw-team-col" /><col class="lw-count-col" /><col class="lw-weeks-col" /></colgroup>
-          <thead><tr><th>Rank</th><th>Team</th><th class="col-num">Weekly Lows</th><th>Weeks · Score</th></tr></thead>
-          <tbody>{#each lowestWeeklyTotals as row, i (row.key)}
-            <tr>
-              <td class="num lw-rank">{i + 1}</td>
-              <td>
-                <div class="team-cell">
-                  <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
-                  <div>
-                    <div class="team-name-cell">{row.team_name}</div>
-                    {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
-                  </div>
-                </div>
-              </td>
-              <td class="col-num"><span class="lw-count num">{row.count}</span></td>
-              <td><div class="lw-week-list">{#each row.weeks as w}<span class="lw-week"><span>{w.season} · W{w.week}</span><strong>{w.points.toFixed(1)} pts</strong></span>{/each}</div></td>
-            </tr>
-          {/each}</tbody>
-        </table></div>
-      {:else}<div class="empty-row">No completed regular-season weekly scores yet.</div>{/if}
-    </section>
-    <section class="block">
       <div class="block-head"><h2 class="block-title">Highest Scoring Week — Top 10</h2><span class="block-sub">Top completed team-week scores · regular season + playoffs</span></div>
       {#if highestScoringWeeks.length}
         <div class="table-wrap"><table class="bfa-table weekly-record-table">
@@ -481,6 +456,31 @@
       {/if}
     </section>
 
+    <section class="block">
+      <div class="block-head"><h2 class="block-title">Most Weekly League Lows</h2><span class="block-sub">Lowest team total in each regular-season week · ties count</span></div>
+      {#if lowestWeeklyTotals.length}
+        <div class="table-wrap low-weeks-wrap"><table class="bfa-table low-weeks-table">
+          <colgroup><col class="lw-rank-col" /><col class="lw-team-col" /><col class="lw-count-col" /><col class="lw-weeks-col" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th class="col-num">Weekly Lows</th><th>Weeks · Score</th></tr></thead>
+          <tbody>{#each lowestWeeklyTotals as row, i (row.key)}
+            <tr>
+              <td class="num lw-rank">{i + 1}</td>
+              <td>
+                <div class="team-cell">
+                  <img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} />
+                  <div>
+                    <div class="team-name-cell">{row.team_name}</div>
+                    {#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}
+                  </div>
+                </div>
+              </td>
+              <td class="col-num"><span class="lw-count num">{row.count}</span></td>
+              <td><div class="lw-week-list">{#each row.weeks as w}<span class="lw-week"><span>{w.season} · W{w.week}</span><strong>{w.points.toFixed(1)} pts</strong></span>{/each}</div></td>
+            </tr>
+          {/each}</tbody>
+        </table></div>
+      {:else}<div class="empty-row">No completed regular-season weekly scores yet.</div>{/if}
+    </section>
     <div class="margins-grid">
       <section class="block">
         <div class="block-head"><h2 class="block-title">Largest Margins</h2><span class="block-sub">Top 10 blowouts</span></div>
