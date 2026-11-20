@@ -59,3 +59,16 @@ test('computeParticipantPoints preserves explicit historical score overrides', (
     points: 120,
   }), 91.25);
 });
+
+
+test('computeParticipantPoints refuses starter-point arrays that do not align with starter IDs', () => {
+  assert.equal(computeParticipantPoints({
+    starters: ['starter-a'],
+    starters_points: [20, 45],
+    points: 65,
+  }), 0);
+  assert.equal(computeParticipantPoints({
+    starters_points: [20, 45],
+    points: 65,
+  }), 0);
+});

@@ -30,13 +30,13 @@ export function computeParticipantPoints(entry) {
     const v = safeNum(entry.__final_score);
     if (isFinite(v)) return Math.round(v * 100) / 100;
   }
-  // 2. Sum of starters_points.
+  // 2. Sum only the points aligned to the selected starter IDs.
+  const starters = Array.isArray(entry.starters) ? entry.starters : [];
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
   for (const k of arrayKeys) {
-    if (Array.isArray(entry[k]) && entry[k].length) {
-      let s = 0;
-      for (const v of entry[k]) s += safeNum(v);
-      return Math.round(s * 100) / 100;
+    if (starters.length && Array.isArray(entry[k]) && entry[k].length === starters.length) {
+      const total = entry[k].reduce((sum, value) => sum + safeNum(value), 0);
+      return Math.round(total * 100) / 100;
     }
   }
   // 3. Missing starter scoring is unknown, not permission to count the

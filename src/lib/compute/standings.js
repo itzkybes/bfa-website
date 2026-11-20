@@ -213,7 +213,6 @@ export async function computeStandingsForLeague(leagueId) {
   }
 
   // 4. Decide static vs live and load any historical patches.
-  const isLeagueComplete = leagueMeta?.status === 'complete';
   const seasonMatchups = leagueSeason ? await loadSeasonMatchups(leagueSeason) : null;
   const earlyData = null;
 
