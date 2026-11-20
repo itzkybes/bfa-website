@@ -2,7 +2,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getSeasonsChain, getRosterMapWithOwners, getPlayersNba, getMatchupsForWeek, playerHeadshot, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/api';
-  import { computeStandingsForLeague } from '$lib/compute';
+  import { computeStandingsForLeague, computeParticipantPoints } from '$lib/compute';
   import { buildOwnerHubs } from '$lib/compute/ownerHubs';
   import { expandPositions } from '$lib/utils/positions';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
@@ -54,10 +54,19 @@
     return { name: fullName, team: p.team || p.team_abbreviation || 'FA', positions, player_id: p.player_id || id };
   }
 
+  function hasAuthoritativeScore(entry) {
+    return Boolean(entry && (
+      entry.__final_score != null ||
+      (Array.isArray(entry.starters) && entry.starters.length > 0 &&
+       Array.isArray(entry.starters_points) && entry.starters_points.length === entry.starters.length)
+    ));
+  }
+
   async function buildCurrentSeasonSchedule(leagueId, standings, rosterMap) {
     const playoffStart = Number(standings?.playoffStart || 19);
-    const completedThrough = Number(standings?.completedThroughWeek || 0);
+    const completedThrough = Number(standings?.completedThroughWeek ?? 0);
     const lastWeek = Number(standings?.playoffEnd || playoffStart + 2 || 21);
+    const completedMatchups = standings?.collectedMatchups || {};
     const weeks = Array.from({ length: Math.max(0, lastWeek) }, (_, i) => i + 1);
     const fetched = [];
     for (let offset = 0; offset < weeks.length; offset += 4) {
@@ -67,27 +76,40 @@
       )));
     }
 
-    // Only reveal playoff weeks once every roster has a final score for the
-    // last regular-season week. The standings progress counter can advance
-    // before the final week's matchup scores are actually available.
-    const finalRegularSeasonEntries = fetched[playoffStart - 2] || [];
-    const finalWeekScores = new Map(finalRegularSeasonEntries.map((entry) => [
-      String(entry.roster_id ?? entry.rosterId),
-      entry.points
-    ]));
+    // Completed scores come only from the shared standings calculation,
+    // which applies the site-wide week cutoff and starter-only scoring.
+    // The live endpoint below is used only to show future schedule opponents.
+    const finalRegularSeasonEntries = completedMatchups[String(playoffStart - 1)] || [];
+    const finalWeekScores = new Map(finalRegularSeasonEntries
+      .filter(hasAuthoritativeScore)
+      .map((entry) => [
+        String(entry.roster_id ?? entry.rosterId),
+        computeParticipantPoints(entry)
+      ]));
     const regularSeasonComplete = completedThrough >= playoffStart - 1 &&
       Object.keys(rosterMap).length > 0 &&
-      Object.keys(rosterMap).every((rid) => finalWeekScores.get(String(rid)) != null);
+      Object.keys(rosterMap).every((rid) => finalWeekScores.has(String(rid)));
 
     const schedule = Object.fromEntries(Object.keys(rosterMap).map((rid) => [String(rid), []]));
     for (let index = 0; index < weeks.length; index++) {
       const week = weeks[index];
-      const entries = Array.isArray(fetched[index]) ? fetched[index] : [];
+      const liveEntries = Array.isArray(fetched[index]) ? fetched[index] : [];
+      const completedEntries = completedMatchups[String(week)] || [];
+      const entries = week <= completedThrough && completedEntries.length
+        ? completedEntries
+        : liveEntries;
       const byMatchup = {};
       for (const entry of entries) {
         if (entry?.matchup_id == null) continue;
         const key = String(entry.matchup_id);
         (byMatchup[key] ||= []).push(entry);
+      }
+
+      const completedByMatchup = {};
+      for (const entry of completedEntries) {
+        if (entry?.matchup_id == null) continue;
+        const key = String(entry.matchup_id);
+        (completedByMatchup[key] ||= []).push(entry);
       }
 
       for (const rid of Object.keys(rosterMap)) {
@@ -96,22 +118,43 @@
         const opponent = participants.find((entry) => String(entry.roster_id ?? entry.rosterId) !== String(rid));
         const opponentId = opponent ? String(opponent.roster_id ?? opponent.rosterId) : null;
         const opponentMeta = opponentId ? rosterMap[opponentId] : null;
-        // Keep playoff weeks hidden until the final regular-season week is complete.
+
+        // Keep playoff weeks hidden until the final regular-season week has
+        // authoritative completed scores for every roster.
         if (week >= playoffStart && !regularSeasonComplete) continue;
-        const completed = Boolean(opponent && week <= completedThrough && mine.points != null && opponent.points != null);
+
+        const completedParticipants = mine?.matchup_id != null
+          ? (completedByMatchup[String(mine.matchup_id)] || [])
+          : [];
+        const completedMine = completedParticipants.find((entry) =>
+          String(entry.roster_id ?? entry.rosterId) === String(rid)
+        );
+        const completedOpponent = opponentId
+          ? completedParticipants.find((entry) =>
+              String(entry.roster_id ?? entry.rosterId) === opponentId
+            )
+          : null;
+        const completed = week <= completedThrough &&
+          hasAuthoritativeScore(completedMine) &&
+          hasAuthoritativeScore(completedOpponent);
+
+        const minePoints = completed ? computeParticipantPoints(completedMine) : null;
+        const opponentPoints = completed ? computeParticipantPoints(completedOpponent) : null;
         let result = null;
         if (completed) {
-          const minePoints = Number(mine.points) || 0;
-          const opponentPoints = Number(opponent.points) || 0;
           result = minePoints > opponentPoints ? 'W' : minePoints < opponentPoints ? 'L' : 'T';
         }
+
+        const completedBye = week <= completedThrough && Boolean(completedMine) &&
+          completedParticipants.length === 1;
         schedule[String(rid)].push({
           week,
-          isPlayoff: week >= Number(standings?.playoffStart || 19),
-          opponentName: opponentMeta?.team_name || (mine?.matchup_id != null && participants.length === 1 ? 'Bye' : 'Schedule pending'),
+          isPlayoff: week >= playoffStart,
+          opponentName: opponentMeta?.team_name ||
+            (completedBye ? 'Bye' : 'Schedule pending'),
           opponentAvatar: opponentMeta?.team_avatar || opponentMeta?.owner_avatar || null,
-          status: completed ? result : mine?.matchup_id != null && participants.length === 1 ? 'BYE' : 'UPCOMING',
-          score: completed ? `${Number(mine.points).toFixed(1)} – ${Number(opponent.points).toFixed(1)}` : null,
+          status: completed ? result : completedBye ? 'BYE' : 'UPCOMING',
+          score: completed ? `${minePoints.toFixed(1)} – ${opponentPoints.toFixed(1)}` : null,
           result
         });
       }
