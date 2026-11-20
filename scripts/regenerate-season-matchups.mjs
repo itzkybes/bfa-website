@@ -129,6 +129,7 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
       season: lg.season ? String(lg.season) : null,
       name: lg.name || null,
       status: lg.status || null,
+      current_leg: Number(lg.settings?.leg) || null,
       playoff_week_start:
         lg.settings && lg.settings.playoff_week_start
           ? Number(lg.settings.playoff_week_start)
@@ -167,6 +168,7 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
         season: String(discovered.season || year),
         name: discovered.name || null,
         status: discovered.status || null,
+        current_leg: Number(discovered.settings?.leg) || null,
         playoff_week_start: Number(discovered.settings?.playoff_week_start) || null,
         playoff_teams: Number(discovered.settings?.playoff_teams) || null,
       });
@@ -192,6 +194,10 @@ async function generateSeasonJson(season) {
   const rosterMap = buildRosterMap(rosters, users);
   const format = getSeasonFormat(year, { playoff_week_start: season.playoff_week_start, playoff_teams: season.playoff_teams });
   if (!format) throw new Error(`No BFA season format or valid Sleeper playoff settings found for ${year}`);
+  const currentLeg = Number(season.current_leg);
+  const completedThroughWeek = season.status === 'complete'
+    ? format.playoffEnd
+    : Number.isInteger(currentLeg) && currentLeg > 1 ? currentLeg - 1 : 0;
   const weeks = {};
   let totalMatchups = 0;
   // Fetch week endpoints concurrently; each season still writes a separate
@@ -224,9 +230,18 @@ async function generateSeasonJson(season) {
       const previousRow = (previous[String(week)] || []).find(
         (candidate) => String(candidate.matchup_id) === String(row.matchup_id)
       );
-      // Preserve manually pinned historical totals; new rows calculate from starters.
-      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore')) row.teamAScore = safeNum(previousRow.teamAScore);
-      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore')) row.teamBScore = safeNum(previousRow.teamBScore);
+      // Existing totals may be manual corrections; never replace them. Only
+      // fill missing scores for completed weeks, never future placeholders.
+      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore')) {
+        row.teamAScore = previousRow.teamAScore;
+      } else if (week <= completedThroughWeek && teamA.starters.length && teamA.starters_points.length === teamA.starters.length) {
+        row.teamAScore = computeParticipantPoints(teamA);
+      }
+      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore')) {
+        row.teamBScore = previousRow.teamBScore;
+      } else if (week <= completedThroughWeek && teamB.starters.length && teamB.starters_points.length === teamB.starters.length) {
+        row.teamBScore = computeParticipantPoints(teamB);
+      }
       weekRows.push(row);
     }
     if (weekRows.length) { weeks[String(week)] = weekRows; totalMatchups += weekRows.length; }
@@ -234,9 +249,94 @@ async function generateSeasonJson(season) {
   const payload = { playoff_week_start: format.playoffStart, playoff_week_end: format.playoffEnd, playoff_teams: format.playoffTeams, toilet_bowl_teams: format.toiletBowlTeams, ...weeks };
   return { year, payload, totalMatchups, weeks: Object.keys(weeks).length };
 }
+
+/**
+ * Refresh exactly the latest completed week for the active (anchor) season.
+ * Existing weeks other than the target are never rebuilt or modified.
+ * Existing score fields on the target week are treated as pinned/manual values
+ * and are never overwritten.
+ */
+async function syncCurrentCompletedWeek(season) {
+  if (!season) throw new Error('Could not identify the current BFA season.');
+  const currentLeg = Number(season.current_leg);
+  const week = currentLeg - 1;
+  if (!Number.isInteger(currentLeg) || currentLeg < 2 || week < 1) {
+    throw new Error(`No completed week to sync (Sleeper current leg: ${season.current_leg ?? 'unknown'}).`);
+  }
+
+  const outPath = path.join(STATIC_DIR, `${season.season}.json`);
+  let existing;
+  try {
+    existing = JSON.parse(await fs.readFile(outPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Cannot weekly-sync without the existing season file ${outPath}: ${error.message}`);
+  }
+
+  const [rosters, users, raw] = await Promise.all([
+    getRosters(season.league_id),
+    getUsers(season.league_id),
+    getMatchupsForWeek(season.league_id, week),
+  ]);
+  const rosterMap = buildRosterMap(rosters, users);
+  if (!Array.isArray(raw) || !raw.length) {
+    throw new Error(`Sleeper returned no matchup data for completed week ${week}; leaving the JSON untouched.`);
+  }
+
+  const byMatch = {};
+  for (const entry of raw) {
+    const matchupId = entry.matchup_id ?? entry.matchupId ?? null;
+    if (matchupId == null) continue;
+    if (!byMatch[matchupId]) byMatch[matchupId] = [];
+    byMatch[matchupId].push(entry);
+  }
+
+  const previousRows = Array.isArray(existing[String(week)]) ? existing[String(week)] : [];
+  const nextRows = [];
+  for (const [mid, entries] of Object.entries(byMatch)) {
+    if (entries.length !== 2) continue;
+    const [a, b] = entries;
+    const aId = String(a.roster_id ?? ''), bId = String(b.roster_id ?? '');
+    const aMeta = rosterMap[aId] || {}, bMeta = rosterMap[bId] || {};
+    const teamA = {
+      rosterId: aId, name: aMeta.team_name ?? null, ownerName: aMeta.owner_name ?? null,
+      starters: Array.isArray(a.starters) ? a.starters : [],
+      starters_points: Array.isArray(a.starters_points) ? a.starters_points : [],
+    };
+    const teamB = {
+      rosterId: bId, name: bMeta.team_name ?? null, ownerName: bMeta.owner_name ?? null,
+      starters: Array.isArray(b.starters) ? b.starters : [],
+      starters_points: Array.isArray(b.starters_points) ? b.starters_points : [],
+    };
+    const row = { matchup_id: Number(mid) || mid, week, teamA, teamB };
+    const prior = previousRows.find((candidate) => String(candidate.matchup_id) === String(row.matchup_id));
+
+    // Never overwrite an already-present score: it may be a manual correction.
+    if (prior && Object.prototype.hasOwnProperty.call(prior, 'teamAScore')) {
+      row.teamAScore = prior.teamAScore;
+    } else if (teamA.starters.length && teamA.starters_points.length === teamA.starters.length) {
+      row.teamAScore = computeParticipantPoints(teamA);
+    }
+    if (prior && Object.prototype.hasOwnProperty.call(prior, 'teamBScore')) {
+      row.teamBScore = prior.teamBScore;
+    } else if (teamB.starters.length && teamB.starters_points.length === teamB.starters.length) {
+      row.teamBScore = computeParticipantPoints(teamB);
+    }
+    nextRows.push(row);
+  }
+
+  if (!nextRows.length) {
+    throw new Error(`No complete two-team matchups found for week ${week}; leaving the JSON untouched.`);
+  }
+
+  existing[String(week)] = nextRows;
+  await fs.writeFile(outPath, JSON.stringify(existing, null, 2) + '\n', 'utf8');
+  console.log(`✓ Updated only ${season.season}.json week ${week} (${nextRows.length} matchups); all other weeks and existing scores preserved.`);
+}
+
 async function main() {
   const argv = process.argv.slice(2);
-  console.log(`▶︎ Regenerating season matchups`);
+  const syncCurrentWeek = argv.includes('--current-week');
+  console.log(syncCurrentWeek ? '▶︎ Syncing current completed week only' : '▶︎ Regenerating season matchups');
   console.log(`  Anchor league: ${ANCHOR_LEAGUE_ID}`);
   console.log(`  Output dir   : ${STATIC_DIR}`);
 
@@ -246,6 +346,12 @@ async function main() {
     console.log(
       `    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${getSeasonFormat(s.season, s)?.playoffStart ?? '?'}  status=${s.status ?? '?'}`
     );
+  }
+
+  if (syncCurrentWeek) {
+    const currentSeason = seasons.find((s) => String(s.league_id) === String(ANCHOR_LEAGUE_ID)) || seasons[seasons.length - 1];
+    await syncCurrentCompletedWeek(currentSeason);
+    return;
   }
 
   // Default = every discovered season, including the current season.
