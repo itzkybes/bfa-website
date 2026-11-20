@@ -233,9 +233,10 @@
         if (!result) continue;
         const rmap = result.rosterMap || {};
         const playoffStart = Number(result.playoffStart) || 19;
+        const playoffEnd = Number(result.playoffEnd) || playoffStart + 2;
         for (const [weekText, entries] of Object.entries(result.collectedMatchups || {})) {
           const week = Number(weekText);
-          if (!Number.isInteger(week) || week < 1 || week >= playoffStart) continue;
+          if (!Number.isInteger(week) || week < 1 || week > playoffEnd) continue;
           for (const entry of entries || []) {
             const rawPoints = Number(entry.__final_score ?? entry.points);
             if (!Number.isFinite(rawPoints)) continue;
@@ -245,6 +246,7 @@
               key: `${result.season}-${week}-${rid}`,
               season: result.season,
               week,
+              phase: week >= playoffStart ? 'Playoffs' : 'Regular Season',
               points: Math.round(rawPoints * 100) / 100,
               rosterId: rid,
               team_name: meta.team_name || entry.__team_name || 'Unknown team',
@@ -356,32 +358,32 @@
       {:else}<div class="empty-row">No completed regular-season weekly scores yet.</div>{/if}
     </section>
     <section class="block">
-      <div class="block-head"><h2 class="block-title">Highest Scoring Week — Top 10</h2><span class="block-sub">Top completed regular-season team scores</span></div>
+      <div class="block-head"><h2 class="block-title">Highest Scoring Week — Top 10</h2><span class="block-sub">Top completed team-week scores · regular season + playoffs</span></div>
       {#if highestScoringWeeks.length}
         <div class="table-wrap"><table class="bfa-table weekly-record-table">
-          <colgroup><col style="width:8%" /><col style="width:42%" /><col style="width:16%" /><col style="width:14%" /><col style="width:20%" /></colgroup>
-          <thead><tr><th>Rank</th><th>Team</th><th>Season</th><th>Week</th><th class="col-num">Points</th></tr></thead>
+          <colgroup><col style="width:7%" /><col style="width:37%" /><col style="width:13%" /><col style="width:10%" /><col style="width:15%" /><col style="width:18%" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th>Season</th><th>Week</th><th>Phase</th><th class="col-num">Points</th></tr></thead>
           <tbody>{#each highestScoringWeeks as row, i (row.key)}
             <tr>
               <td class="num">{i + 1}</td>
               <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} /><div><div class="team-name-cell">{row.team_name}</div>{#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}</div></div></td>
-              <td>{row.season}</td><td>{row.week}</td><td class="col-num"><span class="num">{row.points.toFixed(2)}</span></td>
+              <td>{row.season}</td><td>{row.week}</td><td>{row.phase}</td><td class="col-num"><span class="num">{row.points.toFixed(2)}</span></td>
             </tr>
           {/each}</tbody>
         </table></div>
       {:else}<div class="empty-card">No completed regular-season weekly scores yet.</div>{/if}
     </section>
     <section class="block">
-      <div class="block-head"><h2 class="block-title">Lowest Scoring Week — Top 10</h2><span class="block-sub">Lowest completed regular-season team scores</span></div>
+      <div class="block-head"><h2 class="block-title">Lowest Scoring Week — Top 10</h2><span class="block-sub">Lowest completed team-week scores · regular season + playoffs</span></div>
       {#if lowestScoringWeeks.length}
         <div class="table-wrap"><table class="bfa-table weekly-record-table">
-          <colgroup><col style="width:8%" /><col style="width:42%" /><col style="width:16%" /><col style="width:14%" /><col style="width:20%" /></colgroup>
-          <thead><tr><th>Rank</th><th>Team</th><th>Season</th><th>Week</th><th class="col-num">Points</th></tr></thead>
+          <colgroup><col style="width:7%" /><col style="width:37%" /><col style="width:13%" /><col style="width:10%" /><col style="width:15%" /><col style="width:18%" /></colgroup>
+          <thead><tr><th>Rank</th><th>Team</th><th>Season</th><th>Week</th><th>Phase</th><th class="col-num">Points</th></tr></thead>
           <tbody>{#each lowestScoringWeeks as row, i (row.key)}
             <tr>
               <td class="num">{i + 1}</td>
               <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(row.avatar, row.team_name)} alt={row.team_name} /><div><div class="team-name-cell">{row.team_name}</div>{#if row.owner_name}<div class="team-owner-cell">{row.owner_name}</div>{/if}</div></div></td>
-              <td>{row.season}</td><td>{row.week}</td><td class="col-num"><span class="num">{row.points.toFixed(2)}</span></td>
+              <td>{row.season}</td><td>{row.week}</td><td>{row.phase}</td><td class="col-num"><span class="num">{row.points.toFixed(2)}</span></td>
             </tr>
           {/each}</tbody>
         </table></div>
