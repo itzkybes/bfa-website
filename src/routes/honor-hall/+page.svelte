@@ -194,6 +194,18 @@
     return `${Number(match.r) || 1}-${match.m ?? 'x'}-${match.p ?? 'x'}`;
   }
 
+  function bracketMatchOrder(match, bracketType) {
+    // Keep championship placement games in standings order:
+    // 3rd/4th, then 5th/6th, then 7th/8th.
+    if (bracketType === 'winners' && Number(match.r) === 3) {
+      const places = [match.t1, match.t2]
+        .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+        .filter(Number.isFinite);
+      return places.length ? Math.min(...places) : Number(match.m) || 0;
+    }
+    return Number(match.m) || 0;
+  }
+
   function hasBracketFollowup(matches, match, rosterId) {
     if (rosterId == null) return false;
     const round = Number(match.r) || 1;
@@ -458,7 +470,7 @@
                       {#if round.matches.some(match => !isConsolationMatch(match, bracket.type))}
                         <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketData[bracket.key])}</h5>
                       {/if}
-                      {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
+                      {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type)).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                           {#each [match.t1, match.t2] as rosterId}
                             {#if rosterId != null}
@@ -481,7 +493,7 @@
                       <div class="bracket-consolation-group">
                         <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
                         <div class="bracket-consolation-games">
-                          {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)) as match (bracketMatchKey(match))}
+                          {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
