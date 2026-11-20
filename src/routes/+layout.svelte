@@ -44,6 +44,7 @@
       <div class="footer-col">
         <div class="col-title">Records</div>
         <a href="/records-team" data-testid="footer-link-records-team">Team Records</a>
+        <a href="/records-league" data-testid="footer-link-records-league">League Record Book</a>
         <a href="/records-player" data-testid="footer-link-records-player">Player Records</a>
         <a href="/honor-hall" data-testid="footer-link-honor-hall">Honor Hall</a>
         <a href="/rules" data-testid="footer-link-rules">Rules &amp; Scoring</a>

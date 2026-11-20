@@ -10,3 +10,5 @@ export { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 export { computeStandingsForLeague } from './standings';
 export { getStandingsMovementFromSnapshots } from './standingsMovement';
 export { computeMatchupsForLeagueWeek } from './matchups';
+
+export { buildLeagueRecordBook } from './leagueRecords';

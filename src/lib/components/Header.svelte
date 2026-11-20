@@ -52,6 +52,7 @@
       label: 'Records',
       children: [
         { href: '/records-team', label: 'Team Records' },
+        { href: '/records-league', label: 'League Record Book' },
         { href: '/records-player', label: 'Player Records' }
       ]
     },
@@ -66,7 +67,7 @@
   }
 
   function isRecordsActive(path) {
-    return path && (path.startsWith('/records-team') || path.startsWith('/records-player'));
+    return path && (path.startsWith('/records-team') || path.startsWith('/records-player') || path.startsWith('/records-league'));
   }
 </script>
 
