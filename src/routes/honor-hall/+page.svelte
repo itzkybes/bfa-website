@@ -183,7 +183,7 @@
     if (!mainMatches.length) return '';
     if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Quarterfinals';
     if (round === 2) {
-      if (bracketType === 'losers') return '9th/10th Place Game';
+      if (bracketType === 'losers') return 'Toilet Bowl Semifinals';
       return 'Semifinals';
     }
     if (round >= 3) return bracketType === 'losers' ? 'Final Placement Games' : 'Championship & 3rd–8th Place Games';
@@ -207,9 +207,10 @@
     const round = Number(match.r) || 1;
     if (bracketType === 'losers') {
       // Toilet Bowl round 1 is the 9v12 / 10v11 quarterfinals.
-      // Every round-2 game is a consolation path; in round 3, the
-      // p=1 game is the Toilet Bowl Championship and the other is 11th/12th.
-      return round === 2 || (round >= 3 && Number(match.p) !== 1);
+      // Week 2 contains the 9th/10th game plus two Toilet Bowl semifinals.
+      // Keep all three together under the round's semifinals heading.
+      // Only the non-championship Week 3 placement game is in the consolation group.
+      return round >= 3 && Number(match.p) !== 1;
     }
     // In the championship bracket, p>1 identifies the placement/consolation
     // path alongside the championship path.
@@ -231,14 +232,31 @@
         const bothAdvancedAsWinners = [match.t1, match.t2].every(
           (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
         );
-        return bothAdvancedAsWinners ? '9th/10th Place Game' : '11th–14th Place Qualifier';
+        return bothAdvancedAsWinners ? '9th/10th Place Game' : 'Toilet Bowl Semifinal';
       }
-      if (round >= 3) return placement === 1 ? 'Toilet Bowl Championship' : '11th/12th Place Game';
+      if (round >= 3) {
+        const places = [match.t1, match.t2]
+          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+          .filter(Number.isFinite).sort((a, b) => a - b);
+        if (places[0] === 9 && places[1] === 10) return '9th/10th Place Game';
+        if (places[0] === 11 && places[1] === 12) return '11th/12th Place Game';
+        if (places[0] === 13 && places[1] === 14) return 'Toilet Bowl Championship';
+        return placement === 1 ? 'Toilet Bowl Championship' : 'Placement Game';
+      }
     }
 
     if (bracketType === 'winners') {
       if (round === 3) {
-        return ({ 1: 'Championship', 2: '3rd/4th Place Game', 3: '5th/6th Place Game', 4: '7th/8th Place Game' })[placement] || 'Placement Game';
+        const places = [match.t1, match.t2]
+          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+          .filter(Number.isFinite).sort((a, b) => a - b);
+        const pair = places.join('-');
+        return ({
+          '1-2': 'Championship',
+          '3-4': '3rd/4th Place Game',
+          '5-6': '5th/6th Place Game',
+          '7-8': '7th/8th Place Game'
+        })[pair] || ({ 1: 'Championship', 2: '3rd/4th Place Game', 3: '5th/6th Place Game', 4: '7th/8th Place Game' })[placement] || 'Placement Game';
       }
       if (round === 2 && placement > 1) return '5th–8th Place Qualifier';
     }
@@ -617,20 +635,19 @@
   .bracket-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; padding: 1.1rem; }
   .bracket-column { min-width: 0; }
   .bracket-title { margin: 0 0 0.9rem; font-family: var(--font-display); font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  .bracket-track { display: flex; align-items: stretch; gap: 2.5rem; overflow-x: auto; padding: 0.2rem 0.2rem 1rem; }
-  .bracket-track { position: relative; }
+  .bracket-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: clamp(0.65rem, 2vw, 1.5rem); width: 100%; box-sizing: border-box; overflow: visible; padding: 0.2rem 0 1rem; position: relative; }
   .bracket-connectors { position: absolute; inset: 0 auto auto 0; z-index: 0; overflow: visible; pointer-events: none; }
   .bracket-connectors path { fill: none; stroke-width: 1.7; }
   .bracket-connectors .connector-winner { stroke: var(--accent); opacity: 0.9; }
   .bracket-connectors .connector-loser { stroke: var(--text-tertiary); opacity: 0.62; stroke-dasharray: 4 4; }
   .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
   .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
-  .bracket-round { flex: 0 0 190px; min-width: 190px; display: flex; flex-direction: column; }
+  .bracket-round { min-width: 0; width: 100%; display: flex; flex-direction: column; }
   .bracket-round-title { color: var(--text-tertiary); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; margin: 0 0 0.55rem; text-align: center; }
   .bracket-main-title { margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; }
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1.35rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
-   .bracket-match { position: relative; z-index: 1; width: 100%; max-width: 190px; box-sizing: border-box; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); padding: 0.4rem; background: var(--surface-2); min-width: 0; }
+  .bracket-match { position: relative; z-index: 1; width: 100%; max-width: none; box-sizing: border-box; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); padding: 0.4rem; background: var(--surface-2); min-width: 0; }
   .bracket-consolation-group { margin-top: 1.15rem; padding-top: 0.85rem; border-top: 1px dashed var(--border-subtle); }
   .bracket-consolation-title { margin: 0 0 0.65rem; color: var(--accent); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; }
   .bracket-consolation-games { display: flex; flex-direction: column; gap: 0.95rem; }
@@ -648,6 +665,12 @@
   .bracket-final { border-color: var(--gold); background: linear-gradient(180deg, rgba(245,180,0,.08), var(--surface-2)); }
   .bracket-match-label { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--border-subtle); color: var(--text-tertiary); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; }
   .bracket-note { margin: 0; padding: 0 1.1rem 1rem; color: var(--text-tertiary); font-size: 0.72rem; }
-  @media (max-width: 600px) { .bracket-track { gap: 1.75rem; } .bracket-round { flex-basis: 180px; min-width: 180px; } .bracket-match { max-width: 180px; } }
+  @media (max-width: 700px) {
+    .bracket-track { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+    .bracket-round { width: 100%; }
+    .bracket-connectors { display: none; }
+    .bracket-round-games, .bracket-round-games.later-round { padding: 0; gap: 0.8rem; }
+    .bracket-match { max-width: none; }
+  }
 
 </style>
