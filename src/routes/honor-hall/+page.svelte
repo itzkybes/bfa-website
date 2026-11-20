@@ -171,11 +171,19 @@
     return Number.isFinite(Number(value)) ? formatNumber(Number(value)) : '—';
   }
 
-  function bracketMatchLabel(match) {
+  function bracketRoundLabel(round) {
+    return ({ 1: 'Quarterfinals', 2: 'Semifinals', 3: 'Finals' })[Number(round)] || `Round ${round}`;
+  }
+
+  function isConsolationMatch(match) {
     const place = Number(match.p);
-    if (place === 1) return 'Championship';
-    if (Number.isFinite(place) && place > 1) return `Placement game · ${place}`;
-    return `Match ${match.m ?? ''}`;
+    return Number.isFinite(place) && place > 1;
+  }
+
+  function bracketMatchLabel(match, round) {
+    if (isConsolationMatch(match)) return 'Consolation Game';
+    if (Number(match.p) === 1) return 'Championship';
+    return bracketRoundLabel(round);
   }
 
   async function loadAll() {
@@ -298,9 +306,9 @@
               <div class="bracket-track">
                 {#each bracketRounds(bracketData[bracket.key]) as round, roundIndex (round.round)}
                   <div class="bracket-round">
-                    <h4 class="bracket-round-title">{({ 1: 'Quarterfinals', 2: 'Semifinals', 3: 'Finals' })[round.round] || `Round ${round.round}`}</h4>
+                    <h4 class="bracket-round-title">{bracketRoundLabel(round.round)}</h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-                      {#each round.matches as match (match.m ?? `${round.round}-${match.p}`)}
+                      {#each round.matches.filter(match => !isConsolationMatch(match)) as match (match.m ?? `${round.round}-main-${match.p}`)}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1}>
                           {#each [match.t1, match.t2] as rosterId}
                             {#if rosterId != null}
@@ -315,10 +323,35 @@
                               <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
                             {/if}
                           {/each}
-                          <div class="bracket-match-label">{bracketMatchLabel(match)}</div>
+                          <div class="bracket-match-label">{bracketMatchLabel(match, round.round)}</div>
                         </div>
                       {/each}
                     </div>
+                    {#if round.matches.some(isConsolationMatch)}
+                      <div class="bracket-consolation-group">
+                        <h5 class="bracket-consolation-title">Consolation Games</h5>
+                        <div class="bracket-consolation-games">
+                          {#each round.matches.filter(isConsolationMatch) as match (match.m ?? `${round.round}-consolation-${match.p}`)}
+                            <div class="bracket-match bracket-match-consolation">
+                              {#each [match.t1, match.t2] as rosterId}
+                                {#if rosterId != null}
+                                  {@const team = bracketTeam(rosterId)}
+                                  <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
+                                    <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
+                                    <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
+                                    <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
+                                    <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
+                                  </div>
+                                {:else}
+                                  <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
+                                {/if}
+                              {/each}
+                              <div class="bracket-match-label">{bracketMatchLabel(match, round.round)}</div>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -458,6 +491,11 @@
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
   .bracket-match { position: relative; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); padding: 0.55rem; background: var(--surface-2); min-width: 0; }
+  .bracket-consolation-group { margin-top: 1.15rem; padding-top: 0.85rem; border-top: 1px dashed var(--border-subtle); }
+  .bracket-consolation-title { margin: 0 0 0.65rem; color: var(--text-tertiary); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; text-align: left; }
+  .bracket-consolation-games { display: flex; flex-direction: column; gap: 0.7rem; }
+  .bracket-match-consolation { background: var(--surface-1); border-style: dashed; border-color: var(--border-subtle); }
+  .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
   .bracket-round:not(:last-child) .bracket-match::after { content: ''; position: absolute; left: 100%; top: 50%; width: 1.5rem; border-top: 1px solid var(--border-subtle); }
   .bracket-team { display: grid; grid-template-columns: 34px 28px minmax(0, 1fr) auto; align-items: center; gap: 0.4rem; min-height: 36px; color: var(--text-secondary); font-size: 0.78rem; }
   .bracket-seed { color: var(--text-tertiary); font-size: 0.68rem; text-align: center; white-space: nowrap; }
