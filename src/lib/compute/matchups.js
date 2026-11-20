@@ -1,8 +1,9 @@
 // src/lib/compute/matchups.js
 //
 // Per-week matchup rows for the `/matchups` page. Two paths:
-//   · Static snapshot when the league is complete AND a JSON exists.
-//   · Live Sleeper API otherwise.
+//   · Static snapshot whenever the season JSON exists (its explicit team
+//     scores are authoritative for both active and completed seasons).
+//   · Live Sleeper API only when no snapshot exists.
 
 import { getLeague, getRosterMapWithOwners, getMatchupsForWeek, safeNum } from '$lib/api/sleeper';
 import { loadSeasonMatchups } from '$lib/api/staticSeasons';
@@ -16,10 +17,10 @@ import { getCompletedWeekForLeague } from './weekCutoff';
  * `/matchups` page renders.
  *
  * Source-of-truth rule:
- *   · If the league has `status === 'complete'` AND a static snapshot exists
- *     at `/static/season_matchups/{year}.json`, use the snapshot —
- *     `teamAScore` / `teamBScore` are the authoritative final scores.
- *   · Otherwise (in-progress season, or no snapshot yet), call Sleeper.
+ *   · If a static snapshot exists at `/static/season_matchups/{year}.json`,
+ *     use it for the requested completed week — `teamAScore` / `teamBScore`
+ *     are the authoritative team totals.
+ *   · Call Sleeper only when no snapshot exists for the season.
  *
  * Each row is one of:
  *   - `{ teamA, teamB, participantsCount: 2 }` — normal head-to-head
@@ -51,10 +52,10 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     return { week, playoffStart, playoffEnd, leagueSeason, completedThroughWeek, matchupsRows: [] };
   }
 
-  // Static-snapshot path (completed seasons only).
-  const isLeagueComplete = leagueMeta?.status === 'complete';
+  // Static snapshot is the scoring source for every season, including the
+  // active season. Explicit teamAScore/teamBScore values take precedence.
   let seasonMatchups = null;
-  if (isLeagueComplete && leagueSeason) {
+  if (leagueSeason) {
     seasonMatchups = await loadSeasonMatchups(leagueSeason);
   }
   if (seasonMatchups && Array.isArray(seasonMatchups[String(week)])) {
