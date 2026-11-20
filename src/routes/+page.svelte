@@ -72,6 +72,15 @@
     return u.display_name || u.username || (u.metadata && u.metadata.team_name) || null;
   }
 
+  // Owner's Hub routes are keyed by the Sleeper username, not roster_id.
+  function ownerUsernameForRoster(roster) {
+    if (!roster) return null;
+    const u = findUserByOwner(roster.owner_id);
+    // Keep the route segment human-readable; ownerId in the query is the
+    // authoritative identifier used by the Owner's Hub lookup.
+    return u?.username || u?.display_name || String(roster.owner_id || '') || null;
+  }
+
   function getHeadshot(playerId) {
     return playerHeadshot(playerId);
   }
@@ -114,7 +123,8 @@
         playerInfo,
         roster: r,
         rosterName: displayNameForRoster(r),
-        ownerName: ownerNameForRoster(r)
+        ownerName: ownerNameForRoster(r),
+        ownerUsername: ownerUsernameForRoster(r)
       };
     } catch (e) {
       console.warn('rando player error', e);
@@ -327,7 +337,11 @@
         </div>
 
         <div class="rando-actions">
-          <a class="btn sm" href={`/rosters?owner=${potw.roster.roster_id ?? ''}`} data-testid="rando-view-roster">Roster</a>
+          {#if potw.ownerUsername}
+            <a class="btn sm" href={`/rosters?rosterId=${encodeURIComponent(potw.roster.roster_id)}`} data-testid="rando-view-roster">Owner's Hub</a>
+          {:else}
+            <a class="btn sm" href="/rosters" data-testid="rando-view-roster">View Rosters</a>
+          {/if}
           <button class="btn sm primary" on:click={pickRandoPlayer} data-testid="rando-shuffle" aria-label="Shuffle">
             ⟲ Shuffle
           </button>

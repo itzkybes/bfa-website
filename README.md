@@ -23,7 +23,7 @@ from Sleeper and cached in the browser.
 | `/records-team`   | All-time team records, biggest blowouts/nailbiters, and head-to-head matrix |
 | `/records-player` | Season MVPs, All-Time MVP Awards, All-Time Best Player by Team, and cumulative Regular Season / Playoffs scoring leaders by franchise |
 | `/honor-hall`     | Champions, Biggest Loser, three MVPs, and final standings |
-| `/admin/generate-season-matchups` | Browser-based snapshot regenerator for completed seasons |
+| `/admin/generate-season-matchups` | Browser-based season snapshot utility |
 
 ### Site map
 
@@ -83,38 +83,36 @@ The league has three MVP awards per season and they're easy to confuse, so:
   from **both** finalists. So if you lose the final but drop 60, you still take
   home the trophy.
 
-### The Weekly Recap (`/matchups`)
+### Scoring rules and weekly recap
 
-Every weekly stat that comes out of `recap` reads from one of TWO authoritative
-data shapes — and never mixes them:
+All team matchup scores used by standings and season-wide matchup records come
+from the checked-in per-season files at
+`static/season_matchups/{year}.json`. Each season is maintained independently
+(e.g. `2022.json`, `2023.json`, …, `2026.json`).
 
-| Stat                          | Source                                            |
-| ----------------------------- | ------------------------------------------------- |
-| 🏀 Top 3 Performances         | `starters_points` only (via `starterPointsByPid`) |
-| 🥶 Bust of the Week           | `starters_points` only (via `starterPointsByPid`) |
-| 💥 Biggest Blowout            | Per-team `points` total (commish overrides via `custom_points`) |
-| 🔥 Closest Game               | Per-team `points` total                           |
-| 🎯 Highest-Scoring Matchup    | Per-team `points` total                           |
-| 📈 Highest / 📉 Lowest Team   | Per-team `points` total                           |
+For every team in a matchup, the file stores:
+- Sleeper roster ID, team name, and owner label
+- The selected starter player IDs (`starters`)
+- The corresponding player scores in `starters_points`, in the same order
 
-**Critical:** Top 3 and Bust are STRICTLY starter scoring. `starterPointsByPid`
-in `src/lib/compute/scoring.js` returns `null` if a Sleeper matchup entry lacks a
-`starters_points` array — the caller skips that team entirely rather than
-falling back to `player_points`, which would conflate bench contributions with
-starter performance. Sleeper has shipped four different field names over the
-years (`starters_points`, `starter_points`, `startersPoints`, `starterPoints`),
-all of them handled.
+The team total is the sum of those `starters_points` values. The scoring helper
+requires the starter IDs and points arrays to align; it never counts bench
+players or falls back to Sleeper's whole-roster `points` total. If starter
+scoring is missing or malformed, the score is treated as 0 rather than
+silently using a different source.
 
-By project policy `player_points` / `players_points` is **never** read anywhere
-in the codebase. Our league uses Sleeper's manual game-selection mechanic; the
-selected game's score is natively baked into `starters_points`, while
-`player_points` includes raw unselected games and would corrupt scores. The
-team-total score precedence used by `computeParticipantPoints()` is:
+**Historical manual overrides take precedence.** An optional `teamAScore` or
+`teamBScore` on a matchup row is an explicit final team-score override. These
+values are retained when a season file is regenerated. Without an override,
+the score is calculated from starters only.
 
-1. `entry.custom_points` — the **commissioner manual override** (Sleeper exposes
-   this whenever the commish pins a score, e.g. for a missed lock or forfeit).
-2. Sum of `starters_points`.
-3. Last-resort fallback to `entry.points`.
+Player-level weekly stats (such as Top Performances and Bust of the Week) also
+use the selected starters and their aligned `starters_points` values. Raw
+`player_points` / `players_points` are not used: they can include unselected
+games when a manager uses Sleeper's manual game-selection feature.
+
+The site excludes the current, unfinished fantasy week from season stats. A
+fantasy week runs Monday at 3:00 AM through the following Monday at 2:59 AM.
 
 ### Owner Hub (rosters page)
 
@@ -160,7 +158,7 @@ src/
 │   │   └── index.js               Barrel — `import { … } from '$lib/api'`
 │   ├── compute/
 │   │   ├── scoring.js             computeParticipantPoints, starterPointsByPid, aggregatePlayerPoints
-│   │   ├── standings.js           Season standings, MVPs, static-vs-live switch
+│   │   ├── standings.js           Season standings, MVPs, snapshot-only scoring
 │   │   ├── matchups.js            Weekly matchup rows
 │   │   ├── brackets.js            Final standings + championship game from brackets
 │   │   ├── avatars.js             Overlay each owner's latest team art on historical seasons
@@ -182,10 +180,10 @@ src/
 └── app.html                       SvelteKit shell
 static/
 ├── bfa-logo.png                   Brand mark used in header + footer
-├── season_matchups/{year}.json    Locked-in season snapshots (currently 2022–2025)
+├── season_matchups/{year}.json    Per-season starter/points snapshots (2022 onward)
 └── week-ranges.json               "Which week are we in right now" calendar
 scripts/
-├── regenerate-season-matchups.mjs Node script that rebuilds /static/season_matchups/
+├── regenerate-season-matchups.mjs Node script that rebuilds each season JSON
 └── test-auto-discovery.mjs        Sanity-checks the season chain walk
 ```
 
@@ -323,99 +321,90 @@ commit them.
 
 ---
 
-## Static snapshots & the season lifecycle
+## Per-season scoring files
 
-Sleeper's per-week matchups endpoint stops returning useful data for old
-leagues, and even for current data we want to lock in commish manual overrides
-(`custom_points`) once a season ends. The site solves both with on-disk
-snapshots under `/static/season_matchups/{year}.json`.
+The files in `static/season_matchups/` are the canonical source for team
+scoring across all seasons. The app does not fall back to live Sleeper matchup
+totals when a season file or week is missing. Only weeks present in the
+season's JSON are available to the scoring pipeline.
 
-### How the site decides between "static" and "live"
+### File structure
 
-Inside `computeStandingsForLeague()` and `computeMatchupsForLeagueWeek()` the
-decision is fully automatic and depends on **two** signals:
+Each year has its own file, for example:
 
-1. `leagueMeta.status === 'complete'` — Sleeper sets this to `complete` once
-   the playoffs have wrapped. While the season is live (`status === 'in_season'`
-   or `'pre_draft'`) we **always** hit the Sleeper API so newly-played games
-   and same-day commish edits show up immediately.
-2. A static snapshot exists at `/static/season_matchups/{year}.json`. The
-   helper `fetchStaticJson()` returns `null` on 404, so a missing file falls
-   back to the live API path with no code change.
-
-```mermaid
-flowchart TD
-    A["Page loads → onMount"] --> B["getSeasonsChain<br/>walk previous_league_id back,<br/>user leagues forward"]
-    B --> C{"League status<br/>== complete?"}
-    C -- "no (in_season / pre_draft)" --> L["Live Sleeper API"]
-    C -- yes --> D{"Snapshot file exists?<br/>/season_matchups/year.json"}
-    D -- "yes" --> S["Use the static snapshot"]
-    D -- "404" --> L
-    L --> K[("Browser cache<br/>localStorage / IndexedDB · TTL")]
-    K --> R["Compute standings / matchups"]
-    S --> R
-    R --> UI["Render the page"]
+```text
+static/season_matchups/
+├── 2022.json
+├── 2023.json
+├── 2024.json
+├── 2025.json
+└── 2026.json
 ```
 
-This means the lifecycle is hands-off:
+A season file contains season playoff metadata and week-keyed matchup arrays.
+Each matchup row includes a `matchup_id`, `week`, and two team objects
+(`teamA` and `teamB`). A team object contains `rosterId`, `name`,
+`ownerName`, `starters`, and `starters_points`. The two starter arrays are
+positionally aligned: index 0 in `starters` identifies the player whose score
+is at index 0 in `starters_points`.
 
-| Phase                                  | Behaviour                                        |
-| -------------------------------------- | ------------------------------------------------ |
-| 2026 season starts, no JSON            | `status !== 'complete'` → live API everywhere    |
-| 2026 ends, no JSON yet                 | `status === 'complete'`, 404 on snapshot → live  |
-| `node scripts/regenerate-season-matchups.mjs` run after 2026 ends | Snapshot dropped in → **all** pages flip to static instantly |
-| 2027 league starts                     | `status !== 'complete'` → live API again         |
+Only add `teamAScore` or `teamBScore` when an explicit historical correction
+is needed. These are authoritative overrides; otherwise, the site calculates
+the team total from the starter points.
 
-```mermaid
-stateDiagram-v2
-    state "Live Sleeper API" as Live
-    state "Live (complete, not frozen yet)" as Pending
-    state "Frozen snapshot" as Frozen
+### Regenerating the files
 
-    [*] --> Live : season created in Sleeper
-    Live --> Pending : status becomes complete
-    Pending --> Frozen : snapshot JSON committed
-    Frozen --> [*]
+The generator discovers the league's historical seasons by following
+`previous_league_id`, then discovers later seasons through Sleeper's
+user-leagues endpoint. It writes one file per discovered season, including the
+in-progress season.
+
+Run it with Node 22 or later:
+
+```bash
+node scripts/regenerate-season-matchups.mjs
 ```
 
-You **never** have to edit a year whitelist in the codebase. The two functions
-above used to keep one but it was removed in favour of "file existence wins"
-on Feb 4, 2026.
+To regenerate selected seasons only:
 
-### Regenerating the snapshots
+```bash
+node scripts/regenerate-season-matchups.mjs 2025 2026
+```
 
-Three options, in order of recommended:
+The generator:
+- Fetches matchup weeks from Sleeper and writes only matchup rows returned by
+  the API.
+- Stores selected starter IDs and their matching `starters_points` values.
+- Does not use bench points, whole-roster totals, `player_points`, or
+  `players_points` to calculate team scores.
+- Preserves existing `teamAScore` / `teamBScore` historical overrides for
+  matching week and matchup IDs.
+- Does not invent completed scores for weeks without matchup data.
 
-1. **Node script (fastest)** — drop right onto a finalized season:
-   ```bash
-   node scripts/regenerate-season-matchups.mjs           # every completed season in the chain
-   node scripts/regenerate-season-matchups.mjs 2026      # only the season(s) you name
-   ```
-   Output goes straight to `static/season_matchups/{year}.json`. Commit the
-   diff to ship the freeze to production.
+### Automatic refresh
 
-2. **UI tool** — same logic, no terminal:
-   - In the running site, follow the **Tooling → Generate Season Matchups**
-     link in the footer (or visit `/admin/generate-season-matchups` directly).
-   - Defaults to every season the league chain reports as `status: complete`.
-     Override with `?years=2026` in the URL.
-   - Click "Copy JSON" per season, paste into the matching file under
-     `static/season_matchups/`, commit.
+The **Sync season matchup files** GitHub Actions workflow runs weekly
+(Mondays at 09:20 UTC) and can also be started manually from the repository's
+Actions tab. It runs the generator and commits changes to
+`static/season_matchups/*.json` when the files have changed. The workflow also
+runs on pushes to the scoring feature branch.
 
-3. **Manual** — only useful for spot fixes. Edit the file directly; the JSON
-   shape is `{ playoff_week_start, "1": [ matchupRow… ], "2": […], … }` where
-   each `matchupRow` has `{ matchup_id, week, teamA, teamAScore, teamB,
-   teamBScore }` and any `teamA.custom_points` / `teamB.custom_points`
-   overrides preserved.
+No local machine or manual Vercel update is required for the scheduled refresh:
+the workflow commits updated JSON files to GitHub, and the connected Vercel
+project deploys from the repository as usual.
 
-In all three paths, the script/UI:
-- Writes scores using the **same** `custom_points → starters_points → points`
-  precedence the live API path uses (no drift between paths).
-- **Does not** write `player_points` to the JSON (project policy).
-- Captures commish overrides automatically — they live on
-  `entry.custom_points` in the Sleeper API.
+### Score calculation
 
----
+For each team entry, the scoring helper follows this order:
+
+1. Use the explicit static `teamAScore` / `teamBScore` override when present.
+2. Otherwise, sum the values in `starters_points`, after verifying that the
+   array length matches the selected `starters` IDs.
+3. If starter scoring is absent or misaligned, return 0. Never fall back to a
+   full-roster score.
+
+This keeps wins, losses, points for/against, standings, and downstream
+season aggregates on the same starter-only scoring basis.
 
 ## Credits
 

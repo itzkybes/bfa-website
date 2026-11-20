@@ -15,12 +15,13 @@ import { safeNum } from '../api/sleeper.js';
  *      static-load synthesis carries those values through under this key.
  *   2. `starters_points` array — project policy: per-player figures only
  *      ever come from this; the team total is the sum.
- *   3. Top-level `points` field — last-resort fallback (still a Sleeper
- *      starter-only total).
+ *   3. If starter scoring is unavailable, return 0 rather than using
+ *      an ambiguous team-level total that may include non-starters.
  *
- * `player_points` / `players_points` is deliberately NOT consulted, since
- * for our league with manual game-selection it includes raw unselected
- * games.
+ * `points`, `points_for`, `pts`, `score`, `player_points` and
+ * `players_points` are deliberately NOT consulted. Team results must be
+ * derived from the selected starters only (unless a static score override
+ * has been explicitly pinned above).
  */
 export function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
@@ -29,18 +30,18 @@ export function computeParticipantPoints(entry) {
     const v = safeNum(entry.__final_score);
     if (isFinite(v)) return Math.round(v * 100) / 100;
   }
-  // 2. Sum of starters_points.
+  // 2. Sum only the points aligned to the selected starter IDs.
+  const starters = Array.isArray(entry.starters) ? entry.starters : [];
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
   for (const k of arrayKeys) {
-    if (Array.isArray(entry[k]) && entry[k].length) {
-      let s = 0;
-      for (const v of entry[k]) s += safeNum(v);
-      return Math.round(s * 100) / 100;
+    if (starters.length && Array.isArray(entry[k]) && entry[k].length === starters.length) {
+      const total = entry[k].reduce((sum, value) => sum + safeNum(value), 0);
+      return Math.round(total * 100) / 100;
     }
   }
-  // 3. Top-level points fallback.
-  const fallback = safeNum(entry.points ?? entry.points_for ?? entry.pts ?? entry.score ?? 0);
-  return Math.round(fallback * 100) / 100;
+  // 3. Missing starter scoring is unknown, not permission to count the
+  // whole roster (which can include bench/non-selected players).
+  return 0;
 }
 
 /**
@@ -112,17 +113,24 @@ export function aggregatePlayerPoints(matchupEntries) {
         player.pointsByRoster[rid] = (player.pointsByRoster[rid] || 0) + points;
         // For season-wide MVP display, attribute a traded player to the
         // roster that received the largest share of their selected-game points.
-        if (player.pointsByRoster[rid] > (player.pointsByRoster[player.rosterId] || 0)) {
-          player.rosterId = rid;
-        }
+  
       }
     }
   }
   for (const player of Object.values(byPlayer)) {
     player.points = Math.round(player.points * 100) / 100;
+    let topRoster = player.rosterId;
+    let topPoints = -Infinity;
+    // Keep the first-seen roster on a tie; choose the roster with the
+    // largest final share after all weeks have been aggregated.
     for (const rid of Object.keys(player.pointsByRoster)) {
       player.pointsByRoster[rid] = Math.round(player.pointsByRoster[rid] * 100) / 100;
+      if (player.pointsByRoster[rid] > topPoints) {
+        topPoints = player.pointsByRoster[rid];
+        topRoster = rid;
+      }
     }
+    player.rosterId = topRoster;
   }
   return byPlayer;
 }

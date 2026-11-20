@@ -195,8 +195,19 @@
       }
       list.sort((a, b) => String(a.team_name || '').localeCompare(String(b.team_name || '')));
       rosters = list;
-      // Default selection: alphabetically first team (matches sort).
-      if (rosters.length && !selectedRosterId) {
+      // A deep link from the Home page selects the matching team in the
+      // existing Owner Hub picker, while keeping the user on this page.
+      const requestedRosterId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('rosterId')
+        : null;
+      const requestedRoster = requestedRosterId
+        ? rosters.find((roster) => String(roster.rosterId) === String(requestedRosterId))
+        : null;
+
+      // Prefer the requested team; otherwise default to the alphabetically first team.
+      if (requestedRoster) {
+        selectedRosterId = requestedRoster.rosterId;
+      } else if (rosters.length && !selectedRosterId) {
         selectedRosterId = rosters[0].rosterId;
       }
     } catch (e) {

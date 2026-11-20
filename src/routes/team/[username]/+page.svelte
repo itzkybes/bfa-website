@@ -113,7 +113,15 @@
   })();
 
   /** Find the rosterId belonging to `username` in this league's roster map. */
-  function findRosterIdForUser(rosterMap, usernameLower) {
+  function findRosterIdForUser(rosterMap, usernameLower, ownerId = '') {
+    // Sleeper usernames/display names are not guaranteed to be unique or
+    // consistently populated. The stable Sleeper owner_id query takes priority.
+    if (ownerId) {
+      for (const rid of Object.keys(rosterMap)) {
+        const m = rosterMap[rid] || {};
+        if (m.owner_id != null && String(m.owner_id) === String(ownerId)) return rid;
+      }
+    }
     for (const rid of Object.keys(rosterMap)) {
       const m = rosterMap[rid] || {};
       if (m.owner_username && String(m.owner_username).toLowerCase() === usernameLower) return rid;
@@ -163,7 +171,8 @@
     try {
       username = decodeURIComponent($page.params.username || '');
       const usernameLower = username.toLowerCase();
-      if (!username) throw new Error('Missing username');
+      const ownerId = String($page.url.searchParams.get('ownerId') || '');
+      if (!username && !ownerId) throw new Error('Missing owner identifier');
 
       const { seasons: chain } = await getSeasonsChain(BASE_LEAGUE_ID);
       if (!Array.isArray(chain) || chain.length === 0) throw new Error('No seasons discovered');
@@ -174,7 +183,7 @@
       const results = await Promise.all(orderedChain.map(async (s) => {
         const standings = await computeStandingsForLeague(s.league_id).catch(() => null);
         if (!standings) return null;
-        const rid = findRosterIdForUser(standings.rosterMap || {}, usernameLower);
+        const rid = findRosterIdForUser(standings.rosterMap || {}, usernameLower, ownerId);
         if (!rid) return null; // owner wasn't in this season
 
         const matchups = buildMatchupsForRoster(
