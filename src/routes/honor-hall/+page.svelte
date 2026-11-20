@@ -191,16 +191,14 @@
     );
   }
 
-  function isConsolationMatch(match, matches) {
-    return Number(match.p) > 1 && (
-      hasBracketFollowup(matches, match, match.w) ||
-      hasBracketFollowup(matches, match, match.l)
-    );
+  function isConsolationMatch(match) {
+    return Number(match.p) > 1;
   }
 
   function bracketMatchLabel(match, round, matches) {
     if (Number(match.p) === 1) return 'Championship';
     if (isConsolationMatch(match, matches)) return 'Consolation Game';
+    if (Number(match.p) > 1 && (hasBracketFollowup(matches, match, match.w) || hasBracketFollowup(matches, match, match.l))) return 'Consolation Game';
     if (Number(match.p) > 1) return 'Placement Game';
     return bracketRoundLabel(round);
   }
@@ -251,7 +249,7 @@
         }
       }
     }
-    bracketConnectorPaths = nextPaths;
+    if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) bracketConnectorPaths = nextPaths;
   }
 
   async function loadAll() {
@@ -373,7 +371,7 @@
             <h3 class="bracket-title">{bracket.title}</h3>
             {#if bracketData[bracket.key].length}
               <div class="bracket-track" bind:this={el => setBracketTrackRef(bracket.type, el)} on:scroll={updateBracketConnectors}>
-                <svg class="bracket-connectors" aria-hidden="true" width="100%" height="100%">
+                <svg class="bracket-connectors" aria-hidden="true" width={bracketTrackRefs[bracket.type]?.scrollWidth || 1000} height={bracketTrackRefs[bracket.type]?.scrollHeight || 600}>
                   {#each bracketConnectorPaths[bracket.type] || [] as path, pathIndex}
                     <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} />
                   {/each}
@@ -382,7 +380,7 @@
                   <div class="bracket-round">
                     <h4 class="bracket-round-title">{bracketRoundLabel(round.round)}</h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-                      {#each round.matches.filter(match => !isConsolationMatch(match, bracketData[bracket.key])) as match (bracketMatchKey(match))}
+                      {#each round.matches.filter(match => !isConsolationMatch(match)) as match (bracketMatchKey(match))}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={el => setBracketMatchRef(bracket.type, match, el)}>
                           {#each [match.t1, match.t2] as rosterId}
                             {#if rosterId != null}
@@ -401,7 +399,7 @@
                         </div>
                       {/each}
                     </div>
-                    {#if round.matches.some(match => isConsolationMatch(match, bracketData[bracket.key]))}
+                    {#if round.matches.some(match => isConsolationMatch(match))}
                       <div class="bracket-consolation-group">
                         <h5 class="bracket-consolation-title">Consolation Games</h5>
                         <div class="bracket-consolation-games">
