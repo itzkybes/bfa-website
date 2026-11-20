@@ -145,7 +145,7 @@
           result = minePoints > opponentPoints ? 'W' : minePoints < opponentPoints ? 'L' : 'T';
         }
 
-        const completedBye = week <= completedThrough && Boolean(completedMine) &&
+        const completedBye = week <= completedThrough && hasAuthoritativeScore(completedMine) &&
           completedParticipants.length === 1;
         schedule[String(rid)].push({
           week,
