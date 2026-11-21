@@ -191,7 +191,9 @@
   }
 
   function bracketMainTitle(round, bracketType, matches) {
-    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType));
+    const mainMatches = bracketType === 'consolation'
+      ? (matches || [])
+      : (matches || []).filter((match) => !isConsolationMatch(match, bracketType));
     if (!mainMatches.length) return '';
     if (bracketType === 'consolation') {
       if (round === 2) return '5th–8th Place Qualifiers';
@@ -489,7 +491,7 @@
       <div class="block-head"><h2 class="block-title">Season Brackets</h2><span class="block-sub">{bracketData.playoffTeams}-team championship field</span></div>
       <div class="bracket-grid">
         {#each [{ key: 'winners', title: 'Championship Playoff Bracket', type: 'winners' }, { key: 'winners', title: 'Consolation Bracket', type: 'consolation' }, { key: 'losers', title: 'Toilet Bowl Bracket', type: 'losers' }] as bracket}
-          <div class="bracket-column" data-testid={bracket.type === 'winners' ? 'championship-bracket' : 'toilet-bowl-bracket'}>
+          <div class="bracket-column" data-testid={bracket.type === 'consolation' ? 'consolation-bracket' : bracket.type === 'winners' ? 'championship-bracket' : 'toilet-bowl-bracket'}>
             <h3 class="bracket-title">{bracket.title}</h3>
             {#if bracketMatchesForDisplay(bracket).length}
               <div class="bracket-track" bind:this={bracketTrackRefs[bracket.type]} on:scroll={updateBracketConnectors}>
@@ -506,10 +508,10 @@
                   <div class="bracket-round">
                     <h4 class="bracket-round-title"><span>{bracketRoundLabel(round.round)}</span>{#if Number(round.round) === 2}<small>Re-seed</small>{/if}<small>{bracketRoundWeek(round.round)}</small></h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-                      {#if round.matches.some(match => !false)}
+                      {#if round.matches.length}
                         <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketMatchesForDisplay(bracket))}</h5>
                       {/if}
-                      {#each round.matches.filter(match => !false).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                      {#each round.matches.slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                           <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type === 'consolation' ? 'winners' : bracket.type)}</div>
                           {#each [match.t1, match.t2] as rosterId}
@@ -528,25 +530,7 @@
                         </div>
                       {/each}
                     </div>
-                    {#if round.matches.some(match => false)}
-                      <div class="bracket-consolation-group">
-                        <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
-                        <div class="bracket-consolation-games">
-                          {#each round.matches.filter(match => false).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
-                            <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
-                              <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type === 'consolation' ? 'winners' : bracket.type)}</div>
-                              {#each [match.t1, match.t2] as rosterId}
-                                {#if rosterId != null}
-                                  {@const team = bracketTeam(rosterId)}
-                                  <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
-                                    <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
-                                    <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
-                                    <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
-                                    <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
-                                  </div>
-                                {:else}
-                                  <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
-                                {/if}
+
                               {/each}
                             </div>
                           {/each}
