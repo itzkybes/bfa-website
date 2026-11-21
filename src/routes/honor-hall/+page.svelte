@@ -192,7 +192,7 @@
     if (!mainMatches.length) return '';
     if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Championship Quarterfinals';
     if (round === 2) {
-      if (bracketType === 'losers') return '9th/10th Place Game & Toilet Bowl Semifinals';
+      if (bracketType === 'losers') return 'Toilet Bowl Main Bracket';
       return 'Championship Semifinals';
     }
     if (round >= 3) return bracketType === 'losers' ? 'Toilet Bowl Finals' : 'Championship & 3rd/4th Place';
@@ -213,7 +213,7 @@
   function bracketMatchOrder(match, bracketType) {
     // Sort finals and the Week 2 placement qualifiers by the final places
     // their teams are playing toward, not by Sleeper's matchup ID.
-    if ((bracketType === 'winners' || bracketType === 'consolation') && Number(match.r) >= 2) {
+    if (Number(match.r) >= 2) {
       return bracketMatchPlacement(match);
     }
     return Number(match.m) || 0;
@@ -229,19 +229,24 @@
   }
 
   function isConsolationMatch(match, bracketType, matches = []) {
-    // Sleeper p=1 is the primary advancement path. Higher placement slots
-    // are consolation games for teams eliminated from that path.
-    return Number(match.p) > 1;
+    // Opening-round matchups remain part of the main competition. In later
+    // rounds, p>1 identifies teams that have left the p=1 advancement path.
+    return (Number(match.r) || 1) > 1 && Number(match.p) > 1;
   }
 
   function bracketMatchLabel(match, round, matches, bracketType) {
     const placement = Number(match.p);
     if (isConsolationMatch(match, bracketType, matches)) {
+      if (bracketType === 'winners') {
+        const placeByPath = { 2: '3rd/4th Place', 3: '5th/6th Place', 4: '7th/8th Place' };
+        const place = placeByPath[placement] || 'Placement';
+        return round === 2 ? 'Consolation Qualifier · ' + place : 'Consolation Game · ' + place;
+      }
       const places = [match.t1, match.t2]
         .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
         .filter(Number.isFinite).sort((a, b) => a - b);
-      if (places.length === 2) return 'Consolation Game · ' + places[0] + 'th/' + places[1] + 'th Place';
-      return bracketType === 'losers' ? 'Toilet Bowl Consolation Game' : 'Playoff Consolation Game';
+      if (places.length === 2) return 'Toilet Bowl Consolation · ' + places[0] + 'th/' + places[1] + 'th Place';
+      return 'Toilet Bowl Consolation Game';
     }
     if (bracketType === 'losers') {
       if (round === 1) return 'Toilet Bowl Quarterfinal';
