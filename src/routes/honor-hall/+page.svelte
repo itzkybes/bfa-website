@@ -188,10 +188,10 @@
     if (!mainMatches.length) return '';
     if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Quarterfinals';
     if (round === 2) {
-      if (bracketType === 'losers') return 'Toilet Bowl Semifinals';
+      if (bracketType === 'losers') return '9th/10th Place Game';
       return 'Semifinals';
     }
-    if (round >= 3) return bracketType === 'losers' ? 'Final Placement Games' : 'Championship & 3rd–8th Place Games';
+    if (round >= 3) return bracketType === 'losers' ? 'Toilet Bowl Finals' : 'Championship & 3rd–8th Place Games';
     return '';
   }
 
@@ -224,17 +224,26 @@
     );
   }
 
-  function isConsolationMatch(match, bracketType) {
+  function isConsolationMatch(match, bracketType, matches = []) {
     const round = Number(match.r) || 1;
     if (bracketType === 'losers') {
-      // Toilet Bowl round 1 is the 9v12 / 10v11 quarterfinals.
-      // Week 2 contains the 9th/10th game plus two Toilet Bowl semifinals.
-      // Keep all three together under the round's semifinals heading.
-      // Only the non-championship Week 3 placement game is in the consolation group.
-      return round >= 3 && Number(match.p) !== 1;
+      if (round === 2) {
+        // Only the two games between Week 1 quarterfinal losers and seeds
+        // 13/14 are Toilet Bowl semifinals. The QF winners' 9th/10th game
+        // stays in the main round column.
+        const priorWinners = new Set(
+          matches
+            .filter((candidate) => (Number(candidate.r) || 1) === 1)
+            .flatMap((candidate) => candidate.w == null ? [] : [String(candidate.w)])
+        );
+        return ![match.t1, match.t2].every(
+          (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
+        );
+      }
+      // Both Week 3 Toilet Bowl games are finals: 11th/12th and the
+      // Toilet Bowl Championship. Neither is a separate consolation group.
+      return false;
     }
-    // In the championship bracket, p>1 identifies the placement/consolation
-    // path alongside the championship path.
     return Number(match.p) > 1;
   }
 
@@ -479,11 +488,12 @@
                   <div class="bracket-round">
                     <h4 class="bracket-round-title"><span>{bracketRoundLabel(round.round)}</span>{#if Number(round.round) === 2}<small>Re-seed</small>{/if}<small>{bracketRoundWeek(round.round)}</small></h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-                      {#if round.matches.some(match => !isConsolationMatch(match, bracket.type))}
+                      {#if round.matches.some(match => !isConsolationMatch(match, bracket.type, bracketData[bracket.key]))}
                         <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketData[bracket.key])}</h5>
                       {/if}
-                      {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type)).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                      {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type, bracketData[bracket.key])).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                         <div class="bracket-match" class:bracket-final={bracket.type === 'winners' && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
+                          <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketData[bracket.key], bracket.type)}</div>
                           {#each [match.t1, match.t2] as rosterId}
                             {#if rosterId != null}
                               {@const team = bracketTeam(rosterId)}
@@ -497,16 +507,16 @@
                               <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
                             {/if}
                           {/each}
-                          <div class="bracket-match-label">{bracketMatchLabel(match, round.round, bracketData[bracket.key], bracket.type)}</div>
                         </div>
                       {/each}
                     </div>
-                    {#if round.matches.some(match => isConsolationMatch(match, bracket.type))}
+                    {#if round.matches.some(match => isConsolationMatch(match, bracket.type, bracketData[bracket.key]))}
                       <div class="bracket-consolation-group">
                         <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
                         <div class="bracket-consolation-games">
-                          {#each round.matches.filter(match => isConsolationMatch(match, bracket.type)).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                          {#each round.matches.filter(match => isConsolationMatch(match, bracket.type, bracketData[bracket.key])).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
+                              <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketData[bracket.key], bracket.type)}</div>
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
                                   {@const team = bracketTeam(rosterId)}
@@ -520,7 +530,6 @@
                                   <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
                                 {/if}
                               {/each}
-                              <div class="bracket-match-label">{bracketMatchLabel(match, round.round, bracketData[bracket.key], bracket.type)}</div>
                             </div>
                           {/each}
                         </div>
@@ -691,6 +700,7 @@
   .bracket-empty { opacity: 0.45; }
   .bracket-final .bracket-team { background: linear-gradient(180deg, rgba(245,180,0,.12), var(--surface-2)); }
   .bracket-match-label { order: -1; margin: 0 0 0.35rem; padding: 0; border: 0; color: var(--text-primary); font-size: 0.7rem; font-weight: 650; text-transform: none; letter-spacing: 0; text-align: center; }
+  .bracket-match-tag { order: -1; align-self: flex-start; margin: 0 0 0.45rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--surface-2, rgba(255,255,255,0.08)); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
   .bracket-note { margin: 0; padding: 0 1rem 1rem; color: var(--text-tertiary); font-size: 0.72rem; }
   @media (max-width: 700px) {
     .bracket-grid { padding: 0.7rem 0.45rem; gap: 1.5rem; }
