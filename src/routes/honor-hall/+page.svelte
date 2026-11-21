@@ -175,7 +175,12 @@
   }
 
   function bracketRoundLabel(round) {
-    return ({ 1: 'Week 1', 2: 'Week 2', 3: 'Championship Week' })[Number(round)] || `Week ${round}`;
+    return ({ 1: 'ROUND 1', 2: 'ROUND 2', 3: 'FINALS' })[Number(round)] || `ROUND ${round}`;
+  }
+
+  function bracketRoundWeek(round) {
+    const week = Number(bracketData.playoffStart) + Number(round) - 1;
+    return Number.isFinite(week) && week > 0 ? `(Week ${week})` : '';
   }
 
   function bracketMainTitle(round, bracketType, matches) {
@@ -465,7 +470,7 @@
                 </svg>
                 {#each bracketRounds(bracketData[bracket.key]) as round, roundIndex (round.round)}
                   <div class="bracket-round">
-                    <h4 class="bracket-round-title">{bracketRoundLabel(round.round)}</h4>
+                    <h4 class="bracket-round-title"><span>{bracketRoundLabel(round.round)}</span>{#if Number(round.round) === 2}<small>Re-seed</small>{/if}<small>{bracketRoundWeek(round.round)}</small></h4>
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
                       {#if round.matches.some(match => !isConsolationMatch(match, bracket.type))}
                         <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketData[bracket.key])}</h5>
@@ -655,7 +660,8 @@
   .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
   .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
   .bracket-round { min-width: 0; width: 100%; display: flex; flex-direction: column; }
-  .bracket-round-title { color: var(--text-tertiary); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.25rem; text-align: center; }
+  .bracket-round-title { display: flex; flex-direction: column; align-items: center; gap: 0.12rem; color: var(--text-tertiary); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.55rem; text-align: center; }
+  .bracket-round-title small { color: var(--text-tertiary); font-size: 0.9em; font-weight: 400; text-transform: none; letter-spacing: 0; }
   .bracket-main-title { margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; text-align: center; }
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1.15rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
