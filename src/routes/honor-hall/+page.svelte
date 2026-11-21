@@ -199,14 +199,18 @@
     return `${Number(match.r) || 1}-${match.m ?? 'x'}-${match.p ?? 'x'}`;
   }
 
+  function bracketMatchPlacement(match) {
+    const places = [match.t1, match.t2]
+      .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+      .filter(Number.isFinite);
+    return places.length ? Math.min(...places) : Number(match.m) || 0;
+  }
+
   function bracketMatchOrder(match, bracketType) {
-    // Keep championship placement games in standings order:
-    // 3rd/4th, then 5th/6th, then 7th/8th.
-    if (bracketType === 'winners' && Number(match.r) === 3) {
-      const places = [match.t1, match.t2]
-        .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-        .filter(Number.isFinite);
-      return places.length ? Math.min(...places) : Number(match.m) || 0;
+    // Sort finals and the Week 2 placement qualifiers by the final places
+    // their teams are playing toward, not by Sleeper's matchup ID.
+    if (bracketType === 'winners' && Number(match.r) >= 2) {
+      return bracketMatchPlacement(match);
     }
     return Number(match.m) || 0;
   }
@@ -270,20 +274,23 @@
         const pair = places.join('-');
         return ({
           '1-2': 'Championship',
-          '3-4': '3rd/4th Place Game',
-          '5-6': '5th/6th Place Game',
-          '7-8': '7th/8th Place Game'
-        })[pair] || ({ 1: 'Championship', 2: '3rd/4th Place Game', 3: '5th/6th Place Game', 4: '7th/8th Place Game' })[placement] || 'Placement Game';
+          '3-4': '3rd Place',
+          '5-6': '5th Place',
+          '7-8': '7th Place'
+        })[pair] || ({ 1: 'Championship', 2: '3rd Place', 3: '5th Place', 4: '7th Place' })[placement] || 'Placement Game';
       }
-      if (round === 2 && placement > 1) return '5th–8th Place Qualifier';
+      if (round === 2 && placement > 1) {
+        const firstPlace = bracketMatchPlacement(match);
+        return firstPlace <= 6 ? '5th Place Qualifier' : '7th Place Qualifier';
+      }
     }
     return bracketRoundLabel(round);
   }
 
   function bracketConsolationTitle(round, bracketType) {
-    if (bracketType === 'winners' && round === 2) return '5th–8th Place Games';
-    if (bracketType === 'losers' && round === 2) return '11th–14th Place Games';
-    if (bracketType === 'winners' && round === 3) return '3rd–8th Place Games';
+    if (bracketType === 'winners' && round === 2) return 'Placement Qualifiers';
+    if (bracketType === 'losers' && round === 2) return 'Toilet Bowl Semifinals';
+    if (bracketType === 'winners' && round === 3) return 'Placement Games';
     if (bracketType === 'losers' && round === 3) return 'Placement Games';
     return 'Consolation Games';
   }
