@@ -240,7 +240,7 @@
       if (bracketType === 'winners') {
         const placeByPath = { 2: '3rd/4th Place', 3: '5th/6th Place', 4: '7th/8th Place' };
         const place = placeByPath[placement] || 'Placement';
-        return round === 2 ? 'Consolation Qualifier · ' + place : 'Consolation Game · ' + place;
+        return 'Consolation Game · ' + place;
       }
       const places = [match.t1, match.t2]
         .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
@@ -516,7 +516,7 @@
   {/each}
   {#if round.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
     <div class="bracket-consolation-group">
-      <h5 class="bracket-consolation-title">Consolation Games</h5>
+      <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
       <div class="bracket-consolation-games">
         {#each round.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
           <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
