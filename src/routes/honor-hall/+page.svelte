@@ -540,6 +540,7 @@
     </div>
   {/if}
 </div>
+                  </div>
                 {/each}
               </div>
             {:else}<div class="empty-card">Bracket results are not available for this season.</div>{/if}
