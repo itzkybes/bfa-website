@@ -233,8 +233,15 @@
     if (round === 1) return false;
 
     if (bracketType === 'winners') {
-      // Sleeper's Round 1 loser field is the source of truth for the teams
-      // that must play in the Round 2 consolation bracket.
+      // Match the 2025 playoff bracket's three-column structure exactly:
+      // Round 1 feeds two championship semifinals and two placement games;
+      // the Round 3 championship-path finals stay in the main bracket.
+      // Sleeper's p values identify the 5th–8th placement path (p=5,7).
+      if (Number(bracketData.season) >= 2026 && round >= 2) {
+        return Number(match.p) >= 5;
+      }
+
+      // Preserve the historical classification for seasons before 2026.
       const roundOneLosers = new Set(
         (matches || [])
           .filter((candidate) => (Number(candidate.r) || 1) === 1)
@@ -244,15 +251,11 @@
       );
 
       if (round === 2) {
-        // Both teams in a Round 2 consolation game must be Round 1 losers.
-        // Round 1 winners therefore stay together in the two semifinals.
         return [match.t1, match.t2].every(
           (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
         );
       }
 
-      // Keep every subsequent game involving a Round 2 consolation team
-      // in the placement section, including the final placement match.
       if (round >= 3) {
         const roundTwoConsolationTeams = new Set(
           (matches || [])
@@ -266,9 +269,6 @@
             .filter((rosterId) => rosterId != null)
             .map(String)
         );
-        // Finals involving teams from the Round 1-loser consolation
-        // games remain in the placement section; championship-path teams
-        // stay in the main bracket.
         return [match.t1, match.t2].some(
           (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
         );
