@@ -345,3 +345,35 @@ export function getBracketMatchesForDisplay(
   }
   return matches;
 }
+
+
+/**
+ * Keep the bracket's displayed seed (regular-season finish) separate from
+ * final playoff placement. Regular standings are already sorted by wins and
+ * points for, so their array order is the official seed order for that year.
+ */
+export function buildBracketSeedMaps(regularStandings = [], finalStandings = []) {
+  const regularRows = Array.isArray(regularStandings) ? regularStandings : [];
+  const finalRows = Array.isArray(finalStandings) ? finalStandings : [];
+
+  const regularSeasonSeeds = Object.fromEntries(
+    regularRows
+      .map((row, index) => {
+        const rosterId = row?.rosterId ?? row?.roster_id;
+        return rosterId == null ? null : [String(rosterId), index + 1];
+      })
+      .filter(Boolean)
+  );
+
+  const finalPlacements = Object.fromEntries(
+    finalRows
+      .map((row, index) => {
+        const rosterId = row?.rosterId ?? row?.roster_id;
+        if (rosterId == null) return null;
+        return [String(rosterId), Number(row.rank) || index + 1];
+      })
+      .filter(Boolean)
+  );
+
+  return { regularSeasonSeeds, finalPlacements };
+}
