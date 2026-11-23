@@ -169,3 +169,27 @@ export function createEmptyBracketTemplate(bracketType, playoffTeams = 8, toilet
 
   return [];
 }
+
+/**
+ * Return the season's actual bracket when teams have been assigned. For
+ * 2026+ with no assigned teams, replace empty API shells with the complete
+ * 2025-style bracket skeleton so every round and placement section remains
+ * visible before the first playoff matchup is published.
+ */
+export function getBracketMatchesForDisplay(
+  season,
+  bracketType,
+  savedMatches = [],
+  playoffTeams = 8,
+  toiletBowlTeams = 6
+) {
+  const matches = Array.isArray(savedMatches) ? savedMatches : [];
+  const hasAssignedTeams = matches.some((match) =>
+    match.t1 != null || match.t2 != null || match.w != null || match.l != null
+  );
+
+  if (Number(season) >= 2026 && !hasAssignedTeams) {
+    return createEmptyBracketTemplate(bracketType, playoffTeams, toiletBowlTeams);
+  }
+  return matches;
+}
