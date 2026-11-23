@@ -183,12 +183,12 @@ test('unplayed 2025 and 2026 brackets group feeder-based placement games identic
     { r: 1, m: 4, t1: 7, t2: 8, w: null, l: null },
     { r: 2, m: 5, t1: null, t2: null, t1_from: { w: 1 }, t2_from: { w: 2 } },
     { r: 2, m: 6, t1: null, t2: null, t1_from: { w: 3 }, t2_from: { w: 4 } },
-    { r: 2, m: 7, t1: null, t2: null, t1_from: { l: 1 }, t2_from: { l: 2 } },
-    { r: 2, m: 8, t1: null, t2: null, t1_from: { l: 3 }, t2_from: { l: 4 } },
+    { r: 2, m: 7, t1: null, t2: null, t1_from: { l: 1 }, t2_from: { l: 2 }, p: 5 },
+    { r: 2, m: 8, t1: null, t2: null, t1_from: { l: 3 }, t2_from: { l: 4 }, p: 7 },
     { r: 3, m: 9, t1: null, t2: null, t1_from: { w: 5 }, t2_from: { w: 6 }, p: 1 },
-    { r: 3, m: 10, t1: null, t2: null, t1_from: { l: 5 }, t2_from: { l: 6 }, p: 2 },
-    { r: 3, m: 11, t1: null, t2: null, t1_from: { w: 7 }, t2_from: { w: 8 }, p: 3 },
-    { r: 3, m: 12, t1: null, t2: null, t1_from: { l: 7 }, t2_from: { l: 8 }, p: 4 },
+    { r: 3, m: 10, t1: null, t2: null, t1_from: { l: 5 }, t2_from: { l: 6 }, p: 3 },
+    { r: 3, m: 11, t1: null, t2: null, t1_from: { w: 7 }, t2_from: { w: 8 }, p: 5 },
+    { r: 3, m: 12, t1: null, t2: null, t1_from: { l: 7 }, t2_from: { l: 8 }, p: 7 },
   ];
 
   const layout2025 = getBracketDisplaySections(notStarted, 'winners', 2025);
@@ -204,4 +204,40 @@ test('unplayed 2025 and 2026 brackets group feeder-based placement games identic
     layout2026.placementMatches.map((match) => match.m),
     layout2025.placementMatches.map((match) => match.m)
   );
+  assert.deepEqual(
+    layout2026.mainMatches.map((match) => match.m),
+    [1, 2, 3, 4, 5, 6, 9, 10]
+  );
+  assert.deepEqual(
+    layout2026.placementMatches.map((match) => match.m),
+    [7, 8, 11, 12]
+  );
+  assert.equal(
+    new Set([...layout2026.mainMatches, ...layout2026.placementMatches]
+      .map((match) => String(match.m))).size,
+    12,
+    'each matchup must appear in exactly one section'
+  );
+});
+
+
+test('Sleeper p values put 5th/6th and 7th/8th games in placement, not the playoff bracket', () => {
+  const games = [
+    { r: 2, m: 5, p: 5, t1: null, t2: null },
+    { r: 2, m: 6, p: 7, t1: null, t2: null },
+    { r: 3, m: 7, p: 1, t1: null, t2: null },
+    { r: 3, m: 8, p: 3, t1: null, t2: null },
+    { r: 3, m: 9, p: 5, t1: null, t2: null },
+    { r: 3, m: 10, p: 7, t1: null, t2: null },
+  ];
+
+  const mainIds = games
+    .filter((match) => !isBracketPlacementMatch(match, 'winners', games, 2026))
+    .map((match) => match.m);
+  const placementIds = games
+    .filter((match) => isBracketPlacementMatch(match, 'winners', games, 2026))
+    .map((match) => match.m);
+
+  assert.deepEqual(mainIds, [7, 8]);
+  assert.deepEqual(placementIds, [5, 6, 9, 10]);
 });
