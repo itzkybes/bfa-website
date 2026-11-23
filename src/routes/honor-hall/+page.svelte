@@ -20,8 +20,10 @@
   let playersMap = {};
   let bracketData = { winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
   let bracketTrackRefs = {};
+  let bracketPlacementTrackRefs = {};
   let bracketMatchRefs = {};
-  let bracketConnectorPaths = { winners: [], losers: [] };
+  let bracketPlacementMatchRefs = {};
+  let bracketConnectorPaths = { winners: [], losers: [], placementWinners: [], placementLosers: [] };
 
   // Stash season results so dropdown switching is instant
   let cache = {}; // season -> all computed season honors + both brackets
@@ -318,46 +320,64 @@
   }
 
   function updateBracketConnectors() {
-    const nextPaths = { winners: [], consolation: [], losers: [] };
-    for (const type of ['winners', 'consolation', 'losers']) {
-      const sourceType = type === 'consolation' ? 'winners' : type;
-      const allMatches = bracketData[sourceType] || [];
-      // Draw the traditional advancement path only; placement games live below.
-      const matches = allMatches.filter((match) =>
-        !isConsolationMatch(match, sourceType, allMatches)
-      );
+    const nextPaths = { winners: [], losers: [], placementWinners: [], placementLosers: [] };
+    for (const type of ['winners', 'losers']) {
+      const allMatches = bracketData[type] || [];
       const track = bracketTrackRefs[type];
-      if (!track) continue;
-      const trackRect = track.getBoundingClientRect();
-      for (const match of matches) {
+      if (track) {
+        const trackRect = track.getBoundingClientRect();
+        const mainMatches = allMatches.filter((match) => !isConsolationMatch(match, type, allMatches));
+        for (const match of mainMatches) {
+          for (const rosterId of [match.w, match.l]) {
+            if (rosterId == null) continue;
+            const nextMatch = mainMatches.find((candidate) =>
+              (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
+              [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
+            );
+            if (!nextMatch) continue;
+            const source = bracketMatchRefs[`${type}:${bracketMatchKey(match)}`];
+            const target = bracketMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
+            if (!source || !target) continue;
+            const sourceRows = source.querySelectorAll('.bracket-team');
+            const targetRows = target.querySelectorAll('.bracket-team');
+            const sourceRow = sourceRows[String(rosterId) === String(match.t1) ? 0 : 1];
+            const targetRow = targetRows[String(rosterId) === String(nextMatch.t1) ? 0 : 1];
+            if (!sourceRow || !targetRow) continue;
+            const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
+            const x1 = a.right - trackRect.left + track.scrollLeft, y1 = a.top + a.height / 2 - trackRect.top + track.scrollTop;
+            const x2 = b.left - trackRect.left + track.scrollLeft, y2 = b.top + b.height / 2 - trackRect.top + track.scrollTop;
+            const bend = Math.max(18, (x2 - x1) * .5);
+            nextPaths[type].push({ d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`, outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser' });
+          }
+        }
+      }
+
+      const placementKey = type === 'winners' ? 'placementWinners' : 'placementLosers';
+      const placementTrack = bracketPlacementTrackRefs[type];
+      if (!placementTrack) continue;
+      const placementRect = placementTrack.getBoundingClientRect();
+      const placementMatches = allMatches.filter((match) => isConsolationMatch(match, type, allMatches));
+      for (const match of placementMatches) {
         for (const rosterId of [match.w, match.l]) {
           if (rosterId == null) continue;
-          const nextMatch = matches.find((candidate) =>
+          const nextMatch = placementMatches.find((candidate) =>
             (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
             [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
           );
           if (!nextMatch) continue;
-          const source = bracketMatchRefs[`${type}:${bracketMatchKey(match)}`];
-          const target = bracketMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
+          const source = bracketPlacementMatchRefs[`${type}:${bracketMatchKey(match)}`];
+          const target = bracketPlacementMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
           if (!source || !target) continue;
           const sourceRows = source.querySelectorAll('.bracket-team');
           const targetRows = target.querySelectorAll('.bracket-team');
-          const sourceIndex = String(rosterId) === String(match.t1) ? 0 : 1;
-          const targetIndex = String(rosterId) === String(nextMatch.t1) ? 0 : 1;
-          const sourceRow = sourceRows[sourceIndex];
-          const targetRow = targetRows[targetIndex];
+          const sourceRow = sourceRows[String(rosterId) === String(match.t1) ? 0 : 1];
+          const targetRow = targetRows[String(rosterId) === String(nextMatch.t1) ? 0 : 1];
           if (!sourceRow || !targetRow) continue;
-          const sourceRect = sourceRow.getBoundingClientRect();
-          const targetRect = targetRow.getBoundingClientRect();
-          const x1 = sourceRect.right - trackRect.left + track.scrollLeft;
-          const y1 = sourceRect.top + sourceRect.height / 2 - trackRect.top + track.scrollTop;
-          const x2 = targetRect.left - trackRect.left + track.scrollLeft;
-          const y2 = targetRect.top + targetRect.height / 2 - trackRect.top + track.scrollTop;
-          const bend = Math.max(18, (x2 - x1) * 0.5);
-          nextPaths[type].push({
-            d: `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`,
-            outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser'
-          });
+          const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
+          const x1 = a.right - placementRect.left + placementTrack.scrollLeft, y1 = a.top + a.height / 2 - placementRect.top + placementTrack.scrollTop;
+          const x2 = b.left - placementRect.left + placementTrack.scrollLeft, y2 = b.top + b.height / 2 - placementRect.top + placementTrack.scrollTop;
+          const bend = Math.max(18, (x2 - x1) * .5);
+          nextPaths[placementKey].push({ d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`, outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser' });
         }
       }
     }
@@ -525,13 +545,18 @@
               {#if bracketMatchesForDisplay(bracket).some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
                 <div class="bracket-consolation-section" data-testid={bracket.type + '-consolation-section'}>
                   <h4 class="bracket-consolation-heading">{bracket.type === 'winners' ? 'Playoff Placement Games' : 'Toilet Bowl Placement Games'}</h4>
-                  {#each bracketRounds(bracketMatchesForDisplay(bracket)) as consolationRound}
-                    {#if consolationRound.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
+                  <div class="bracket-placement-track" bind:this={bracketPlacementTrackRefs[bracket.type]}>
+                    <svg class="bracket-connectors placement-connectors" aria-hidden="true" width={bracketPlacementTrackRefs[bracket.type]?.scrollWidth || 1000} height={bracketPlacementTrackRefs[bracket.type]?.scrollHeight || 400}>
+                      {#each bracketConnectorPaths[bracket.type === 'winners' ? 'placementWinners' : 'placementLosers'] || [] as path}
+                        <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} />
+                      {/each}
+                    </svg>
+                    {#each bracketRounds(bracketMatchesForDisplay(bracket)).filter(round => round.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))) as consolationRound}
                       <div class="bracket-consolation-round">
                         <h5>{bracketRoundLabel(consolationRound.round)} · {bracketRoundWeek(consolationRound.round)}</h5>
                         <div class="bracket-consolation-games">
                           {#each consolationRound.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
-                            <div class="bracket-match bracket-match-consolation">
+                            <div class="bracket-match bracket-match-consolation" bind:this={bracketPlacementMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                               <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
@@ -550,8 +575,8 @@
                           {/each}
                         </div>
                       </div>
-                    {/if}
-                  {/each}
+                    {/each}
+                  </div>
                 </div>
               {/if}
             {:else}<div class="empty-card">Bracket results are not available for this season.</div>{/if}
@@ -699,10 +724,14 @@
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
   .bracket-match { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; max-width: none; box-sizing: border-box; border: 0; border-radius: 0; padding: 0; background: transparent; min-width: 0; }
   .bracket-consolation-section { margin: 3rem 1rem 1rem; padding: 1.5rem 0 0; border-top: 2px solid var(--border-subtle); }
+  .bracket-placement-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(.45rem, 1.5vw, 1.25rem); position: relative; }
+  .placement-connectors { z-index: 0; }
+  .bracket-placement-track > .bracket-consolation-round { position: relative; z-index: 1; min-width: 0; }
+
   .bracket-consolation-heading { margin: 0 0 1.25rem; color: var(--text-primary); font-family: var(--font-display); font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; }
   .bracket-consolation-round { margin: 0 0 1.5rem; }
   .bracket-consolation-round h5 { margin: 0 0 .8rem; color: var(--text-tertiary); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
-  .bracket-consolation-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .bracket-consolation-games { display: flex; flex-direction: column; gap: 1rem; }
   .bracket-match-consolation { max-width: 360px; }
   .bracket-match-consolation { background: transparent; }
   .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
@@ -736,7 +765,8 @@
     .bracket-score { grid-column: 3; grid-row: 1; font-size: 0.64rem; }
     .bracket-match-label { font-size: 0.58rem; margin-bottom: 0.25rem; }
     .bracket-consolation-section { margin: 2.5rem .45rem 1rem; padding-top: 1.1rem; }
-    .bracket-consolation-games { grid-template-columns: 1fr; gap: .85rem; }
+    .bracket-placement-track { grid-template-columns: repeat(3, minmax(180px, 1fr)); min-width: 560px; }
+    .bracket-consolation-games { gap: .85rem; }
     .bracket-connectors { display: none; }
   }
 
