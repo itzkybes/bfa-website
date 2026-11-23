@@ -83,39 +83,6 @@ function getScoredRows(weeklyPfByRoster = {}, rosterMap = {}) {
 }
 
 /**
- * Summarize each team's completed regular-season scores. Unavailable zero
- * scores are omitted, matching the Weekly Scoring Pulse treatment.
- */
-export function buildTeamScoringProfiles(weeklyPfByRoster = {}, rosterMap = {}) {
-  const grouped = new Map();
-  for (const entry of getScoredRows(weeklyPfByRoster, rosterMap)) {
-    if (!grouped.has(entry.rosterId)) grouped.set(entry.rosterId, []);
-    grouped.get(entry.rosterId).push(entry);
-  }
-
-  return [...grouped.entries()].map(([rosterId, entries]) => {
-    const scores = entries.map((entry) => entry.score);
-    const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const highScore = Math.max(...scores);
-    const lowScore = Math.min(...scores);
-    const variance = scores.reduce((sum, score) => sum + (score - averageScore) ** 2, 0) / scores.length;
-    const first = entries[0];
-    return {
-      rosterId,
-      teamName: first.teamName,
-      ownerName: first.ownerName,
-      avatar: first.avatar,
-      weeksPlayed: scores.length,
-      averageScore,
-      highScore,
-      lowScore,
-      range: highScore - lowScore,
-      standardDeviation: Math.sqrt(variance),
-    };
-  }).sort((a, b) => a.standardDeviation - b.standardDeviation || a.teamName.localeCompare(b.teamName));
-}
-
-/**
  * Compare a team's average across all completed weeks with its average over
  * the latest N completed scoring weeks. Both averages omit unavailable zeros.
  */
