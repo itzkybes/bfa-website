@@ -238,9 +238,13 @@
     const placement = Number(match.p);
     if (isConsolationMatch(match, bracketType, matches)) {
       if (bracketType === 'winners') {
-        const placeByPath = { 2: '3rd/4th Place', 3: '5th/6th Place', 4: '7th/8th Place' };
-        const place = placeByPath[placement] || 'Placement';
-        return 'Consolation Game · ' + place;
+        if (round === 2) return 'Consolation Qualifier · 5th–8th Place';
+        const places = [match.t1, match.t2]
+          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+          .filter(Number.isFinite).sort((a, b) => a - b);
+        if (places[0] === 5 && places[1] === 6) return 'Consolation Game · 5th/6th Place';
+        if (places[0] === 7 && places[1] === 8) return 'Consolation Game · 7th/8th Place';
+        return 'Consolation Placement Game';
       }
       const places = [match.t1, match.t2]
         .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
@@ -296,7 +300,7 @@
   }
 
   function bracketConsolationTitle(round, bracketType) {
-    if (bracketType === 'winners' && round === 2) return 'Placement Qualifiers';
+    if (bracketType === 'winners' && round === 2) return '5th–8th Place Consolation Qualifiers';
     if (bracketType === 'losers' && round === 2) return 'Toilet Bowl Semifinals';
     if (bracketType === 'winners' && round === 3) return 'Placement Games';
     if (bracketType === 'losers' && round === 3) return 'Placement Games';
@@ -318,11 +322,10 @@
     for (const type of ['winners', 'consolation', 'losers']) {
       const sourceType = type === 'consolation' ? 'winners' : type;
       const allMatches = bracketData[sourceType] || [];
-      const matches = type === 'consolation'
-        ? allMatches.filter((match) => Number(match.p) > 1)
-        : type === 'winners'
-          ? allMatches.filter((match) => Number(match.p) <= 1)
-          : allMatches;
+      // Follow both outcomes into whichever lane they enter next.
+      // In particular, Round 1 losers feed the Round 2 placement qualifiers;
+      // filtering by p here would hide those cross-lane connector lines.
+      const matches = allMatches;
       const track = bracketTrackRefs[type];
       if (!track) continue;
       const trackRect = track.getBoundingClientRect();
