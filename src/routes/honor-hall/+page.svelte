@@ -222,51 +222,88 @@
     );
   }
 
+  function bracketFeed(match, side) {
+    const source = match?.[side === 't1' ? 't1_from' : 't2_from'];
+    if (!source || typeof source !== 'object') return null;
+    if (source.w != null) return { matchId: String(source.w), outcome: 'winner' };
+    if (source.l != null) return { matchId: String(source.l), outcome: 'loser' };
+    return null;
+  }
+
   function isConsolationMatch(match, bracketType, matches = []) {
     const round = Number(match.r) || 1;
     if (round === 1) return false;
 
     if (bracketType === 'winners') {
-      // Sleeper's Round 1 loser field is the source of truth for the teams
-      // that must play in the Round 2 consolation bracket.
+      const roundOneMatches = (matches || []).filter((candidate) => (Number(candidate.r) || 1) === 1);
       const roundOneLosers = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
+        roundOneMatches
           .map((candidate) => candidate.l)
           .filter((rosterId) => rosterId != null)
           .map(String)
       );
 
       if (round === 2) {
-        return [match.t1, match.t2].every(
-          (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
-        );
+        // Prefer Sleeper's feeder paths: unlike the resolved loser IDs, these
+        // are present before Round 1 has been played.
+        const feeds = [bracketFeed(match, 't1'), bracketFeed(match, 't2')];
+        if (feeds.every(Boolean)) {
+          return feeds.every((feed) => feed.outcome === 'loser');
+        }
+
+        // Completed historical brackets may not include feeder metadata.
+        const teams = [match.t1, match.t2];
+        if (teams.every((rosterId) => rosterId != null) && roundOneLosers.size) {
+          return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
+        }
+
+        // Sleeper assigns the 5th–8th place qualifiers placements 5 and 7.
+        // This fallback keeps the correct split for unplayed future brackets.
+        return Number(match.p) >= 5;
       }
 
-      // Keep every subsequent game involving a Round 2 consolation team
-      // in the placement section, including the final placement match.
       if (round >= 3) {
+        const roundTwoMatches = (matches || []).filter((candidate) => (Number(candidate.r) || 1) === 2);
+        const roundTwoConsolationMatches = roundTwoMatches.filter((candidate) => {
+          const feeds = [bracketFeed(candidate, 't1'), bracketFeed(candidate, 't2')];
+          if (feeds.every(Boolean)) return feeds.every((feed) => feed.outcome === 'loser');
+          const teams = [candidate.t1, candidate.t2];
+          if (teams.every((rosterId) => rosterId != null) && roundOneLosers.size) {
+            return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
+          }
+          return Number(candidate.p) >= 5;
+        });
+
+        // First follow the actual roster IDs when results are available.
         const roundTwoConsolationTeams = new Set(
-          (matches || [])
-            .filter((candidate) =>
-              (Number(candidate.r) || 1) === 2 &&
-              [candidate.t1, candidate.t2].some(
-                (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
-              )
-            )
+          roundTwoConsolationMatches
             .flatMap((candidate) => [candidate.t1, candidate.t2])
             .filter((rosterId) => rosterId != null)
             .map(String)
         );
-        return [match.t1, match.t2].some(
+        if ([match.t1, match.t2].some(
           (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
+        )) return true;
+
+        // For games that have not been played, follow the feeder matchup IDs.
+        const roundTwoConsolationIds = new Set(
+          roundTwoConsolationMatches
+            .map((candidate) => candidate.m)
+            .filter((matchId) => matchId != null)
+            .map(String)
         );
+        const feeds = [bracketFeed(match, 't1'), bracketFeed(match, 't2')];
+        if (feeds.some((feed) => feed && roundTwoConsolationIds.has(feed.matchId))) return true;
+
+        // Placement finals are numbered 5th/7th; title and 3rd-place games
+        // are numbered 1st/3rd. Use that only when the feed path is absent.
+        if (!feeds.some(Boolean)) return Number(match.p) >= 5;
+        return false;
       }
       return false;
     }
 
-    // Keep the approved 2022 Toilet Bowl format; use the shared 2025-style
-    // bracket classification for every season from 2023 onward.
+    // Preserve the established Toilet Bowl classification.
     if (Number(bracketData.season) === 2022 && round === 2) {
       const roundOneWinners = new Set(
         (matches || [])
