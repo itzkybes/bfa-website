@@ -246,7 +246,7 @@
       );
 
       if (round === 2) {
-        return [match.t1, match.t2].some(
+        return [match.t1, match.t2].every(
           (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
         );
       }
