@@ -227,8 +227,7 @@
     const nextPaths = { winners: [], losers: [], placementWinners: [], placementLosers: [] };
 
     for (const type of ['winners', 'losers']) {
-      // Use the exact same data source as the markup. Future seasons render a
-      // synthetic 2025-style bracket here, not the still-empty Sleeper arrays.
+      // Use the same selected bracket data and display sections as the markup.
       const bracket = { key: type, type };
       const allMatches = bracketMatchesForDisplay(bracket);
       const sections = getBracketDisplaySections(allMatches, type, bracketData.season);
