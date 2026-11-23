@@ -1,14 +1,22 @@
-// Compare the latest two completed regular-season standings snapshots.
-// Snapshots are captured inside standings.js from the exact cumulative
-// totals used by the official table, so historical score overrides and
-// opponent-average results stay consistent.
+// Compare completed regular-season standings snapshots and retain the full
+// sequence for the Trends page's week-by-week rank movement chart.
 export function getStandingsMovementFromSnapshots(snapshots) {
-  if (!Array.isArray(snapshots) || snapshots.length < 2) {
-    return { byRoster: {}, previousWeek: null, latestWeek: snapshots?.[0]?.week ?? null };
+  const history = (Array.isArray(snapshots) ? snapshots : []).map((snapshot) => ({
+    week: Number(snapshot?.week),
+    ranks: { ...(snapshot?.ranks || {}) },
+  })).filter((snapshot) => Number.isInteger(snapshot.week));
+
+  if (history.length < 2) {
+    return {
+      byRoster: {},
+      previousWeek: null,
+      latestWeek: history[0]?.week ?? null,
+      snapshots: history,
+    };
   }
 
-  const previous = snapshots[snapshots.length - 2];
-  const latest = snapshots[snapshots.length - 1];
+  const previous = history[history.length - 2];
+  const latest = history[history.length - 1];
   const byRoster = {};
 
   for (const [rosterId, currentRank] of Object.entries(latest?.ranks || {})) {
@@ -22,5 +30,6 @@ export function getStandingsMovementFromSnapshots(snapshots) {
     byRoster,
     previousWeek: previous?.week ?? null,
     latestWeek: latest?.week ?? null,
+    snapshots: history,
   };
 }
