@@ -104,6 +104,43 @@ export function isBracketPlacementMatch(match, bracketType, matches = [], season
   return isToiletBowlPlacementMatch(match, allMatches, season);
 }
 
+function groupBracketRounds(matches) {
+  const grouped = new Map();
+  for (const match of matches) {
+    const round = Number(match.r) || 1;
+    if (!grouped.has(round)) grouped.set(round, []);
+    grouped.get(round).push(match);
+  }
+  return [...grouped.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([round, roundMatches]) => ({
+      round,
+      matches: roundMatches.slice().sort((a, b) => (Number(a.m) || 0) - (Number(b.m) || 0)),
+    }));
+}
+
+/**
+ * Split a bracket into the two shared 2023–2025 display areas.
+ * This is the single source of truth for both the rendered columns and
+ * their connector calculations, regardless of season.
+ */
+export function getBracketDisplaySections(matches = [], bracketType = 'winners', season = null) {
+  const allMatches = Array.isArray(matches) ? matches : [];
+  const mainMatches = allMatches.filter(
+    (match) => !isBracketPlacementMatch(match, bracketType, allMatches, season)
+  );
+  const placementMatches = allMatches.filter(
+    (match) => isBracketPlacementMatch(match, bracketType, allMatches, season)
+  );
+
+  return {
+    mainMatches,
+    placementMatches,
+    mainRounds: groupBracketRounds(mainMatches),
+    placementRounds: groupBracketRounds(placementMatches),
+  };
+}
+
 function createMatch(round, matchId, placement, t1From = null, t2From = null, placementNumber = 1) {
   return {
     r: round,
