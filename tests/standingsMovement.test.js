@@ -4,10 +4,10 @@ import { getStandingsMovementFromSnapshots } from '../src/lib/compute/standingsM
 
 test('movement is empty until two completed regular-season weeks exist', () => {
   assert.deepEqual(getStandingsMovementFromSnapshots([]), {
-    byRoster: {}, previousWeek: null, latestWeek: null,
+    byRoster: {}, previousWeek: null, latestWeek: null, snapshots: [],
   });
   assert.deepEqual(getStandingsMovementFromSnapshots([{ week: 1, ranks: { a: 1 } }]), {
-    byRoster: {}, previousWeek: null, latestWeek: 1,
+    byRoster: {}, previousWeek: null, latestWeek: 1, snapshots: [{ week: 1, ranks: { a: 1 } }],
   });
 });
 
@@ -21,6 +21,10 @@ test('movement compares cumulative ranks from the latest two snapshots', () => {
     byRoster: { a: -1, b: 1, c: 0 },
     previousWeek: 4,
     latestWeek: 5,
+    snapshots: [
+      { week: 4, ranks: { a: 1, b: 2, c: 3 } },
+      { week: 5, ranks: { a: 2, b: 1, c: 3 } },
+    ],
   });
 });
 
