@@ -320,6 +320,7 @@
         if (places[0] === 7 && places[1] === 8) return 'Consolation Game · 7th/8th Place';
         return 'Consolation Placement Game';
       }
+      if (Number(bracketData.season) >= 2026 && round === 2) return '9th/10th Place Game';
       const places = [match.t1, match.t2]
         .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
         .filter(Number.isFinite).sort((a, b) => a - b);
@@ -345,6 +346,9 @@
         return bothAdvancedAsWinners ? '9th/10th Place Game' : '';
       }
       if (round >= 3) {
+        if (Number(bracketData.season) >= 2026) {
+          return placement === 1 ? 'Toilet Bowl Championship' : placement === 3 ? '11th/12th Place Game' : '';
+        }
         const places = [match.t1, match.t2]
           .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
           .filter(Number.isFinite).sort((a, b) => a - b);
@@ -357,6 +361,9 @@
 
     if (bracketType === 'winners' || bracketType === 'consolation') {
       if (round === 3) {
+        if (Number(bracketData.season) >= 2026) {
+          return ({ 1: 'Championship', 3: '3rd Place', 5: '5th Place', 7: '7th Place' })[placement] || '';
+        }
         const places = [match.t1, match.t2]
           .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
           .filter(Number.isFinite).sort((a, b) => a - b);
@@ -368,9 +375,11 @@
           '7-8': '7th Place'
         })[pair] || ({ 1: 'Championship', 2: '3rd Place', 3: '5th Place', 4: '7th Place' })[placement] || 'Placement Game';
       }
-      if (round === 2 && placement > 1) {
+      if (round === 2 && (Number(bracketData.season) >= 2026 ? placement >= 5 : placement > 1)) {
         const firstPlace = bracketMatchPlacement(match);
-        return firstPlace <= 6 ? '5th Place Qualifier' : '7th Place Qualifier';
+        return (Number(bracketData.season) >= 2026 ? placement <= 5 : firstPlace <= 6)
+          ? '5th Place Qualifier'
+          : '7th Place Qualifier';
       }
     }
     return '';
