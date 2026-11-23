@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
-  import { getBracketMatchesForDisplay, isBracketPlacementMatch } from '$lib/compute/honorHallBracket.js';
+  import { getBracketMatchesForDisplay, getBracketDisplaySections } from '$lib/compute/honorHallBracket.js';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
@@ -150,19 +150,6 @@
     bracketData = result.bracketData;
   }
 
-  function bracketRounds(matches) {
-    const grouped = {};
-    for (const match of matches || []) {
-      const round = Number(match.r) || 1;
-      if (!grouped[round]) grouped[round] = [];
-      grouped[round].push(match);
-    }
-    return Object.keys(grouped).map(Number).sort((a, b) => a - b).map((round) => ({
-      round,
-      matches: grouped[round].slice().sort((a, b) => (Number(a.m) || 0) - (Number(b.m) || 0))
-    }));
-  }
-
   function bracketTeam(rosterId) {
     return rosterId == null ? null : bracketData.rosterMap[String(rosterId)] || null;
   }
@@ -186,6 +173,14 @@
       bracketData[bracket.key],
       bracketData.playoffTeams || 8,
       bracketData.toiletBowlTeams || 6
+    );
+  }
+
+  function bracketDisplaySections(bracket) {
+    return getBracketDisplaySections(
+      bracketMatchesForDisplay(bracket),
+      bracket.type,
+      bracketData.season
     );
   }
 
@@ -218,10 +213,6 @@
     );
   }
 
-  function isConsolationMatch(match, bracketType, matches = []) {
-    return isBracketPlacementMatch(match, bracketType, matches, bracketData.season);
-  }
-
   function setBracketTrackRef(type, element) {
     if (element) bracketTrackRefs[type] = element;
   }
@@ -240,8 +231,9 @@
       // synthetic 2025-style bracket here, not the still-empty Sleeper arrays.
       const bracket = { key: type, type };
       const allMatches = bracketMatchesForDisplay(bracket);
-      const mainMatches = allMatches.filter((match) => !isConsolationMatch(match, type, allMatches));
-      const placementMatches = allMatches.filter((match) => isConsolationMatch(match, type, allMatches));
+      const sections = getBracketDisplaySections(allMatches, type, bracketData.season);
+      const mainMatches = sections.mainMatches;
+      const placementMatches = sections.placementMatches;
 
       function addRosterConnectors(matches, track, refs, pathKey) {
         if (!track) return;
@@ -318,16 +310,12 @@
 
       const mainTrack = bracketTrackRefs[type];
       addRosterConnectors(mainMatches, mainTrack, bracketMatchRefs, type);
-      if (Number(bracketData.season) >= 2026) {
-        addFeedConnectors(mainMatches, mainTrack, bracketMatchRefs, type);
-      }
+      addFeedConnectors(mainMatches, mainTrack, bracketMatchRefs, type);
 
       const placementKey = type === 'winners' ? 'placementWinners' : 'placementLosers';
       const placementTrack = bracketPlacementTrackRefs[type];
       addRosterConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
-      if (Number(bracketData.season) >= 2026) {
-        addFeedConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
-      }
+      addFeedConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
     }
 
     if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) {
@@ -463,10 +451,10 @@
                     <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} marker-end={`url(#${path.outcome}-arrow-${bracket.type})`} />
                   {/each}
                 </svg>
-                {#each bracketRounds(bracketMatchesForDisplay(bracket)) as round, roundIndex (round.round)}
+                {#each bracketDisplaySections(bracket).mainRounds as round, roundIndex (round.round)}
                   <div class="bracket-round">
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-  {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+  {#each round.matches as match (bracketMatchKey(match))}
     <div class="bracket-match" class:bracket-final={bracket.type === "winners" && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
       {#each [match.t1, match.t2] as rosterId}
         {#if rosterId != null}
@@ -488,7 +476,7 @@
                 {/each}
 
               </div>
-              {#if bracketMatchesForDisplay(bracket).some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
+              {#if bracketDisplaySections(bracket).placementRounds.length}
                 <div class="bracket-consolation-section" data-testid={bracket.type + '-consolation-section'}>
                   <h4 class="bracket-consolation-heading">{bracket.type === 'winners' ? 'Playoff Placement Games' : 'Toilet Bowl Placement Games'}</h4>
                   <div class="bracket-placement-track" bind:this={bracketPlacementTrackRefs[bracket.type]}>
@@ -497,10 +485,10 @@
                         <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} />
                       {/each}
                     </svg>
-                    {#each bracketRounds(bracketMatchesForDisplay(bracket)).filter(round => round.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))) as consolationRound}
+                    {#each bracketDisplaySections(bracket).placementRounds as consolationRound}
                       <div class="bracket-consolation-round">
                         <div class="bracket-consolation-games">
-                          {#each consolationRound.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                          {#each consolationRound.matches.slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={bracketPlacementMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
