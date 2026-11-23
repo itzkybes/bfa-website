@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
-  import { createEmptyBracketTemplate, isBracketPlacementMatch } from '$lib/compute/honorHallBracket.js';
+  import { getBracketMatchesForDisplay, isBracketPlacementMatch } from '$lib/compute/honorHallBracket.js';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
@@ -180,25 +180,13 @@
   }
 
   function bracketMatchesForDisplay(bracket) {
-    const savedMatches = bracketData[bracket.key] || [];
-
-    // Sleeper can return empty bracket shells before the playoff teams are
-    // assigned. Those shells are not a usable bracket: use the 2025 layout
-    // until actual team IDs are present, even when the API array is nonempty.
-    if (Number(bracketData.season) >= 2026) {
-      const hasAssignedTeams = savedMatches.some((match) =>
-        match.t1 != null || match.t2 != null || match.w != null || match.l != null
-      );
-      if (!hasAssignedTeams) {
-        return createEmptyBracketTemplate(
-          bracket.type,
-          bracketData.playoffTeams || 8,
-          bracketData.toiletBowlTeams || 6
-        );
-      }
-    }
-
-    return savedMatches;
+    return getBracketMatchesForDisplay(
+      bracketData.season,
+      bracket.type,
+      bracketData[bracket.key],
+      bracketData.playoffTeams || 8,
+      bracketData.toiletBowlTeams || 6
+    );
   }
 
   function bracketMatchKey(match) {
