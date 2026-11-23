@@ -322,10 +322,10 @@
     for (const type of ['winners', 'consolation', 'losers']) {
       const sourceType = type === 'consolation' ? 'winners' : type;
       const allMatches = bracketData[sourceType] || [];
-      // Follow both outcomes into whichever lane they enter next.
-      // In particular, Round 1 losers feed the Round 2 placement qualifiers;
-      // filtering by p here would hide those cross-lane connector lines.
-      const matches = allMatches;
+      // Draw the traditional advancement path only; placement games live below.
+      const matches = allMatches.filter((match) =>
+        !isConsolationMatch(match, sourceType, allMatches)
+      );
       const track = bracketTrackRefs[type];
       if (!track) continue;
       const trackRect = track.getBoundingClientRect();
@@ -517,40 +517,48 @@
       {/each}
     </div>
   {/each}
-  {#if round.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
-    <div class="bracket-consolation-group">
-      <h5 class="bracket-consolation-title">{bracketConsolationTitle(round.round, bracket.type)}</h5>
-      <div class="bracket-consolation-games">
-        {#each round.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
-          <div class="bracket-match bracket-match-consolation" bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
-            <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>
-            {#each [match.t1, match.t2] as rosterId}
-              {#if rosterId != null}
-                {@const team = bracketTeam(rosterId)}
-                <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
-                  <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
-                  <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || `Roster ${rosterId}`)} alt={team?.team_name || `Roster ${rosterId}`} />
-                  <span class="bracket-team-name">{team?.team_name || `Roster ${rosterId}`}</span>
-                  <span class="bracket-score num">{bracketScore(round.round, rosterId)}</span>
-                </div>
-              {:else}
-                <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
-              {/if}
-            {/each}
-          </div>
-        {/each}
-      </div>
-    </div>
-  {/if}
 </div>
                   </div>
                 {/each}
+
               </div>
+              {#if bracketMatchesForDisplay(bracket).some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
+                <div class="bracket-consolation-section" data-testid={bracket.type + '-consolation-section'}>
+                  <h4 class="bracket-consolation-heading">{bracket.type === 'winners' ? 'Playoff Placement Games' : 'Toilet Bowl Placement Games'}</h4>
+                  {#each bracketRounds(bracketMatchesForDisplay(bracket)) as consolationRound}
+                    {#if consolationRound.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
+                      <div class="bracket-consolation-round">
+                        <h5>{bracketRoundLabel(consolationRound.round)} · {bracketRoundWeek(consolationRound.round)}</h5>
+                        <div class="bracket-consolation-games">
+                          {#each consolationRound.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                            <div class="bracket-match bracket-match-consolation">
+                              <div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>
+                              {#each [match.t1, match.t2] as rosterId}
+                                {#if rosterId != null}
+                                  {@const team = bracketTeam(rosterId)}
+                                  <div class="bracket-team" class:match-winner={String(rosterId) === String(match.w)}>
+                                    <span class="bracket-seed num">{bracketSeed(rosterId)}</span>
+                                    <img src={avatarOrPlaceholder(team?.team_avatar || team?.owner_avatar, team?.team_name || 'Roster ' + rosterId)} alt={team?.team_name || 'Roster ' + rosterId} />
+                                    <span class="bracket-team-name">{team?.team_name || 'Roster ' + rosterId}</span>
+                                    <span class="bracket-score num">{bracketScore(consolationRound.round, rosterId)}</span>
+                                  </div>
+                                {:else}
+                                  <div class="bracket-team bracket-empty"><span class="bracket-seed">—</span><span>—</span><span class="bracket-score">—</span></div>
+                                {/if}
+                              {/each}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
             {:else}<div class="empty-card">Bracket results are not available for this season.</div>{/if}
           </div>
         {/each}
       </div>
-      <p class="bracket-note">Consolation games are separated within each competition and labeled by the final league places they decide.</p>
+      <p class="bracket-note">The main bracket shows the advancement path. Placement and consolation games are grouped separately below.</p>
     </section>
     <section class="block">
       <div class="block-head"><h2 class="block-title">Final Standings</h2><span class="block-sub">Playoff results · champion pinned</span></div>
@@ -690,9 +698,12 @@
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1.15rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
   .bracket-match { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; max-width: none; box-sizing: border-box; border: 0; border-radius: 0; padding: 0; background: transparent; min-width: 0; }
-  .bracket-consolation-group { margin-top: 1.1rem; padding-top: 0.8rem; border-top: 1px dashed var(--border-subtle); }
-  .bracket-consolation-title { margin: 0 0 0.6rem; color: var(--accent); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; text-align: center; }
-  .bracket-consolation-games { display: flex; flex-direction: column; gap: 1rem; }
+  .bracket-consolation-section { margin: 3rem 1rem 1rem; padding: 1.5rem 0 0; border-top: 2px solid var(--border-subtle); }
+  .bracket-consolation-heading { margin: 0 0 1.25rem; color: var(--text-primary); font-family: var(--font-display); font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; }
+  .bracket-consolation-round { margin: 0 0 1.5rem; }
+  .bracket-consolation-round h5 { margin: 0 0 .8rem; color: var(--text-tertiary); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+  .bracket-consolation-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .bracket-match-consolation { max-width: 360px; }
   .bracket-match-consolation { background: transparent; }
   .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
   .bracket-round:not(:last-child) .bracket-match::after { content: none; }
@@ -724,8 +735,8 @@
     .bracket-team-name { grid-column: 1 / 3; grid-row: 2; font-size: 0.59rem; }
     .bracket-score { grid-column: 3; grid-row: 1; font-size: 0.64rem; }
     .bracket-match-label { font-size: 0.58rem; margin-bottom: 0.25rem; }
-    .bracket-consolation-title { font-size: 0.56rem; letter-spacing: 0.02em; }
-    .bracket-consolation-games { gap: 0.85rem; }
+    .bracket-consolation-section { margin: 2.5rem .45rem 1rem; padding-top: 1.1rem; }
+    .bracket-consolation-games { grid-template-columns: 1fr; gap: .85rem; }
     .bracket-connectors { display: none; }
   }
 
