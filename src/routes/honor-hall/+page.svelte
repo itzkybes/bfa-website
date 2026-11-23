@@ -271,9 +271,9 @@
       return false;
     }
 
-    // In 2022, the two opening-game winners advance in the main Toilet Bowl
-    // bracket. The other matchups are consolation games.
-    // Sleeper's placement field does not reflect that historical format.
+    // The 2022 Toilet Bowl used a different Round 2 format: only the
+    // Round 1 winners advanced in the main bracket; the other games were
+    // consolation matchups.
     if (Number(bracketData.season) === 2022 && round === 2) {
       const roundOneWinners = new Set(
         (matches || [])
@@ -287,7 +287,15 @@
       );
     }
 
-    // Preserve the existing Toilet Bowl classification for other seasons.
+    // Starting with the 2025 format, every Toilet Bowl Round 2 matchup is
+    // part of the main bracket: the Round 1 winners play for 9th/10th, while
+    // the two Round 1 losers face the bye teams in the Toilet Bowl semifinals.
+    // Those semifinal winners/losers then feed the 11th/12th game and the
+    // Toilet Bowl Championship in Round 3. Do not split these games into a
+    // separate consolation section based on Sleeper's placement value.
+    if (Number(bracketData.season) >= 2025) return false;
+
+    // Preserve the existing classification for 2023 and 2024.
     return Number(match.p) > 1;
   }
 
