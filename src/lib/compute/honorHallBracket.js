@@ -18,6 +18,10 @@ function isWinnersPlacementMatch(match, matches, season) {
   // playoff, p=5 and p=7 are the 5th/6th and 7th/8th placement games.
   // Keep p=3 (the 3rd/4th-place game) in the main championship bracket.
   // This identifies unplayed placement matchups before team IDs exist.
+  // The 2026+ league data uses round-two placement markers above 1 for the
+  // two games that decide 5th–8th. Keep the round-three p=3 game (3rd/4th)
+  // in the championship bracket; only p=5/p=7 are round-three placements.
+  if (Number(season) >= 2026 && round === 2 && Number(match.p) > 1) return true;
   if (Number(season) >= 2023 && Number(match.p) >= 5) return true;
 
   const roundOneMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 1);
@@ -150,38 +154,92 @@ export function getBracketDisplaySections(matches = [], bracketType = 'winners',
       (match) => isBracketPlacementMatch(match, bracketType, template, season)
     );
 
-    function fillMissingSlots(actual, expected, sectionName) {
-      const completed = actual.slice();
-      const expectedCounts = new Map();
-      for (const match of expected) {
+    const countRounds = (list) => {
+      const counts = new Map();
+      for (const match of list) {
         const round = Number(match.r) || 1;
-        expectedCounts.set(round, (expectedCounts.get(round) || 0) + 1);
+        counts.set(round, (counts.get(round) || 0) + 1);
+      }
+      return counts;
+    };
+    const mainCounts = countRounds(expectedMain);
+    const placementCounts = countRounds(expectedPlacement);
+    const rounds = [...new Set([...mainCounts.keys(), ...placementCounts.keys()])]
+      .sort((a, b) => a - b);
+    const byMatchId = (a, b) => {
+      const left = Number(a.m), right = Number(b.m);
+      if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+      return String(a.m ?? '').localeCompare(String(b.m ?? ''));
+    };
+
+    const completedMain = [];
+    const completedPlacement = [];
+
+    for (const round of rounds) {
+      const mainLimit = mainCounts.get(round) || 0;
+      const placementLimit = placementCounts.get(round) || 0;
+      let roundMain = mainMatches
+        .filter((match) => (Number(match.r) || 1) === round)
+        .slice()
+        .sort(byMatchId);
+      let roundPlacement = placementMatches
+        .filter((match) => (Number(match.r) || 1) === round)
+        .slice()
+        .sort(byMatchId);
+
+      // Sleeper can publish empty round-two / round-three matchup shells
+      // without p or feeder metadata. In that case the simple classifier
+      // cannot distinguish them, so more than the expected number of games
+      // can land in the main bracket. Cap each section to the shared 2025
+      // structure and move overflow into the corresponding placement slots.
+      const overflowMain = roundMain.splice(mainLimit);
+      const overflowPlacement = roundPlacement.splice(placementLimit);
+
+      while (roundMain.length < mainLimit && overflowPlacement.length) {
+        roundMain.push(overflowPlacement.shift());
+      }
+      while (roundPlacement.length < placementLimit && overflowMain.length) {
+        roundPlacement.push(overflowMain.shift());
       }
 
-      for (const [round, count] of expectedCounts) {
-        const actualCount = completed.filter(
-          (match) => (Number(match.r) || 1) === round
-        ).length;
-        for (let index = actualCount; index < count; index += 1) {
-          const slot = expected.filter(
-            (match) => (Number(match.r) || 1) === round
-          )[index];
-          if (!slot) continue;
-          completed.push({
-            ...slot,
-            m: `empty-${bracketType}-${sectionName}-r${round}-${index + 1}`,
-            t1: null,
-            t2: null,
-            w: null,
-            l: null,
-          });
-        }
+      // Fill any remaining missing slots with blank template cards. This
+      // keeps partial API responses visually identical to complete brackets.
+      const mainSlots = expectedMain.filter((match) => (Number(match.r) || 1) === round);
+      while (roundMain.length < mainLimit) {
+        const index = roundMain.length;
+        const slot = mainSlots[index];
+        if (!slot) break;
+        roundMain.push({
+          ...slot,
+          m: `empty-${bracketType}-main-r${round}-${index + 1}`,
+          t1: null,
+          t2: null,
+          w: null,
+          l: null,
+        });
       }
-      return completed;
+
+      const placementSlots = expectedPlacement.filter((match) => (Number(match.r) || 1) === round);
+      while (roundPlacement.length < placementLimit) {
+        const index = roundPlacement.length;
+        const slot = placementSlots[index];
+        if (!slot) break;
+        roundPlacement.push({
+          ...slot,
+          m: `empty-${bracketType}-placement-r${round}-${index + 1}`,
+          t1: null,
+          t2: null,
+          w: null,
+          l: null,
+        });
+      }
+
+      completedMain.push(...roundMain.slice(0, mainLimit));
+      completedPlacement.push(...roundPlacement.slice(0, placementLimit));
     }
 
-    mainMatches = fillMissingSlots(mainMatches, expectedMain, 'main');
-    placementMatches = fillMissingSlots(placementMatches, expectedPlacement, 'placement');
+    mainMatches = completedMain;
+    placementMatches = completedPlacement;
   }
 
   return {
