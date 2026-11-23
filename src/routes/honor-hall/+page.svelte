@@ -181,16 +181,6 @@
     return bracketData[bracket.key] || [];
   }
 
-  function bracketRoundLabel(round) {
-    if (Number(bracketData.season) === 2022) return '';
-    return ({ 1: 'ROUND 1', 2: 'ROUND 2', 3: 'FINALS' })[Number(round)] || `ROUND ${round}`;
-  }
-
-  function bracketRoundWeek(round) {
-    const week = Number(bracketData.playoffStart) + Number(round) - 1;
-    return Number.isFinite(week) && week > 0 ? `(Week ${week})` : '';
-  }
-
   function bracketMainTitle(round, bracketType, matches) {
     const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType, matches));
     if (!mainMatches.length) return '';
@@ -355,7 +345,7 @@
         return firstPlace <= 6 ? '5th Place Qualifier' : '7th Place Qualifier';
       }
     }
-    return bracketRoundLabel(round);
+    return '';
   }
 
   function bracketConsolationTitle(round, bracketType) {
@@ -571,14 +561,11 @@
                 </svg>
                 {#each bracketRounds(bracketMatchesForDisplay(bracket)) as round, roundIndex (round.round)}
                   <div class="bracket-round">
-                    {#if Number(bracketData.season) >= 2023}<h4 class="bracket-round-title"><span>{bracketRoundLabel(round.round)}</span>{#if Number(round.round) === 2}<small>Re-seed</small>{/if}<small>{bracketRoundWeek(round.round)}</small></h4>{/if}
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
   {#if round.matches.some(match => !isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
-    <h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketMatchesForDisplay(bracket))}</h5>
   {/if}
   {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
     <div class="bracket-match" class:bracket-final={bracket.type === "winners" && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
-      {#if Number(bracketData.season) >= 2023}<div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>{:else if bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type)}<div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>{/if}
       {#each [match.t1, match.t2] as rosterId}
         {#if rosterId != null}
           {@const team = bracketTeam(rosterId)}
@@ -610,11 +597,9 @@
                     </svg>
                     {#each bracketRounds(bracketMatchesForDisplay(bracket)).filter(round => round.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))) as consolationRound}
                       <div class="bracket-consolation-round">
-                        {#if Number(bracketData.season) >= 2023}<h5>{bracketRoundLabel(consolationRound.round)} · {bracketRoundWeek(consolationRound.round)}</h5>{/if}
                         <div class="bracket-consolation-games">
                           {#each consolationRound.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={bracketPlacementMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
-                              {#if Number(bracketData.season) >= 2023}<div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>{:else if bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}<div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>{/if}
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
                                   {@const team = bracketTeam(rosterId)}
