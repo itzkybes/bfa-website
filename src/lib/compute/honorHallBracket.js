@@ -14,11 +14,6 @@ function isWinnersPlacementMatch(match, matches) {
   if (round === 1) return false;
   if (typeof match.__placement === 'boolean') return match.__placement;
 
-  // Sleeper provides the target placement before playoff games are played.
-  // Use it first so future brackets are grouped exactly like completed
-  // historical seasons even when Round 1 winner/loser IDs are still null.
-  if (Number(match.p) >= 3) return true;
-
   const roundOneMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 1);
   const roundOneLosers = new Set(
     roundOneMatches
