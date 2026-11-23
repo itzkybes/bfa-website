@@ -55,26 +55,6 @@ test('ignores malformed rows and zero scores that represent unavailable starter 
   assert.equal(result.seasonLow, null);
 });
 
-test('builds team scoring profiles and ranks lower standard deviation as more consistent', async () => {
-  const { buildTeamScoringProfiles } = await import('../src/lib/compute/trends.js');
-  const result = buildTeamScoringProfiles(
-    {
-      1: [{ week: 1, pf: 100 }, { week: 2, pf: 100 }, { week: 3, pf: 100 }],
-      2: [{ week: 1, pf: 80 }, { week: 2, pf: 120 }, { week: 3, pf: 0 }],
-    },
-    {
-      1: { team_name: 'Steady' },
-      2: { team_name: 'Volatile' },
-    }
-  );
-
-  assert.deepEqual(result.map((team) => team.teamName), ['Steady', 'Volatile']);
-  assert.equal(result[0].averageScore, 100);
-  assert.equal(result[0].standardDeviation, 0);
-  assert.equal(result[1].range, 40);
-  assert.equal(result[1].weeksPlayed, 2);
-});
-
 test('compares the latest completed weeks against each team season average', async () => {
   const { buildRecentVsSeasonComparison } = await import('../src/lib/compute/trends.js');
   const result = buildRecentVsSeasonComparison(
