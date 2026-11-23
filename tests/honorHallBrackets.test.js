@@ -11,19 +11,19 @@ function roundMatches(matches, round) {
   return matches.filter((match) => match.r === round);
 }
 
-test('empty championship bracket has the same sections as 2025', () => {
+test('empty championship bracket uses the shared three-round structure', () => {
   const matches = createEmptyBracketTemplate('winners', 8, 6);
   assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    roundMatches(matches, round).filter((match) => !isBracketPlacementMatch(match, 'winners', matches, 2026)).length
+    roundMatches(matches, round).filter((match) => !isBracketPlacementMatch(match, 'winners', matches, 2023)).length
   ), [4, 2, 2]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    roundMatches(matches, round).filter((match) => isBracketPlacementMatch(match, 'winners', matches, 2026)).length
+    roundMatches(matches, round).filter((match) => isBracketPlacementMatch(match, 'winners', matches, 2023)).length
   ), [0, 2, 2]);
   assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
 });
 
-test('empty championship bracket keeps the four placement paths connected', () => {
+test('empty championship bracket keeps the placement paths connected', () => {
   const matches = createEmptyBracketTemplate('winners', 8, 6);
   const byId = new Map(matches.map((match) => [String(match.m), match]));
   assert.deepEqual(byId.get('7').t1_from, { l: 1 });
@@ -34,19 +34,19 @@ test('empty championship bracket keeps the four placement paths connected', () =
   assert.deepEqual(byId.get('12').t2_from, { l: 8 });
 });
 
-test('empty six-team Toilet Bowl matches the 2025 three-round bye structure', () => {
+test('empty six-team Toilet Bowl uses the shared three-round structure', () => {
   const matches = createEmptyBracketTemplate('losers', 8, 6);
   assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    roundMatches(matches, round).filter((match) => !isBracketPlacementMatch(match, 'losers', matches, 2026)).length
+    roundMatches(matches, round).filter((match) => !isBracketPlacementMatch(match, 'losers', matches, 2023)).length
   ), [2, 2, 1]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    roundMatches(matches, round).filter((match) => isBracketPlacementMatch(match, 'losers', matches, 2026)).length
+    roundMatches(matches, round).filter((match) => isBracketPlacementMatch(match, 'losers', matches, 2023)).length
   ), [0, 1, 1]);
   assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
 });
 
-test('completed historical championship bracket still classifies game progress', () => {
+test('completed championship brackets use the same placement classification', () => {
   const completed = [
     { r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 },
     { r: 1, m: 2, t1: 3, t2: 4, w: 3, l: 4 },
@@ -61,18 +61,20 @@ test('completed historical championship bracket still classifies game progress',
     { r: 3, m: 23, p: 3, t1: 2, t2: 6 },
     { r: 3, m: 24, p: 4, t1: 4, t2: 8 },
   ];
-  assert.deepEqual(
-    completed.filter((match) => match.r === 2).map((match) =>
-      isBracketPlacementMatch(match, 'winners', completed, 2025)
-    ),
-    [false, false, true, true]
-  );
-  assert.deepEqual(
-    completed.filter((match) => match.r === 3).map((match) =>
-      isBracketPlacementMatch(match, 'winners', completed, 2025)
-    ),
-    [false, false, true, true]
-  );
+  for (const season of [2023, 2024, 2025, 2026, 2027]) {
+    assert.deepEqual(
+      completed.filter((match) => match.r === 2).map((match) =>
+        isBracketPlacementMatch(match, 'winners', completed, season)
+      ),
+      [false, false, true, true]
+    );
+    assert.deepEqual(
+      completed.filter((match) => match.r === 3).map((match) =>
+        isBracketPlacementMatch(match, 'winners', completed, season)
+      ),
+      [false, false, true, true]
+    );
+  }
 });
 
 test('2022 Toilet Bowl retains its historical round-two classification', () => {
@@ -86,67 +88,62 @@ test('2022 Toilet Bowl retains its historical round-two classification', () => {
   assert.equal(isBracketPlacementMatch(matches[3], 'losers', matches, 2022), true);
 });
 
-test('2026 empty Sleeper shells are replaced with the complete 2025 layout', () => {
+test('every season from 2023 onward fills empty championship shells with the same layout', () => {
   const emptySleeperShells = [
     { r: 1, m: 1, t1: null, t2: null, w: null, l: null },
     { r: 2, m: 2, t1: null, t2: null, w: null, l: null },
   ];
-  const matches = getBracketMatchesForDisplay(2026, 'winners', emptySleeperShells, 8, 6);
-  assert.equal(matches.length, 12);
-  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
-  assert.equal(roundMatches(matches, 2).filter((match) =>
-    isBracketPlacementMatch(match, 'winners', matches, 2026)
-  ).length, 2);
-  assert.equal(roundMatches(matches, 3).filter((match) =>
-    isBracketPlacementMatch(match, 'winners', matches, 2026)
-  ).length, 2);
+  for (const season of [2023, 2024, 2025, 2026, 2027]) {
+    const matches = getBracketMatchesForDisplay(season, 'winners', emptySleeperShells, 8, 6);
+    assert.equal(matches.length, 12);
+    assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
+    assert.equal(roundMatches(matches, 2).filter((match) =>
+      isBracketPlacementMatch(match, 'winners', matches, season)
+    ).length, 2);
+    assert.equal(roundMatches(matches, 3).filter((match) =>
+      isBracketPlacementMatch(match, 'winners', matches, season)
+    ).length, 2);
+  }
 });
 
-test('2026 keeps actual matchup data once the full 2025 structure has teams', () => {
+test('complete actual brackets are retained for every season from 2023 onward', () => {
   const actual = createEmptyBracketTemplate('winners', 8, 6).map((match, index) =>
     index === 0 ? { ...match, t1: 1, t2: 2 } : match
   );
-  assert.equal(getBracketMatchesForDisplay(2026, 'winners', actual), actual);
+  for (const season of [2023, 2024, 2025, 2026, 2027]) {
+    assert.equal(getBracketMatchesForDisplay(season, 'winners', actual), actual);
+  }
 });
 
-test('2025 uses its saved bracket rather than the future empty template', () => {
+test('2022 keeps its saved historical bracket data', () => {
   const historical = [{ r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 }];
-  assert.equal(getBracketMatchesForDisplay(2025, 'winners', historical), historical);
+  assert.equal(getBracketMatchesForDisplay(2022, 'winners', historical), historical);
 });
 
-test('2026 partial bracket responses cannot hide missing 2025 rounds or sections', () => {
+test('incomplete championship responses use the same shared layout for every 2023+ season', () => {
   const partial = [
     { r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 },
     { r: 1, m: 2, t1: 3, t2: 4, w: 3, l: 4 },
   ];
-  const matches = getBracketMatchesForDisplay(2026, 'winners', partial, 8, 6);
-  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
-  assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
+  for (const season of [2023, 2024, 2025, 2026, 2027]) {
+    const matches = getBracketMatchesForDisplay(season, 'winners', partial, 8, 6);
+    assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
+    assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
+  }
 });
 
-test('2026 partial Toilet Bowl responses preserve the six-team 2025 structure', () => {
+test('incomplete Toilet Bowl responses use the same shared layout for every 2023+ season', () => {
   const partial = [
     { r: 1, m: 1, t1: 9, t2: 10, w: 9, l: 10 },
   ];
-  const matches = getBracketMatchesForDisplay(2026, 'losers', partial, 8, 6);
-  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
+  for (const season of [2023, 2024, 2025, 2026, 2027]) {
+    const matches = getBracketMatchesForDisplay(season, 'losers', partial, 8, 6);
+    assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
+  }
 });
 
-test('all seasons use the same main and placement sections for championship brackets', () => {
-  const matches = [
-    { r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 },
-    { r: 1, m: 2, t1: 3, t2: 4, w: 3, l: 4 },
-    { r: 1, m: 3, t1: 5, t2: 6, w: 5, l: 6 },
-    { r: 1, m: 4, t1: 7, t2: 8, w: 7, l: 8 },
-    { r: 2, m: 5, p: 1, t1: 1, t2: 3 },
-    { r: 2, m: 6, p: 1, t1: 5, t2: 7 },
-    { r: 2, m: 7, p: 3, t1: 2, t2: 4 },
-    { r: 2, m: 8, p: 4, t1: 6, t2: 8 },
-    { r: 3, m: 9, p: 1, t1: 1, t2: 5 },
-    { r: 3, m: 10, p: 2, t1: 3, t2: 7 },
-    { r: 3, m: 11, p: 3, t1: 2, t2: 6 },
-    { r: 3, m: 12, p: 4, t1: 4, t2: 8 },
-  ];
+test('all 2023+ seasons share the same championship main and placement sections', () => {
+  const matches = createEmptyBracketTemplate('winners', 8, 6);
   const layouts = [2023, 2024, 2025, 2026, 2027].map((season) =>
     getBracketDisplaySections(matches, 'winners', season)
   );
@@ -160,16 +157,8 @@ test('all seasons use the same main and placement sections for championship brac
   );
 });
 
-test('all seasons use the same main and placement sections for Toilet Bowl brackets', () => {
-  const matches = [
-    { r: 1, m: 1, w: 11, l: 12 },
-    { r: 1, m: 2, w: 13, l: 14 },
-    { r: 2, m: 3, p: 1, t1: 9, t2: 11 },
-    { r: 2, m: 4, p: 1, t1: 10, t2: 13 },
-    { r: 2, m: 5, p: 3, t1: 12, t2: 14 },
-    { r: 3, m: 6, p: 1, t1: 9, t2: 10 },
-    { r: 3, m: 7, p: 3, t1: 11, t2: 13 },
-  ];
+test('all 2023+ seasons share the same Toilet Bowl main and placement sections', () => {
+  const matches = createEmptyBracketTemplate('losers', 8, 6);
   const layouts = [2023, 2024, 2025, 2026, 2027].map((season) =>
     getBracketDisplaySections(matches, 'losers', season)
   );
