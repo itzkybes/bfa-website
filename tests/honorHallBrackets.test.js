@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createEmptyBracketTemplate,
   getBracketMatchesForDisplay,
+  getBracketDisplaySections,
   isBracketPlacementMatch,
 } from '../src/lib/compute/honorHallBracket.js';
 
@@ -129,4 +130,51 @@ test('2026 partial Toilet Bowl responses preserve the six-team 2025 structure', 
   ];
   const matches = getBracketMatchesForDisplay(2026, 'losers', partial, 8, 6);
   assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
+});
+
+test('all seasons use the same main and placement sections for championship brackets', () => {
+  const matches = [
+    { r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 },
+    { r: 1, m: 2, t1: 3, t2: 4, w: 3, l: 4 },
+    { r: 1, m: 3, t1: 5, t2: 6, w: 5, l: 6 },
+    { r: 1, m: 4, t1: 7, t2: 8, w: 7, l: 8 },
+    { r: 2, m: 5, p: 1, t1: 1, t2: 3 },
+    { r: 2, m: 6, p: 1, t1: 5, t2: 7 },
+    { r: 2, m: 7, p: 3, t1: 2, t2: 4 },
+    { r: 2, m: 8, p: 4, t1: 6, t2: 8 },
+    { r: 3, m: 9, p: 1, t1: 1, t2: 5 },
+    { r: 3, m: 10, p: 2, t1: 3, t2: 7 },
+    { r: 3, m: 11, p: 3, t1: 2, t2: 6 },
+    { r: 3, m: 12, p: 4, t1: 4, t2: 8 },
+  ];
+  const layouts = [2023, 2024, 2025, 2026, 2027].map((season) =>
+    getBracketDisplaySections(matches, 'winners', season)
+  );
+  for (const layout of layouts) {
+    assert.deepEqual(layout.mainRounds.map((round) => round.matches.length), [4, 2, 2]);
+    assert.deepEqual(layout.placementRounds.map((round) => round.matches.length), [2, 2]);
+  }
+  assert.deepEqual(
+    layouts.map((layout) => layout.placementMatches.map((match) => match.m)),
+    layouts.map(() => [7, 8, 11, 12])
+  );
+});
+
+test('all seasons use the same main and placement sections for Toilet Bowl brackets', () => {
+  const matches = [
+    { r: 1, m: 1, w: 11, l: 12 },
+    { r: 1, m: 2, w: 13, l: 14 },
+    { r: 2, m: 3, p: 1, t1: 9, t2: 11 },
+    { r: 2, m: 4, p: 1, t1: 10, t2: 13 },
+    { r: 2, m: 5, p: 3, t1: 12, t2: 14 },
+    { r: 3, m: 6, p: 1, t1: 9, t2: 10 },
+    { r: 3, m: 7, p: 3, t1: 11, t2: 13 },
+  ];
+  const layouts = [2023, 2024, 2025, 2026, 2027].map((season) =>
+    getBracketDisplaySections(matches, 'losers', season)
+  );
+  for (const layout of layouts) {
+    assert.deepEqual(layout.mainRounds.map((round) => round.matches.length), [2, 2, 1]);
+    assert.deepEqual(layout.placementRounds.map((round) => round.matches.length), [1, 1]);
+  }
 });
