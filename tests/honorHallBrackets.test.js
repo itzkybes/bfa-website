@@ -187,8 +187,8 @@ test('unplayed 2025 and 2026 brackets group feeder-based placement games identic
     { r: 2, m: 8, t1: null, t2: null, t1_from: { l: 3 }, t2_from: { l: 4 } },
     { r: 3, m: 9, t1: null, t2: null, t1_from: { w: 5 }, t2_from: { w: 6 }, p: 1 },
     { r: 3, m: 10, t1: null, t2: null, t1_from: { l: 5 }, t2_from: { l: 6 }, p: 3 },
-    { r: 3, m: 11, t1: null, t2: null, t1_from: { w: 7 }, t2_from: { w: 8 }, p: 5 },
-    { r: 3, m: 12, t1: null, t2: null, t1_from: { l: 7 }, t2_from: { l: 8 }, p: 7 },
+    { r: 3, m: 11, t1: null, t2: null, t1_from: { w: 7 }, t2_from: { w: 8 }, p: 3 },
+    { r: 3, m: 12, t1: null, t2: null, t1_from: { l: 7 }, t2_from: { l: 8 }, p: 4 },
   ];
 
   const layout2025 = getBracketDisplaySections(notStarted, 'winners', 2025);
