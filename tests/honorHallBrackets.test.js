@@ -110,3 +110,21 @@ test('2025 uses its saved bracket rather than the future empty template', () => 
   const historical = [{ r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 }];
   assert.equal(getBracketMatchesForDisplay(2025, 'winners', historical), historical);
 });
+
+test('2026 partial bracket responses cannot hide missing 2025 rounds or sections', () => {
+  const partial = [
+    { r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 },
+    { r: 1, m: 2, t1: 3, t2: 4, w: 3, l: 4 },
+  ];
+  const matches = getBracketMatchesForDisplay(2026, 'winners', partial, 8, 6);
+  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
+  assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
+});
+
+test('2026 partial Toilet Bowl responses preserve the six-team 2025 structure', () => {
+  const partial = [
+    { r: 1, m: 1, t1: 9, t2: 10, w: 9, l: 10 },
+  ];
+  const matches = getBracketMatchesForDisplay(2026, 'losers', partial, 8, 6);
+  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
+});
