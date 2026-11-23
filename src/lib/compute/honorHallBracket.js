@@ -208,10 +208,10 @@ export function createEmptyBracketTemplate(bracketType, playoffTeams = 8, toilet
 }
 
 /**
- * Return the season's actual bracket when teams have been assigned. For
- * 2026+ with no assigned teams, replace empty API shells with the complete
- * 2025-style bracket skeleton so every round and placement section remains
- * visible before the first playoff matchup is published.
+ * Use the exact same three-round bracket structure for every season from
+ * 2023 onward. If Sleeper has not published a complete bracket yet, provide
+ * the shared empty structure rather than rendering a season-specific layout.
+ * The 2022 season keeps its historical data handling.
  */
 export function getBracketMatchesForDisplay(
   season,
@@ -228,11 +228,11 @@ export function getBracketMatchesForDisplay(
   const actualRoundCounts = [1, 2, 3].map((round) =>
     matches.filter((match) => (Number(match.r) || 1) === round).length
   );
-  const hasExpected2025Structure = expectedRoundCounts.every(
+  const hasSharedStructure = expectedRoundCounts.every(
     (count, index) => actualRoundCounts[index] === count
   );
 
-  if (Number(season) >= 2026 && (!hasAssignedTeams || !hasExpected2025Structure)) {
+  if (Number(season) >= 2023 && (!hasAssignedTeams || !hasSharedStructure)) {
     return createEmptyBracketTemplate(bracketType, playoffTeams, toiletBowlTeams);
   }
   return matches;
