@@ -1,6 +1,6 @@
-// Shared Honor Hall bracket classification used for every season from 2023 onward.
-// Sleeper's feeder metadata is used first so future/unplayed brackets render
-// the same placement split as completed historical brackets.
+// Shared Honor Hall bracket classification and empty layout template.
+// The template mirrors the BFA 2025 bracket shape for future seasons before
+// Sleeper has created/populated its bracket matchups.
 
 function bracketFeed(match, side) {
   const source = match?.[side === 't1' ? 't1_from' : 't2_from'];
@@ -13,6 +13,10 @@ function bracketFeed(match, side) {
 function isWinnersPlacementMatch(match, matches) {
   const round = Number(match.r) || 1;
   if (round === 1) return false;
+
+  // Synthetic empty slots carry an explicit placement flag. This is the
+  // source of truth when an upcoming season has no Sleeper bracket payload.
+  if (typeof match.__placement === 'boolean') return match.__placement;
 
   const roundOneMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 1);
   const roundOneLosers = new Set(
@@ -31,14 +35,14 @@ function isWinnersPlacementMatch(match, matches) {
       return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
     }
 
-    // Sleeper assigns the 5th–8th place qualifiers placements 5 and 7.
-    // This fallback also covers unplayed brackets without feeder metadata.
-    return Number(match.p) >= 5;
+    return false;
   }
 
   if (round >= 3) {
     const roundTwoMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 2);
     const roundTwoPlacementMatches = roundTwoMatches.filter((candidate) => {
+      if (typeof candidate.__placement === 'boolean') return candidate.__placement;
+
       const feeds = [bracketFeed(candidate, 't1'), bracketFeed(candidate, 't2')];
       if (feeds.every(Boolean)) return feeds.every((feed) => feed.outcome === 'loser');
 
@@ -46,7 +50,7 @@ function isWinnersPlacementMatch(match, matches) {
       if (teams.every((rosterId) => rosterId != null) && roundOneLosers.size) {
         return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
       }
-      return Number(candidate.p) >= 5;
+      return false;
     });
 
     const placementTeams = new Set(
@@ -67,10 +71,6 @@ function isWinnersPlacementMatch(match, matches) {
     );
     const feeds = [bracketFeed(match, 't1'), bracketFeed(match, 't2')];
     if (feeds.some((feed) => feed && placementMatchIds.has(feed.matchId))) return true;
-
-    // If the future round's feeder references are not included, the same
-    // 5th/7th placement numbering identifies those final placement matchups.
-    if (!feeds.some(Boolean)) return Number(match.p) >= 5;
   }
 
   return false;
@@ -78,6 +78,8 @@ function isWinnersPlacementMatch(match, matches) {
 
 function isToiletBowlPlacementMatch(match, matches, season) {
   const round = Number(match.r) || 1;
+  if (typeof match.__placement === 'boolean') return match.__placement;
+
   if (Number(season) === 2022 && round === 2) {
     const roundOneWinners = new Set(
       matches
@@ -94,8 +96,7 @@ function isToiletBowlPlacementMatch(match, matches, season) {
 }
 
 /**
- * Returns true when a matchup belongs in the placement/consolation area
- * instead of the championship or Toilet Bowl advancement track.
+ * Returns true when a matchup belongs in the placement/consolation area.
  */
 export function isBracketPlacementMatch(match, bracketType, matches = [], season = null) {
   if (!match) return false;
@@ -106,4 +107,36 @@ export function isBracketPlacementMatch(match, bracketType, matches = [], season
     return isWinnersPlacementMatch(match, allMatches);
   }
   return isToiletBowlPlacementMatch(match, allMatches, season);
+}
+
+/**
+ * Create empty BFA bracket slots when Sleeper has not published a future
+ * season's brackets yet. The returned objects use the same round and match
+ * structure as populated brackets, so the existing UI renders identical
+ * columns and placement groups with blank team rows.
+ */
+export function createEmptyBracketTemplate(bracketType, playoffTeams = 8, toiletBowlTeams = 6) {
+  const teamCount = bracketType === 'winners' ? Number(playoffTeams) : Number(toiletBowlTeams);
+  const gameCount = Math.ceil(teamCount / 2);
+  if (!Number.isInteger(teamCount) || teamCount < 2 || gameCount < 1) return [];
+
+  const mainGames = bracketType === 'winners' ? 2 : 1;
+  const matches = [];
+
+  for (let round = 1; round <= 3; round += 1) {
+    for (let index = 0; index < gameCount; index += 1) {
+      matches.push({
+        r: round,
+        m: index + 1,
+        p: index + 1,
+        t1: null,
+        t2: null,
+        w: null,
+        l: null,
+        __placement: round > 1 && index >= mainGames,
+      });
+    }
+  }
+
+  return matches;
 }
