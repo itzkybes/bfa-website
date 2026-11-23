@@ -233,15 +233,9 @@
     if (round === 1) return false;
 
     if (bracketType === 'winners') {
-      // Match the 2025 playoff bracket's three-column structure exactly:
-      // Round 1 feeds two championship semifinals and two placement games;
-      // the Round 3 championship-path finals stay in the main bracket.
-      // Sleeper's p values identify the 5th–8th placement path (p=5,7).
-      if (Number(bracketData.season) >= 2026 && round >= 2) {
-        return Number(match.p) >= 5;
-      }
-
-      // Preserve the historical classification for seasons before 2026.
+      // Identify the 2026+ placement path from actual Round 1 results,
+      // not Sleeper's p field (which does not reliably distinguish these
+      // four Round 2 games in the current-season bracket payload).
       const roundOneLosers = new Set(
         (matches || [])
           .filter((candidate) => (Number(candidate.r) || 1) === 1)
