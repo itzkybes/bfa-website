@@ -181,18 +181,24 @@
 
   function bracketMatchesForDisplay(bracket) {
     const savedMatches = bracketData[bracket.key] || [];
-    if (savedMatches.length) return savedMatches;
 
-    // Sleeper does not create the upcoming season's brackets until playoffs
-    // are configured. Keep the 2025-style empty bracket visible in the meantime.
+    // Sleeper can return empty bracket shells before the playoff teams are
+    // assigned. Those shells are not a usable bracket: use the 2025 layout
+    // until actual team IDs are present, even when the API array is nonempty.
     if (Number(bracketData.season) >= 2026) {
-      return createEmptyBracketTemplate(
-        bracket.type,
-        bracketData.playoffTeams || 8,
-        bracketData.toiletBowlTeams || 6
+      const hasAssignedTeams = savedMatches.some((match) =>
+        match.t1 != null || match.t2 != null || match.w != null || match.l != null
       );
+      if (!hasAssignedTeams) {
+        return createEmptyBracketTemplate(
+          bracket.type,
+          bracketData.playoffTeams || 8,
+          bracketData.toiletBowlTeams || 6
+        );
+      }
     }
-    return [];
+
+    return savedMatches;
   }
 
   function bracketMatchKey(match) {
@@ -240,22 +246,28 @@
 
   function updateBracketConnectors() {
     const nextPaths = { winners: [], losers: [], placementWinners: [], placementLosers: [] };
+
     for (const type of ['winners', 'losers']) {
-      const allMatches = bracketData[type] || [];
-      const track = bracketTrackRefs[type];
-      if (track) {
+      // Use the exact same data source as the markup. Future seasons render a
+      // synthetic 2025-style bracket here, not the still-empty Sleeper arrays.
+      const bracket = { key: type, type };
+      const allMatches = bracketMatchesForDisplay(bracket);
+      const mainMatches = allMatches.filter((match) => !isConsolationMatch(match, type, allMatches));
+      const placementMatches = allMatches.filter((match) => isConsolationMatch(match, type, allMatches));
+
+      function addRosterConnectors(matches, track, refs, pathKey) {
+        if (!track) return;
         const trackRect = track.getBoundingClientRect();
-        const mainMatches = allMatches.filter((match) => !isConsolationMatch(match, type, allMatches));
-        for (const match of mainMatches) {
+        for (const match of matches) {
           for (const rosterId of [match.w, match.l]) {
             if (rosterId == null) continue;
-            const nextMatch = mainMatches.find((candidate) =>
+            const nextMatch = matches.find((candidate) =>
               (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
               [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
             );
             if (!nextMatch) continue;
-            const source = bracketMatchRefs[`${type}:${bracketMatchKey(match)}`];
-            const target = bracketMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
+            const source = refs[`${type}:${bracketMatchKey(match)}`];
+            const target = refs[`${type}:${bracketMatchKey(nextMatch)}`];
             if (!source || !target) continue;
             const sourceRows = source.querySelectorAll('.bracket-team');
             const targetRows = target.querySelectorAll('.bracket-team');
@@ -263,44 +275,72 @@
             const targetRow = targetRows[String(rosterId) === String(nextMatch.t1) ? 0 : 1];
             if (!sourceRow || !targetRow) continue;
             const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
-            const x1 = a.right - trackRect.left + track.scrollLeft, y1 = a.top + a.height / 2 - trackRect.top + track.scrollTop;
-            const x2 = b.left - trackRect.left + track.scrollLeft, y2 = b.top + b.height / 2 - trackRect.top + track.scrollTop;
+            const x1 = a.right - trackRect.left + track.scrollLeft;
+            const y1 = a.top + a.height / 2 - trackRect.top + track.scrollTop;
+            const x2 = b.left - trackRect.left + track.scrollLeft;
+            const y2 = b.top + b.height / 2 - trackRect.top + track.scrollTop;
             const bend = Math.max(18, (x2 - x1) * .5);
-            nextPaths[type].push({ d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`, outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser' });
+            nextPaths[pathKey].push({
+              d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`,
+              outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser'
+            });
           }
         }
       }
 
-      const placementKey = type === 'winners' ? 'placementWinners' : 'placementLosers';
-      const placementTrack = bracketPlacementTrackRefs[type];
-      if (!placementTrack) continue;
-      const placementRect = placementTrack.getBoundingClientRect();
-      const placementMatches = allMatches.filter((match) => isConsolationMatch(match, type, allMatches));
-      for (const match of placementMatches) {
-        for (const rosterId of [match.w, match.l]) {
-          if (rosterId == null) continue;
-          const nextMatch = placementMatches.find((candidate) =>
-            (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
-            [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
-          );
-          if (!nextMatch) continue;
-          const source = bracketPlacementMatchRefs[`${type}:${bracketMatchKey(match)}`];
-          const target = bracketPlacementMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
-          if (!source || !target) continue;
-          const sourceRows = source.querySelectorAll('.bracket-team');
-          const targetRows = target.querySelectorAll('.bracket-team');
-          const sourceRow = sourceRows[String(rosterId) === String(match.t1) ? 0 : 1];
-          const targetRow = targetRows[String(rosterId) === String(nextMatch.t1) ? 0 : 1];
-          if (!sourceRow || !targetRow) continue;
-          const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
-          const x1 = a.right - placementRect.left + placementTrack.scrollLeft, y1 = a.top + a.height / 2 - placementRect.top + placementTrack.scrollTop;
-          const x2 = b.left - placementRect.left + placementTrack.scrollLeft, y2 = b.top + b.height / 2 - placementRect.top + placementTrack.scrollTop;
-          const bend = Math.max(18, (x2 - x1) * .5);
-          nextPaths[placementKey].push({ d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`, outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser' });
+      function addFeedConnectors(matches, track, refs, pathKey) {
+        if (!track) return;
+        const trackRect = track.getBoundingClientRect();
+        for (const nextMatch of matches) {
+          for (const side of ['t1', 't2']) {
+            const feed = nextMatch[`${side}_from`];
+            if (!feed || typeof feed !== 'object') continue;
+            const outcome = feed.w != null ? 'winner' : feed.l != null ? 'loser' : null;
+            const sourceId = feed.w ?? feed.l;
+            if (!outcome || sourceId == null) continue;
+
+            const sourceMatch = matches.find((candidate) => String(candidate.m) === String(sourceId));
+            if (!sourceMatch) continue;
+            // Once a source game has a published result, the roster-based
+            // connector above is authoritative and this fallback is skipped.
+            if (sourceMatch.w != null || sourceMatch.l != null) continue;
+
+            const source = refs[`${type}:${bracketMatchKey(sourceMatch)}`];
+            const target = refs[`${type}:${bracketMatchKey(nextMatch)}`];
+            if (!source || !target) continue;
+            const sourceRows = source.querySelectorAll('.bracket-team');
+            const targetRows = target.querySelectorAll('.bracket-team');
+            const sourceRow = sourceRows[outcome === 'winner' ? 0 : 1];
+            const targetRow = targetRows[side === 't1' ? 0 : 1];
+            if (!sourceRow || !targetRow) continue;
+
+            const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
+            const x1 = a.right - trackRect.left + track.scrollLeft;
+            const y1 = a.top + a.height / 2 - trackRect.top + track.scrollTop;
+            const x2 = b.left - trackRect.left + track.scrollLeft;
+            const y2 = b.top + b.height / 2 - trackRect.top + track.scrollTop;
+            const bend = Math.max(18, (x2 - x1) * .5);
+            nextPaths[pathKey].push({
+              d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`,
+              outcome
+            });
+          }
         }
       }
+
+      const mainTrack = bracketTrackRefs[type];
+      addRosterConnectors(mainMatches, mainTrack, bracketMatchRefs, type);
+      addFeedConnectors(mainMatches, mainTrack, bracketMatchRefs, type);
+
+      const placementKey = type === 'winners' ? 'placementWinners' : 'placementLosers';
+      const placementTrack = bracketPlacementTrackRefs[type];
+      addRosterConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
+      addFeedConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
     }
-    if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) bracketConnectorPaths = nextPaths;
+
+    if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) {
+      bracketConnectorPaths = nextPaths;
+    }
   }
 
   async function loadAll() {
