@@ -244,7 +244,12 @@
       );
 
       if (round === 2) {
-        return [match.t1, match.t2].every(
+        // For 2026 onward, Sleeper's placement value identifies the
+        // 5th–8th placement qualifiers even before Round 1 has completed
+        // and loser roster IDs are available.
+        const futurePlacementMatch =
+          Number(bracketData.season) >= 2026 && Number(match.p) > 1;
+        return futurePlacementMatch || [match.t1, match.t2].every(
           (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
         );
       }
@@ -264,7 +269,12 @@
             .filter((rosterId) => rosterId != null)
             .map(String)
         );
-        return [match.t1, match.t2].some(
+        // Future-season placement finals are also identified by
+        // Sleeper's placement value, so the placement column exists before
+        // all teams have advanced into those games.
+        const futurePlacementMatch =
+          Number(bracketData.season) >= 2026 && Number(match.p) > 1;
+        return futurePlacementMatch || [match.t1, match.t2].some(
           (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
         );
       }
