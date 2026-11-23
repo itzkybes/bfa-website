@@ -1,6 +1,5 @@
 // Shared Honor Hall bracket classification and empty layout template.
-// The template mirrors the BFA 2025 bracket shape for future seasons before
-// Sleeper has created/populated its bracket matchups.
+// Every season from 2023 onward uses the same 2025-style bracket sections.
 
 function bracketFeed(match, side) {
   const source = match?.[side === 't1' ? 't1_from' : 't2_from'];
@@ -13,9 +12,6 @@ function bracketFeed(match, side) {
 function isWinnersPlacementMatch(match, matches) {
   const round = Number(match.r) || 1;
   if (round === 1) return false;
-
-  // Synthetic empty slots carry an explicit placement flag. This is the
-  // source of truth when an upcoming season has no Sleeper bracket payload.
   if (typeof match.__placement === 'boolean') return match.__placement;
 
   const roundOneMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 1);
@@ -34,7 +30,6 @@ function isWinnersPlacementMatch(match, matches) {
     if (teams.every((rosterId) => rosterId != null) && roundOneLosers.size) {
       return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
     }
-
     return false;
   }
 
@@ -109,34 +104,68 @@ export function isBracketPlacementMatch(match, bracketType, matches = [], season
   return isToiletBowlPlacementMatch(match, allMatches, season);
 }
 
+function createMatch(round, matchId, placement, t1From = null, t2From = null, placementNumber = 1) {
+  return {
+    r: round,
+    m: matchId,
+    p: placementNumber,
+    t1: null,
+    t2: null,
+    w: null,
+    l: null,
+    t1_from: t1From,
+    t2_from: t2From,
+    __placement: placement,
+  };
+}
+
 /**
- * Create empty BFA bracket slots when Sleeper has not published a future
- * season's brackets yet. The returned objects use the same round and match
- * structure as populated brackets, so the existing UI renders identical
- * columns and placement groups with blank team rows.
+ * Build blank bracket games with the same 2025 structure:
+ * - Championship: 4 first-round games, 2 semifinals + 2 placement games,
+ *   then championship/third-place + 5th/6th and 7th/8th placement games.
+ * - Six-team Toilet Bowl: 2 opening games (two byes), 2 semifinals + a
+ *   5th/6th game, then Toilet Bowl championship + 3rd/4th placement game.
+ *
+ * Feed references preserve the bracket paths and connector lines even when
+ * team IDs, winners, and scores have not been published by Sleeper yet.
  */
 export function createEmptyBracketTemplate(bracketType, playoffTeams = 8, toiletBowlTeams = 6) {
-  const teamCount = bracketType === 'winners' ? Number(playoffTeams) : Number(toiletBowlTeams);
-  const gameCount = Math.ceil(teamCount / 2);
-  if (!Number.isInteger(teamCount) || teamCount < 2 || gameCount < 1) return [];
-
-  const mainGames = bracketType === 'winners' ? 2 : 1;
-  const matches = [];
-
-  for (let round = 1; round <= 3; round += 1) {
-    for (let index = 0; index < gameCount; index += 1) {
-      matches.push({
-        r: round,
-        m: index + 1,
-        p: index + 1,
-        t1: null,
-        t2: null,
-        w: null,
-        l: null,
-        __placement: round > 1 && index >= mainGames,
-      });
-    }
+  if (bracketType === 'winners') {
+    const roundOne = [
+      createMatch(1, 1, false),
+      createMatch(1, 2, false),
+      createMatch(1, 3, false),
+      createMatch(1, 4, false),
+    ];
+    const roundTwo = [
+      createMatch(2, 5, false, { w: 1 }, { w: 2 }, 1),
+      createMatch(2, 6, false, { w: 3 }, { w: 4 }, 1),
+      createMatch(2, 7, true, { l: 1 }, { l: 2 }, 3),
+      createMatch(2, 8, true, { l: 3 }, { l: 4 }, 4),
+    ];
+    const roundThree = [
+      createMatch(3, 9, false, { w: 5 }, { w: 6 }, 1),
+      createMatch(3, 10, false, { l: 5 }, { l: 6 }, 2),
+      createMatch(3, 11, true, { w: 7 }, { w: 8 }, 3),
+      createMatch(3, 12, true, { l: 7 }, { l: 8 }, 4),
+    ];
+    return [...roundOne, ...roundTwo, ...roundThree];
   }
 
-  return matches;
+  if (bracketType === 'losers') {
+    return [
+      // Four lowest seeds open the Toilet Bowl; two higher seeds receive byes.
+      createMatch(1, 1, false),
+      createMatch(1, 2, false),
+      // Two Toilet Bowl semifinals and the Round 1 losers' placement game.
+      createMatch(2, 3, false, null, { w: 1 }, 1),
+      createMatch(2, 4, false, null, { w: 2 }, 1),
+      createMatch(2, 5, true, { l: 1 }, { l: 2 }, 3),
+      // Toilet Bowl championship and the semifinal-losers placement game.
+      createMatch(3, 6, false, { w: 3 }, { w: 4 }, 1),
+      createMatch(3, 7, true, { l: 3 }, { l: 4 }, 3),
+    ];
+  }
+
+  return [];
 }
