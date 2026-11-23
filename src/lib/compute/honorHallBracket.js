@@ -47,6 +47,7 @@ function isWinnersPlacementMatch(match, matches, season) {
     const roundTwoMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 2);
     const roundTwoPlacementMatches = roundTwoMatches.filter((candidate) => {
       if (typeof candidate.__placement === 'boolean') return candidate.__placement;
+      if (Number(season) >= 2026 && Number(candidate.r) === 2 && Number(candidate.p) > 1) return true;
       if (Number(season) >= 2023 && Number(candidate.p) >= 5) return true;
 
       const feeds = [bracketFeed(candidate, 't1'), bracketFeed(candidate, 't2')];
