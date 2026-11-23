@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
-  import { getBracketMatchesForDisplay, getBracketDisplaySections } from '$lib/compute/honorHallBracket.js';
+  import { getBracketMatchesForDisplay, getBracketDisplaySections, buildBracketSeedMaps } from '$lib/compute/honorHallBracket.js';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
@@ -19,7 +19,7 @@
   let playoffsMvp = null;
   let regularMvp = null;
   let playersMap = {};
-  let bracketData = { season: null, winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, toiletBowlTeams: 6, scoresByWeek: {} };
+  let bracketData = { season: null, winners: [], losers: [], rosterMap: {}, regularSeasonSeeds: {}, finalPlacements: {}, playoffStart: 0, playoffTeams: 0, toiletBowlTeams: 6, scoresByWeek: {} };
   let bracketTrackRefs = {};
   let bracketPlacementTrackRefs = {};
   let bracketMatchRefs = {};
@@ -124,12 +124,17 @@
         if (score != null && Number.isFinite(score)) scoresByWeek[week][rosterId] = score;
       }
     }
+    const { regularSeasonSeeds, finalPlacements } = buildBracketSeedMaps(
+      standings.regularStandings || [],
+      finalList
+    );
     const nextBracketData = {
       season: Number(target.season),
       winners: standings.winnersBracket || [],
       losers: standings.losersBracket || [],
       rosterMap: standings.rosterMap || {},
-      finalSeeds: Object.fromEntries(finalList.map((row, index) => [String(row.rosterId), Number(row.rank) || index + 1])),
+      regularSeasonSeeds,
+      finalPlacements,
       playoffStart,
       playoffTeams: playoffTeamCount,
       toiletBowlTeams: Number(standings.toiletBowlTeams) || 6,
@@ -155,8 +160,8 @@
   }
 
   function bracketSeed(rosterId) {
-    const finalPlace = bracketData.finalSeeds?.[String(rosterId)];
-    return finalPlace ? `#${finalPlace}` : '—';
+    const seed = bracketData.regularSeasonSeeds?.[String(rosterId)];
+    return seed ? `#${seed}` : '—';
   }
 
   function bracketScore(round, rosterId) {
@@ -190,7 +195,7 @@
 
   function bracketMatchPlacement(match) {
     const places = [match.t1, match.t2]
-      .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+      .map((rosterId) => Number(bracketData.finalPlacements?.[String(rosterId)]))
       .filter(Number.isFinite);
     return places.length ? Math.min(...places) : Number(match.m) || 0;
   }

@@ -5,6 +5,7 @@ import {
   getBracketMatchesForDisplay,
   getBracketDisplaySections,
   isBracketPlacementMatch,
+  buildBracketSeedMaps,
 } from '../src/lib/compute/honorHallBracket.js';
 
 function roundMatches(matches, round) {
@@ -295,4 +296,56 @@ test('2026 round-two p markers above one identify placement semifinals', () => {
       .map((match) => match.m),
     [7, 8, 11, 12]
   );
+});
+
+
+test('bracket labels use end-of-regular-season seeds, not final playoff placements', () => {
+  const regularStandings = [
+    { rosterId: 12, wins: 18, losses: 2, pf: 2400 },
+    { rosterId: 7, wins: 16, losses: 4, pf: 2300 },
+    { rosterId: 3, wins: 15, losses: 5, pf: 2200 },
+    { rosterId: 9, wins: 14, losses: 6, pf: 2100 },
+  ];
+  const finalStandings = [
+    { rosterId: 3, rank: 1 },
+    { rosterId: 12, rank: 2 },
+    { rosterId: 9, rank: 3 },
+    { rosterId: 7, rank: 4 },
+  ];
+
+  const { regularSeasonSeeds, finalPlacements } = buildBracketSeedMaps(
+    regularStandings,
+    finalStandings
+  );
+
+  assert.deepEqual(regularSeasonSeeds, {
+    '12': 1,
+    '7': 2,
+    '3': 3,
+    '9': 4,
+  });
+  assert.deepEqual(finalPlacements, {
+    '3': 1,
+    '12': 2,
+    '9': 3,
+    '7': 4,
+  });
+  assert.equal(regularSeasonSeeds['12'], 1);
+  assert.equal(finalPlacements['12'], 2);
+  assert.equal(regularSeasonSeeds['3'], 3);
+  assert.equal(finalPlacements['3'], 1);
+});
+
+test('regular-season seed mapping supports historical season standings rows', () => {
+  for (const season of [2022, 2023, 2024, 2025, 2026]) {
+    const regularStandings = [
+      { rosterId: `${season}-first` },
+      { rosterId: `${season}-second` },
+    ];
+    const { regularSeasonSeeds } = buildBracketSeedMaps(regularStandings, []);
+    assert.deepEqual(regularSeasonSeeds, {
+      [`${season}-first`]: 1,
+      [`${season}-second`]: 2,
+    });
+  }
 });
