@@ -5,29 +5,42 @@ import {
   isBracketPlacementMatch,
 } from '../src/lib/compute/honorHallBracket.js';
 
-test('empty championship bracket uses the full 2025-style 4/4/4 structure', () => {
+function roundMatches(matches, round) {
+  return matches.filter((match) => match.r === round);
+}
+
+test('empty championship bracket has the same sections as 2025', () => {
   const matches = createEmptyBracketTemplate('winners', 8, 6);
-  const byRound = (round) => matches.filter((match) => match.r === round);
-  assert.deepEqual([1, 2, 3].map((round) => byRound(round).length), [4, 4, 4]);
+  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    byRound(round).filter((match) => !isBracketPlacementMatch(match, 'winners', matches, 2026)).length
+    roundMatches(matches, round).filter((match) => !isBracketPlacementMatch(match, 'winners', matches, 2026)).length
   ), [4, 2, 2]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    byRound(round).filter((match) => isBracketPlacementMatch(match, 'winners', matches, 2026)).length
+    roundMatches(matches, round).filter((match) => isBracketPlacementMatch(match, 'winners', matches, 2026)).length
   ), [0, 2, 2]);
   assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
 });
 
-test('empty Toilet Bowl uses the same three-round layout with its six-team field', () => {
+test('empty championship bracket keeps the four placement paths connected', () => {
+  const matches = createEmptyBracketTemplate('winners', 8, 6);
+  const byId = new Map(matches.map((match) => [String(match.m), match]));
+  assert.deepEqual(byId.get('7').t1_from, { l: 1 });
+  assert.deepEqual(byId.get('7').t2_from, { l: 2 });
+  assert.deepEqual(byId.get('11').t1_from, { w: 7 });
+  assert.deepEqual(byId.get('11').t2_from, { w: 8 });
+  assert.deepEqual(byId.get('12').t1_from, { l: 7 });
+  assert.deepEqual(byId.get('12').t2_from, { l: 8 });
+});
+
+test('empty six-team Toilet Bowl matches the 2025 three-round bye structure', () => {
   const matches = createEmptyBracketTemplate('losers', 8, 6);
-  const byRound = (round) => matches.filter((match) => match.r === round);
-  assert.deepEqual([1, 2, 3].map((round) => byRound(round).length), [3, 3, 3]);
+  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    byRound(round).filter((match) => !isBracketPlacementMatch(match, 'losers', matches, 2026)).length
-  ), [3, 1, 1]);
+    roundMatches(matches, round).filter((match) => !isBracketPlacementMatch(match, 'losers', matches, 2026)).length
+  ), [2, 2, 1]);
   assert.deepEqual([1, 2, 3].map((round) =>
-    byRound(round).filter((match) => isBracketPlacementMatch(match, 'losers', matches, 2026)).length
-  ), [0, 2, 2]);
+    roundMatches(matches, round).filter((match) => isBracketPlacementMatch(match, 'losers', matches, 2026)).length
+  ), [0, 1, 1]);
   assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
 });
 
@@ -38,7 +51,7 @@ test('completed historical championship bracket still classifies game progress',
     { r: 1, m: 3, t1: 5, t2: 6, w: 5, l: 6 },
     { r: 1, m: 4, t1: 7, t2: 8, w: 7, l: 8 },
     { r: 2, m: 11, p: 1, t1: 1, t2: 3, w: 1, l: 3 },
-    { r: 2, m: 12, p: 2, t1: 5, t2: 7, w: 5, l: 7 },
+    { r: 2, m: 12, p: 1, t1: 5, t2: 7, w: 5, l: 7 },
     { r: 2, m: 13, p: 3, t1: 2, t2: 4, w: 2, l: 4 },
     { r: 2, m: 14, p: 4, t1: 6, t2: 8, w: 6, l: 8 },
     { r: 3, m: 21, p: 1, t1: 1, t2: 5 },
