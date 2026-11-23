@@ -5,6 +5,7 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
+  import { getBracketMatchesForDisplay, getBracketDisplaySections } from '$lib/compute/honorHallBracket.js';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
@@ -18,7 +19,7 @@
   let playoffsMvp = null;
   let regularMvp = null;
   let playersMap = {};
-  let bracketData = { winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
+  let bracketData = { season: null, winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, toiletBowlTeams: 6, scoresByWeek: {} };
   let bracketTrackRefs = {};
   let bracketPlacementTrackRefs = {};
   let bracketMatchRefs = {};
@@ -131,6 +132,7 @@
       finalSeeds: Object.fromEntries(finalList.map((row, index) => [String(row.rosterId), Number(row.rank) || index + 1])),
       playoffStart,
       playoffTeams: playoffTeamCount,
+      toiletBowlTeams: Number(standings.toiletBowlTeams) || 6,
       scoresByWeek
     };
     const result = {
@@ -146,19 +148,6 @@
     playoffsMvp = result.playoffsMvp;
     regularMvp = result.regularMvp;
     bracketData = result.bracketData;
-  }
-
-  function bracketRounds(matches) {
-    const grouped = {};
-    for (const match of matches || []) {
-      const round = Number(match.r) || 1;
-      if (!grouped[round]) grouped[round] = [];
-      grouped[round].push(match);
-    }
-    return Object.keys(grouped).map(Number).sort((a, b) => a - b).map((round) => ({
-      round,
-      matches: grouped[round].slice().sort((a, b) => (Number(a.m) || 0) - (Number(b.m) || 0))
-    }));
   }
 
   function bracketTeam(rosterId) {
@@ -178,25 +167,21 @@
   }
 
   function bracketMatchesForDisplay(bracket) {
-    return bracketData[bracket.key] || [];
+    return getBracketMatchesForDisplay(
+      bracketData.season,
+      bracket.type,
+      bracketData[bracket.key],
+      bracketData.playoffTeams || 8,
+      bracketData.toiletBowlTeams || 6
+    );
   }
 
-  function bracketRoundLabel(round) {
-    return '';
-  }
-
-  function bracketMainTitle(round, bracketType, matches) {
-    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType, matches));
-    if (!mainMatches.length) return '';
-    if (round === 1) return '';
-    if (round === 2) {
-      if (bracketType === 'losers') {
-        return '';
-      }
-      return '';
-    }
-    if (round >= 3) return bracketType === 'losers' ? 'Toilet Bowl Finals' : 'Championship & 3rd/4th Place';
-    return '';
+  function bracketDisplaySections(bracket) {
+    return getBracketDisplaySections(
+      bracketMatchesForDisplay(bracket),
+      bracket.type,
+      bracketData.season
+    );
   }
 
   function bracketMatchKey(match) {
@@ -228,173 +213,6 @@
     );
   }
 
-  function isConsolationMatch(match, bracketType, matches = []) {
-    const round = Number(match.r) || 1;
-    if (round === 1) return false;
-
-    if (bracketType === 'winners') {
-      // Sleeper's Round 1 loser field is the source of truth for the teams
-      // that must play in the Round 2 consolation bracket.
-      const roundOneLosers = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.l)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-
-      if (round === 2) {
-        // For 2026 onward, Sleeper's p value separates the two
-        // championship semifinals (p=1) from the two 5th–8th qualifiers.
-        if (Number(bracketData.season) >= 2026) return Number(match.p) > 1;
-        return [match.t1, match.t2].every(
-          (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
-        );
-      }
-
-      // Keep every subsequent game involving a Round 2 consolation team
-      // in the placement section, including the final placement match.
-      if (round >= 3) {
-        const roundTwoConsolationTeams = new Set(
-          (matches || [])
-            .filter((candidate) =>
-              (Number(candidate.r) || 1) === 2 &&
-              [candidate.t1, candidate.t2].some(
-                (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
-              )
-            )
-            .flatMap((candidate) => [candidate.t1, candidate.t2])
-            .filter((rosterId) => rosterId != null)
-            .map(String)
-        );
-        // Future-season placement finals use Sleeper's p value so
-        // 5th/6th and 7th/8th games stay in the placement section.
-        if (Number(bracketData.season) >= 2026) return Number(match.p) > 1;
-        return [match.t1, match.t2].some(
-          (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
-        );
-      }
-      return false;
-    }
-
-    // The 2022 Toilet Bowl used a different Round 2 format: only the
-    // Round 1 winners advanced in the main bracket; the other games were
-    // consolation matchups.
-    if (Number(bracketData.season) === 2022 && round === 2) {
-      const roundOneWinners = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-      return ![match.t1, match.t2].every(
-        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
-      );
-    }
-
-    // In 2026 and future seasons, keep the two Toilet Bowl semifinals
-    // in the main bracket. The Round 1 winners' 9th/10th matchup is a
-    // separate placement game, while the semifinal results feed the
-    // 11th/12th game and Toilet Bowl Championship in Round 3.
-    if (Number(bracketData.season) >= 2026 && round === 2) {
-      const roundOneWinners = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-      return [match.t1, match.t2].every(
-        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
-      );
-    }
-    // The 2025 reference keeps all three Round 2 matchups in the main
-    // bracket; preserve that historical display exactly.
-    if (Number(bracketData.season) === 2025) return false;
-
-    // Preserve the existing classification for 2023 and 2024.
-    return Number(match.p) > 1;
-  }
-
-  function bracketMatchLabel(match, round, matches, bracketType) {
-    const placement = Number(match.p);
-    if (isConsolationMatch(match, bracketType, matches)) {
-      if (bracketType === 'winners') {
-        if (round === 2) return 'Consolation Qualifier · 5th–8th Place';
-        const places = [match.t1, match.t2]
-          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-          .filter(Number.isFinite).sort((a, b) => a - b);
-        if (places[0] === 5 && places[1] === 6) return 'Consolation Game · 5th/6th Place';
-        if (places[0] === 7 && places[1] === 8) return 'Consolation Game · 7th/8th Place';
-        return 'Consolation Placement Game';
-      }
-      const places = [match.t1, match.t2]
-        .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-        .filter(Number.isFinite).sort((a, b) => a - b);
-      if (places.length === 2) return 'Toilet Bowl Consolation · ' + places[0] + 'th/' + places[1] + 'th Place';
-      return 'Toilet Bowl Consolation Game';
-    }
-    if (bracketType === 'losers') {
-      if (round === 1) return '';
-      if (round === 2) {
-        // The two round-1 winners play for 9th/10th. The other games
-        // feed into the 11th/12th game or the Toilet Bowl Championship.
-        const priorWinners = new Set(
-          (matches || [])
-            .filter((candidate) => (Number(candidate.r) || 1) === 1)
-            .flatMap((candidate) => candidate.w == null ? [] : [String(candidate.w)])
-        );
-        const bothAdvancedAsWinners = [match.t1, match.t2].every(
-          (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
-        );
-        if (Number(bracketData.season) === 2022) {
-          return bothAdvancedAsWinners ? '' : 'Toilet Bowl Consolation Game';
-        }
-        return bothAdvancedAsWinners ? '9th/10th Place Game' : '';
-      }
-      if (round >= 3) {
-        const places = [match.t1, match.t2]
-          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-          .filter(Number.isFinite).sort((a, b) => a - b);
-        if (places[0] === 9 && places[1] === 10) return '9th/10th Place Game';
-        if (places[0] === 11 && places[1] === 12) return '11th/12th Place Game';
-        if (places[0] === 13 && places[1] === 14) return 'Toilet Bowl Championship';
-        return placement === 1 ? 'Toilet Bowl Championship' : 'Placement Game';
-      }
-    }
-
-    if (bracketType === 'winners' || bracketType === 'consolation') {
-      if (round === 3) {
-        const places = [match.t1, match.t2]
-          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-          .filter(Number.isFinite).sort((a, b) => a - b);
-        const pair = places.join('-');
-        return ({
-          '1-2': 'Championship',
-          '3-4': '3rd Place',
-          '5-6': '5th Place',
-          '7-8': '7th Place'
-        })[pair] || ({ 1: 'Championship', 2: '3rd Place', 3: '5th Place', 4: '7th Place' })[placement] || 'Placement Game';
-      }
-      if (round === 2 && placement > 1) {
-        const firstPlace = bracketMatchPlacement(match);
-        return firstPlace <= 6 ? '5th Place Qualifier' : '7th Place Qualifier';
-      }
-    }
-    return '';
-  }
-
-  function bracketConsolationTitle(round, bracketType) {
-    if (bracketType === 'winners' && round === 2) return '5th–8th Place Consolation Qualifiers';
-    if (bracketType === 'losers' && round === 2) {
-      return 'Toilet Bowl Consolation Games';
-    }
-    if (bracketType === 'winners' && round === 3) return 'Placement Games';
-    if (bracketType === 'losers' && round === 3) return 'Placement Games';
-    return 'Consolation Games';
-  }
-
   function setBracketTrackRef(type, element) {
     if (element) bracketTrackRefs[type] = element;
   }
@@ -407,22 +225,31 @@
 
   function updateBracketConnectors() {
     const nextPaths = { winners: [], losers: [], placementWinners: [], placementLosers: [] };
+
     for (const type of ['winners', 'losers']) {
-      const allMatches = bracketData[type] || [];
-      const track = bracketTrackRefs[type];
-      if (track) {
+      // Use the same selected bracket data and display sections as the markup.
+      const bracket = { key: type, type };
+      const allMatches = bracketMatchesForDisplay(bracket);
+      const sections = getBracketDisplaySections(allMatches, type, bracketData.season);
+      const mainMatches = sections.mainMatches;
+      const placementMatches = sections.placementMatches;
+
+      function addRosterConnectors(matches, track, refs, pathKey) {
+        if (!track) return;
         const trackRect = track.getBoundingClientRect();
-        const mainMatches = allMatches.filter((match) => !isConsolationMatch(match, type, allMatches));
-        for (const match of mainMatches) {
+        for (const match of matches) {
+          // Draw connectors only after Sleeper has published both sides'
+          // result for this matchup. Feeder paths alone are not completed games.
+          if (match.w == null || match.l == null) continue;
           for (const rosterId of [match.w, match.l]) {
             if (rosterId == null) continue;
-            const nextMatch = mainMatches.find((candidate) =>
+            const nextMatch = matches.find((candidate) =>
               (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
               [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
             );
             if (!nextMatch) continue;
-            const source = bracketMatchRefs[`${type}:${bracketMatchKey(match)}`];
-            const target = bracketMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
+            const source = refs[`${type}:${bracketMatchKey(match)}`];
+            const target = refs[`${type}:${bracketMatchKey(nextMatch)}`];
             if (!source || !target) continue;
             const sourceRows = source.querySelectorAll('.bracket-team');
             const targetRows = target.querySelectorAll('.bracket-team');
@@ -430,44 +257,31 @@
             const targetRow = targetRows[String(rosterId) === String(nextMatch.t1) ? 0 : 1];
             if (!sourceRow || !targetRow) continue;
             const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
-            const x1 = a.right - trackRect.left + track.scrollLeft, y1 = a.top + a.height / 2 - trackRect.top + track.scrollTop;
-            const x2 = b.left - trackRect.left + track.scrollLeft, y2 = b.top + b.height / 2 - trackRect.top + track.scrollTop;
+            const x1 = a.right - trackRect.left + track.scrollLeft;
+            const y1 = a.top + a.height / 2 - trackRect.top + track.scrollTop;
+            const x2 = b.left - trackRect.left + track.scrollLeft;
+            const y2 = b.top + b.height / 2 - trackRect.top + track.scrollTop;
             const bend = Math.max(18, (x2 - x1) * .5);
-            nextPaths[type].push({ d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`, outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser' });
+            nextPaths[pathKey].push({
+              d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`,
+              outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser'
+            });
           }
         }
       }
 
+
+      const mainTrack = bracketTrackRefs[type];
+      addRosterConnectors(mainMatches, mainTrack, bracketMatchRefs, type);
+
       const placementKey = type === 'winners' ? 'placementWinners' : 'placementLosers';
       const placementTrack = bracketPlacementTrackRefs[type];
-      if (!placementTrack) continue;
-      const placementRect = placementTrack.getBoundingClientRect();
-      const placementMatches = allMatches.filter((match) => isConsolationMatch(match, type, allMatches));
-      for (const match of placementMatches) {
-        for (const rosterId of [match.w, match.l]) {
-          if (rosterId == null) continue;
-          const nextMatch = placementMatches.find((candidate) =>
-            (Number(candidate.r) || 1) > (Number(match.r) || 1) &&
-            [candidate.t1, candidate.t2].some((id) => String(id) === String(rosterId))
-          );
-          if (!nextMatch) continue;
-          const source = bracketPlacementMatchRefs[`${type}:${bracketMatchKey(match)}`];
-          const target = bracketPlacementMatchRefs[`${type}:${bracketMatchKey(nextMatch)}`];
-          if (!source || !target) continue;
-          const sourceRows = source.querySelectorAll('.bracket-team');
-          const targetRows = target.querySelectorAll('.bracket-team');
-          const sourceRow = sourceRows[String(rosterId) === String(match.t1) ? 0 : 1];
-          const targetRow = targetRows[String(rosterId) === String(nextMatch.t1) ? 0 : 1];
-          if (!sourceRow || !targetRow) continue;
-          const a = sourceRow.getBoundingClientRect(), b = targetRow.getBoundingClientRect();
-          const x1 = a.right - placementRect.left + placementTrack.scrollLeft, y1 = a.top + a.height / 2 - placementRect.top + placementTrack.scrollTop;
-          const x2 = b.left - placementRect.left + placementTrack.scrollLeft, y2 = b.top + b.height / 2 - placementRect.top + placementTrack.scrollTop;
-          const bend = Math.max(18, (x2 - x1) * .5);
-          nextPaths[placementKey].push({ d: `M ${x1} ${y1} C ${x1+bend} ${y1}, ${x2-bend} ${y2}, ${x2} ${y2}`, outcome: String(rosterId) === String(match.w) ? 'winner' : 'loser' });
-        }
-      }
+      addRosterConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
     }
-    if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) bracketConnectorPaths = nextPaths;
+
+    if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) {
+      bracketConnectorPaths = nextPaths;
+    }
   }
 
   async function loadAll() {
@@ -598,16 +412,11 @@
                     <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} marker-end={`url(#${path.outcome}-arrow-${bracket.type})`} />
                   {/each}
                 </svg>
-                {#each bracketRounds(bracketMatchesForDisplay(bracket)) as round, roundIndex (round.round)}
+                {#each bracketDisplaySections(bracket).mainRounds as round, roundIndex (round.round)}
                   <div class="bracket-round">
-                    
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-  {#if round.matches.some(match => !isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
-    {#if bracketMainTitle(round.round, bracket.type, bracketMatchesForDisplay(bracket))}<h5 class="bracket-main-title">{bracketMainTitle(round.round, bracket.type, bracketMatchesForDisplay(bracket))}</h5>{/if}
-  {/if}
-  {#each round.matches.filter(match => !isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+  {#each round.matches.slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
     <div class="bracket-match" class:bracket-final={bracket.type === "winners" && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
-      {#if bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type)}<div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, round.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>{/if}
       {#each [match.t1, match.t2] as rosterId}
         {#if rosterId != null}
           {@const team = bracketTeam(rosterId)}
@@ -628,7 +437,7 @@
                 {/each}
 
               </div>
-              {#if bracketMatchesForDisplay(bracket).some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))}
+              {#if bracketDisplaySections(bracket).placementRounds.length}
                 <div class="bracket-consolation-section" data-testid={bracket.type + '-consolation-section'}>
                   <h4 class="bracket-consolation-heading">{bracket.type === 'winners' ? 'Playoff Placement Games' : 'Toilet Bowl Placement Games'}</h4>
                   <div class="bracket-placement-track" bind:this={bracketPlacementTrackRefs[bracket.type]}>
@@ -637,13 +446,11 @@
                         <path d={path.d} class:connector-winner={path.outcome === 'winner'} class:connector-loser={path.outcome === 'loser'} />
                       {/each}
                     </svg>
-                    {#each bracketRounds(bracketMatchesForDisplay(bracket)).filter(round => round.matches.some(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket)))) as consolationRound}
+                    {#each bracketDisplaySections(bracket).placementRounds as consolationRound}
                       <div class="bracket-consolation-round">
-                        
                         <div class="bracket-consolation-games">
-                          {#each consolationRound.matches.filter(match => isConsolationMatch(match, bracket.type, bracketMatchesForDisplay(bracket))).slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
+                          {#each consolationRound.matches.slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
                             <div class="bracket-match bracket-match-consolation" bind:this={bracketPlacementMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
-                              {#if bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}<div class="bracket-match-label bracket-match-tag">{bracketMatchLabel(match, consolationRound.round, bracketMatchesForDisplay(bracket), bracket.type)}</div>{/if}
                               {#each [match.t1, match.t2] as rosterId}
                                 {#if rosterId != null}
                                   {@const team = bracketTeam(rosterId)}
@@ -803,9 +610,6 @@
   .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
   .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
   .bracket-round { min-width: 0; width: 100%; display: flex; flex-direction: column; }
-  .bracket-round-title { display: flex; flex-direction: column; align-items: center; gap: 0.12rem; color: var(--text-tertiary); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.55rem; text-align: center; }
-  .bracket-round-title small { color: var(--text-tertiary); font-size: 0.9em; font-weight: 400; text-transform: none; letter-spacing: 0; }
-  .bracket-main-title { margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; text-align: center; }
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1.15rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
   .bracket-match { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; max-width: none; box-sizing: border-box; border: 0; border-radius: 0; padding: 0; background: transparent; min-width: 0; }
@@ -816,11 +620,9 @@
 
   .bracket-consolation-heading { margin: 0 0 1.25rem; color: var(--text-primary); font-family: var(--font-display); font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; }
   .bracket-consolation-round { margin: 0 0 1.5rem; }
-  .bracket-consolation-round h5 { margin: 0 0 .8rem; color: var(--text-tertiary); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
   .bracket-consolation-games { display: flex; flex-direction: column; gap: 1rem; }
   .bracket-match-consolation { max-width: 360px; }
   .bracket-match-consolation { background: transparent; }
-  .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
   .bracket-round:not(:last-child) .bracket-match::after { content: none; }
   .bracket-team { display: grid; grid-template-columns: 18px 24px minmax(0, 1fr) auto; align-items: center; gap: 0.28rem; min-height: 48px; padding: 0.32rem; box-sizing: border-box; color: var(--text-secondary); font-size: 0.72rem; background: var(--surface-2); }
   .bracket-team:first-of-type { border-radius: 0.7rem 0.7rem 0.18rem 0.18rem; margin-bottom: 2px; }
@@ -833,15 +635,11 @@
   .bracket-team.match-winner .bracket-score, .bracket-team.match-winner .bracket-seed { color: var(--accent); }
   .bracket-empty { opacity: 0.45; }
   .bracket-final .bracket-team { background: linear-gradient(180deg, rgba(245,180,0,.12), var(--surface-2)); }
-  .bracket-match-label { order: -1; margin: 0 0 0.35rem; padding: 0; border: 0; color: var(--text-primary); font-size: 0.7rem; font-weight: 650; text-transform: none; letter-spacing: 0; text-align: center; }
-  .bracket-match-tag { order: -1; align-self: flex-start; margin: 0 0 0.45rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--surface-2, rgba(255,255,255,0.08)); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
   .bracket-note { margin: 0; padding: 0 1rem 1rem; color: var(--text-tertiary); font-size: 0.72rem; }
   @media (max-width: 700px) {
     .bracket-grid { padding: 0.7rem 0.45rem; gap: 1.5rem; }
     .bracket-track { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; padding-bottom: 0.5rem; }
     .bracket-round { width: 100%; }
-    .bracket-round-title { font-size: 0.62rem; letter-spacing: 0.03em; }
-    .bracket-main-title { font-size: 0.55rem; letter-spacing: 0.02em; }
     .bracket-round-games, .bracket-round-games.later-round { padding: 0; gap: 0.8rem; }
     .bracket-match { max-width: none; }
     .bracket-team { grid-template-columns: 13px minmax(0, 1fr) auto; min-height: 43px; gap: 0.18rem; padding: 0.25rem; font-size: 0.61rem; }
@@ -849,7 +647,6 @@
     .bracket-seed { grid-column: 1; grid-row: 1; font-size: 0.55rem; }
     .bracket-team-name { grid-column: 1 / 3; grid-row: 2; font-size: 0.59rem; }
     .bracket-score { grid-column: 3; grid-row: 1; font-size: 0.64rem; }
-    .bracket-match-label { font-size: 0.58rem; margin-bottom: 0.25rem; }
     .bracket-consolation-section { margin: 2.5rem .45rem 1rem; padding-top: 1.1rem; }
     .bracket-placement-track { grid-template-columns: repeat(3, minmax(180px, 1fr)); min-width: 560px; }
     .bracket-consolation-games { gap: .85rem; }
