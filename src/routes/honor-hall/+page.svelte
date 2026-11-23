@@ -325,7 +325,9 @@
       const placementKey = type === 'winners' ? 'placementWinners' : 'placementLosers';
       const placementTrack = bracketPlacementTrackRefs[type];
       addRosterConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
-      addFeedConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
+      if (Number(bracketData.season) >= 2026) {
+        addFeedConnectors(placementMatches, placementTrack, bracketPlacementMatchRefs, placementKey);
+      }
     }
 
     if (JSON.stringify(bracketConnectorPaths) !== JSON.stringify(nextPaths)) {
