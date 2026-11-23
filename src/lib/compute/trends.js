@@ -54,7 +54,6 @@ export function buildWeeklyScoringTrends(weeklyPfByRoster = {}, rosterMap = {}) 
       };
     });
 
-  const sortedSeason = [...scoredEntries].sort((a, b) => compareScore(a, b) || a.week - b.week);
   const highOrder = [...scoredEntries].sort((a, b) =>
     b.score - a.score || a.week - b.week || a.rosterId.localeCompare(b.rosterId)
   );
