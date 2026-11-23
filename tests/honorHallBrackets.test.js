@@ -101,8 +101,10 @@ test('2026 empty Sleeper shells are replaced with the complete 2025 layout', () 
   ).length, 2);
 });
 
-test('2026 keeps actual matchup data once teams are assigned', () => {
-  const actual = [{ r: 1, m: 1, t1: 1, t2: 2, w: null, l: null }];
+test('2026 keeps actual matchup data once the full 2025 structure has teams', () => {
+  const actual = createEmptyBracketTemplate('winners', 8, 6).map((match, index) =>
+    index === 0 ? { ...match, t1: 1, t2: 2 } : match
+  );
   assert.equal(getBracketMatchesForDisplay(2026, 'winners', actual), actual);
 });
 
