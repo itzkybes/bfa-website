@@ -8,5 +8,6 @@ export { computeStreaks } from './streaks';
 export { resolveFinalStandingsFromBrackets, getChampionshipGame } from './brackets';
 export { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 export { computeStandingsForLeague } from './standings';
+export { buildWeeklyScoringTrends, buildRecentVsSeasonComparison, buildLeagueScoringHistory, buildStandingsMovementSeries } from './trends';
 export { getStandingsMovementFromSnapshots } from './standingsMovement';
 export { computeMatchupsForLeagueWeek } from './matchups';

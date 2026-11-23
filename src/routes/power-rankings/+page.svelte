@@ -16,7 +16,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/api';
-  import { computeStandingsForLeague } from '$lib/compute';
+  import { computeStandingsForLeague, buildWeeklyScoringTrends, buildRecentVsSeasonComparison, buildLeagueScoringHistory, buildStandingsMovementSeries } from '$lib/compute';
   import { computeParticipantPoints } from '$lib/compute/scoring';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
@@ -30,12 +30,24 @@
   let leagueStatus = null;
   let weekWindow = []; // [w1, w2, w3, w4] inclusive
   let rankings = []; // sorted: [{ rosterId, meta, avgPf, wins, losses, margin, points, lastFour, score, prevRank, rank }]
-  let biggestRiser = null;
-  let topScorer = null;
-  let bestRecord = null;
-  let longestWinStreak = null;
-  let longestLoseStreak = null;
+  let scoringWeeks = [];
+  let seasonHighScore = null;
+  let seasonLowScore = null;
+  let latestScoringWeek = null;
+  let highestAverageWeek = null;
+  let peakScoringAverage = 0;
+  let movementWeeks = [];
+  let movementSeries = [];
+  let seasonComparisonRows = [];
+  let seasonComparisonWeeks = [];
+  let leagueScoringHistory = [];
+  let leagueHistoryPeakAverage = 0;
 
+  const MOVEMENT_COLORS = [
+    '#c58a2c', '#4b90b5', '#5b9b73', '#c36b4d',
+    '#7b8d9b', '#b6a04b', '#3f7f7a', '#a65c44',
+    '#6f8fbd', '#a18a59', '#4c9d98', '#b07936'
+  ];
   const WINDOW = 4;
 
   function fmt(v, places = 1) {
@@ -120,39 +132,6 @@
   }
 
 
-  function findSeasonStreakLeaders(standings, weeks) {
-    const collected = standings.collectedMatchups || {}, rosterMap = standings.rosterMap || {};
-    const streaks = {};
-    for (const rid of Object.keys(rosterMap)) streaks[rid] = { win: 0, loss: 0, bestWin: 0, bestLoss: 0 };
-    for (const week of weeks) {
-      const entries = collected[week] || collected[String(week)] || [], byMatchup = {};
-      for (const entry of entries) {
-        const mid = String(entry.matchup_id ?? entry.matchupId ?? `week-${week}-${entry.roster_id ?? entry.rosterId}`);
-        (byMatchup[mid] ||= []).push(entry);
-      }
-      for (const pair of Object.values(byMatchup)) {
-        if (pair.length < 2) continue;
-        const [a, b] = pair, aId = String(a.roster_id ?? a.rosterId), bId = String(b.roster_id ?? b.rosterId);
-        const aPts = computeParticipantPoints(a), bPts = computeParticipantPoints(b);
-        if (!streaks[aId] || !streaks[bId]) continue;
-        if (aPts > bPts + 1e-9) {
-          streaks[aId].win++; streaks[aId].loss = 0; streaks[bId].loss++; streaks[bId].win = 0;
-        } else if (bPts > aPts + 1e-9) {
-          streaks[bId].win++; streaks[bId].loss = 0; streaks[aId].loss++; streaks[aId].win = 0;
-        } else {
-          streaks[aId].win = streaks[aId].loss = 0; streaks[bId].win = streaks[bId].loss = 0;
-        }
-        for (const id of [aId, bId]) {
-          streaks[id].bestWin = Math.max(streaks[id].bestWin, streaks[id].win);
-          streaks[id].bestLoss = Math.max(streaks[id].bestLoss, streaks[id].loss);
-        }
-      }
-    }
-    const rows = Object.entries(streaks).map(([rosterId, s]) => ({ rosterId, meta: rosterMap[rosterId] || {}, ...s }));
-    const wins = [...rows].sort((a,b)=>b.bestWin-a.bestWin), losses = [...rows].sort((a,b)=>b.bestLoss-a.bestLoss);
-    return { win: wins[0]?.bestWin > 0 ? wins[0] : null, loss: losses[0]?.bestLoss > 0 ? losses[0] : null };
-  }
-
   async function loadAll() {
     loading = true;
     error = null;
@@ -166,6 +145,42 @@
 
       const standings = await computeStandingsForLeague(leagueId);
       const weekly = standings.weeklyPfByRoster || {};
+      const rosterMap = standings.rosterMap || {};
+      const scoringTrends = buildWeeklyScoringTrends(weekly, rosterMap);
+      const movement = buildStandingsMovementSeries(standings.standingsMovement?.snapshots || [], rosterMap);
+      movementWeeks = movement.weeks;
+      movementSeries = movement.teams;
+      const comparison = buildRecentVsSeasonComparison(weekly, rosterMap, WINDOW);
+      seasonComparisonRows = comparison.teams;
+      seasonComparisonWeeks = comparison.recentWeeks;
+
+      // Historical seasons use the same standings scorer as the active season.
+      // Reuse the current result and isolate failures so one missing archive
+      // cannot prevent the current Trends page from rendering.
+      const historicalSeasonData = await Promise.all(
+        (Array.isArray(seasons) ? seasons : [])
+          .filter((season) => season?.league_id && season?.season)
+          .map(async (season) => {
+            try {
+              const seasonStandings = String(season.league_id) === leagueId
+                ? standings
+                : await computeStandingsForLeague(String(season.league_id));
+              return {
+                season: season.season,
+                weeklyPfByRoster: seasonStandings.weeklyPfByRoster || {},
+                rosterMap: seasonStandings.rosterMap || {}
+              };
+            } catch (historyError) {
+              console.warn('[Trends] historical season unavailable', season.season, historyError);
+              return null;
+            }
+          })
+      );
+      leagueScoringHistory = buildLeagueScoringHistory(historicalSeasonData.filter(Boolean));
+      leagueHistoryPeakAverage = Math.max(0, ...leagueScoringHistory.map((season) => season.averageScore));
+      scoringWeeks = scoringTrends.weeks;
+      seasonHighScore = scoringTrends.seasonHigh;
+      seasonLowScore = scoringTrends.seasonLow;
 
       // Find every regular-season week that had data in THIS league (use any
       // roster's weekly list — they all share the same set of weeks).
@@ -182,10 +197,6 @@
       weekWindow = latestN;
 
       const current = rankWindow(standings, latestN);
-      const seasonStreaks = findSeasonStreakLeaders(standings, allWeeks);
-      longestWinStreak = seasonStreaks.win;
-      longestLoseStreak = seasonStreaks.loss;
-
       // Previous-week comparison: same window shifted back by 1 if we have
       // enough weeks. Otherwise leave prevRank = null (no movement arrow).
       let previous = [];
@@ -205,6 +216,35 @@
     }
   }
 
+  function movementX(index) {
+    const left = 62;
+    const plotWidth = 970;
+    return left + (index * plotWidth) / Math.max(1, movementWeeks.length - 1);
+  }
+
+  function movementY(rank) {
+    const top = 36;
+    const plotHeight = 330;
+    return top + ((rank - 1) * plotHeight) / Math.max(1, movementSeries.length - 1);
+  }
+
+  function movementPath(ranks) {
+    let previousValid = false;
+    return ranks.map((rank, index) => {
+      if (!Number.isInteger(rank)) {
+        previousValid = false;
+        return '';
+      }
+      const command = previousValid ? 'L' : 'M';
+      previousValid = true;
+      return command + movementX(index) + ',' + movementY(rank);
+    }).filter(Boolean).join(' ');
+  }
+
+  function movementColor(index) {
+    return MOVEMENT_COLORS[index % MOVEMENT_COLORS.length];
+  }
+
   function movementOf(r) {
     if (r.prevRank == null) return { type: 'flat', delta: 0, label: 'NEW' };
     const delta = r.prevRank - r.rank;
@@ -213,14 +253,9 @@
     return { type: 'flat', delta: 0, label: '—' };
   }
 
-  $: biggestRiser = [...rankings].filter((r) => r.prevRank != null && r.prevRank > r.rank)
-    .sort((a, b) => (b.prevRank - b.rank) - (a.prevRank - a.rank))[0] || null;
-  $: topScorer = [...rankings].sort((a, b) => b.avgPf - a.avgPf)[0] || null;
-  $: bestRecord = [...rankings].sort((a, b) => {
-    const aGames = a.wins + a.losses, bGames = b.wins + b.losses;
-    const aRate = aGames ? a.wins / aGames : 0, bRate = bGames ? b.wins / bGames : 0;
-    return bRate - aRate || b.wins - a.wins || b.margin - a.margin;
-  })[0] || null;
+  $: latestScoringWeek = scoringWeeks[scoringWeeks.length - 1] || null;
+  $: highestAverageWeek = [...scoringWeeks].sort((a, b) => b.averageScore - a.averageScore)[0] || null;
+  $: peakScoringAverage = Math.max(0, ...scoringWeeks.map((week) => week.averageScore));
 
   onMount(loadAll);
 </script>
@@ -237,7 +272,7 @@
       </div>
       <h1 class="page-title">Trends</h1>
       <p class="page-sub">
-        Full-season records for the longest winning and losing streaks. The Power Rankings snapshot below remains based on the latest completed weeks.
+        Track how league scoring changes week to week and see which teams are gaining momentum in the rolling Power Rankings.
       </p>
     </div>
   </header>
@@ -249,30 +284,69 @@
   {:else if rankings.length === 0}
     <div class="empty-card" data-testid="rankings-empty">Not enough completed weeks to show trends yet. Check back after a few games.</div>
   {:else}
-    <section class="trend-grid" aria-label="Full-season streak records">
-      <article class="trend-card">
-        <div class="trend-kicker">Longest win streak</div>
-        {#if longestWinStreak}
-          <div class="trend-team"><img class="team-avatar" src={avatarOrPlaceholder(longestWinStreak.meta.team_avatar || longestWinStreak.meta.owner_avatar, longestWinStreak.meta.team_name)} alt="" />
-            <div><div class="trend-name">{longestWinStreak.meta.team_name}</div><div class="trend-detail">{longestWinStreak.meta.owner_name || longestWinStreak.meta.owner_username || 'League team'}</div></div></div>
-          <div class="trend-value positive">{longestWinStreak.bestWin} <span>consecutive wins</span></div>
-          <div class="trend-caption">Longest winning run this season</div>
-        {:else}<div class="trend-empty">No completed win streak yet</div>{/if}
-      </article>
-      <article class="trend-card">
-        <div class="trend-kicker">Longest losing streak</div>
-        {#if longestLoseStreak}
-          <div class="trend-team"><img class="team-avatar" src={avatarOrPlaceholder(longestLoseStreak.meta.team_avatar || longestLoseStreak.meta.owner_avatar, longestLoseStreak.meta.team_name)} alt="" />
-            <div><div class="trend-name">{longestLoseStreak.meta.team_name}</div><div class="trend-detail">{longestLoseStreak.meta.owner_name || longestLoseStreak.meta.owner_username || 'League team'}</div></div></div>
-          <div class="trend-value negative">{longestLoseStreak.bestLoss} <span>consecutive losses</span></div>
-          <div class="trend-caption">Longest losing run this season</div>
-        {:else}<div class="trend-empty">No completed losing streak yet</div>{/if}
-      </article>
+    <div class="section-heading">
+      <div><div class="eyebrow">Scoring trends</div><h2>Weekly Scoring Pulse</h2></div>
+      <p>Average team points by completed regular-season week. Hover over a bar to see that week’s top and lowest recorded team scores.</p>
+    </div>
+    <section class="pulse-panel block" aria-label="Weekly scoring pulse">
+      <div class="pulse-summary">
+        <article class="pulse-stat">
+          <span class="pulse-stat-label">Season high score</span>
+          {#if seasonHighScore}
+            <strong>{fmt(seasonHighScore.score, 1)} <em>pts</em></strong>
+            <small><img src={avatarOrPlaceholder(seasonHighScore.avatar, seasonHighScore.teamName)} alt="" /> {seasonHighScore.teamName} · Week {seasonHighScore.week}</small>
+          {:else}
+            <strong>—</strong><small>No recorded score yet</small>
+          {/if}
+        </article>
+        <article class="pulse-stat">
+          <span class="pulse-stat-label">Season low score</span>
+          {#if seasonLowScore}
+            <strong>{fmt(seasonLowScore.score, 1)} <em>pts</em></strong>
+            <small><img src={avatarOrPlaceholder(seasonLowScore.avatar, seasonLowScore.teamName)} alt="" /> {seasonLowScore.teamName} · Week {seasonLowScore.week}</small>
+          {:else}
+            <strong>—</strong><small>No recorded score yet</small>
+          {/if}
+        </article>
+        <article class="pulse-stat">
+          <span class="pulse-stat-label">Latest week average</span>
+          {#if latestScoringWeek}
+            <strong>{fmt(latestScoringWeek.averageScore, 1)} <em>pts</em></strong>
+            <small>Week {latestScoringWeek.week} · {latestScoringWeek.teamCount} teams with recorded scores</small>
+          {:else}
+            <strong>—</strong><small>No completed scoring week yet</small>
+          {/if}
+        </article>
+      </div>
+      {#if scoringWeeks.length > 0}
+        <div class="pulse-chart-scroll">
+          <div class="pulse-chart" role="img" aria-label="Average team score by completed regular-season week">
+            {#each scoringWeeks as week (week.week)}
+              <div
+                class="pulse-week"
+                title={"Week " + week.week + ": " + fmt(week.averageScore, 1) + " average points; high " + fmt(week.highScore.score, 1) + " by " + week.highScore.teamName + "; low " + fmt(week.lowScore.score, 1) + " by " + week.lowScore.teamName}
+              >
+                <span class="pulse-value">{fmt(week.averageScore, 0)}</span>
+                <div class="pulse-track">
+                  <div class="pulse-bar" style={"height:" + Math.max(5, (week.averageScore / peakScoringAverage) * 100) + "%"}></div>
+                </div>
+                <span class="pulse-week-label">W{week.week}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+        <div class="pulse-footer">
+          <span><i class="pulse-legend-dot"></i> Average team score</span>
+          {#if highestAverageWeek}<span>Highest-scoring week: Week {highestAverageWeek.week} · {fmt(highestAverageWeek.averageScore, 1)} average</span>{/if}
+        </div>
+      {:else}
+        <div class="pulse-empty">Weekly scoring trends will appear after completed team scores are available.</div>
+      {/if}
     </section>
 
-    <div class="section-heading">
-      <div><div class="eyebrow">League snapshot</div><h2>Power Rankings</h2></div>
-      <p>Same rolling 4-week blend: 60% average points, 40% win-loss rank. Movement compares with the prior window.</p>
+    <div class="section-heading rankings-heading">
+      <div><div class="eyebrow">League snapshot · Weeks {weekWindow[0]}–{weekWindow[weekWindow.length - 1]}</div><h2>Power Rankings</h2></div>
+      <p>Rolling {weekWindow.length}-week blend: 60% average-points rank and 40% win-loss rank. Movement compares with the prior window.</p>
     </div>
     <section class="block" aria-label="Power rankings">
       <div class="table-wrap">
@@ -325,6 +399,114 @@
         </table>
       </div>
     </section>
+
+    <div class="section-heading analytics-heading">
+      <div><div class="eyebrow">Regular-season position</div><h2>Standings Movement</h2></div>
+      <p>Each team’s logo follows its league rank after every completed regular-season week. Rank 1 is the top position.</p>
+    </div>
+    <section class="block movement-panel" aria-label="Standings movement chart">
+      {#if movementWeeks.length > 0 && movementSeries.length > 0}
+        <div class="movement-chart-frame">
+          <svg class="movement-chart" viewBox="0 0 1080 445" role="img" aria-label="Team standings rank by completed week, with team logos at each point">
+            <defs>
+              {#each movementSeries as team}
+                {#each team.ranks as rank, pointIndex}
+                  {#if rank != null}
+                    <clipPath id={"movement-logo-" + team.rosterId + "-" + pointIndex}>
+                      <circle cx={movementX(pointIndex)} cy={movementY(rank)} r="13" />
+                    </clipPath>
+                  {/if}
+                {/each}
+              {/each}
+            </defs>
+            {#each Array.from({ length: movementSeries.length }, (_, index) => index + 1) as rank}
+              <line x1="62" x2="1032" y1={movementY(rank)} y2={movementY(rank)} class="movement-gridline" />
+              <text x="42" y={movementY(rank) + 5} class="movement-axis-label" text-anchor="end">{rank}</text>
+            {/each}
+            {#each movementWeeks as week, index}
+              <text x={movementX(index)} y="414" class="movement-axis-label" text-anchor="middle">W{week}</text>
+            {/each}
+            {#each movementSeries as team, index (team.rosterId)}
+              <path d={movementPath(team.ranks)} fill="none" stroke={movementColor(index)} stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+              {#each team.ranks as rank, pointIndex}
+                {#if rank != null}
+                  <circle cx={movementX(pointIndex)} cy={movementY(rank)} r="15" fill="var(--surface-1)" stroke={movementColor(index)} stroke-width="2.5" />
+                  <image
+                    href={avatarOrPlaceholder(team.avatar, team.teamName)}
+                    x={movementX(pointIndex) - 13}
+                    y={movementY(rank) - 13}
+                    width="26"
+                    height="26"
+                    preserveAspectRatio="xMidYMid slice"
+                    clip-path={"url(#movement-logo-" + team.rosterId + "-" + pointIndex + ")"}
+                  >
+                    <title>{team.teamName} · Week {movementWeeks[pointIndex]} · Rank {rank}</title>
+                  </image>
+                {/if}
+              {/each}
+            {/each}
+          </svg>
+        </div>
+        <div class="movement-legend">
+          {#each movementSeries as team, index (team.rosterId)}
+            <span><i style={"--team-color:" + movementColor(index)}></i>{team.teamName}</span>
+          {/each}
+        </div>
+      {:else}
+        <div class="analytics-empty">Standings movement will appear once the first completed regular-season week is available.</div>
+      {/if}
+    </section>
+
+    <div class="section-heading analytics-heading">
+      <div>
+        <div class="eyebrow">{#if seasonComparisonWeeks.length}Weeks {seasonComparisonWeeks[0]}–{seasonComparisonWeeks[seasonComparisonWeeks.length - 1]}{/if}</div>
+        <h2>Recent vs Season Average</h2>
+      </div>
+      <p>Compare each team’s average across the latest completed weeks with its full-season average. Positive differences indicate a recent scoring increase.</p>
+    </div>
+    <section class="block" aria-label="Recent scoring compared with season average">
+      {#if seasonComparisonRows.length > 0}
+        <div class="table-wrap">
+          <table class="bfa-table analytics-table" data-testid="season-comparison-table">
+            <thead><tr><th>Team</th><th class="col-num">Season Avg</th><th class="col-num">Recent Avg</th><th class="col-num">Difference</th></tr></thead>
+            <tbody>
+              {#each seasonComparisonRows as team (team.rosterId)}
+                <tr>
+                  <td><div class="team-cell"><img class="team-avatar small" src={avatarOrPlaceholder(team.avatar, team.teamName)} alt="" /><span class="team-name-cell">{team.teamName}</span></div></td>
+                  <td class="col-num"><span class="num">{fmt(team.seasonAverage, 1)}</span></td>
+                  <td class="col-num"><span class="num">{fmt(team.recentAverage, 1)}</span></td>
+                  <td class="col-num"><span class="num" class:positive={team.difference > 0} class:negative={team.difference < 0}>{team.difference > 0 ? '+' : ''}{fmt(team.difference, 1)}</span></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {:else}
+        <div class="analytics-empty">Recent scoring comparisons will appear after completed team scores are available.</div>
+      {/if}
+    </section>
+
+    <div class="section-heading analytics-heading">
+      <div><div class="eyebrow">Season-by-season scoring</div><h2>League Scoring History</h2></div>
+      <p>League-wide average team points across completed regular-season team scores in each BFA season.</p>
+    </div>
+    <section class="block history-panel" aria-label="League scoring history chart">
+      {#if leagueScoringHistory.length > 0}
+        <div class="history-chart" style={"--history-count:" + leagueScoringHistory.length} role="img" aria-label="Average team score by BFA season">
+          {#each leagueScoringHistory as season (season.season)}
+            <div class="history-season" title={season.season + " season: " + fmt(season.averageScore, 1) + " average points across " + season.scoreCount + " team scores"}>
+              <span class="history-value">{fmt(season.averageScore, 1)}</span>
+              <div class="history-track"><div class="history-bar" style={"height:" + Math.max(5, (season.averageScore / leagueHistoryPeakAverage) * 100) + "%"}></div></div>
+              <span class="history-season-label">{season.season}</span>
+            </div>
+          {/each}
+        </div>
+        <div class="pulse-footer"><span>Average points per team-week</span><span>{leagueScoringHistory.reduce((sum, season) => sum + season.scoreCount, 0)} recorded team scores across {leagueScoringHistory.length} seasons</span></div>
+      {:else}
+        <div class="analytics-empty">Historical scoring will appear as completed season archives are available.</div>
+      {/if}
+    </section>
+
   {/if}
 </div>
 
@@ -335,17 +517,45 @@
   .page-sub { color: var(--text-secondary); margin-top: 0.6rem; max-width: 75ch; }
   .muted { color: var(--text-tertiary); }
 
-  .trend-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0 0 2.5rem; }
-  .trend-card { min-width: 0; padding: 1.25rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); }
-  .trend-kicker { color: var(--text-tertiary); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 1rem; }
-  .trend-team { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
-  .trend-team .team-avatar { width: 48px; height: 48px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); flex: 0 0 auto; }
-  .trend-name { font-weight: 800; overflow-wrap: anywhere; }
-  .trend-detail, .trend-caption { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.2rem; }
-  .trend-value { font-family: var(--font-display); font-size: 1.8rem; line-height: 1.1; margin-top: 1rem; }
-  .trend-value span { font-family: var(--font-body); font-size: 0.78rem; color: var(--text-secondary); }
-  .trend-caption { margin-top: 0.35rem; }
-  .trend-empty { color: var(--text-secondary); padding: 1rem 0; }
+  .pulse-panel { padding: 1rem; margin-bottom: 2.5rem; }
+  .pulse-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1.4rem; }
+  .pulse-stat { min-width: 0; padding: 0.95rem 1rem; border-radius: var(--r-sm); background: var(--surface-2); }
+  .pulse-stat-label { display: block; color: var(--text-tertiary); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .pulse-stat strong { display: block; margin-top: 0.4rem; font-family: var(--font-display); font-size: 1.75rem; line-height: 1; color: var(--text-primary); }
+  .pulse-stat strong em { font-family: var(--font-body); font-size: 0.72rem; font-style: normal; color: var(--text-secondary); }
+  .pulse-stat small { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.55rem; color: var(--text-tertiary); font-size: 0.75rem; overflow-wrap: anywhere; }
+  .pulse-stat small img { width: 20px; height: 20px; flex: 0 0 auto; object-fit: cover; border-radius: 5px; background: var(--surface-1); }
+  .pulse-chart-scroll { width: 100%; overflow-x: auto; padding: 0.5rem 0.1rem 0; }
+  .pulse-chart { min-width: 560px; height: 190px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.55rem; align-items: end; }
+  .pulse-week { height: 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 0.35rem; }
+  .pulse-value { color: var(--text-secondary); font-size: 0.67rem; font-variant-numeric: tabular-nums; }
+  .pulse-track { height: 145px; width: min(100%, 34px); display: flex; align-items: end; overflow: hidden; background: var(--surface-2); border-radius: 5px 5px 2px 2px; }
+  .pulse-bar { width: 100%; min-height: 3px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, var(--accent), var(--brand)); transition: height 180ms ease; }
+  .pulse-week-label { color: var(--text-tertiary); font-size: 0.68rem; }
+  .pulse-footer { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.75rem; }
+  .pulse-footer > span:first-child { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .pulse-legend-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); display: inline-block; }
+  .pulse-empty { padding: 1.5rem 0.5rem; color: var(--text-secondary); text-align: center; }
+  .rankings-heading { margin-top: 0.5rem; }
+
+  .analytics-heading { margin-top: 2.5rem; }
+  .movement-panel { padding: 0.9rem 1rem 1rem; }
+  .movement-chart-frame { width: 100%; }
+  .movement-chart { display: block; width: 100%; height: auto; }
+  .movement-gridline { stroke: var(--border-subtle); stroke-width: 1; }
+  .movement-axis-label { fill: var(--text-tertiary); font-size: 12px; }
+  .movement-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.55rem 0.9rem; margin: 0.55rem 0.25rem 0.1rem; }
+  .movement-legend span { display: flex; align-items: center; gap: 0.45rem; min-width: 0; color: var(--text-secondary); font-size: 0.76rem; overflow-wrap: anywhere; }
+  .movement-legend i { display: inline-block; width: 17px; height: 3px; flex: 0 0 auto; border-radius: 3px; background: var(--team-color); }
+  .analytics-empty { padding: 1.5rem 1rem; color: var(--text-secondary); text-align: center; }
+  .history-panel { padding: 0.8rem 1rem 0.9rem; }
+  .history-chart { display: grid; grid-template-columns: repeat(var(--history-count), minmax(0, 1fr)); gap: clamp(0.45rem, 2vw, 1rem); align-items: end; width: 100%; min-width: 0; height: 210px; padding: 0.45rem 0.2rem 0; }
+  .history-season { min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: end; align-items: center; gap: 0.35rem; }
+  .history-value { color: var(--text-secondary); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+  .history-track { width: min(100%, 64px); height: 160px; display: flex; align-items: end; overflow: hidden; background: var(--surface-2); border-radius: 5px 5px 2px 2px; }
+  .history-bar { width: 100%; min-height: 3px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, var(--accent), var(--brand)); }
+  .history-season-label { color: var(--text-tertiary); font-size: 0.76rem; }
+
   .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; margin: 0 0 1rem; }
   .section-heading h2 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.3rem); text-transform: uppercase; margin: 0.25rem 0 0; }
   .section-heading p { color: var(--text-tertiary); font-size: 0.82rem; max-width: 46ch; margin: 0 0 0.25rem; }
@@ -376,8 +586,8 @@
     text-align: center;
     letter-spacing: 0.04em;
   }
-  .mv-up { background: rgba(52, 50, 200, 0.18); color: var(--brand); }
-  .mv-down { background: rgba(200, 114, 50, 0.16); color: var(--accent); }
+  .mv-up { background: var(--surface-2); color: var(--brand); }
+  .mv-down { background: var(--surface-2); color: var(--accent); }
   .mv-flat { background: var(--surface-2); color: var(--text-tertiary); }
 
   .empty-card {
@@ -391,10 +601,19 @@
 
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
-    .trend-grid { grid-template-columns: 1fr; gap: 0.75rem; margin-bottom: 2rem; }
-    .trend-card { padding: 1rem; }
     .section-heading { display: block; }
     .section-heading p { margin-top: 0.5rem; }
+    .movement-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+    .movement-panel { padding: 0.65rem; }
+    .history-panel { padding: 0.7rem; }
+    .history-chart { height: 190px; gap: 0.35rem; }
+    .history-track { height: 140px; width: min(100%, 42px); }
+    .history-value, .history-season-label { font-size: 0.68rem; }
+    .pulse-panel { padding: 0.75rem; margin-bottom: 2rem; }
+    .pulse-summary { grid-template-columns: 1fr; gap: 0.5rem; }
+    .pulse-stat { padding: 0.8rem; }
+    .pulse-footer { flex-direction: column; gap: 0.35rem; }
+    .pulse-chart { min-width: 520px; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .page-sub { font-size: 0.88rem; }
     .col-trend { width: auto; min-width: 0; }
