@@ -186,10 +186,6 @@
     return Number.isFinite(week) && week > 0 ? `WEEK ${week}` : 'WEEK';
   }
 
-  function bracketRoundWeek(round) {
-    return '';
-  }
-
   function bracketMainTitle(round, bracketType, matches) {
     const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType, matches));
     if (!mainMatches.length) return '';
@@ -276,8 +272,8 @@
       return false;
     }
 
-    // In 2022, the two Round 1 winners advance to the Toilet Bowl
-    // semifinals. The other Round 2 matchups are consolation games.
+    // In 2022, the two opening-game winners advance in the main Toilet Bowl
+    // bracket. The other matchups are consolation games.
     // Sleeper's placement field does not reflect that historical format.
     if (Number(bracketData.season) === 2022 && round === 2) {
       const roundOneWinners = new Set(
