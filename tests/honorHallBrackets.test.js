@@ -241,3 +241,58 @@ test('Sleeper p values put 5th/6th and 7th/8th games in placement, not the playo
   assert.deepEqual(mainIds, [7, 8]);
   assert.deepEqual(placementIds, [5, 6, 9, 10]);
 });
+
+
+test('unplayed 2026 bracket shells without placement metadata do not duplicate semifinal placement games', () => {
+  const actualSleeperShell = [
+    { r: 1, m: 1, t1: 101, t2: 102, w: null, l: null },
+    { r: 1, m: 2, t1: 103, t2: 104, w: null, l: null },
+    { r: 1, m: 3, t1: 105, t2: 106, w: null, l: null },
+    { r: 1, m: 4, t1: 107, t2: 108, w: null, l: null },
+    // Sleeper has supplied the four unplayed games, but not p or feeder data.
+    { r: 2, m: 5, t1: null, t2: null, w: null, l: null },
+    { r: 2, m: 6, t1: null, t2: null, w: null, l: null },
+    { r: 2, m: 7, t1: null, t2: null, w: null, l: null },
+    { r: 2, m: 8, t1: null, t2: null, w: null, l: null },
+    { r: 3, m: 9, t1: null, t2: null, w: null, l: null },
+    { r: 3, m: 10, t1: null, t2: null, w: null, l: null },
+    { r: 3, m: 11, t1: null, t2: null, w: null, l: null },
+    { r: 3, m: 12, t1: null, t2: null, w: null, l: null },
+  ];
+
+  const sections = getBracketDisplaySections(actualSleeperShell, 'winners', 2026);
+  assert.deepEqual(sections.mainRounds.map((round) => round.matches.length), [4, 2, 2]);
+  assert.deepEqual(sections.placementRounds.map((round) => round.matches.length), [2, 2]);
+  assert.deepEqual(
+    sections.mainMatches.map((match) => match.m),
+    [1, 2, 3, 4, 5, 6, 9, 10]
+  );
+  assert.deepEqual(
+    sections.placementMatches.map((match) => match.m),
+    [7, 8, 11, 12]
+  );
+  assert.equal(
+    new Set([...sections.mainMatches, ...sections.placementMatches]
+      .map((match) => String(match.m))).size,
+    12,
+    'each actual matchup is rendered in exactly one section'
+  );
+});
+
+test('2026 round-two p markers above one identify placement semifinals', () => {
+  const games = [
+    { r: 2, m: 5, p: 1, t1: null, t2: null },
+    { r: 2, m: 6, p: 1, t1: null, t2: null },
+    { r: 2, m: 7, p: 2, t1: null, t2: null },
+    { r: 2, m: 8, p: 3, t1: null, t2: null },
+    { r: 3, m: 9, p: 1, t1: null, t2: null },
+    { r: 3, m: 10, p: 3, t1: null, t2: null },
+    { r: 3, m: 11, p: 5, t1: null, t2: null },
+    { r: 3, m: 12, p: 7, t1: null, t2: null },
+  ];
+  assert.deepEqual(
+    games.filter((match) => isBracketPlacementMatch(match, 'winners', games, 2026))
+      .map((match) => match.m),
+    [7, 8, 11, 12]
+  );
+});
