@@ -16,7 +16,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getSeasonsChain, BASE_LEAGUE_ID, pickActiveLeague } from '$lib/api';
-  import { computeStandingsForLeague } from '$lib/compute';
+  import { computeStandingsForLeague, buildWeeklyScoringTrends } from '$lib/compute';
   import { computeParticipantPoints } from '$lib/compute/scoring';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
@@ -35,6 +35,12 @@
   let bestRecord = null;
   let longestWinStreak = null;
   let longestLoseStreak = null;
+  let scoringWeeks = [];
+  let seasonHighScore = null;
+  let seasonLowScore = null;
+  let latestScoringWeek = null;
+  let highestAverageWeek = null;
+  let peakScoringAverage = 0;
 
   const WINDOW = 4;
 
@@ -166,6 +172,10 @@
 
       const standings = await computeStandingsForLeague(leagueId);
       const weekly = standings.weeklyPfByRoster || {};
+      const scoringTrends = buildWeeklyScoringTrends(weekly, standings.rosterMap || {});
+      scoringWeeks = scoringTrends.weeks;
+      seasonHighScore = scoringTrends.seasonHigh;
+      seasonLowScore = scoringTrends.seasonLow;
 
       // Find every regular-season week that had data in THIS league (use any
       // roster's weekly list — they all share the same set of weeks).
@@ -221,6 +231,9 @@
     const aRate = aGames ? a.wins / aGames : 0, bRate = bGames ? b.wins / bGames : 0;
     return bRate - aRate || b.wins - a.wins || b.margin - a.margin;
   })[0] || null;
+  $: latestScoringWeek = scoringWeeks[scoringWeeks.length - 1] || null;
+  $: highestAverageWeek = [...scoringWeeks].sort((a, b) => b.averageScore - a.averageScore)[0] || null;
+  $: peakScoringAverage = Math.max(0, ...scoringWeeks.map((week) => week.averageScore));
 
   onMount(loadAll);
 </script>
@@ -237,7 +250,7 @@
       </div>
       <h1 class="page-title">Trends</h1>
       <p class="page-sub">
-        Full-season records for the longest winning and losing streaks. The Power Rankings snapshot below remains based on the latest completed weeks.
+        Follow the league’s season-long streak records, see how scoring changes week to week, and track which teams are gaining momentum in the rolling Power Rankings.
       </p>
     </div>
   </header>
@@ -268,11 +281,110 @@
           <div class="trend-caption">Longest losing run this season</div>
         {:else}<div class="trend-empty">No completed losing streak yet</div>{/if}
       </article>
+      <article class="trend-card">
+        <div class="trend-kicker">Biggest riser</div>
+        {#if biggestRiser}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(biggestRiser.meta.team_avatar || biggestRiser.meta.owner_avatar, biggestRiser.meta.team_name)} alt="" />
+            <div><div class="trend-name">{biggestRiser.meta.team_name}</div><div class="trend-detail">{biggestRiser.meta.owner_name || biggestRiser.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value positive">▲ {biggestRiser.prevRank - biggestRiser.rank} <span>spots</span></div>
+          <div class="trend-caption">Moved from #{biggestRiser.prevRank} to #{biggestRiser.rank} in the latest window</div>
+        {:else}
+          <div class="trend-empty">No ranking movement yet</div>
+        {/if}
+      </article>
+      <article class="trend-card">
+        <div class="trend-kicker">Top recent scorer</div>
+        {#if topScorer}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(topScorer.meta.team_avatar || topScorer.meta.owner_avatar, topScorer.meta.team_name)} alt="" />
+            <div><div class="trend-name">{topScorer.meta.team_name}</div><div class="trend-detail">{topScorer.meta.owner_name || topScorer.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value">{fmt(topScorer.avgPf, 1)} <span>avg points</span></div>
+          <div class="trend-caption">Highest average across the last {weekWindow.length} completed weeks</div>
+        {:else}
+          <div class="trend-empty">No scoring leader yet</div>
+        {/if}
+      </article>
+      <article class="trend-card">
+        <div class="trend-kicker">Best recent record</div>
+        {#if bestRecord}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(bestRecord.meta.team_avatar || bestRecord.meta.owner_avatar, bestRecord.meta.team_name)} alt="" />
+            <div><div class="trend-name">{bestRecord.meta.team_name}</div><div class="trend-detail">{bestRecord.meta.owner_name || bestRecord.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value">{bestRecord.wins}-{bestRecord.losses} <span>record</span></div>
+          <div class="trend-caption">Best win rate across the latest completed weeks</div>
+        {:else}
+          <div class="trend-empty">No recent record yet</div>
+        {/if}
+      </article>
     </section>
 
     <div class="section-heading">
-      <div><div class="eyebrow">League snapshot</div><h2>Power Rankings</h2></div>
-      <p>Same rolling 4-week blend: 60% average points, 40% win-loss rank. Movement compares with the prior window.</p>
+      <div><div class="eyebrow">Scoring trends</div><h2>Weekly Scoring Pulse</h2></div>
+      <p>Average team points by completed regular-season week. Hover over a bar to see that week’s top and lowest recorded team scores.</p>
+    </div>
+    <section class="pulse-panel block" aria-label="Weekly scoring pulse">
+      <div class="pulse-summary">
+        <article class="pulse-stat">
+          <span class="pulse-stat-label">Season high score</span>
+          {#if seasonHighScore}
+            <strong>{fmt(seasonHighScore.score, 1)} <em>pts</em></strong>
+            <small><img src={avatarOrPlaceholder(seasonHighScore.avatar, seasonHighScore.teamName)} alt="" /> {seasonHighScore.teamName} · Week {seasonHighScore.week}</small>
+          {:else}
+            <strong>—</strong><small>No recorded score yet</small>
+          {/if}
+        </article>
+        <article class="pulse-stat">
+          <span class="pulse-stat-label">Season low score</span>
+          {#if seasonLowScore}
+            <strong>{fmt(seasonLowScore.score, 1)} <em>pts</em></strong>
+            <small><img src={avatarOrPlaceholder(seasonLowScore.avatar, seasonLowScore.teamName)} alt="" /> {seasonLowScore.teamName} · Week {seasonLowScore.week}</small>
+          {:else}
+            <strong>—</strong><small>No recorded score yet</small>
+          {/if}
+        </article>
+        <article class="pulse-stat">
+          <span class="pulse-stat-label">Latest week average</span>
+          {#if latestScoringWeek}
+            <strong>{fmt(latestScoringWeek.averageScore, 1)} <em>pts</em></strong>
+            <small>Week {latestScoringWeek.week} · {latestScoringWeek.teamCount} teams with recorded scores</small>
+          {:else}
+            <strong>—</strong><small>No completed scoring week yet</small>
+          {/if}
+        </article>
+      </div>
+      {#if scoringWeeks.length > 0}
+        <div class="pulse-chart-scroll">
+          <div class="pulse-chart" role="img" aria-label="Average team score by completed regular-season week">
+            {#each scoringWeeks as week (week.week)}
+              <div
+                class="pulse-week"
+                title={"Week " + week.week + ": " + fmt(week.averageScore, 1) + " average points; high " + fmt(week.highScore.score, 1) + " by " + week.highScore.teamName + "; low " + fmt(week.lowScore.score, 1) + " by " + week.lowScore.teamName}
+              >
+                <span class="pulse-value">{fmt(week.averageScore, 0)}</span>
+                <div class="pulse-track">
+                  <div class="pulse-bar" style={"height:" + Math.max(5, (week.averageScore / peakScoringAverage) * 100) + "%"}></div>
+                </div>
+                <span class="pulse-week-label">W{week.week}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+        <div class="pulse-footer">
+          <span><i class="pulse-legend-dot"></i> Average team score</span>
+          {#if highestAverageWeek}<span>Highest-scoring week: Week {highestAverageWeek.week} · {fmt(highestAverageWeek.averageScore, 1)} average</span>{/if}
+        </div>
+      {:else}
+        <div class="pulse-empty">Weekly scoring trends will appear after completed team scores are available.</div>
+      {/if}
+    </section>
+
+    <div class="section-heading rankings-heading">
+      <div><div class="eyebrow">League snapshot · Weeks {weekWindow[0]}–{weekWindow[weekWindow.length - 1]}</div><h2>Power Rankings</h2></div>
+      <p>Rolling {weekWindow.length}-week blend: 60% average-points rank and 40% win-loss rank. Movement compares with the prior window.</p>
     </div>
     <section class="block" aria-label="Power rankings">
       <div class="table-wrap">
@@ -346,6 +458,27 @@
   .trend-value span { font-family: var(--font-body); font-size: 0.78rem; color: var(--text-secondary); }
   .trend-caption { margin-top: 0.35rem; }
   .trend-empty { color: var(--text-secondary); padding: 1rem 0; }
+  .pulse-panel { padding: 1rem; margin-bottom: 2.5rem; }
+  .pulse-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1.4rem; }
+  .pulse-stat { min-width: 0; padding: 0.95rem 1rem; border-radius: var(--r-sm); background: var(--surface-2); }
+  .pulse-stat-label { display: block; color: var(--text-tertiary); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .pulse-stat strong { display: block; margin-top: 0.4rem; font-family: var(--font-display); font-size: 1.75rem; line-height: 1; color: var(--text-primary); }
+  .pulse-stat strong em { font-family: var(--font-body); font-size: 0.72rem; font-style: normal; color: var(--text-secondary); }
+  .pulse-stat small { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.55rem; color: var(--text-tertiary); font-size: 0.75rem; overflow-wrap: anywhere; }
+  .pulse-stat small img { width: 20px; height: 20px; flex: 0 0 auto; object-fit: cover; border-radius: 5px; background: var(--surface-1); }
+  .pulse-chart-scroll { width: 100%; overflow-x: auto; padding: 0.5rem 0.1rem 0; }
+  .pulse-chart { min-width: 560px; height: 190px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.55rem; align-items: end; }
+  .pulse-week { height: 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 0.35rem; }
+  .pulse-value { color: var(--text-secondary); font-size: 0.67rem; font-variant-numeric: tabular-nums; }
+  .pulse-track { height: 145px; width: min(100%, 34px); display: flex; align-items: end; overflow: hidden; background: var(--surface-2); border-radius: 5px 5px 2px 2px; }
+  .pulse-bar { width: 100%; min-height: 3px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, var(--accent), var(--brand)); transition: height 180ms ease; }
+  .pulse-week-label { color: var(--text-tertiary); font-size: 0.68rem; }
+  .pulse-footer { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.75rem; color: var(--text-tertiary); font-size: 0.75rem; }
+  .pulse-footer > span:first-child { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .pulse-legend-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); display: inline-block; }
+  .pulse-empty { padding: 1.5rem 0.5rem; color: var(--text-secondary); text-align: center; }
+  .rankings-heading { margin-top: 0.5rem; }
+
   .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; margin: 0 0 1rem; }
   .section-heading h2 { font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.3rem); text-transform: uppercase; margin: 0.25rem 0 0; }
   .section-heading p { color: var(--text-tertiary); font-size: 0.82rem; max-width: 46ch; margin: 0 0 0.25rem; }
@@ -395,6 +528,11 @@
     .trend-card { padding: 1rem; }
     .section-heading { display: block; }
     .section-heading p { margin-top: 0.5rem; }
+    .pulse-panel { padding: 0.75rem; margin-bottom: 2rem; }
+    .pulse-summary { grid-template-columns: 1fr; gap: 0.5rem; }
+    .pulse-stat { padding: 0.8rem; }
+    .pulse-footer { flex-direction: column; gap: 0.35rem; }
+    .pulse-chart { min-width: 520px; }
     .page-title { font-size: clamp(2rem, 9vw, 2.8rem); }
     .page-sub { font-size: 0.88rem; }
     .col-trend { width: auto; min-width: 0; }
