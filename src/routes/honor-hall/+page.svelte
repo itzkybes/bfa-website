@@ -19,7 +19,7 @@
   let playoffsMvp = null;
   let regularMvp = null;
   let playersMap = {};
-  let bracketData = { winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, scoresByWeek: {} };
+  let bracketData = { season: null, winners: [], losers: [], rosterMap: {}, finalSeeds: {}, playoffStart: 0, playoffTeams: 0, toiletBowlTeams: 6, scoresByWeek: {} };
   let bracketTrackRefs = {};
   let bracketPlacementTrackRefs = {};
   let bracketMatchRefs = {};
@@ -132,6 +132,7 @@
       finalSeeds: Object.fromEntries(finalList.map((row, index) => [String(row.rosterId), Number(row.rank) || index + 1])),
       playoffStart,
       playoffTeams: playoffTeamCount,
+      toiletBowlTeams: Number(standings.toiletBowlTeams) || 6,
       scoresByWeek
     };
     const result = {
@@ -179,7 +180,19 @@
   }
 
   function bracketMatchesForDisplay(bracket) {
-    return bracketData[bracket.key] || [];
+    const savedMatches = bracketData[bracket.key] || [];
+    if (savedMatches.length) return savedMatches;
+
+    // Sleeper does not create the upcoming season's brackets until playoffs
+    // are configured. Keep the 2025-style empty bracket visible in the meantime.
+    if (Number(bracketData.season) >= 2026) {
+      return createEmptyBracketTemplate(
+        bracket.type,
+        bracketData.playoffTeams || 8,
+        bracketData.toiletBowlTeams || 6
+      );
+    }
+    return [];
   }
 
   function bracketMatchKey(match) {
