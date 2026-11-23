@@ -244,9 +244,10 @@
       );
 
       if (round === 2) {
-        // For 2026 onward, Sleeper's p value separates the two
-        // championship semifinals (p=1) from the two 5th–8th qualifiers.
-        if (Number(bracketData.season) >= 2026) return Number(match.p) > 1;
+        // Sleeper's p is the finishing-place slot for the winner of a game.
+        // The 2026+ Round 2 games with p=1 and p=3 feed the championship
+        // and 3rd-place finals; only p=5 and p=7 feed 5th–8th placement.
+        if (Number(bracketData.season) >= 2026) return Number(match.p) >= 5;
         return [match.t1, match.t2].every(
           (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
         );
@@ -267,9 +268,9 @@
             .filter((rosterId) => rosterId != null)
             .map(String)
         );
-        // Future-season placement finals use Sleeper's p value so
-        // 5th/6th and 7th/8th games stay in the placement section.
-        if (Number(bracketData.season) >= 2026) return Number(match.p) > 1;
+        // Keep the 1st/2nd and 3rd/4th finals in the main bracket.
+        // Only the 5th/6th and 7th/8th finals belong in placement.
+        if (Number(bracketData.season) >= 2026) return Number(match.p) >= 5;
         return [match.t1, match.t2].some(
           (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
         );
@@ -293,21 +294,11 @@
       );
     }
 
-    // In 2026 and future seasons, keep the two Toilet Bowl semifinals
-    // in the main bracket. The Round 1 winners' 9th/10th matchup is a
-    // separate placement game, while the semifinal results feed the
-    // 11th/12th game and Toilet Bowl Championship in Round 3.
-    if (Number(bracketData.season) >= 2026 && round === 2) {
-      const roundOneWinners = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-      return [match.t1, match.t2].every(
-        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
-      );
+    // For 2026 onward, Toilet Bowl p values are relative to the bottom
+    // of the league: p=1 and p=3 feed the Toilet Bowl title and 11th/12th
+    // finals, while p=5 is the 9th/10th placement matchup.
+    if (Number(bracketData.season) >= 2026 && round >= 2) {
+      return Number(match.p) >= 5;
     }
     // The 2025 reference keeps all three Round 2 matchups in the main
     // bracket; preserve that historical display exactly.
