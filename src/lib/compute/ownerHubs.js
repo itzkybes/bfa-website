@@ -109,7 +109,7 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
       // Per-game records — scan collectedMatchups for every week. Regular
       // season weeks (1 → playoffStart-1) feed the franchise records that
       // are strictly regular-season (highest/lowest, blowouts, best single
-      // game). Playoff weeks (playoffStart → playoffEnd) feed `bestPlayoffGame`.
+      // game). Eligible playoff weeks feed `bestPlayoffGame`; Toilet Bowl entries are excluded.
       // All per-player figures read from `starters_points` ONLY.
       const collected = r.collectedMatchups || {};
       const playoffMatchups = r.playoffMatchups || {};
