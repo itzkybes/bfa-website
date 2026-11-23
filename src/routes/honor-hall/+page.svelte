@@ -277,20 +277,16 @@
       return false;
     }
 
-    // The 2022 Toilet Bowl used a different Round 2 format: only the
-    // Round 1 winners advanced in the main bracket; the other games were
-    // consolation matchups.
+    // The 2022 Toilet Bowl's 9th/10th matchup is the main-bracket
+    // semifinal. The other Round 2 games are consolation games. Use the
+    // final-place seeds rather than Sleeper's w field, which may be absent
+    // on bracket records even when the season's final standings are known.
     if (Number(bracketData.season) === 2022 && round === 2) {
-      const roundOneWinners = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-      return ![match.t1, match.t2].every(
-        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
-      );
+      const places = [match.t1, match.t2]
+        .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      return !(places.length === 2 && places[0] === 9 && places[1] === 10);
     }
 
     // In 2026 and future seasons, keep the two Toilet Bowl semifinals
@@ -349,7 +345,13 @@
           (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
         );
         if (Number(bracketData.season) === 2022) {
-          return bothAdvancedAsWinners ? '' : 'Toilet Bowl Consolation Game';
+          const places = [match.t1, match.t2]
+            .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
+            .filter(Number.isFinite)
+            .sort((a, b) => a - b);
+          return places.length === 2 && places[0] === 9 && places[1] === 10
+            ? '9th/10th Place Game'
+            : 'Toilet Bowl Consolation Game';
         }
         return bothAdvancedAsWinners ? '9th/10th Place Game' : '';
       }
