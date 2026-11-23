@@ -454,7 +454,7 @@
                 {#each bracketDisplaySections(bracket).mainRounds as round, roundIndex (round.round)}
                   <div class="bracket-round">
                     <div class="bracket-round-games" class:later-round={roundIndex > 0}>
-  {#each round.matches as match (bracketMatchKey(match))}
+  {#each round.matches.slice().sort((a, b) => bracketMatchOrder(a, bracket.type) - bracketMatchOrder(b, bracket.type)) as match (bracketMatchKey(match))}
     <div class="bracket-match" class:bracket-final={bracket.type === "winners" && Number(match.p) === 1} bind:this={bracketMatchRefs[`${bracket.type}:${bracketMatchKey(match)}`]}>
       {#each [match.t1, match.t2] as rosterId}
         {#if rosterId != null}
