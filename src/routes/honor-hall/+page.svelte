@@ -190,7 +190,7 @@
   }
 
   function bracketMainTitle(round, bracketType, matches) {
-    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType));
+    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType, matches));
     if (!mainMatches.length) return '';
     if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Championship Quarterfinals';
     if (round === 2) {
@@ -234,33 +234,32 @@
     const round = Number(match.r) || 1;
     if (round === 1) return false;
 
-    // In the Championship bracket, determine the main path from the actual
-    // Round 1 winners. Round 2 games without two Round 1 winners belong below
-    // in Placement Games, regardless of Sleeper's p value.
     if (bracketType === 'winners') {
-      const roundOneWinners = new Set(
+      // Sleeper's Round 1 loser field is the source of truth for the teams
+      // that must play in the Round 2 consolation bracket.
+      const roundOneLosers = new Set(
         (matches || [])
           .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
+          .map((candidate) => candidate.l)
           .filter((rosterId) => rosterId != null)
           .map(String)
       );
 
       if (round === 2) {
-        return ![match.t1, match.t2].every(
-          (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
+        return [match.t1, match.t2].some(
+          (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
         );
       }
 
-      // Later rounds stay with Placement Games when they contain a team
-      // that entered the Round 2 placement path.
+      // Keep every subsequent game involving a Round 2 consolation team
+      // in the placement section, including the final placement match.
       if (round >= 3) {
-        const roundTwoPlacementTeams = new Set(
+        const roundTwoConsolationTeams = new Set(
           (matches || [])
             .filter((candidate) =>
               (Number(candidate.r) || 1) === 2 &&
-              ![candidate.t1, candidate.t2].every(
-                (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
+              [candidate.t1, candidate.t2].some(
+                (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
               )
             )
             .flatMap((candidate) => [candidate.t1, candidate.t2])
@@ -268,7 +267,7 @@
             .map(String)
         );
         return [match.t1, match.t2].some(
-          (rosterId) => rosterId != null && roundTwoPlacementTeams.has(String(rosterId))
+          (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
         );
       }
       return false;
