@@ -167,3 +167,44 @@ test('all 2023+ seasons share the same Toilet Bowl main and placement sections',
     assert.deepEqual(layout.placementRounds.map((round) => round.matches.length), [1, 1]);
   }
 });
+
+test('pre-playoff 2025 and 2026 brackets group placement games identically before results exist', () => {
+  const notStarted = [
+    { r: 1, m: 1, t1: 1, t2: 2, w: null, l: null },
+    { r: 1, m: 2, t1: 3, t2: 4, w: null, l: null },
+    { r: 1, m: 3, t1: 5, t2: 6, w: null, l: null },
+    { r: 1, m: 4, t1: 7, t2: 8, w: null, l: null },
+    { r: 2, m: 5, p: 1, t1: 1, t2: 3 },
+    { r: 2, m: 6, p: 1, t1: 5, t2: 7 },
+    { r: 2, m: 7, p: 3, t1: 2, t2: 4 },
+    { r: 2, m: 8, p: 4, t1: 6, t2: 8 },
+    { r: 3, m: 9, p: 1, t1: null, t2: null },
+    { r: 3, m: 10, p: 2, t1: null, t2: null },
+    { r: 3, m: 11, p: 3, t1: null, t2: null },
+    { r: 3, m: 12, p: 4, t1: null, t2: null },
+  ];
+
+  const layout2025 = getBracketDisplaySections(notStarted, 'winners', 2025);
+  const layout2026 = getBracketDisplaySections(notStarted, 'winners', 2026);
+
+  assert.deepEqual(
+    layout2025.mainRounds.map((round) => round.matches.length),
+    [4, 2, 2]
+  );
+  assert.deepEqual(
+    layout2025.placementRounds.map((round) => round.matches.length),
+    [2, 2]
+  );
+  assert.deepEqual(
+    layout2026.mainRounds.map((round) => round.matches.length),
+    layout2025.mainRounds.map((round) => round.matches.length)
+  );
+  assert.deepEqual(
+    layout2026.placementRounds.map((round) => round.matches.length),
+    layout2025.placementRounds.map((round) => round.matches.length)
+  );
+  assert.deepEqual(
+    layout2026.placementMatches.map((match) => match.m),
+    layout2025.placementMatches.map((match) => match.m)
+  );
+});
