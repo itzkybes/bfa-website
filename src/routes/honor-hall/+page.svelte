@@ -182,18 +182,21 @@
   }
 
   function bracketRoundLabel(round) {
-    return '';
+    return ({ 1: 'ROUND 1', 2: 'ROUND 2', 3: 'FINALS' })[Number(round)] || `ROUND ${round}`;
+  }
+
+  function bracketRoundWeek(round) {
+    const week = Number(bracketData.playoffStart) + Number(round) - 1;
+    return Number.isFinite(week) && week > 0 ? `(Week ${week})` : '';
   }
 
   function bracketMainTitle(round, bracketType, matches) {
     const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType, matches));
     if (!mainMatches.length) return '';
-    if (round === 1) return '';
+    if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Championship Quarterfinals';
     if (round === 2) {
-      if (bracketType === 'losers') {
-        return '';
-      }
-      return '';
+      if (bracketType === 'losers') return 'Toilet Bowl Main Bracket';
+      return 'Championship Semifinals';
     }
     if (round >= 3) return bracketType === 'losers' ? 'Toilet Bowl Finals' : 'Championship & 3rd/4th Place';
     return '';
@@ -233,9 +236,8 @@
     if (round === 1) return false;
 
     if (bracketType === 'winners') {
-      // Identify the 2026+ placement path from actual Round 1 results,
-      // not Sleeper's p field (which does not reliably distinguish these
-      // four Round 2 games in the current-season bracket payload).
+      // Sleeper's Round 1 loser field is the source of truth for the teams
+      // that must play in the Round 2 consolation bracket.
       const roundOneLosers = new Set(
         (matches || [])
           .filter((candidate) => (Number(candidate.r) || 1) === 1)
@@ -250,6 +252,8 @@
         );
       }
 
+      // Keep every subsequent game involving a Round 2 consolation team
+      // in the placement section, including the final placement match.
       if (round >= 3) {
         const roundTwoConsolationTeams = new Set(
           (matches || [])
@@ -270,33 +274,7 @@
       return false;
     }
 
-    // The 2022 Toilet Bowl used a different Round 2 format: only the
-    // Round 1 winners advanced in the main bracket; the other games were
-    // consolation matchups.
-    if (Number(bracketData.season) === 2022 && round === 2) {
-      const roundOneWinners = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-      return ![match.t1, match.t2].every(
-        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
-      );
-    }
-
-    // For 2026 onward, Toilet Bowl p values are relative to the bottom
-    // of the league: p=1 and p=3 feed the Toilet Bowl title and 11th/12th
-    // finals, while p=5 is the 9th/10th placement matchup.
-    if (Number(bracketData.season) >= 2026 && round >= 2) {
-      return Number(match.p) >= 5;
-    }
-    // The 2025 reference keeps all three Round 2 matchups in the main
-    // bracket; preserve that historical display exactly.
-    if (Number(bracketData.season) === 2025) return false;
-
-    // Preserve the existing classification for 2023 and 2024.
+    // Preserve the existing Toilet Bowl classification.
     return Number(match.p) > 1;
   }
 
@@ -312,7 +290,6 @@
         if (places[0] === 7 && places[1] === 8) return 'Consolation Game · 7th/8th Place';
         return 'Consolation Placement Game';
       }
-      if (Number(bracketData.season) >= 2026 && round === 2) return '9th/10th Place Game';
       const places = [match.t1, match.t2]
         .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
         .filter(Number.isFinite).sort((a, b) => a - b);
@@ -320,7 +297,7 @@
       return 'Toilet Bowl Consolation Game';
     }
     if (bracketType === 'losers') {
-      if (round === 1) return '';
+      if (round === 1) return 'Toilet Bowl Quarterfinal';
       if (round === 2) {
         // The two round-1 winners play for 9th/10th. The other games
         // feed into the 11th/12th game or the Toilet Bowl Championship.
@@ -332,15 +309,9 @@
         const bothAdvancedAsWinners = [match.t1, match.t2].every(
           (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
         );
-        if (Number(bracketData.season) === 2022) {
-          return bothAdvancedAsWinners ? '' : 'Toilet Bowl Consolation Game';
-        }
-        return bothAdvancedAsWinners ? '9th/10th Place Game' : '';
+        return bothAdvancedAsWinners ? '9th/10th Place Game' : 'Toilet Bowl Semifinal';
       }
       if (round >= 3) {
-        if (Number(bracketData.season) >= 2026) {
-          return placement === 1 ? 'Toilet Bowl Championship' : placement === 3 ? '11th/12th Place Game' : '';
-        }
         const places = [match.t1, match.t2]
           .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
           .filter(Number.isFinite).sort((a, b) => a - b);
@@ -353,9 +324,6 @@
 
     if (bracketType === 'winners' || bracketType === 'consolation') {
       if (round === 3) {
-        if (Number(bracketData.season) >= 2026) {
-          return ({ 1: 'Championship', 3: '3rd Place', 5: '5th Place', 7: '7th Place' })[placement] || '';
-        }
         const places = [match.t1, match.t2]
           .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
           .filter(Number.isFinite).sort((a, b) => a - b);
@@ -367,21 +335,17 @@
           '7-8': '7th Place'
         })[pair] || ({ 1: 'Championship', 2: '3rd Place', 3: '5th Place', 4: '7th Place' })[placement] || 'Placement Game';
       }
-      if (round === 2 && (Number(bracketData.season) >= 2026 ? placement >= 5 : placement > 1)) {
+      if (round === 2 && placement > 1) {
         const firstPlace = bracketMatchPlacement(match);
-        return (Number(bracketData.season) >= 2026 ? placement <= 5 : firstPlace <= 6)
-          ? '5th Place Qualifier'
-          : '7th Place Qualifier';
+        return firstPlace <= 6 ? '5th Place Qualifier' : '7th Place Qualifier';
       }
     }
-    return '';
+    return bracketRoundLabel(round);
   }
 
   function bracketConsolationTitle(round, bracketType) {
     if (bracketType === 'winners' && round === 2) return '5th–8th Place Consolation Qualifiers';
-    if (bracketType === 'losers' && round === 2) {
-      return 'Toilet Bowl Consolation Games';
-    }
+    if (bracketType === 'losers' && round === 2) return 'Toilet Bowl Semifinals';
     if (bracketType === 'winners' && round === 3) return 'Placement Games';
     if (bracketType === 'losers' && round === 3) return 'Placement Games';
     return 'Consolation Games';
