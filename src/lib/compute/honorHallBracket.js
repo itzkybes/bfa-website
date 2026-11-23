@@ -14,6 +14,11 @@ function isWinnersPlacementMatch(match, matches) {
   if (round === 1) return false;
   if (typeof match.__placement === 'boolean') return match.__placement;
 
+  // Sleeper's p field identifies the placement slots before results and
+  // roster assignments exist. In this eight-team bracket, p=3/4 are the
+  // 5th–8th place games; p=1/2 remain in the main championship bracket.
+  if (Number(match.p) >= 3) return true;
+
   const roundOneMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 1);
   const roundOneLosers = new Set(
     roundOneMatches
@@ -120,18 +125,62 @@ function groupBracketRounds(matches) {
 }
 
 /**
- * Split a bracket into the two shared 2023–2025 display areas.
- * This is the single source of truth for both the rendered columns and
- * their connector calculations, regardless of season.
+ * Split every bracket into the same planned main and placement sections.
+ * For 2023 onward, complete missing matchup slots with empty cards from the
+ * standard template. This keeps every round and the placement section
+ * visible while future games have not yet been played or published.
  */
 export function getBracketDisplaySections(matches = [], bracketType = 'winners', season = null) {
   const allMatches = Array.isArray(matches) ? matches : [];
-  const mainMatches = allMatches.filter(
+  let mainMatches = allMatches.filter(
     (match) => !isBracketPlacementMatch(match, bracketType, allMatches, season)
   );
-  const placementMatches = allMatches.filter(
+  let placementMatches = allMatches.filter(
     (match) => isBracketPlacementMatch(match, bracketType, allMatches, season)
   );
+
+  if (Number(season) >= 2023) {
+    const template = createEmptyBracketTemplate(bracketType);
+    const expectedMain = template.filter(
+      (match) => !isBracketPlacementMatch(match, bracketType, template, season)
+    );
+    const expectedPlacement = template.filter(
+      (match) => isBracketPlacementMatch(match, bracketType, template, season)
+    );
+
+    function fillMissingSlots(actual, expected, sectionName) {
+      const completed = actual.slice();
+      const expectedCounts = new Map();
+      for (const match of expected) {
+        const round = Number(match.r) || 1;
+        expectedCounts.set(round, (expectedCounts.get(round) || 0) + 1);
+      }
+
+      for (const [round, count] of expectedCounts) {
+        const actualCount = completed.filter(
+          (match) => (Number(match.r) || 1) === round
+        ).length;
+        for (let index = actualCount; index < count; index += 1) {
+          const slot = expected.filter(
+            (match) => (Number(match.r) || 1) === round
+          )[index];
+          if (!slot) continue;
+          completed.push({
+            ...slot,
+            m: `empty-${bracketType}-${sectionName}-r${round}-${index + 1}`,
+            t1: null,
+            t2: null,
+            w: null,
+            l: null,
+          });
+        }
+      }
+      return completed;
+    }
+
+    mainMatches = fillMissingSlots(mainMatches, expectedMain, 'main');
+    placementMatches = fillMissingSlots(placementMatches, expectedPlacement, 'placement');
+  }
 
   return {
     mainMatches,
