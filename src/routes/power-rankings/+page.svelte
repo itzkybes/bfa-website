@@ -31,6 +31,7 @@
   let weekWindow = []; // [w1, w2, w3, w4] inclusive
   let rankings = []; // sorted: [{ rosterId, meta, avgPf, wins, losses, margin, points, lastFour, score, prevRank, rank }]
   let biggestRiser = null;
+  let biggestDrop = null;
   let topScorer = null;
   let bestRecord = null;
   let longestWinStreak = null;
@@ -225,6 +226,8 @@
 
   $: biggestRiser = [...rankings].filter((r) => r.prevRank != null && r.prevRank > r.rank)
     .sort((a, b) => (b.prevRank - b.rank) - (a.prevRank - a.rank))[0] || null;
+  $: biggestDrop = [...rankings].filter((r) => r.prevRank != null && r.prevRank < r.rank)
+    .sort((a, b) => (b.rank - b.prevRank) - (a.rank - a.prevRank))[0] || null;
   $: topScorer = [...rankings].sort((a, b) => b.avgPf - a.avgPf)[0] || null;
   $: bestRecord = [...rankings].sort((a, b) => {
     const aGames = a.wins + a.losses, bGames = b.wins + b.losses;
@@ -262,7 +265,7 @@
   {:else if rankings.length === 0}
     <div class="empty-card" data-testid="rankings-empty">Not enough completed weeks to show trends yet. Check back after a few games.</div>
   {:else}
-    <section class="trend-grid" aria-label="Full-season streak records">
+    <section class="trend-grid" aria-label="Season and recent performance highlights">
       <article class="trend-card">
         <div class="trend-kicker">Longest win streak</div>
         {#if longestWinStreak}
@@ -292,6 +295,19 @@
           <div class="trend-caption">Moved from #{biggestRiser.prevRank} to #{biggestRiser.rank} in the latest window</div>
         {:else}
           <div class="trend-empty">No ranking movement yet</div>
+        {/if}
+      </article>
+      <article class="trend-card">
+        <div class="trend-kicker">Biggest drop</div>
+        {#if biggestDrop}
+          <div class="trend-team">
+            <img class="team-avatar" src={avatarOrPlaceholder(biggestDrop.meta.team_avatar || biggestDrop.meta.owner_avatar, biggestDrop.meta.team_name)} alt="" />
+            <div><div class="trend-name">{biggestDrop.meta.team_name}</div><div class="trend-detail">{biggestDrop.meta.owner_name || biggestDrop.meta.owner_username || 'League team'}</div></div>
+          </div>
+          <div class="trend-value negative">▼ {biggestDrop.rank - biggestDrop.prevRank} <span>spots</span></div>
+          <div class="trend-caption">Moved from #{biggestDrop.prevRank} to #{biggestDrop.rank} in the latest window</div>
+        {:else}
+          <div class="trend-empty">No ranking drop yet</div>
         {/if}
       </article>
       <article class="trend-card">
@@ -509,8 +525,8 @@
     text-align: center;
     letter-spacing: 0.04em;
   }
-  .mv-up { background: rgba(52, 50, 200, 0.18); color: var(--brand); }
-  .mv-down { background: rgba(200, 114, 50, 0.16); color: var(--accent); }
+  .mv-up { background: var(--surface-2); color: var(--brand); }
+  .mv-down { background: var(--surface-2); color: var(--accent); }
   .mv-flat { background: var(--surface-2); color: var(--text-tertiary); }
 
   .empty-card {
