@@ -52,7 +52,7 @@ jobs:
               assert.equal(file[key], value, `${year}: incorrect ${key}`);
             }
 
-            const weeks = Object.keys(file).filter((key) => /^\\d+$/.test(key));
+            const weeks = Object.keys(file).filter((key) => /^\d+$/.test(key));
             assert.ok(weeks.length >= metadata.playoff_week_end, `${year}: missing season weeks`);
             let matchups = 0;
             for (const week of weeks) {
