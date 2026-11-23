@@ -168,41 +168,31 @@ test('all 2023+ seasons share the same Toilet Bowl main and placement sections',
   }
 });
 
-test('pre-playoff 2025 and 2026 brackets group placement games identically before results exist', () => {
+test('unplayed 2025 and 2026 brackets group feeder-based placement games identically', () => {
   const notStarted = [
     { r: 1, m: 1, t1: 1, t2: 2, w: null, l: null },
     { r: 1, m: 2, t1: 3, t2: 4, w: null, l: null },
     { r: 1, m: 3, t1: 5, t2: 6, w: null, l: null },
     { r: 1, m: 4, t1: 7, t2: 8, w: null, l: null },
-    { r: 2, m: 5, p: 1, t1: 1, t2: 3 },
-    { r: 2, m: 6, p: 1, t1: 5, t2: 7 },
-    { r: 2, m: 7, p: 3, t1: 2, t2: 4 },
-    { r: 2, m: 8, p: 4, t1: 6, t2: 8 },
-    { r: 3, m: 9, p: 1, t1: null, t2: null },
-    { r: 3, m: 10, p: 2, t1: null, t2: null },
-    { r: 3, m: 11, p: 3, t1: null, t2: null },
-    { r: 3, m: 12, p: 4, t1: null, t2: null },
+    { r: 2, m: 5, t1: null, t2: null, t1_from: { w: 1 }, t2_from: { w: 2 } },
+    { r: 2, m: 6, t1: null, t2: null, t1_from: { w: 3 }, t2_from: { w: 4 } },
+    { r: 2, m: 7, t1: null, t2: null, t1_from: { l: 1 }, t2_from: { l: 2 } },
+    { r: 2, m: 8, t1: null, t2: null, t1_from: { l: 3 }, t2_from: { l: 4 } },
+    { r: 3, m: 9, t1: null, t2: null, t1_from: { w: 5 }, t2_from: { w: 6 }, p: 1 },
+    { r: 3, m: 10, t1: null, t2: null, t1_from: { l: 5 }, t2_from: { l: 6 }, p: 3 },
+    { r: 3, m: 11, t1: null, t2: null, t1_from: { w: 7 }, t2_from: { w: 8 }, p: 5 },
+    { r: 3, m: 12, t1: null, t2: null, t1_from: { l: 7 }, t2_from: { l: 8 }, p: 7 },
   ];
 
   const layout2025 = getBracketDisplaySections(notStarted, 'winners', 2025);
   const layout2026 = getBracketDisplaySections(notStarted, 'winners', 2026);
+  const expectedMainRounds = [4, 2, 2];
+  const expectedPlacementRounds = [2, 2];
 
-  assert.deepEqual(
-    layout2025.mainRounds.map((round) => round.matches.length),
-    [4, 2, 2]
-  );
-  assert.deepEqual(
-    layout2025.placementRounds.map((round) => round.matches.length),
-    [2, 2]
-  );
-  assert.deepEqual(
-    layout2026.mainRounds.map((round) => round.matches.length),
-    layout2025.mainRounds.map((round) => round.matches.length)
-  );
-  assert.deepEqual(
-    layout2026.placementRounds.map((round) => round.matches.length),
-    layout2025.placementRounds.map((round) => round.matches.length)
-  );
+  assert.deepEqual(layout2025.mainRounds.map((round) => round.matches.length), expectedMainRounds);
+  assert.deepEqual(layout2025.placementRounds.map((round) => round.matches.length), expectedPlacementRounds);
+  assert.deepEqual(layout2026.mainRounds.map((round) => round.matches.length), expectedMainRounds);
+  assert.deepEqual(layout2026.placementRounds.map((round) => round.matches.length), expectedPlacementRounds);
   assert.deepEqual(
     layout2026.placementMatches.map((match) => match.m),
     layout2025.placementMatches.map((match) => match.m)
