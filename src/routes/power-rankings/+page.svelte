@@ -30,12 +30,6 @@
   let leagueStatus = null;
   let weekWindow = []; // [w1, w2, w3, w4] inclusive
   let rankings = []; // sorted: [{ rosterId, meta, avgPf, wins, losses, margin, points, lastFour, score, prevRank, rank }]
-  let biggestRiser = null;
-  let biggestDrop = null;
-  let topScorer = null;
-  let bestRecord = null;
-  let longestWinStreak = null;
-  let longestLoseStreak = null;
   let scoringWeeks = [];
   let seasonHighScore = null;
   let seasonLowScore = null;
@@ -127,39 +121,6 @@
   }
 
 
-  function findSeasonStreakLeaders(standings, weeks) {
-    const collected = standings.collectedMatchups || {}, rosterMap = standings.rosterMap || {};
-    const streaks = {};
-    for (const rid of Object.keys(rosterMap)) streaks[rid] = { win: 0, loss: 0, bestWin: 0, bestLoss: 0 };
-    for (const week of weeks) {
-      const entries = collected[week] || collected[String(week)] || [], byMatchup = {};
-      for (const entry of entries) {
-        const mid = String(entry.matchup_id ?? entry.matchupId ?? `week-${week}-${entry.roster_id ?? entry.rosterId}`);
-        (byMatchup[mid] ||= []).push(entry);
-      }
-      for (const pair of Object.values(byMatchup)) {
-        if (pair.length < 2) continue;
-        const [a, b] = pair, aId = String(a.roster_id ?? a.rosterId), bId = String(b.roster_id ?? b.rosterId);
-        const aPts = computeParticipantPoints(a), bPts = computeParticipantPoints(b);
-        if (!streaks[aId] || !streaks[bId]) continue;
-        if (aPts > bPts + 1e-9) {
-          streaks[aId].win++; streaks[aId].loss = 0; streaks[bId].loss++; streaks[bId].win = 0;
-        } else if (bPts > aPts + 1e-9) {
-          streaks[bId].win++; streaks[bId].loss = 0; streaks[aId].loss++; streaks[aId].win = 0;
-        } else {
-          streaks[aId].win = streaks[aId].loss = 0; streaks[bId].win = streaks[bId].loss = 0;
-        }
-        for (const id of [aId, bId]) {
-          streaks[id].bestWin = Math.max(streaks[id].bestWin, streaks[id].win);
-          streaks[id].bestLoss = Math.max(streaks[id].bestLoss, streaks[id].loss);
-        }
-      }
-    }
-    const rows = Object.entries(streaks).map(([rosterId, s]) => ({ rosterId, meta: rosterMap[rosterId] || {}, ...s }));
-    const wins = [...rows].sort((a,b)=>b.bestWin-a.bestWin), losses = [...rows].sort((a,b)=>b.bestLoss-a.bestLoss);
-    return { win: wins[0]?.bestWin > 0 ? wins[0] : null, loss: losses[0]?.bestLoss > 0 ? losses[0] : null };
-  }
-
   async function loadAll() {
     loading = true;
     error = null;
@@ -193,10 +154,6 @@
       weekWindow = latestN;
 
       const current = rankWindow(standings, latestN);
-      const seasonStreaks = findSeasonStreakLeaders(standings, allWeeks);
-      longestWinStreak = seasonStreaks.win;
-      longestLoseStreak = seasonStreaks.loss;
-
       // Previous-week comparison: same window shifted back by 1 if we have
       // enough weeks. Otherwise leave prevRank = null (no movement arrow).
       let previous = [];
@@ -224,16 +181,6 @@
     return { type: 'flat', delta: 0, label: '—' };
   }
 
-  $: biggestRiser = [...rankings].filter((r) => r.prevRank != null && r.prevRank > r.rank)
-    .sort((a, b) => (b.prevRank - b.rank) - (a.prevRank - a.rank))[0] || null;
-  $: biggestDrop = [...rankings].filter((r) => r.prevRank != null && r.prevRank < r.rank)
-    .sort((a, b) => (b.rank - b.prevRank) - (a.rank - a.prevRank))[0] || null;
-  $: topScorer = [...rankings].sort((a, b) => b.avgPf - a.avgPf)[0] || null;
-  $: bestRecord = [...rankings].sort((a, b) => {
-    const aGames = a.wins + a.losses, bGames = b.wins + b.losses;
-    const aRate = aGames ? a.wins / aGames : 0, bRate = bGames ? b.wins / bGames : 0;
-    return bRate - aRate || b.wins - a.wins || b.margin - a.margin;
-  })[0] || null;
   $: latestScoringWeek = scoringWeeks[scoringWeeks.length - 1] || null;
   $: highestAverageWeek = [...scoringWeeks].sort((a, b) => b.averageScore - a.averageScore)[0] || null;
   $: peakScoringAverage = Math.max(0, ...scoringWeeks.map((week) => week.averageScore));
@@ -253,7 +200,7 @@
       </div>
       <h1 class="page-title">Trends</h1>
       <p class="page-sub">
-        Follow the league’s season-long streak records, see how scoring changes week to week, and track which teams are gaining momentum in the rolling Power Rankings.
+        Track how league scoring changes week to week and see which teams are gaining momentum in the rolling Power Rankings.
       </p>
     </div>
   </header>
@@ -265,79 +212,6 @@
   {:else if rankings.length === 0}
     <div class="empty-card" data-testid="rankings-empty">Not enough completed weeks to show trends yet. Check back after a few games.</div>
   {:else}
-    <section class="trend-grid" aria-label="Season and recent performance highlights">
-      <article class="trend-card">
-        <div class="trend-kicker">Longest win streak</div>
-        {#if longestWinStreak}
-          <div class="trend-team"><img class="team-avatar" src={avatarOrPlaceholder(longestWinStreak.meta.team_avatar || longestWinStreak.meta.owner_avatar, longestWinStreak.meta.team_name)} alt="" />
-            <div><div class="trend-name">{longestWinStreak.meta.team_name}</div><div class="trend-detail">{longestWinStreak.meta.owner_name || longestWinStreak.meta.owner_username || 'League team'}</div></div></div>
-          <div class="trend-value positive">{longestWinStreak.bestWin} <span>consecutive wins</span></div>
-          <div class="trend-caption">Longest winning run this season</div>
-        {:else}<div class="trend-empty">No completed win streak yet</div>{/if}
-      </article>
-      <article class="trend-card">
-        <div class="trend-kicker">Longest losing streak</div>
-        {#if longestLoseStreak}
-          <div class="trend-team"><img class="team-avatar" src={avatarOrPlaceholder(longestLoseStreak.meta.team_avatar || longestLoseStreak.meta.owner_avatar, longestLoseStreak.meta.team_name)} alt="" />
-            <div><div class="trend-name">{longestLoseStreak.meta.team_name}</div><div class="trend-detail">{longestLoseStreak.meta.owner_name || longestLoseStreak.meta.owner_username || 'League team'}</div></div></div>
-          <div class="trend-value negative">{longestLoseStreak.bestLoss} <span>consecutive losses</span></div>
-          <div class="trend-caption">Longest losing run this season</div>
-        {:else}<div class="trend-empty">No completed losing streak yet</div>{/if}
-      </article>
-      <article class="trend-card">
-        <div class="trend-kicker">Biggest riser</div>
-        {#if biggestRiser}
-          <div class="trend-team">
-            <img class="team-avatar" src={avatarOrPlaceholder(biggestRiser.meta.team_avatar || biggestRiser.meta.owner_avatar, biggestRiser.meta.team_name)} alt="" />
-            <div><div class="trend-name">{biggestRiser.meta.team_name}</div><div class="trend-detail">{biggestRiser.meta.owner_name || biggestRiser.meta.owner_username || 'League team'}</div></div>
-          </div>
-          <div class="trend-value positive">▲ {biggestRiser.prevRank - biggestRiser.rank} <span>spots</span></div>
-          <div class="trend-caption">Moved from #{biggestRiser.prevRank} to #{biggestRiser.rank} in the latest window</div>
-        {:else}
-          <div class="trend-empty">No ranking movement yet</div>
-        {/if}
-      </article>
-      <article class="trend-card">
-        <div class="trend-kicker">Biggest drop</div>
-        {#if biggestDrop}
-          <div class="trend-team">
-            <img class="team-avatar" src={avatarOrPlaceholder(biggestDrop.meta.team_avatar || biggestDrop.meta.owner_avatar, biggestDrop.meta.team_name)} alt="" />
-            <div><div class="trend-name">{biggestDrop.meta.team_name}</div><div class="trend-detail">{biggestDrop.meta.owner_name || biggestDrop.meta.owner_username || 'League team'}</div></div>
-          </div>
-          <div class="trend-value negative">▼ {biggestDrop.rank - biggestDrop.prevRank} <span>spots</span></div>
-          <div class="trend-caption">Moved from #{biggestDrop.prevRank} to #{biggestDrop.rank} in the latest window</div>
-        {:else}
-          <div class="trend-empty">No ranking drop yet</div>
-        {/if}
-      </article>
-      <article class="trend-card">
-        <div class="trend-kicker">Top recent scorer</div>
-        {#if topScorer}
-          <div class="trend-team">
-            <img class="team-avatar" src={avatarOrPlaceholder(topScorer.meta.team_avatar || topScorer.meta.owner_avatar, topScorer.meta.team_name)} alt="" />
-            <div><div class="trend-name">{topScorer.meta.team_name}</div><div class="trend-detail">{topScorer.meta.owner_name || topScorer.meta.owner_username || 'League team'}</div></div>
-          </div>
-          <div class="trend-value">{fmt(topScorer.avgPf, 1)} <span>avg points</span></div>
-          <div class="trend-caption">Highest average across the last {weekWindow.length} completed weeks</div>
-        {:else}
-          <div class="trend-empty">No scoring leader yet</div>
-        {/if}
-      </article>
-      <article class="trend-card">
-        <div class="trend-kicker">Best recent record</div>
-        {#if bestRecord}
-          <div class="trend-team">
-            <img class="team-avatar" src={avatarOrPlaceholder(bestRecord.meta.team_avatar || bestRecord.meta.owner_avatar, bestRecord.meta.team_name)} alt="" />
-            <div><div class="trend-name">{bestRecord.meta.team_name}</div><div class="trend-detail">{bestRecord.meta.owner_name || bestRecord.meta.owner_username || 'League team'}</div></div>
-          </div>
-          <div class="trend-value">{bestRecord.wins}-{bestRecord.losses} <span>record</span></div>
-          <div class="trend-caption">Best win rate across the latest completed weeks</div>
-        {:else}
-          <div class="trend-empty">No recent record yet</div>
-        {/if}
-      </article>
-    </section>
-
     <div class="section-heading">
       <div><div class="eyebrow">Scoring trends</div><h2>Weekly Scoring Pulse</h2></div>
       <p>Average team points by completed regular-season week. Hover over a bar to see that week’s top and lowest recorded team scores.</p>
@@ -463,17 +337,6 @@
   .page-sub { color: var(--text-secondary); margin-top: 0.6rem; max-width: 75ch; }
   .muted { color: var(--text-tertiary); }
 
-  .trend-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0 0 2.5rem; }
-  .trend-card { min-width: 0; padding: 1.25rem; background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); }
-  .trend-kicker { color: var(--text-tertiary); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 1rem; }
-  .trend-team { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
-  .trend-team .team-avatar { width: 48px; height: 48px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); border: 1px solid var(--border-subtle); flex: 0 0 auto; }
-  .trend-name { font-weight: 800; overflow-wrap: anywhere; }
-  .trend-detail, .trend-caption { color: var(--text-tertiary); font-size: 0.78rem; margin-top: 0.2rem; }
-  .trend-value { font-family: var(--font-display); font-size: 1.8rem; line-height: 1.1; margin-top: 1rem; }
-  .trend-value span { font-family: var(--font-body); font-size: 0.78rem; color: var(--text-secondary); }
-  .trend-caption { margin-top: 0.35rem; }
-  .trend-empty { color: var(--text-secondary); padding: 1rem 0; }
   .pulse-panel { padding: 1rem; margin-bottom: 2.5rem; }
   .pulse-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1.4rem; }
   .pulse-stat { min-width: 0; padding: 0.95rem 1rem; border-radius: var(--r-sm); background: var(--surface-2); }
@@ -540,8 +403,6 @@
 
   @media (max-width: 720px) {
     .page { padding: 1.75rem 0 3rem; }
-    .trend-grid { grid-template-columns: 1fr; gap: 0.75rem; margin-bottom: 2rem; }
-    .trend-card { padding: 1rem; }
     .section-heading { display: block; }
     .section-heading p { margin-top: 0.5rem; }
     .pulse-panel { padding: 0.75rem; margin-bottom: 2rem; }
