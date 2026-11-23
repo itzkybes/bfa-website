@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createEmptyBracketTemplate,
+  getBracketMatchesForDisplay,
   isBracketPlacementMatch,
 } from '../src/lib/compute/honorHallBracket.js';
 
@@ -82,4 +83,30 @@ test('2022 Toilet Bowl retains its historical round-two classification', () => {
   ];
   assert.equal(isBracketPlacementMatch(matches[2], 'losers', matches, 2022), false);
   assert.equal(isBracketPlacementMatch(matches[3], 'losers', matches, 2022), true);
+});
+
+test('2026 empty Sleeper shells are replaced with the complete 2025 layout', () => {
+  const emptySleeperShells = [
+    { r: 1, m: 1, t1: null, t2: null, w: null, l: null },
+    { r: 2, m: 2, t1: null, t2: null, w: null, l: null },
+  ];
+  const matches = getBracketMatchesForDisplay(2026, 'winners', emptySleeperShells, 8, 6);
+  assert.equal(matches.length, 12);
+  assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
+  assert.equal(roundMatches(matches, 2).filter((match) =>
+    isBracketPlacementMatch(match, 'winners', matches, 2026)
+  ).length, 2);
+  assert.equal(roundMatches(matches, 3).filter((match) =>
+    isBracketPlacementMatch(match, 'winners', matches, 2026)
+  ).length, 2);
+});
+
+test('2026 keeps actual matchup data once teams are assigned', () => {
+  const actual = [{ r: 1, m: 1, t1: 1, t2: 2, w: null, l: null }];
+  assert.equal(getBracketMatchesForDisplay(2026, 'winners', actual), actual);
+});
+
+test('2025 uses its saved bracket rather than the future empty template', () => {
+  const historical = [{ r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 }];
+  assert.equal(getBracketMatchesForDisplay(2025, 'winners', historical), historical);
 });
