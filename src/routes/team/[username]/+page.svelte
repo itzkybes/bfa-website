@@ -62,10 +62,10 @@
 
   /**
    * Per-opponent Head-to-Head rollup across every season this owner has
-   * played. Walks `bySeason` in chronological order (oldest → newest) so
+   * played. Includes regular-season meetings and playoff matchups from qualified teams only. Walks
+   * `bySeason` in chronological order (oldest → newest) so
    * `results` reflects true chronology and `last3` always returns the
-   * three most recent meetings. Includes BOTH regular-season AND playoff
-   * games per the user's preference. BYE rows are skipped.
+   * three most recent meetings. BYE rows are skipped.
    */
   $: h2h = (() => {
     if (!bySeason.length) return null;
@@ -130,8 +130,8 @@
   }
 
   /**
-   * Walk every week of `collectedMatchups`, pair the entries by matchup_id,
-   * and emit one row per week where `myRosterId` was a participant.
+   * Walk regular-season and filtered playoff matchups, pair by matchup_id,
+   * and emit rows only for this roster's actual scheduled matchups.
    */
   function buildMatchupsForRoster(collectedMatchups, myRosterId, rosterMap, playoffStart, playoffEnd, playoffMatchups = {}) {
     const out = [];
