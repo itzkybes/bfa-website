@@ -30,6 +30,11 @@ test('Owner Hub playoff records stop after the third playoff week', () => {
         21: [entry('1', 'w21', 118, 30), entry('2', 'w21', 100, 10)],
         22: [entry('1', 'w22', 150, 99), entry('2', 'w22', 100, 10)],
       },
+      playoffMatchups: {
+        19: [entry('1', 'w19', 110, 15), entry('2', 'w19', 100, 10)],
+        20: [entry('1', 'w20', 115, 20), entry('2', 'w20', 100, 10)],
+        21: [entry('1', 'w21', 118, 30), entry('2', 'w21', 100, 10)],
+      },
     }],
     [{ season: '2026' }],
     { 'player-1': { full_name: 'Test Player' } }
@@ -64,6 +69,9 @@ for (const [season, playoffStart] of [[2022, 20], [2023, 21], [2024, 21], [2025,
           2: { owner_username: 'owner-two' },
         },
         collectedMatchups,
+        playoffMatchups: Object.fromEntries(
+          Object.entries(collectedMatchups).filter(([week]) => Number(week) >= playoffStart && Number(week) <= playoffEnd)
+        ),
       }],
       [{ season: String(season) }]
     );
@@ -72,6 +80,48 @@ for (const [season, playoffStart] of [[2022, 20], [2023, 21], [2024, 21], [2025,
     assert.equal(result['owner-one'].bestPlayoffGame.points, playoffEnd);
   });
 }
+
+
+test('Owner Hub ignores Toilet Bowl starter performances in playoff records', () => {
+  const result = buildOwnerHubs(
+    [{
+      leagueSeason: '2026',
+      playoffStart: 19,
+      playoffEnd: 21,
+      regularStandings: [
+        { rosterId: '1', wins: 14, losses: 4, pf: 1800, pa: 1600 },
+        { rosterId: '2', wins: 12, losses: 6, pf: 1750, pa: 1650 },
+        { rosterId: '9', wins: 5, losses: 13, pf: 1400, pa: 1750 },
+        { rosterId: '10', wins: 4, losses: 14, pf: 1300, pa: 1800 },
+      ],
+      rosterMap: {
+        1: { owner_username: 'playoff-one' },
+        2: { owner_username: 'playoff-two' },
+        9: { owner_username: 'toilet-one' },
+        10: { owner_username: 'toilet-two' },
+      },
+      collectedMatchups: {
+        19: [
+          entry('1', 'championship-field', 100, 20),
+          entry('2', 'championship-field', 90, 10),
+          entry('9', 'toilet-bowl', 120, 99),
+          entry('10', 'toilet-bowl', 80, 1),
+        ],
+      },
+      // This is the shared filtered postseason feed from standings.js.
+      playoffMatchups: {
+        19: [entry('1', 'championship-field', 100, 20), entry('2', 'championship-field', 90, 10)],
+      },
+    }],
+    [{ season: '2026' }],
+    { 'player-1': { full_name: 'Test Player' } }
+  );
+
+  assert.equal(result['playoff-one'].bestPlayoffGame.points, 20);
+  assert.equal(result['playoff-two'].bestPlayoffGame.points, 10);
+  assert.equal(result['toilet-one'].bestPlayoffGame, null);
+  assert.equal(result['toilet-two'].bestPlayoffGame, null);
+});
 
 test('Owner Hub counts franchise records only in regular season', () => {
   const result = buildOwnerHubs(
@@ -88,6 +138,11 @@ test('Owner Hub counts franchise records only in regular season', () => {
         20: [entry('1', 'playoff-2', 150, 50), entry('2', 'playoff-2', 100, 5)],
         21: [entry('1', 'playoff-3', 160, 60), entry('2', 'playoff-3', 100, 5)],
         22: [entry('1', 'after-playoffs', 999, 999), entry('2', 'after-playoffs', 100, 5)],
+      },
+      playoffMatchups: {
+        19: [entry('1', 'playoff-1', 140, 40), entry('2', 'playoff-1', 100, 5)],
+        20: [entry('1', 'playoff-2', 150, 50), entry('2', 'playoff-2', 100, 5)],
+        21: [entry('1', 'playoff-3', 160, 60), entry('2', 'playoff-3', 100, 5)],
       },
     }],
     [{ season: '2026' }]
