@@ -187,8 +187,15 @@ export function getBracketMatchesForDisplay(
   const hasAssignedTeams = matches.some((match) =>
     match.t1 != null || match.t2 != null || match.w != null || match.l != null
   );
+  const expectedRoundCounts = bracketType === 'winners' ? [4, 4, 4] : [2, 3, 2];
+  const actualRoundCounts = [1, 2, 3].map((round) =>
+    matches.filter((match) => (Number(match.r) || 1) === round).length
+  );
+  const hasExpected2025Structure = expectedRoundCounts.every(
+    (count, index) => actualRoundCounts[index] === count
+  );
 
-  if (Number(season) >= 2026 && !hasAssignedTeams) {
+  if (Number(season) >= 2026 && (!hasAssignedTeams || !hasExpected2025Structure)) {
     return createEmptyBracketTemplate(bracketType, playoffTeams, toiletBowlTeams);
   }
   return matches;
