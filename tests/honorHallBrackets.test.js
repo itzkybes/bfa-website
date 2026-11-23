@@ -120,25 +120,32 @@ test('2022 keeps its saved historical bracket data', () => {
   assert.equal(getBracketMatchesForDisplay(2022, 'winners', historical), historical);
 });
 
-test('incomplete championship responses use the same shared layout for every 2023+ season', () => {
+test('incomplete championship responses keep available games and show every empty section', () => {
   const partial = [
     { r: 1, m: 1, t1: 1, t2: 2, w: 1, l: 2 },
     { r: 1, m: 2, t1: 3, t2: 4, w: 3, l: 4 },
   ];
   for (const season of [2023, 2024, 2025, 2026, 2027]) {
     const matches = getBracketMatchesForDisplay(season, 'winners', partial, 8, 6);
-    assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [4, 4, 4]);
-    assert.ok(matches.every((match) => match.t1 == null && match.t2 == null));
+    assert.equal(matches, partial);
+    const sections = getBracketDisplaySections(matches, 'winners', season);
+    assert.deepEqual(sections.mainRounds.map((round) => round.matches.length), [4, 2, 2]);
+    assert.deepEqual(sections.placementRounds.map((round) => round.matches.length), [2, 2]);
+    assert.ok(sections.mainMatches.some((match) => match.t1 === 1 && match.t2 === 2));
   }
 });
 
-test('incomplete Toilet Bowl responses use the same shared layout for every 2023+ season', () => {
+test('incomplete Toilet Bowl responses keep available games and show every empty section', () => {
   const partial = [
     { r: 1, m: 1, t1: 9, t2: 10, w: 9, l: 10 },
   ];
   for (const season of [2023, 2024, 2025, 2026, 2027]) {
     const matches = getBracketMatchesForDisplay(season, 'losers', partial, 8, 6);
-    assert.deepEqual([1, 2, 3].map((round) => roundMatches(matches, round).length), [2, 3, 2]);
+    assert.equal(matches, partial);
+    const sections = getBracketDisplaySections(matches, 'losers', season);
+    assert.deepEqual(sections.mainRounds.map((round) => round.matches.length), [2, 2, 1]);
+    assert.deepEqual(sections.placementRounds.map((round) => round.matches.length), [1, 1]);
+    assert.ok(sections.mainMatches.some((match) => match.t1 === 9 && match.t2 === 10));
   }
 });
 
