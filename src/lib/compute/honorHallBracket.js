@@ -270,19 +270,17 @@ export function getBracketMatchesForDisplay(
   toiletBowlTeams = 6
 ) {
   const matches = Array.isArray(savedMatches) ? savedMatches : [];
-  const hasAssignedTeams = matches.some((match) =>
-    match.t1 != null || match.t2 != null || match.w != null || match.l != null
-  );
-  const expectedRoundCounts = bracketType === 'winners' ? [4, 4, 4] : [2, 3, 2];
-  const actualRoundCounts = [1, 2, 3].map((round) =>
-    matches.filter((match) => (Number(match.r) || 1) === round).length
-  );
-  const hasSharedStructure = expectedRoundCounts.every(
-    (count, index) => actualRoundCounts[index] === count
-  );
+  if (Number(season) >= 2023) {
+    const hasAssignedTeams = matches.some((match) =>
+      match.t1 != null || match.t2 != null || match.w != null || match.l != null
+    );
 
-  if (Number(season) >= 2023 && (!hasAssignedTeams || !hasSharedStructure)) {
-    return createEmptyBracketTemplate(bracketType, playoffTeams, toiletBowlTeams);
+    // Keep any matchup data Sleeper has already published. The display
+    // section builder fills missing slots without throwing away results.
+    // Only use the full blank scaffold when there is no assigned team data.
+    if (!hasAssignedTeams) {
+      return createEmptyBracketTemplate(bracketType, playoffTeams, toiletBowlTeams);
+    }
   }
   return matches;
 }
