@@ -1,0 +1,93 @@
+name: Regenerate 2025 season snapshot
+
+on:
+  push:
+    branches:
+      - owners-hub-hundredths-2025-refresh
+    paths:
+      - .github/workflows/regenerate-2025.yml
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Capture untouched seasons and manual score overrides
+        run: |
+          for year in 2022 2023 2024 2026; do
+            sha256sum "static/season_matchups/${year}.json"
+          done > /tmp/protected-season-checksums.txt
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = JSON.parse(fs.readFileSync('static/season_matchups/2025.json', 'utf8'));
+          const overrides = [];
+          for (const [week, rows] of Object.entries(file)) {
+            if (!Array.isArray(rows)) continue;
+            for (const row of rows) {
+              const values = {};
+              if (Object.hasOwn(row, 'teamAScore')) values.teamAScore = row.teamAScore;
+              if (Object.hasOwn(row, 'teamBScore')) values.teamBScore = row.teamBScore;
+              if (Object.keys(values).length) overrides.push({ week, matchup_id: row.matchup_id, ...values });
+            }
+          }
+          fs.writeFileSync('/tmp/2025-score-overrides.json', JSON.stringify(overrides));
+          NODE
+      - name: Regenerate only 2025
+        run: node scripts/regenerate-season-matchups.mjs 2025
+      - name: Validate regenerated 2025 and untouched seasons
+        run: |
+          while read -r expected file; do
+            actual="$(sha256sum "$file" | cut -d' ' -f1)"
+            test "$actual" = "$expected" || { echo "Unexpected change to $file"; exit 1; }
+          done < /tmp/protected-season-checksums.txt
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const file = JSON.parse(fs.readFileSync('static/season_matchups/2025.json', 'utf8'));
+          const overrides = JSON.parse(fs.readFileSync('/tmp/2025-score-overrides.json', 'utf8'));
+          for (const [week, rows] of Object.entries(file)) {
+            if (!Array.isArray(rows)) continue;
+            for (const row of rows) {
+              assert.ok(row.teamA && row.teamB, `week ${week} matchup missing a team`);
+              for (const side of ['teamA', 'teamB']) {
+                assert.ok(Array.isArray(row[side].starters), `week ${week} ${side} starters missing`);
+                assert.ok(Array.isArray(row[side].starters_points), `week ${week} ${side} starter points missing`);
+                assert.equal(row[side].starters.length, row[side].starters_points.length, `week ${week} ${side} starter arrays misaligned`);
+                assert.ok(!Object.hasOwn(row[side], 'player_points'), `week ${week} contains disallowed player_points`);
+              }
+              for (const field of ['teamAScore', 'teamBScore']) {
+                if (Object.hasOwn(row, field)) assert.ok(Number.isFinite(Number(row[field])), `week ${week} invalid ${field}`);
+              }
+            }
+          }
+          for (const prior of overrides) {
+            const row = (file[prior.week] || []).find((item) => String(item.matchup_id) === String(prior.matchup_id));
+            assert.ok(row, `manual override matchup ${prior.matchup_id} in week ${prior.week} is missing`);
+            for (const field of ['teamAScore', 'teamBScore']) {
+              if (Object.hasOwn(prior, field)) assert.equal(row[field], prior[field], `manual override ${field} changed in week ${prior.week}`);
+            }
+          }
+          console.log(`Validated ${Object.keys(file).filter((key) => Array.isArray(file[key])).length} weeks and ${overrides.length} preserved manual-score override rows in 2025.json.`);
+          NODE
+      - name: Commit generated data and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add static/season_matchups/2025.json
+          git rm .github/workflows/regenerate-2025.yml
+          if git diff --cached --quiet; then
+            echo "No generated data changes to commit."
+          else
+            git commit -m "Regenerate 2025 season matchups"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
