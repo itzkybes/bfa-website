@@ -124,6 +124,7 @@
       }
     }
     const nextBracketData = {
+      season: Number(target.season),
       winners: standings.winnersBracket || [],
       losers: standings.losersBracket || [],
       rosterMap: standings.rosterMap || {},
@@ -194,7 +195,9 @@
     if (!mainMatches.length) return '';
     if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Championship Quarterfinals';
     if (round === 2) {
-      if (bracketType === 'losers') return 'Toilet Bowl Main Bracket';
+      if (bracketType === 'losers') {
+        return Number(bracketData.season) === 2022 ? 'Toilet Bowl Semifinals' : 'Toilet Bowl Main Bracket';
+      }
       return 'Championship Semifinals';
     }
     if (round >= 3) return bracketType === 'losers' ? 'Toilet Bowl Finals' : 'Championship & 3rd/4th Place';
@@ -273,7 +276,23 @@
       return false;
     }
 
-    // Preserve the existing Toilet Bowl classification.
+    // In 2022, the two Round 1 winners advance to the Toilet Bowl
+    // semifinals. The other Round 2 matchups are consolation games.
+    // Sleeper's placement field does not reflect that historical format.
+    if (Number(bracketData.season) === 2022 && round === 2) {
+      const roundOneWinners = new Set(
+        (matches || [])
+          .filter((candidate) => (Number(candidate.r) || 1) === 1)
+          .map((candidate) => candidate.w)
+          .filter((rosterId) => rosterId != null)
+          .map(String)
+      );
+      return ![match.t1, match.t2].every(
+        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
+      );
+    }
+
+    // Preserve the existing Toilet Bowl classification for other seasons.
     return Number(match.p) > 1;
   }
 
@@ -308,6 +327,9 @@
         const bothAdvancedAsWinners = [match.t1, match.t2].every(
           (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
         );
+        if (Number(bracketData.season) === 2022) {
+          return bothAdvancedAsWinners ? 'Toilet Bowl Semifinal' : 'Toilet Bowl Consolation Game';
+        }
         return bothAdvancedAsWinners ? '9th/10th Place Game' : 'Toilet Bowl Semifinal';
       }
       if (round >= 3) {
@@ -344,7 +366,9 @@
 
   function bracketConsolationTitle(round, bracketType) {
     if (bracketType === 'winners' && round === 2) return '5th–8th Place Consolation Qualifiers';
-    if (bracketType === 'losers' && round === 2) return 'Toilet Bowl Semifinals';
+    if (bracketType === 'losers' && round === 2) {
+      return Number(bracketData.season) === 2022 ? 'Toilet Bowl Consolation Games' : 'Toilet Bowl Semifinals';
+    }
     if (bracketType === 'winners' && round === 3) return 'Placement Games';
     if (bracketType === 'losers' && round === 3) return 'Placement Games';
     return 'Consolation Games';
