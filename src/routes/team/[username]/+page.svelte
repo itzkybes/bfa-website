@@ -133,11 +133,16 @@
    * Walk every week of `collectedMatchups`, pair the entries by matchup_id,
    * and emit one row per week where `myRosterId` was a participant.
    */
-  function buildMatchupsForRoster(collectedMatchups, myRosterId, rosterMap, playoffStart, playoffEnd) {
+  function buildMatchupsForRoster(collectedMatchups, myRosterId, rosterMap, playoffStart, playoffEnd, playoffMatchups = {}) {
     const out = [];
     const weeks = Object.keys(collectedMatchups).map(Number).sort((a, b) => a - b);
     for (const week of weeks) {
-      const arr = collectedMatchups[week] || [];
+      // A team only has postseason results if it qualified for the
+      // championship playoff field; Toilet Bowl weeks aren't playoff stats.
+      const isPlayoff = week >= playoffStart && week <= playoffEnd;
+      const arr = isPlayoff
+        ? (playoffMatchups[week] || [])
+        : (collectedMatchups[week] || []);
       // Pair by matchup_id
       const byMid = {};
       for (const e of arr) {
@@ -158,7 +163,6 @@
         let result = 'T';
         if (myPts > oppPts + 1e-9) result = 'W';
         else if (myPts < oppPts - 1e-9) result = 'L';
-        const isPlayoff = week >= playoffStart && week <= playoffEnd;
         out.push({ week, isPlayoff, my: myPts, opp: oppPts, oppMeta, result });
       }
     }
@@ -191,7 +195,8 @@
           rid,
           standings.rosterMap || {},
           standings.playoffStart,
-          standings.playoffEnd
+          standings.playoffEnd,
+          standings.playoffMatchups || {}
         );
 
         // Locate owner display info from THIS season's roster map. We prefer
