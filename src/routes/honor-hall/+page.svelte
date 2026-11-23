@@ -5,6 +5,7 @@
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
   import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
+  import { isBracketPlacementMatch } from '$lib/compute/honorHallBracket.js';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
   import { formatNumber, avatarOrPlaceholder, playerDisplayName } from '$lib/utils/format';
@@ -181,18 +182,6 @@
     return bracketData[bracket.key] || [];
   }
 
-  function bracketMainTitle(round, bracketType, matches) {
-    const mainMatches = (matches || []).filter((match) => !isConsolationMatch(match, bracketType, matches));
-    if (!mainMatches.length) return '';
-    if (round === 1) return bracketType === 'losers' ? 'Toilet Bowl Quarterfinals' : 'Championship Quarterfinals';
-    if (round === 2) {
-      if (bracketType === 'losers') return 'Toilet Bowl Main Bracket';
-      return 'Championship Semifinals';
-    }
-    if (round >= 3) return bracketType === 'losers' ? 'Toilet Bowl Finals' : 'Championship & 3rd/4th Place';
-    return '';
-  }
-
   function bracketMatchKey(match) {
     return `${Number(match.r) || 1}-${match.m ?? 'x'}-${match.p ?? 'x'}`;
   }
@@ -222,175 +211,8 @@
     );
   }
 
-  function bracketFeed(match, side) {
-    const source = match?.[side === 't1' ? 't1_from' : 't2_from'];
-    if (!source || typeof source !== 'object') return null;
-    if (source.w != null) return { matchId: String(source.w), outcome: 'winner' };
-    if (source.l != null) return { matchId: String(source.l), outcome: 'loser' };
-    return null;
-  }
-
   function isConsolationMatch(match, bracketType, matches = []) {
-    const round = Number(match.r) || 1;
-    if (round === 1) return false;
-
-    if (bracketType === 'winners') {
-      const roundOneMatches = (matches || []).filter((candidate) => (Number(candidate.r) || 1) === 1);
-      const roundOneLosers = new Set(
-        roundOneMatches
-          .map((candidate) => candidate.l)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-
-      if (round === 2) {
-        // Prefer Sleeper's feeder paths: unlike the resolved loser IDs, these
-        // are present before Round 1 has been played.
-        const feeds = [bracketFeed(match, 't1'), bracketFeed(match, 't2')];
-        if (feeds.every(Boolean)) {
-          return feeds.every((feed) => feed.outcome === 'loser');
-        }
-
-        // Completed historical brackets may not include feeder metadata.
-        const teams = [match.t1, match.t2];
-        if (teams.every((rosterId) => rosterId != null) && roundOneLosers.size) {
-          return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
-        }
-
-        // Sleeper assigns the 5th–8th place qualifiers placements 5 and 7.
-        // This fallback keeps the correct split for unplayed future brackets.
-        return Number(match.p) >= 5;
-      }
-
-      if (round >= 3) {
-        const roundTwoMatches = (matches || []).filter((candidate) => (Number(candidate.r) || 1) === 2);
-        const roundTwoConsolationMatches = roundTwoMatches.filter((candidate) => {
-          const feeds = [bracketFeed(candidate, 't1'), bracketFeed(candidate, 't2')];
-          if (feeds.every(Boolean)) return feeds.every((feed) => feed.outcome === 'loser');
-          const teams = [candidate.t1, candidate.t2];
-          if (teams.every((rosterId) => rosterId != null) && roundOneLosers.size) {
-            return teams.every((rosterId) => roundOneLosers.has(String(rosterId)));
-          }
-          return Number(candidate.p) >= 5;
-        });
-
-        // First follow the actual roster IDs when results are available.
-        const roundTwoConsolationTeams = new Set(
-          roundTwoConsolationMatches
-            .flatMap((candidate) => [candidate.t1, candidate.t2])
-            .filter((rosterId) => rosterId != null)
-            .map(String)
-        );
-        if ([match.t1, match.t2].some(
-          (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
-        )) return true;
-
-        // For games that have not been played, follow the feeder matchup IDs.
-        const roundTwoConsolationIds = new Set(
-          roundTwoConsolationMatches
-            .map((candidate) => candidate.m)
-            .filter((matchId) => matchId != null)
-            .map(String)
-        );
-        const feeds = [bracketFeed(match, 't1'), bracketFeed(match, 't2')];
-        if (feeds.some((feed) => feed && roundTwoConsolationIds.has(feed.matchId))) return true;
-
-        // Placement finals are numbered 5th/7th; title and 3rd-place games
-        // are numbered 1st/3rd. Use that only when the feed path is absent.
-        if (!feeds.some(Boolean)) return Number(match.p) >= 5;
-        return false;
-      }
-      return false;
-    }
-
-    // Preserve the established Toilet Bowl classification.
-    if (Number(bracketData.season) === 2022 && round === 2) {
-      const roundOneWinners = new Set(
-        (matches || [])
-          .filter((candidate) => (Number(candidate.r) || 1) === 1)
-          .map((candidate) => candidate.w)
-          .filter((rosterId) => rosterId != null)
-          .map(String)
-      );
-      return ![match.t1, match.t2].every(
-        (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
-      );
-    }
-    return Number(match.p) > 1;
-  }
-
-  function bracketMatchLabel(match, round, matches, bracketType) {
-    const placement = Number(match.p);
-    if (isConsolationMatch(match, bracketType, matches)) {
-      if (bracketType === 'winners') {
-        if (round === 2) return 'Consolation Qualifier · 5th–8th Place';
-        const places = [match.t1, match.t2]
-          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-          .filter(Number.isFinite).sort((a, b) => a - b);
-        if (places[0] === 5 && places[1] === 6) return 'Consolation Game · 5th/6th Place';
-        if (places[0] === 7 && places[1] === 8) return 'Consolation Game · 7th/8th Place';
-        return 'Consolation Placement Game';
-      }
-      const places = [match.t1, match.t2]
-        .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-        .filter(Number.isFinite).sort((a, b) => a - b);
-      if (places.length === 2) return 'Toilet Bowl Consolation · ' + places[0] + 'th/' + places[1] + 'th Place';
-      return 'Toilet Bowl Consolation Game';
-    }
-    if (bracketType === 'losers') {
-      if (round === 1) return Number(bracketData.season) === 2022 ? '' : 'Toilet Bowl Quarterfinal';
-      if (round === 2) {
-        // The two round-1 winners play for 9th/10th. The other games
-        // feed into the 11th/12th game or the Toilet Bowl Championship.
-        const priorWinners = new Set(
-          (matches || [])
-            .filter((candidate) => (Number(candidate.r) || 1) === 1)
-            .flatMap((candidate) => candidate.w == null ? [] : [String(candidate.w)])
-        );
-        const bothAdvancedAsWinners = [match.t1, match.t2].every(
-          (rosterId) => rosterId != null && priorWinners.has(String(rosterId))
-        );
-        if (Number(bracketData.season) === 2022) return bothAdvancedAsWinners ? '' : 'Toilet Bowl Consolation Game';
-        return bothAdvancedAsWinners ? '9th/10th Place Game' : 'Toilet Bowl Semifinal';
-      }
-      if (round >= 3) {
-        const places = [match.t1, match.t2]
-          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-          .filter(Number.isFinite).sort((a, b) => a - b);
-        if (places[0] === 9 && places[1] === 10) return '9th/10th Place Game';
-        if (places[0] === 11 && places[1] === 12) return '11th/12th Place Game';
-        if (places[0] === 13 && places[1] === 14) return 'Toilet Bowl Championship';
-        return placement === 1 ? 'Toilet Bowl Championship' : 'Placement Game';
-      }
-    }
-
-    if (bracketType === 'winners' || bracketType === 'consolation') {
-      if (round === 3) {
-        const places = [match.t1, match.t2]
-          .map((rosterId) => Number(bracketData.finalSeeds?.[String(rosterId)]))
-          .filter(Number.isFinite).sort((a, b) => a - b);
-        const pair = places.join('-');
-        return ({
-          '1-2': 'Championship',
-          '3-4': '3rd Place',
-          '5-6': '5th Place',
-          '7-8': '7th Place'
-        })[pair] || ({ 1: 'Championship', 2: '3rd Place', 3: '5th Place', 4: '7th Place' })[placement] || 'Placement Game';
-      }
-      if (round === 2 && placement > 1) {
-        const firstPlace = bracketMatchPlacement(match);
-        return firstPlace <= 6 ? '5th Place Qualifier' : '7th Place Qualifier';
-      }
-    }
-    return '';
-  }
-
-  function bracketConsolationTitle(round, bracketType) {
-    if (bracketType === 'winners' && round === 2) return '5th–8th Place Consolation Qualifiers';
-    if (bracketType === 'losers' && round === 2) return 'Toilet Bowl Semifinals';
-    if (bracketType === 'winners' && round === 3) return 'Placement Games';
-    if (bracketType === 'losers' && round === 3) return 'Placement Games';
-    return 'Consolation Games';
+    return isBracketPlacementMatch(match, bracketType, matches, bracketData.season);
   }
 
   function setBracketTrackRef(type, element) {
