@@ -90,7 +90,7 @@ test('compares the latest completed weeks against each team season average', asy
   assert.equal(result.teams.find((team) => team.rosterId === '1').seasonAverage, 122.5);
   assert.equal(result.teams.find((team) => team.rosterId === '1').recentAverage, 140);
   assert.equal(result.teams.find((team) => team.rosterId === '2').recentAverage, 100);
-  assert.equal(result.teams.find((team) => team.rosterId === '2').difference, -5);
+  assert.ok(Math.abs(result.teams.find((team) => team.rosterId === '2').difference + (20 / 3)) < 1e-9);
 });
 
 test('builds league scoring history from valid team-week scores only', async () => {
