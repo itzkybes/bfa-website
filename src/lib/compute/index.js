@@ -5,6 +5,7 @@
 
 export { computeParticipantPoints, starterPointsByPid, aggregatePlayerPoints } from './scoring';
 export { computeStreaks } from './streaks';
+export { filterPlayoffMatchups } from './playoffEligibility';
 export { resolveFinalStandingsFromBrackets, getChampionshipGame } from './brackets';
 export { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 export { computeStandingsForLeague } from './standings';

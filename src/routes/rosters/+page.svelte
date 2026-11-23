@@ -22,6 +22,13 @@
 
   const STARTER_SLOTS = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'UTIL'];
 
+  function formatPoints(value) {
+    const points = Number(value);
+    return Number.isFinite(points)
+      ? points.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '0.00';
+  }
+
   function getTaxi(rawRoster) {
     const x = rawRoster || {};
     return x?.taxi || x?.taxi_squad || x?.taxi_players || x?.taxiSquad || x?.taxi_roster || x?.taxi_list || [];
@@ -154,7 +161,7 @@
             (completedBye ? 'Bye' : 'Schedule pending'),
           opponentAvatar: opponentMeta?.team_avatar || opponentMeta?.owner_avatar || null,
           status: completed ? result : completedBye ? 'BYE' : 'UPCOMING',
-          score: completed ? `${minePoints.toFixed(1)} – ${opponentPoints.toFixed(1)}` : null,
+          score: completed ? `${formatPoints(minePoints)} – ${formatPoints(opponentPoints)}` : null,
           result
         });
       }
@@ -355,35 +362,35 @@
                 <div class="hub-stat-label">Career Losses</div>
               </div>
               <div class="hub-stat" title="Career regular-season win percentage">
-                <div class="hub-stat-num">{(roster.owner_hub.winPct * 100).toFixed(1)}<span class="hub-stat-pct">%</span></div>
+                <div class="hub-stat-num">{(roster.owner_hub.winPct * 100).toFixed(2)}<span class="hub-stat-pct">%</span></div>
                 <div class="hub-stat-label">Win %</div>
               </div>
               <div class="hub-stat" title="All-time regular-season points scored">
-                <div class="hub-stat-num">{Math.round(roster.owner_hub.careerPF).toLocaleString()}</div>
+                <div class="hub-stat-num">{formatPoints(roster.owner_hub.careerPF)}</div>
                 <div class="hub-stat-label">Career PF</div>
               </div>
               <div class="hub-stat" title="All-time regular-season points allowed">
-                <div class="hub-stat-num">{Math.round(roster.owner_hub.careerPA).toLocaleString()}</div>
+                <div class="hub-stat-num">{formatPoints(roster.owner_hub.careerPA)}</div>
                 <div class="hub-stat-label">Career PA</div>
               </div>
               <div class="hub-stat" title="Average points scored per regular-season matchup">
-                <div class="hub-stat-num">{roster.owner_hub.avgPF.toFixed(1)}</div>
+                <div class="hub-stat-num">{roster.owner_hub.avgPF.toFixed(2)}</div>
                 <div class="hub-stat-label">Avg PF / Game</div>
               </div>
               <div class="hub-stat" title="Average points allowed per regular-season matchup">
-                <div class="hub-stat-num">{roster.owner_hub.avgPA.toFixed(1)}</div>
+                <div class="hub-stat-num">{roster.owner_hub.avgPA.toFixed(2)}</div>
                 <div class="hub-stat-label">Avg PA / Game</div>
               </div>
               <div class="hub-stat" title="Career points scored minus points allowed">
-                <div class="hub-stat-num">{roster.owner_hub.pointDifferential > 0 ? '+' : ''}{Math.round(roster.owner_hub.pointDifferential).toLocaleString()}</div>
+                <div class="hub-stat-num">{roster.owner_hub.pointDifferential > 0 ? '+' : ''}{formatPoints(roster.owner_hub.pointDifferential)}</div>
                 <div class="hub-stat-label">Point Differential</div>
               </div>
               <div class="hub-stat" title="Average points scored minus points allowed per matchup">
-                <div class="hub-stat-num">{roster.owner_hub.avgMargin > 0 ? '+' : ''}{roster.owner_hub.avgMargin.toFixed(1)}</div>
+                <div class="hub-stat-num">{roster.owner_hub.avgMargin > 0 ? '+' : ''}{roster.owner_hub.avgMargin.toFixed(2)}</div>
                 <div class="hub-stat-label">Avg Margin</div>
               </div>
               <div class="hub-stat" title="Highest single-season PF and the year it happened">
-                <div class="hub-stat-num">{Math.round(roster.owner_hub.bestSeasonPF).toLocaleString()}{#if roster.owner_hub.bestSeasonPFSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestSeasonPFSeason).slice(-2)}</span>{/if}</div>
+                <div class="hub-stat-num">{formatPoints(roster.owner_hub.bestSeasonPF)}{#if roster.owner_hub.bestSeasonPFSeason}<span class="hub-stat-year"> ’{String(roster.owner_hub.bestSeasonPFSeason).slice(-2)}</span>{/if}</div>
                 <div class="hub-stat-label">Best Season PF</div>
               </div>
             </div>
@@ -406,7 +413,7 @@
                         <div class="record-context">W{roster.owner_hub.bestSingleGame.week} · {roster.owner_hub.bestSingleGame.season}</div>
                       </div>
                     </div>
-                    <div class="record-stat win">{roster.owner_hub.bestSingleGame.points.toFixed(2)}<span class="record-stat-label"> PTS</span></div>
+                    <div class="record-stat win">{formatPoints(roster.owner_hub.bestSingleGame.points)}<span class="record-stat-label"> PTS</span></div>
                   </div>
                 {/if}
 
@@ -420,7 +427,7 @@
                         <div class="record-context">W{roster.owner_hub.bestPlayoffGame.week} · {roster.owner_hub.bestPlayoffGame.season} Playoffs</div>
                       </div>
                     </div>
-                    <div class="record-stat win">{roster.owner_hub.bestPlayoffGame.points.toFixed(2)}<span class="record-stat-label"> PTS</span></div>
+                    <div class="record-stat win">{formatPoints(roster.owner_hub.bestPlayoffGame.points)}<span class="record-stat-label"> PTS</span></div>
                   </div>
                 {/if}
 
@@ -436,7 +443,7 @@
                         <div class="record-context">W{roster.owner_hub.highestWeek.week} · {roster.owner_hub.highestWeek.season}</div>
                       </div>
                     </div>
-                    <div class="record-stat win">{roster.owner_hub.highestWeek.points.toFixed(1)}<span class="record-stat-label"> PTS</span></div>
+                    <div class="record-stat win">{formatPoints(roster.owner_hub.highestWeek.points)}<span class="record-stat-label"> PTS</span></div>
                   </div>
                 {/if}
 
@@ -449,7 +456,7 @@
                         <div class="record-context">{roster.owner_hub.lowestWeek.season}</div>
                       </div>
                     </div>
-                    <div class="record-stat loss">{roster.owner_hub.lowestWeek.points.toFixed(1)}<span class="record-stat-label"> PTS</span></div>
+                    <div class="record-stat loss">{formatPoints(roster.owner_hub.lowestWeek.points)}<span class="record-stat-label"> PTS</span></div>
                   </div>
                 {/if}
 
@@ -462,10 +469,10 @@
                       {/if}
                       <div class="record-meta">
                         <div class="record-name">def. {roster.owner_hub.biggestBlowoutWin.opponent_team ?? '—'}</div>
-                        <div class="record-context">{roster.owner_hub.biggestBlowoutWin.my_score.toFixed(1)} – {roster.owner_hub.biggestBlowoutWin.opp_score.toFixed(1)} · W{roster.owner_hub.biggestBlowoutWin.week} {roster.owner_hub.biggestBlowoutWin.season}</div>
+                        <div class="record-context">{formatPoints(roster.owner_hub.biggestBlowoutWin.my_score)} – {formatPoints(roster.owner_hub.biggestBlowoutWin.opp_score)} · W{roster.owner_hub.biggestBlowoutWin.week} {roster.owner_hub.biggestBlowoutWin.season}</div>
                       </div>
                     </div>
-                    <div class="record-stat win">+{roster.owner_hub.biggestBlowoutWin.margin.toFixed(1)}<span class="record-stat-label"> MARGIN</span></div>
+                    <div class="record-stat win">+{formatPoints(roster.owner_hub.biggestBlowoutWin.margin)}<span class="record-stat-label"> MARGIN</span></div>
                   </div>
                 {/if}
 
@@ -478,10 +485,10 @@
                       {/if}
                       <div class="record-meta">
                         <div class="record-name">lost to {roster.owner_hub.biggestBlowoutLoss.opponent_team ?? '—'}</div>
-                        <div class="record-context">{roster.owner_hub.biggestBlowoutLoss.my_score.toFixed(1)} – {roster.owner_hub.biggestBlowoutLoss.opp_score.toFixed(1)} · W{roster.owner_hub.biggestBlowoutLoss.week} {roster.owner_hub.biggestBlowoutLoss.season}</div>
+                        <div class="record-context">{formatPoints(roster.owner_hub.biggestBlowoutLoss.my_score)} – {formatPoints(roster.owner_hub.biggestBlowoutLoss.opp_score)} · W{roster.owner_hub.biggestBlowoutLoss.week} {roster.owner_hub.biggestBlowoutLoss.season}</div>
                       </div>
                     </div>
-                    <div class="record-stat loss">{roster.owner_hub.biggestBlowoutLoss.margin.toFixed(1)}<span class="record-stat-label"> MARGIN</span></div>
+                    <div class="record-stat loss">{formatPoints(roster.owner_hub.biggestBlowoutLoss.margin)}<span class="record-stat-label"> MARGIN</span></div>
                   </div>
                 {/if}
 
@@ -534,7 +541,7 @@
                 <div class="hub-stat-label">Playoff Record</div>
               </div>
               <div class="hub-stat" title="Average final placement in seasons with completed brackets">
-                <div class="hub-stat-num">{roster.owner_hub.averageFinalFinish == null ? '—' : roster.owner_hub.averageFinalFinish.toFixed(1)}</div>
+                <div class="hub-stat-num">{roster.owner_hub.averageFinalFinish == null ? '—' : roster.owner_hub.averageFinalFinish.toFixed(2)}</div>
                 <div class="hub-stat-label">Avg Finish</div>
               </div>
               <div class="hub-stat" title="Number of completed seasons finishing in the top four">
@@ -557,11 +564,11 @@
               </div>
               {#if roster.owner_hub.weeklyScoring}
                 <div class="hub-stat" title="Highest completed regular-season weekly team score">
-                  <div class="hub-stat-num">{roster.owner_hub.weeklyScoring.highest.toFixed(1)}</div>
+                  <div class="hub-stat-num">{formatPoints(roster.owner_hub.weeklyScoring.highest)}</div>
                   <div class="hub-stat-label">Weekly High</div>
                 </div>
                 <div class="hub-stat" title="Lowest completed regular-season weekly team score">
-                  <div class="hub-stat-num">{roster.owner_hub.weeklyScoring.lowest.toFixed(1)}</div>
+                  <div class="hub-stat-num">{formatPoints(roster.owner_hub.weeklyScoring.lowest)}</div>
                   <div class="hub-stat-label">Weekly Low</div>
                 </div>
               {/if}
@@ -572,14 +579,14 @@
                   <div>
                     <span>Toughest matchup</span>
                     <div class="rivalry-team"><img src={roster.owner_hub.activeToughestOpponent.avatar || ''} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><strong>{roster.owner_hub.activeToughestOpponent.owner}</strong></div>
-                    <small>{roster.owner_hub.activeToughestOpponent.wins}–{roster.owner_hub.activeToughestOpponent.losses}{#if roster.owner_hub.activeToughestOpponent.ties}–{roster.owner_hub.activeToughestOpponent.ties}{/if} · {(roster.owner_hub.activeToughestOpponent.winPct * 100).toFixed(0)}% win rate</small>
+                    <small>{roster.owner_hub.activeToughestOpponent.wins}–{roster.owner_hub.activeToughestOpponent.losses}{#if roster.owner_hub.activeToughestOpponent.ties}–{roster.owner_hub.activeToughestOpponent.ties}{/if} · {(roster.owner_hub.activeToughestOpponent.winPct * 100).toFixed(2)}% win rate</small>
                   </div>
                 {/if}
                 {#if roster.owner_hub.activeFavorableOpponent}
                   <div>
                     <span>Best matchup</span>
                     <div class="rivalry-team"><img src={roster.owner_hub.activeFavorableOpponent.avatar || ''} alt="" on:error={(e) => (e.currentTarget.style.visibility = 'hidden')} /><strong>{roster.owner_hub.activeFavorableOpponent.owner}</strong></div>
-                    <small>{roster.owner_hub.activeFavorableOpponent.wins}–{roster.owner_hub.activeFavorableOpponent.losses}{#if roster.owner_hub.activeFavorableOpponent.ties}–{roster.owner_hub.activeFavorableOpponent.ties}{/if} · {(roster.owner_hub.activeFavorableOpponent.winPct * 100).toFixed(0)}% win rate</small>
+                    <small>{roster.owner_hub.activeFavorableOpponent.wins}–{roster.owner_hub.activeFavorableOpponent.losses}{#if roster.owner_hub.activeFavorableOpponent.ties}–{roster.owner_hub.activeFavorableOpponent.ties}{/if} · {(roster.owner_hub.activeFavorableOpponent.winPct * 100).toFixed(2)}% win rate</small>
                   </div>
                 {/if}
               </div>
@@ -597,9 +604,9 @@
                       <tr>
                         <td>{opponent.owner}</td>
                         <td>{opponent.wins}–{opponent.losses}{#if opponent.ties}–{opponent.ties}{/if}</td>
-                        <td>{(opponent.winPct * 100).toFixed(1)}%</td>
-                        <td>{Math.round(opponent.pf).toLocaleString()}</td>
-                        <td>{Math.round(opponent.pa).toLocaleString()}</td>
+                        <td>{(opponent.winPct * 100).toFixed(2)}%</td>
+                        <td>{formatPoints(opponent.pf)}</td>
+                        <td>{formatPoints(opponent.pa)}</td>
                       </tr>
                     {/each}
                   </tbody>
@@ -624,10 +631,10 @@
                         <td>{seasonRow.season}</td>
                         <td>{seasonRow.wins}–{seasonRow.losses}{#if seasonRow.ties}–{seasonRow.ties}{/if}</td>
                         <td>{seasonRow.finish ? `#${seasonRow.finish}` : '—'}</td>
-                        <td>{Math.round(seasonRow.pf).toLocaleString()}</td>
-                        <td>{Math.round(seasonRow.pa).toLocaleString()}</td>
+                        <td>{formatPoints(seasonRow.pf)}</td>
+                        <td>{formatPoints(seasonRow.pa)}</td>
                         <td class:positive={seasonRow.pf > seasonRow.pa} class:negative={seasonRow.pf < seasonRow.pa}>
-                          {seasonRow.pf - seasonRow.pa > 0 ? '+' : ''}{Math.round(seasonRow.pf - seasonRow.pa).toLocaleString()}
+                          {seasonRow.pf - seasonRow.pa > 0 ? '+' : ''}{formatPoints(seasonRow.pf - seasonRow.pa)}
                         </td>
                       </tr>
                     {/each}

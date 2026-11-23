@@ -73,32 +73,25 @@
 
         // Use the already-collected matchups (no extra fetches)
         const collected = standings.collectedMatchups || {};
+        const playoffMatchups = standings.playoffMatchups || {};
         const regularEntries = [];
         const playoffEntries = [];
         for (const wk of Object.keys(collected)) {
           const week = Number(wk);
           const arr = collected[wk] || [];
-          if (week >= playoffStart && week <= playoffEnd) playoffEntries.push(...arr);
-          else if (week >= 1 && week < playoffStart) regularEntries.push(...arr);
+          if (week >= playoffStart && week <= playoffEnd) {
+            playoffEntries.push(...(playoffMatchups[wk] || []));
+          } else if (week >= 1 && week < playoffStart) {
+            regularEntries.push(...arr);
+          }
         }
+        // The playoff collection already contains only complete matchups
+        // made up of teams seeded into the championship playoff field.
         const fullEntries = [...regularEntries, ...playoffEntries];
 
         const fullByPlayer = aggregatePlayerPoints(fullEntries);
         const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
         const regularByPlayer = aggregatePlayerPoints(regularEntries);
-
-        // Playoffs MVP must come from the top-N seeded teams (the actual
-        // playoff bracket). Filter losers-bracket entries out so the
-        // toilet-bowl winner can't take this trophy.
-        const playoffTeamCount = Number(standings.playoffTeams) || 8;
-        const playoffRosterSet = new Set(
-          (standings.regularStandings || [])
-            .slice(0, playoffTeamCount)
-            .map((r) => String(r.rosterId))
-        );
-        const playoffEntriesEligible = playoffEntries.filter(
-          (e) => playoffRosterSet.has(String(e.roster_id ?? e.rosterId ?? ''))
-        );
 
         // ---- Finals MVP = top scorer in the championship GAME only ----
         // (not the champion's top scorer across the whole playoff window)
@@ -106,7 +99,7 @@
         if (standings.bracketComplete && standings.championshipGame?.week != null) {
           const champWeek = standings.championshipGame.week;
           const champRosters = new Set((standings.championshipGame.rosterIds || []).map(String));
-          const champGameEntries = (collected[champWeek] || []).filter(
+          const champGameEntries = (playoffMatchups[champWeek] || []).filter(
             (e) => champRosters.has(String(e.roster_id ?? e.rosterId ?? ''))
           );
           finalsList = Object.values(aggregatePlayerPoints(champGameEntries))
@@ -115,7 +108,7 @@
 
         // Regular Season MVP = top scorer across regular-season weeks only.
         const regularList = Object.values(regularByPlayer).sort((a, b) => b.points - a.points);
-        const playoffsList = Object.values(aggregatePlayerPoints(playoffEntriesEligible)).sort((a, b) => b.points - a.points);
+        const playoffsList = Object.values(playoffByPlayer).sort((a, b) => b.points - a.points);
 
         // Finals MVP = top scorer in the championship game (across BOTH finalists)
         const finalsMvp = finalsList[0] || null;

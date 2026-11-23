@@ -140,8 +140,14 @@
         if (!result) continue;
         const rmap = result.rosterMap || {};
         const matchups = result.collectedMatchups || {};
+        const playoffMatchups = result.playoffMatchups || {};
+        const playoffStart = Number(result.playoffStart) || 19;
+        const playoffEnd = Number(result.playoffEnd) || playoffStart + 2;
         for (const wk of Object.keys(matchups)) {
-          const weekEntries = matchups[wk];
+          const week = Number(wk);
+          const weekEntries = week >= playoffStart && week <= playoffEnd
+            ? (playoffMatchups[wk] || [])
+            : matchups[wk];
           if (!Array.isArray(weekEntries)) continue;
           const byM = {};
           for (let i = 0; i < weekEntries.length; i++) {
@@ -234,10 +240,12 @@
         const rmap = result.rosterMap || {};
         const playoffStart = Number(result.playoffStart) || 19;
         const playoffEnd = Number(result.playoffEnd) || playoffStart + 2;
+        const playoffMatchups = result.playoffMatchups || {};
         for (const [weekText, entries] of Object.entries(result.collectedMatchups || {})) {
           const week = Number(weekText);
           if (!Number.isInteger(week) || week < 1 || week > playoffEnd) continue;
-          for (const entry of entries || []) {
+          const phaseEntries = week >= playoffStart ? (playoffMatchups[weekText] || []) : entries;
+          for (const entry of phaseEntries || []) {
             const rawPoints = Number(entry.__final_score ?? entry.points);
             if (!Number.isFinite(rawPoints)) continue;
             const rid = String(entry.roster_id ?? entry.rosterId ?? '');

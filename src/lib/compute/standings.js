@@ -33,6 +33,7 @@ import {
 import { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 import { getSeasonFormat } from './seasonFormat';
 import { getCompletedWeekForLeague } from './weekCutoff';
+import { filterPlayoffMatchups } from './playoffEligibility';
 
 // Sleeper "season" runs for ~24 weeks; we scan a couple extra for safety.
 const MAX_WEEKS = 25;
@@ -410,6 +411,18 @@ export async function computeStandingsForLeague(leagueId) {
 
   stampChampion(playoffStandings, bracketComplete, bracketChampionId, leagueSeason, rosterMap);
 
+  // Keep the complete matchup collection available for bracket and schedule
+  // display, but expose a postseason-only collection for statistics. This
+  // includes every round and placement game involving the seeded playoff
+  // field, while excluding all Toilet Bowl / non-qualifier matchups.
+  const playoffRosterIds = [...(playoffRosterSet || [])];
+  const playoffMatchups = filterPlayoffMatchups(
+    collectedMatchups,
+    playoffRosterIds,
+    playoffStart,
+    playoffEnd
+  );
+
   // 9. Sort each weekly PF series chronologically before returning.
   for (const rid of Object.keys(weeklyPfByRoster)) {
     weeklyPfByRoster[rid].sort((a, b) => a.week - b.week);
@@ -438,6 +451,8 @@ export async function computeStandingsForLeague(leagueId) {
     losersBracket,
     weeklyPfByRoster,
     collectedMatchups,
+    playoffRosterIds,
+    playoffMatchups,
     standingsMovement,
   };
 }

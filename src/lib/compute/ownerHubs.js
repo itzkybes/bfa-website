@@ -109,9 +109,10 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
       // Per-game records — scan collectedMatchups for every week. Regular
       // season weeks (1 → playoffStart-1) feed the franchise records that
       // are strictly regular-season (highest/lowest, blowouts, best single
-      // game). Playoff weeks (playoffStart → playoffEnd) feed `bestPlayoffGame`.
+      // game). Eligible playoff weeks feed `bestPlayoffGame`; Toilet Bowl entries are excluded.
       // All per-player figures read from `starters_points` ONLY.
       const collected = r.collectedMatchups || {};
+      const playoffMatchups = r.playoffMatchups || {};
       const seasonFormat = getSeasonFormat(seasonLabel);
       const playoffStart = Number(r.playoffStart) || seasonFormat?.playoffStart || 19;
       const playoffEnd = Number(r.playoffEnd) || seasonFormat?.playoffEnd || (playoffStart + 2);
@@ -121,7 +122,9 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
         const isRegular = wk < playoffStart;
         const isPlayoff = wk >= playoffStart && wk <= playoffEnd;
         if (!isRegular && !isPlayoff) continue;
-        const entries = collected[wkStr] || [];
+        // Postseason player records use only games from the seeded playoff
+        // field. Toilet Bowl matchups remain in collectedMatchups for display.
+        const entries = isPlayoff ? (playoffMatchups[wkStr] || []) : (collected[wkStr] || []);
         const validScores = entries.map((entry) => Number(entry.__final_score ?? entry.points)).filter(Number.isFinite);
         const lowestLeagueScore = validScores.length ? Math.min(...validScores) : null;
         const byMatch = {};
