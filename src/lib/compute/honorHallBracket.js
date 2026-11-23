@@ -9,15 +9,16 @@ function bracketFeed(match, side) {
   return null;
 }
 
-function isWinnersPlacementMatch(match, matches) {
+function isWinnersPlacementMatch(match, matches, season) {
   const round = Number(match.r) || 1;
   if (round === 1) return false;
   if (typeof match.__placement === 'boolean') return match.__placement;
 
-  // Sleeper's p field identifies the placement slots before results and
-  // roster assignments exist. In this eight-team bracket, p=3/4 are the
-  // 5th–8th place games; p=1/2 remain in the main championship bracket.
-  if (Number(match.p) >= 3) return true;
+  // Sleeper's p field is the finishing-place number. For an eight-team
+  // playoff, p=5 and p=7 are the 5th/6th and 7th/8th placement games.
+  // Keep p=3 (the 3rd/4th-place game) in the main championship bracket.
+  // This identifies unplayed placement matchups before team IDs exist.
+  if (Number(season) >= 2023 && Number(match.p) >= 5) return true;
 
   const roundOneMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 1);
   const roundOneLosers = new Set(
@@ -42,6 +43,7 @@ function isWinnersPlacementMatch(match, matches) {
     const roundTwoMatches = matches.filter((candidate) => (Number(candidate.r) || 1) === 2);
     const roundTwoPlacementMatches = roundTwoMatches.filter((candidate) => {
       if (typeof candidate.__placement === 'boolean') return candidate.__placement;
+      if (Number(season) >= 2023 && Number(candidate.p) >= 5) return true;
 
       const feeds = [bracketFeed(candidate, 't1'), bracketFeed(candidate, 't2')];
       if (feeds.every(Boolean)) return feeds.every((feed) => feed.outcome === 'loser');
@@ -104,7 +106,7 @@ export function isBracketPlacementMatch(match, bracketType, matches = [], season
   if ((Number(match.r) || 1) === 1) return false;
 
   if (bracketType === 'winners') {
-    return isWinnersPlacementMatch(match, allMatches);
+    return isWinnersPlacementMatch(match, allMatches, season);
   }
   return isToiletBowlPlacementMatch(match, allMatches, season);
 }
@@ -226,14 +228,14 @@ export function createEmptyBracketTemplate(bracketType, playoffTeams = 8, toilet
     const roundTwo = [
       createMatch(2, 5, false, { w: 1 }, { w: 2 }, 1),
       createMatch(2, 6, false, { w: 3 }, { w: 4 }, 1),
-      createMatch(2, 7, true, { l: 1 }, { l: 2 }, 3),
-      createMatch(2, 8, true, { l: 3 }, { l: 4 }, 4),
+      createMatch(2, 7, true, { l: 1 }, { l: 2 }, 5),
+      createMatch(2, 8, true, { l: 3 }, { l: 4 }, 7),
     ];
     const roundThree = [
       createMatch(3, 9, false, { w: 5 }, { w: 6 }, 1),
-      createMatch(3, 10, false, { l: 5 }, { l: 6 }, 2),
-      createMatch(3, 11, true, { w: 7 }, { w: 8 }, 3),
-      createMatch(3, 12, true, { l: 7 }, { l: 8 }, 4),
+      createMatch(3, 10, false, { l: 5 }, { l: 6 }, 3),
+      createMatch(3, 11, true, { w: 7 }, { w: 8 }, 5),
+      createMatch(3, 12, true, { l: 7 }, { l: 8 }, 7),
     ];
     return [...roundOne, ...roundTwo, ...roundThree];
   }
