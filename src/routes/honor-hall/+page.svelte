@@ -231,9 +231,51 @@
   }
 
   function isConsolationMatch(match, bracketType, matches = []) {
-    // Opening-round matchups remain part of the main competition. In later
-    // rounds, p>1 identifies teams that have left the p=1 advancement path.
-    return (Number(match.r) || 1) > 1 && Number(match.p) > 1;
+    const round = Number(match.r) || 1;
+    if (round === 1) return false;
+
+    // In the Championship bracket, determine the main path from the actual
+    // Round 1 winners. Round 2 games without two Round 1 winners belong below
+    // in Placement Games, regardless of Sleeper's p value.
+    if (bracketType === 'winners') {
+      const roundOneWinners = new Set(
+        (matches || [])
+          .filter((candidate) => (Number(candidate.r) || 1) === 1)
+          .map((candidate) => candidate.w)
+          .filter((rosterId) => rosterId != null)
+          .map(String)
+      );
+
+      if (round === 2) {
+        return ![match.t1, match.t2].every(
+          (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
+        );
+      }
+
+      // Later rounds stay with Placement Games when they contain a team
+      // that entered the Round 2 placement path.
+      if (round >= 3) {
+        const roundTwoPlacementTeams = new Set(
+          (matches || [])
+            .filter((candidate) =>
+              (Number(candidate.r) || 1) === 2 &&
+              ![candidate.t1, candidate.t2].every(
+                (rosterId) => rosterId != null && roundOneWinners.has(String(rosterId))
+              )
+            )
+            .flatMap((candidate) => [candidate.t1, candidate.t2])
+            .filter((rosterId) => rosterId != null)
+            .map(String)
+        );
+        return [match.t1, match.t2].some(
+          (rosterId) => rosterId != null && roundTwoPlacementTeams.has(String(rosterId))
+        );
+      }
+      return false;
+    }
+
+    // Preserve the existing Toilet Bowl classification.
+    return Number(match.p) > 1;
   }
 
   function bracketMatchLabel(match, round, matches, bracketType) {
