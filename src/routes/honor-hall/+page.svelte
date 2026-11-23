@@ -244,10 +244,8 @@
       );
 
       if (round === 2) {
-        // Sleeper's p is the finishing-place slot for the winner of a game.
-        // The 2026+ Round 2 games with p=1 and p=3 feed the championship
-        // and 3rd-place finals; only p=5 and p=7 feed 5th–8th placement.
-        if (Number(bracketData.season) >= 2026) return Number(match.p) >= 5;
+        // Both teams in a Round 2 consolation game must be Round 1 losers.
+        // Round 1 winners therefore stay together in the two semifinals.
         return [match.t1, match.t2].every(
           (rosterId) => rosterId != null && roundOneLosers.has(String(rosterId))
         );
@@ -268,9 +266,9 @@
             .filter((rosterId) => rosterId != null)
             .map(String)
         );
-        // Keep the 1st/2nd and 3rd/4th finals in the main bracket.
-        // Only the 5th/6th and 7th/8th finals belong in placement.
-        if (Number(bracketData.season) >= 2026) return Number(match.p) >= 5;
+        // Finals involving teams from the Round 1-loser consolation
+        // games remain in the placement section; championship-path teams
+        // stay in the main bracket.
         return [match.t1, match.t2].some(
           (rosterId) => rosterId != null && roundTwoConsolationTeams.has(String(rosterId))
         );
