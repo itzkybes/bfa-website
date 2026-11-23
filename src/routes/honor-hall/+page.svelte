@@ -657,9 +657,6 @@
   .bracket-connectors .connector-arrow-winner { fill: var(--accent); }
   .bracket-connectors .connector-arrow-loser { fill: var(--text-tertiary); }
   .bracket-round { min-width: 0; width: 100%; display: flex; flex-direction: column; }
-  .bracket-round-title { display: flex; flex-direction: column; align-items: center; gap: 0.12rem; color: var(--text-tertiary); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 0.55rem; text-align: center; }
-  .bracket-round-title small { color: var(--text-tertiary); font-size: 0.9em; font-weight: 400; text-transform: none; letter-spacing: 0; }
-  .bracket-main-title { margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; text-align: center; }
   .bracket-round-games { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 1.15rem; }
   .bracket-round-games.later-round { justify-content: space-around; padding: 2rem 0; }
   .bracket-match { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; max-width: none; box-sizing: border-box; border: 0; border-radius: 0; padding: 0; background: transparent; min-width: 0; }
@@ -670,11 +667,9 @@
 
   .bracket-consolation-heading { margin: 0 0 1.25rem; color: var(--text-primary); font-family: var(--font-display); font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; }
   .bracket-consolation-round { margin: 0 0 1.5rem; }
-  .bracket-consolation-round h5 { margin: 0 0 .8rem; color: var(--text-tertiary); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
   .bracket-consolation-games { display: flex; flex-direction: column; gap: 1rem; }
   .bracket-match-consolation { max-width: 360px; }
   .bracket-match-consolation { background: transparent; }
-  .bracket-match-consolation .bracket-match-label { color: var(--text-secondary); }
   .bracket-round:not(:last-child) .bracket-match::after { content: none; }
   .bracket-team { display: grid; grid-template-columns: 18px 24px minmax(0, 1fr) auto; align-items: center; gap: 0.28rem; min-height: 48px; padding: 0.32rem; box-sizing: border-box; color: var(--text-secondary); font-size: 0.72rem; background: var(--surface-2); }
   .bracket-team:first-of-type { border-radius: 0.7rem 0.7rem 0.18rem 0.18rem; margin-bottom: 2px; }
@@ -687,15 +682,11 @@
   .bracket-team.match-winner .bracket-score, .bracket-team.match-winner .bracket-seed { color: var(--accent); }
   .bracket-empty { opacity: 0.45; }
   .bracket-final .bracket-team { background: linear-gradient(180deg, rgba(245,180,0,.12), var(--surface-2)); }
-  .bracket-match-label { order: -1; margin: 0 0 0.35rem; padding: 0; border: 0; color: var(--text-primary); font-size: 0.7rem; font-weight: 650; text-transform: none; letter-spacing: 0; text-align: center; }
-  .bracket-match-tag { order: -1; align-self: flex-start; margin: 0 0 0.45rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--surface-2, rgba(255,255,255,0.08)); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
   .bracket-note { margin: 0; padding: 0 1rem 1rem; color: var(--text-tertiary); font-size: 0.72rem; }
   @media (max-width: 700px) {
     .bracket-grid { padding: 0.7rem 0.45rem; gap: 1.5rem; }
     .bracket-track { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; padding-bottom: 0.5rem; }
     .bracket-round { width: 100%; }
-    .bracket-round-title { font-size: 0.62rem; letter-spacing: 0.03em; }
-    .bracket-main-title { font-size: 0.55rem; letter-spacing: 0.02em; }
     .bracket-round-games, .bracket-round-games.later-round { padding: 0; gap: 0.8rem; }
     .bracket-match { max-width: none; }
     .bracket-team { grid-template-columns: 13px minmax(0, 1fr) auto; min-height: 43px; gap: 0.18rem; padding: 0.25rem; font-size: 0.61rem; }
@@ -703,7 +694,6 @@
     .bracket-seed { grid-column: 1; grid-row: 1; font-size: 0.55rem; }
     .bracket-team-name { grid-column: 1 / 3; grid-row: 2; font-size: 0.59rem; }
     .bracket-score { grid-column: 3; grid-row: 1; font-size: 0.64rem; }
-    .bracket-match-label { font-size: 0.58rem; margin-bottom: 0.25rem; }
     .bracket-consolation-section { margin: 2.5rem .45rem 1rem; padding-top: 1.1rem; }
     .bracket-placement-track { grid-template-columns: repeat(3, minmax(180px, 1fr)); min-width: 560px; }
     .bracket-consolation-games { gap: .85rem; }
