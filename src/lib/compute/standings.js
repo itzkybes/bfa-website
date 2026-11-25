@@ -4,14 +4,14 @@
 // the UI consumes (regular standings, playoff standings, bracket-derived
 // final standings, championship game, weekly PF series, etc.).
 //
-// Static-vs-live decision:
-//   · For COMPLETED seasons that have a `/static/season_matchups/{year}.json`
-//     snapshot, every week is synthesized from the snapshot. This is instant
-//     and pinning a score is as simple as editing `teamAScore` / `teamBScore`
-//     in the JSON — the static path passes those values through as
-//     `__final_score` and `computeParticipantPoints` honors that first.
-//   · For IN-PROGRESS seasons (or if no snapshot exists), every week falls
-//     back to a live Sleeper API call.
+// Scoring-source policy:
+ //   · All team scores and player-level scoring are read from the saved
+ //     `/static/season_matchups/{year}.json` snapshot.
+ //   · Explicit `teamAScore` / `teamBScore` values in that file are
+ //     authoritative overrides and flow through as `__final_score`.
+ //   · A missing snapshot week is omitted; it never falls back to live
+ //     Sleeper matchup stats. Live API calls below provide league, roster,
+ //     and bracket metadata only.
 
 import {
   getLeague,
@@ -213,11 +213,11 @@ export async function computeStandingsForLeague(leagueId) {
     weeklyPfByRoster[rk] = [];
   }
 
-  // 4. Decide static vs live and load any historical patches.
+  // 4. Load the saved year JSON used as the authoritative scoring source.
   const seasonMatchups = leagueSeason ? await loadSeasonMatchups(leagueSeason) : null;
   const earlyData = null;
 
-  // 5. Fetch ALL weeks in parallel — static where available, live otherwise.
+  // 5. Adapt every available week in the saved snapshot. Missing weeks stay unavailable.
   const weekFetches = [];
   for (let week = 1; week <= MAX_WEEKS; week++) {
     const staticRows = seasonMatchups?.[String(week)];
