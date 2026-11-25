@@ -63,6 +63,8 @@
     });
 
     // ---- MVPs ----
+    // Player totals use the saved year JSON snapshot already adapted by
+    // computeStandingsForLeague; never substitute live player scoring.
     // Use the matchups we already collected during standings calc (no re-fetch).
     const collected = standings.collectedMatchups || {};
     const playoffMatchups = standings.playoffMatchups || {};
