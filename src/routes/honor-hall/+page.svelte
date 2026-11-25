@@ -89,19 +89,19 @@
     const regularList = Object.values(aggregatePlayerPoints(regularEntries)).sort((a, b) => b.points - a.points);
     const playoffsList = Object.values(aggregatePlayerPoints(playoffEntries)).sort((a, b) => b.points - a.points);
 
-    // Finals MVP = top selected-starter scorer on the championship-winning
-    // team in the championship game only. Scores come from the saved year JSON.
+    // Finals MVP = top selected-starter scorer from either finalist in the
+    // championship game only. Scores come from the saved year JSON.
     let finalsList = [];
     if (
       standings.bracketComplete &&
       standings.championshipGame?.week != null &&
-      standings.championshipGame?.winnerRosterId != null
+      Array.isArray(standings.championshipGame?.rosterIds) && standings.championshipGame.rosterIds.length > 0
     ) {
       const champWeek = standings.championshipGame.week;
       finalsList = Object.values(
         aggregateFinalsMvpPoints(
           playoffMatchups[champWeek] || [],
-          standings.championshipGame.winnerRosterId
+          standings.championshipGame.rosterIds || []
         )
       ).sort((a, b) => b.points - a.points);
     }
