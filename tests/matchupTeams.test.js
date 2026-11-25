@@ -92,19 +92,23 @@ test('missing snapshot team totals stay unavailable when starter arrays do not a
   assert.equal(team.points, null);
 });
 
-test('Finals MVP is selected from the championship-winning roster only', () => {
-  // 2022 week 22: Kyle Anderson (Sleeper player id 1548) scored 40.00
-  // for the losing finalist, while the champion's top starter scored 38.25.
+test('Finals MVP can come from either championship finalist', () => {
+  // 2022 week 22: Kyle Anderson (player id 1548) scored 40.00 for
+  // Scat Porn, the losing finalist, ahead of the champion's top starter.
   const championshipEntries = [
     { roster_id: 'losing-finalist', starters: ['1548'], starters_points: [40] },
     { roster_id: 'champion', starters: ['2313', '1739'], starters_points: [38.25, 38] },
+    // A non-finalist in the same playoff week must not be eligible.
+    { roster_id: 'other-playoff-team', starters: ['player-c'], starters_points: [99] },
   ];
 
   const result = Object.values(
-    aggregateFinalsMvpPoints(championshipEntries, 'champion')
+    aggregateFinalsMvpPoints(championshipEntries, ['losing-finalist', 'champion'])
   ).sort((a, b) => b.points - a.points);
 
-  assert.equal(result[0]?.playerId, '2313');
-  assert.equal(result[0]?.points, 38.25);
-  assert.ok(result.every((player) => player.rosterId === 'champion'));
+  assert.equal(result[0]?.playerId, '1548');
+  assert.equal(result[0]?.points, 40);
+  assert.ok(result.every((player) =>
+    ['losing-finalist', 'champion'].includes(player.rosterId)
+  ));
 });
