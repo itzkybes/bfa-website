@@ -2,6 +2,25 @@ name: Sync season matchup files
 
 on:
   workflow_dispatch:
+    inputs:
+      year:
+        description: "Season year (leave blank to sync the latest completed week)"
+        required: false
+        type: string
+      week:
+        description: "Completed week to refresh (requires a season year)"
+        required: false
+        type: string
+      refresh_scores:
+        description: "Replace existing saved team totals with Sleeper totals"
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - player-stats-year-json-source
+    paths:
+      - .github/workflows/sync-historical-week.trigger
   schedule:
     - cron: '20 9 * * 1'
 
@@ -10,6 +29,7 @@ permissions:
 
 jobs:
   sync:
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.added, '.github/workflows/sync-historical-week.trigger') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -18,16 +38,58 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Refresh only the latest completed week in the current season
-        run: node scripts/regenerate-season-matchups.mjs --current-week
+      - name: Refresh selected historical week or latest completed week
+        id: refresh
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_YEAR: ${{ inputs.year }}
+          INPUT_WEEK: ${{ inputs.week }}
+          INPUT_REFRESH: ${{ inputs.refresh_scores }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            YEAR="2026"
+            WEEK="5"
+            REFRESH="true"
+          elif [[ -n "$INPUT_YEAR" && -n "$INPUT_WEEK" ]]; then
+            YEAR="$INPUT_YEAR"
+            WEEK="$INPUT_WEEK"
+            REFRESH="$INPUT_REFRESH"
+          else
+            node scripts/regenerate-season-matchups.mjs --current-week
+            echo "year=current" >> "$GITHUB_OUTPUT"
+            echo "week=current" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          args=(--week "$YEAR" "$WEEK")
+          if [[ "$REFRESH" == "true" ]]; then
+            args+=(--refresh-scores)
+          fi
+          node scripts/regenerate-season-matchups.mjs "${args[@]}"
+          echo "year=$YEAR" >> "$GITHUB_OUTPUT"
+          echo "week=$WEEK" >> "$GITHUB_OUTPUT"
       - name: Commit updated season files
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          YEAR: ${{ steps.refresh.outputs.year }}
+          WEEK: ${{ steps.refresh.outputs.week }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            git rm -f .github/workflows/sync-historical-week.trigger
+          fi
           git add -u static/season_matchups/
           if git diff --cached --quiet; then
             echo "Season matchup files are already current."
           else
-            git commit -m "Update season matchup snapshots"
+            if [[ "$YEAR" == "current" ]]; then
+              MESSAGE="Update latest completed season matchup week"
+            else
+              MESSAGE="Regenerate season $YEAR week $WEEK with Sleeper team totals"
+            fi
+            git commit -m "$MESSAGE"
             git push
           fi

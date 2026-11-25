@@ -6,41 +6,48 @@
 import { safeNum } from '../api/sleeper.js';
 
 /**
- * Score a single Sleeper matchup entry.
+ * Score a single matchup entry.
  *
- * Order of precedence (top to bottom):
- *   1. `entry.__final_score` — authoritative override pinned by the static
- *      JSON path. Use this to manually fix a score: edit `teamAScore` or
- *      `teamBScore` directly in `/static/season_matchups/{year}.json`. The
- *      static-load synthesis carries those values through under this key.
- *   2. `starters_points` array — project policy: per-player figures only
- *      ever come from this; the team total is the sum.
- *   3. If starter scoring is unavailable, return 0 rather than using
- *      an ambiguous team-level total that may include non-starters.
+ * Team-total precedence:
+ *   1. `__final_score` — a saved BFA historical/manual override.
+ *   2. `custom_points` — Sleeper's commissioner-overridden team total.
+ *   3. `points` — Sleeper's team total calculated using the league settings.
+ *   4. Aligned `starters_points` sum — fallback only when Sleeper did not
+ *      provide a team-level total.
  *
- * `points`, `points_for`, `pts`, `score`, `player_points` and
- * `players_points` are deliberately NOT consulted. Team results must be
- * derived from the selected starters only (unless a static score override
- * has been explicitly pinned above).
+ * Player-level stats remain separate and are always read from
+ * `starters_points` zipped to `starters`.
  */
 export function computeParticipantPoints(entry) {
   if (!entry || typeof entry !== 'object') return 0;
-  // 1. Static-JSON authoritative override (teamAScore / teamBScore).
-  if (entry.__final_score != null) {
-    const v = safeNum(entry.__final_score);
-    if (isFinite(v)) return Math.round(v * 100) / 100;
+
+  const readScore = (value) => {
+    if (value == null || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number * 100) / 100 : null;
+  };
+
+  // 1. Saved BFA override remains authoritative.
+  const savedOverride = readScore(entry.__final_score);
+  if (savedOverride != null) return savedOverride;
+
+  // 2–3. Prefer Sleeper's own team-level total over re-adding player scores.
+  for (const key of ['custom_points', 'points']) {
+    const teamTotal = readScore(entry[key]);
+    if (teamTotal != null) return teamTotal;
   }
-  // 2. Sum only the points aligned to the selected starter IDs.
+
+  // 4. Only reconstruct the total if Sleeper did not provide one.
   const starters = Array.isArray(entry.starters) ? entry.starters : [];
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
-  for (const k of arrayKeys) {
-    if (starters.length && Array.isArray(entry[k]) && entry[k].length === starters.length) {
-      const total = entry[k].reduce((sum, value) => sum + safeNum(value), 0);
+  for (const key of arrayKeys) {
+    if (starters.length && Array.isArray(entry[key]) && entry[key].length === starters.length) {
+      const total = entry[key].reduce((sum, value) => sum + safeNum(value), 0);
       return Math.round(total * 100) / 100;
     }
   }
-  // 3. Missing starter scoring is unknown, not permission to count the
-  // whole roster (which can include bench/non-selected players).
+
+  // Missing score data is unknown, not permission to count bench players.
   return 0;
 }
 

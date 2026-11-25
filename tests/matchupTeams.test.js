@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { buildTeamFromLive, buildTeamFromStatic } from '../src/lib/compute/matchupTeams.js';
-import { starterPointsByPid, aggregateFinalsMvpPoints } from '../src/lib/compute/scoring.js';
+import { computeParticipantPoints, starterPointsByPid, aggregateFinalsMvpPoints } from '../src/lib/compute/scoring.js';
 
 test('saved season JSON adapter preserves selected-starter player scores', () => {
   const team = buildTeamFromStatic({
@@ -17,6 +17,53 @@ test('saved season JSON adapter preserves selected-starter player scores', () =>
     'player-a': 26.25,
     'player-b': 0,
   });
+});
+
+
+test('Sleeper team points take precedence over the sum of starter points', () => {
+  const entry = {
+    roster_id: 1,
+    points: 101.75,
+    starters: ['player-a', 'player-b'],
+    starters_points: [60, 60],
+  };
+
+  assert.equal(computeParticipantPoints(entry), 101.75);
+});
+
+test('Sleeper custom_points commissioner override takes precedence over points', () => {
+  const entry = {
+    points: 101.75,
+    custom_points: 98.5,
+    starters: ['player-a', 'player-b'],
+    starters_points: [60, 60],
+  };
+
+  assert.equal(computeParticipantPoints(entry), 98.5);
+});
+
+test('saved BFA score override takes precedence over Sleeper team totals', () => {
+  const entry = {
+    __final_score: 97.25,
+    custom_points: 98.5,
+    points: 101.75,
+    starters: ['player-a', 'player-b'],
+    starters_points: [60, 60],
+  };
+
+  assert.equal(computeParticipantPoints(entry), 97.25);
+});
+
+test('static team adapter prefers a Sleeper team total before starter-sum fallback', () => {
+  const team = buildTeamFromStatic({
+    rosterId: '1',
+    custom_points: 98.5,
+    points: 101.75,
+    starters: ['player-a', 'player-b'],
+    starters_points: [60, 60],
+  }, null, {});
+
+  assert.equal(team.points, 98.5);
 });
 
 test('starter player scoring rejects misaligned saved arrays', () => {

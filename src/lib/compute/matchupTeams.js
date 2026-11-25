@@ -17,9 +17,10 @@ export function buildTeamFromLive(rid, rosterMap = {}, _entry = null) {
 export function buildTeamFromStatic(team, score, rosterMap = {}) {
   const rid = String(team.rosterId ?? team.roster_id ?? '');
   const meta = rid && rosterMap[rid] ? rosterMap[rid] : {};
-  // Explicit snapshot totals/manual overrides win. When a year JSON row
-  // has no team total, sum only the selected starters saved alongside it.
-  const explicitScore = score ?? team.score ?? team.points;
+  // A top-level matchup score is the saved BFA override. Otherwise prefer
+  // Sleeper's commissioner total, then its league-calculated team total.
+  // Starter points are only a fallback when no team-level total was saved.
+  const explicitScore = score ?? team.custom_points ?? team.points ?? team.score;
   const starters = Array.isArray(team.starters) ? team.starters : [];
   const starterPoints = Array.isArray(team.starters_points) ? team.starters_points : null;
   const hasAlignedStarterPoints =

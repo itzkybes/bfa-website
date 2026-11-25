@@ -62,8 +62,8 @@ function synthesizeWeekFromStatic(week, weekRows) {
           matchup_id: m.matchup_id ?? null,
           // `__final_score` is the authoritative team total. Editing `teamAScore`
           // / `teamBScore` in the JSON flows through everywhere.
-          ...(m.teamAScore != null || m.teamA?.score != null || m.teamA?.points != null
-            ? { __final_score: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points) }
+          ...(m.teamAScore != null || m.teamA?.custom_points != null || m.teamA?.points != null || m.teamA?.score != null
+            ? { __final_score: safeNum(m.teamAScore ?? m.teamA?.custom_points ?? m.teamA?.points ?? m.teamA?.score) }
             : {}),
           // Per-player figures from `starters_points` (the only authoritative
           // source for per-player scoring — `player_points` is intentionally
@@ -81,8 +81,8 @@ function synthesizeWeekFromStatic(week, weekRows) {
           week,
           roster_id: ridB,
           matchup_id: m.matchup_id ?? null,
-          ...(m.teamBScore != null || m.teamB?.score != null || m.teamB?.points != null
-            ? { __final_score: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points) }
+          ...(m.teamBScore != null || m.teamB?.custom_points != null || m.teamB?.points != null || m.teamB?.score != null
+            ? { __final_score: safeNum(m.teamBScore ?? m.teamB?.custom_points ?? m.teamB?.points ?? m.teamB?.score) }
             : {}),
           starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
           starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,

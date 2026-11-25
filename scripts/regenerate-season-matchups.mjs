@@ -8,19 +8,20 @@
  * historical shape that `lib/leagueCompute.client.js` already consumes.
  *
  * Key correctness rules (matches project policy):
- *   1. Team totals are derived ONLY from selected starters' `starters_points`.
- *      No whole-roster or top-level score fallback is permitted.
+ *   1. Team totals use Sleeper's team-level `custom_points` first (commissioner
+ *      override), then `points` (the league-calculated total). Only if neither
+ *      is supplied do we sum aligned selected-starter `starters_points`.
  *   2. Existing `teamAScore` / `teamBScore` values are preserved as manual
- *      historical overrides. New season files omit these fields by default.
- *   2. `player_points` is NEVER written to the JSON — that field includes
- *      raw unselected games and would corrupt scores for managers using
- *      Sleeper's manual game-selection feature.
- *   3. Per-player figures (starters_points) are written exactly as Sleeper
- *      returns them — those reflect the owner's game selection natively.
+ *      historical overrides unless a specific week is explicitly refreshed.
+ *   3. `player_points` is NEVER written to the JSON — it can include unselected
+ *      games and would corrupt per-player scoring for managers using manual
+ *      game-selection. Player-level figures remain from `starters_points`.
  *
  * Usage:
- *   node scripts/regenerate-season-matchups.mjs            # every completed season in the chain
- *   node scripts/regenerate-season-matchups.mjs 2024 2025  # only the years given
+ *   node scripts/regenerate-season-matchups.mjs
+ *   node scripts/regenerate-season-matchups.mjs 2024 2025
+ *   node scripts/regenerate-season-matchups.mjs --week 2026 5
+ *   node scripts/regenerate-season-matchups.mjs --week 2026 5 --refresh-scores
  *
  * Every discovered season, including the in-progress season, is written to its
  * own JSON file. Re-run after completed scoring weeks to refresh snapshots.
@@ -44,13 +45,22 @@ function safeNum(v) {
 }
 
 /**
- * Score a single Sleeper matchup entry. See file header for precedence.
+ * Return Sleeper's authoritative team total, or use aligned starter points
+ * only when the API did not provide a team-level value.
  */
 function computeParticipantPoints(entry) {
-  if (!entry || typeof entry !== 'object') return 0;
+  if (!entry || typeof entry !== 'object') return null;
+
+  for (const key of ['custom_points', 'points']) {
+    const value = entry[key];
+    if (value == null || value === '') continue;
+    const total = Number(value);
+    if (Number.isFinite(total)) return Math.round(total * 100) / 100;
+  }
+
   const starters = Array.isArray(entry.starters) ? entry.starters : [];
   const points = Array.isArray(entry.starters_points) ? entry.starters_points : [];
-  if (!starters.length || points.length !== starters.length) return 0;
+  if (!starters.length || points.length !== starters.length) return null;
   return Math.round(points.reduce((sum, value) => sum + safeNum(value), 0) * 100) / 100;
 }
 
@@ -230,17 +240,19 @@ async function generateSeasonJson(season) {
       const previousRow = (previous[String(week)] || []).find(
         (candidate) => String(candidate.matchup_id) === String(row.matchup_id)
       );
-      // Existing totals may be manual corrections; never replace them. Only
-      // fill missing scores for completed weeks, never future placeholders.
+      // Preserve an existing saved total as a historical/manual override.
+      // For new completed-week totals, read Sleeper's team-level value first.
+      const scoreA = computeParticipantPoints(a);
+      const scoreB = computeParticipantPoints(b);
       if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore')) {
         row.teamAScore = previousRow.teamAScore;
-      } else if (week <= completedThroughWeek && teamA.starters.length && teamA.starters_points.length === teamA.starters.length) {
-        row.teamAScore = computeParticipantPoints(teamA);
+      } else if (week <= completedThroughWeek && scoreA != null) {
+        row.teamAScore = scoreA;
       }
       if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore')) {
         row.teamBScore = previousRow.teamBScore;
-      } else if (week <= completedThroughWeek && teamB.starters.length && teamB.starters_points.length === teamB.starters.length) {
-        row.teamBScore = computeParticipantPoints(teamB);
+      } else if (week <= completedThroughWeek && scoreB != null) {
+        row.teamBScore = scoreB;
       }
       weekRows.push(row);
     }
@@ -256,12 +268,22 @@ async function generateSeasonJson(season) {
  * Existing score fields on the target week are treated as pinned/manual values
  * and are never overwritten.
  */
-async function syncCurrentCompletedWeek(season) {
-  if (!season) throw new Error('Could not identify the current BFA season.');
+async function syncCompletedWeek(season, week, { refreshScores = false } = {}) {
+  if (!season) throw new Error('Could not identify the requested BFA season.');
+  if (!Number.isInteger(week) || week < 1 || week > 25) {
+    throw new Error(`Invalid matchup week: ${week}`);
+  }
+
+  const format = getSeasonFormat(season.season, {
+    playoff_week_start: season.playoff_week_start,
+    playoff_teams: season.playoff_teams,
+  }) ?? getSeasonFormat(season.season);
   const currentLeg = Number(season.current_leg);
-  const week = currentLeg - 1;
-  if (!Number.isInteger(currentLeg) || currentLeg < 2 || week < 1) {
-    throw new Error(`No completed week to sync (Sleeper current leg: ${season.current_leg ?? 'unknown'}).`);
+  const completedThroughWeek = season.status === 'complete'
+    ? (format?.playoffEnd ?? 25)
+    : Number.isInteger(currentLeg) && currentLeg > 1 ? currentLeg - 1 : 0;
+  if (week > completedThroughWeek) {
+    throw new Error(`Week ${week} is not completed yet for season ${season.season} (completed through week ${completedThroughWeek}).`);
   }
 
   const outPath = path.join(STATIC_DIR, `${season.season}.json`);
@@ -292,6 +314,9 @@ async function syncCurrentCompletedWeek(season) {
 
   const previousRows = Array.isArray(existing[String(week)]) ? existing[String(week)] : [];
   const nextRows = [];
+  let teamTotalsFromSleeper = 0;
+  let teamTotalsFromStarterFallback = 0;
+
   for (const [mid, entries] of Object.entries(byMatch)) {
     if (entries.length !== 2) continue;
     const [a, b] = entries;
@@ -310,16 +335,25 @@ async function syncCurrentCompletedWeek(season) {
     const row = { matchup_id: Number(mid) || mid, week, teamA, teamB };
     const prior = previousRows.find((candidate) => String(candidate.matchup_id) === String(row.matchup_id));
 
-    // Never overwrite an already-present score: it may be a manual correction.
-    if (prior && Object.prototype.hasOwnProperty.call(prior, 'teamAScore')) {
-      row.teamAScore = prior.teamAScore;
-    } else if (teamA.starters.length && teamA.starters_points.length === teamA.starters.length) {
-      row.teamAScore = computeParticipantPoints(teamA);
-    }
-    if (prior && Object.prototype.hasOwnProperty.call(prior, 'teamBScore')) {
-      row.teamBScore = prior.teamBScore;
-    } else if (teamB.starters.length && teamB.starters_points.length === teamB.starters.length) {
-      row.teamBScore = computeParticipantPoints(teamB);
+    const scoreA = computeParticipantPoints(a);
+    const scoreB = computeParticipantPoints(b);
+    const hasPriorA = prior && Object.prototype.hasOwnProperty.call(prior, 'teamAScore');
+    const hasPriorB = prior && Object.prototype.hasOwnProperty.call(prior, 'teamBScore');
+
+    // Keep saved/manual totals unless this exact week was explicitly asked
+    // to refresh. If the API lacks a total, use aligned starter sums; if those
+    // are also missing, retain the prior score rather than deleting it.
+    if (!refreshScores && hasPriorA) row.teamAScore = prior.teamAScore;
+    else if (scoreA != null) row.teamAScore = scoreA;
+    else if (hasPriorA) row.teamAScore = prior.teamAScore;
+
+    if (!refreshScores && hasPriorB) row.teamBScore = prior.teamBScore;
+    else if (scoreB != null) row.teamBScore = scoreB;
+    else if (hasPriorB) row.teamBScore = prior.teamBScore;
+
+    for (const entry of [a, b]) {
+      if (entry.custom_points != null || entry.points != null) teamTotalsFromSleeper++;
+      else if (computeParticipantPoints(entry) != null) teamTotalsFromStarterFallback++;
     }
     nextRows.push(row);
   }
@@ -329,8 +363,21 @@ async function syncCurrentCompletedWeek(season) {
   }
 
   existing[String(week)] = nextRows;
-  await fs.writeFile(outPath, JSON.stringify(existing, null, 2) + '\n', 'utf8');
-  console.log(`✓ Updated only ${season.season}.json week ${week} (${nextRows.length} matchups); all other weeks and existing scores preserved.`);
+  await fs.writeFile(outPath, JSON.stringify(existing, null, 2) + '\\n', 'utf8');
+  console.log(
+    `✓ Updated only ${season.season}.json week ${week} (${nextRows.length} matchups); ${teamTotalsFromSleeper} team totals came from Sleeper and ${teamTotalsFromStarterFallback} used aligned starter fallback. ${refreshScores ? 'Existing scores refreshed.' : 'Existing saved scores preserved.'}`
+  );
+}
+
+/** Refresh the latest completed week of the active (anchor) season. */
+async function syncCurrentCompletedWeek(season) {
+  if (!season) throw new Error('Could not identify the current BFA season.');
+  const currentLeg = Number(season.current_leg);
+  const week = currentLeg - 1;
+  if (!Number.isInteger(currentLeg) || currentLeg < 2 || week < 1) {
+    throw new Error(`No completed week to sync (Sleeper current leg: ${season.current_leg ?? 'unknown'}).`);
+  }
+  return syncCompletedWeek(season, week);
 }
 
 async function main() {
@@ -346,6 +393,23 @@ async function main() {
     console.log(
       `    · ${s.season ?? '?'}  league_id=${s.league_id}  playoff_start=${getSeasonFormat(s.season, s)?.playoffStart ?? '?'}  status=${s.status ?? '?'}`
     );
+  }
+
+  const requestedWeekIndex = argv.indexOf('--week');
+  const refreshScores = argv.includes('--refresh-scores');
+  if (requestedWeekIndex >= 0) {
+    const requestedYear = argv[requestedWeekIndex + 1];
+    const requestedWeek = Number(argv[requestedWeekIndex + 2]);
+    if (!requestedYear || !Number.isInteger(requestedWeek)) {
+      throw new Error('Usage: node scripts/regenerate-season-matchups.mjs --week <year> <week> [--refresh-scores]');
+    }
+    const targetSeason = seasons.find((s) => String(s.season) === String(requestedYear));
+    if (!targetSeason) throw new Error(`No Sleeper league found for season ${requestedYear}.`);
+    await syncCompletedWeek(targetSeason, requestedWeek, { refreshScores });
+    return;
+  }
+  if (refreshScores) {
+    throw new Error('--refresh-scores can only be used with --week <year> <week>.');
   }
 
   if (syncCurrentWeek) {
