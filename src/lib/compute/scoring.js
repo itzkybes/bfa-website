@@ -134,3 +134,21 @@ export function aggregatePlayerPoints(matchupEntries) {
   }
   return byPlayer;
 }
+
+/**
+ * Aggregate Finals MVP points from the championship-winning roster only.
+ * The supplied matchup entries must come from the saved season JSON snapshot;
+ * this helper never reads live player-score fields.
+ *
+ * @param {Array<object | null>} matchupEntries
+ * @param {string | number | null} winningRosterId
+ * @returns {Record<string, { playerId: string, points: number, rosterId: string, pointsByRoster: Record<string, number> }>}
+ */
+export function aggregateFinalsMvpPoints(matchupEntries, winningRosterId) {
+  if (winningRosterId == null) return {};
+  const winnerId = String(winningRosterId);
+  const winningTeamEntries = (Array.isArray(matchupEntries) ? matchupEntries : []).filter(
+    (entry) => entry && String(entry.roster_id ?? entry.rosterId ?? '') === winnerId
+  );
+  return aggregatePlayerPoints(winningTeamEntries);
+}
