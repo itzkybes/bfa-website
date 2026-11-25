@@ -66,7 +66,7 @@ jobs:
           INPUT_REFRESH: ${{ inputs.refresh_scores }}
         run: |
           if [[ "$EVENT_NAME" == "push" ]]; then
-            node scripts/regenerate-season-matchups.mjs --week 2026 5 --refresh-scores
+            DEBUG_STARTER_SCORE_MAP=1 node scripts/regenerate-season-matchups.mjs --week 2026 5 --refresh-scores
             echo "year=2026" >> "$GITHUB_OUTPUT"
             echo "week=5" >> "$GITHUB_OUTPUT"
           elif [[ -n "$INPUT_YEARS" ]]; then
