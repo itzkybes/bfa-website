@@ -58,7 +58,9 @@
         ]
       },
       "teamAScore": 179.25,
-      "teamBScore": 174.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 174.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -118,7 +120,9 @@
         ]
       },
       "teamAScore": 176.94,
-      "teamBScore": 209.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 209.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -178,7 +182,9 @@
         ]
       },
       "teamAScore": 245.25,
-      "teamBScore": 247.69
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 247.69,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -238,7 +244,9 @@
         ]
       },
       "teamAScore": 225,
-      "teamBScore": 210.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 210.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -298,7 +306,9 @@
         ]
       },
       "teamAScore": 227,
-      "teamBScore": 196
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 196,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -358,7 +368,9 @@
         ]
       },
       "teamAScore": 195.69,
-      "teamBScore": 168.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 168.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -418,7 +430,9 @@
         ]
       },
       "teamAScore": 187.25,
-      "teamBScore": 177
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 177,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "2": [
@@ -480,7 +494,9 @@
         ]
       },
       "teamAScore": 179.75,
-      "teamBScore": 180.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 180.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -540,7 +556,9 @@
         ]
       },
       "teamAScore": 197.25,
-      "teamBScore": 218.13
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 218.13,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -600,7 +618,9 @@
         ]
       },
       "teamAScore": 252,
-      "teamBScore": 171
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 171,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -660,7 +680,9 @@
         ]
       },
       "teamAScore": 213.25,
-      "teamBScore": 253.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 253.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -720,7 +742,9 @@
         ]
       },
       "teamAScore": 174.5,
-      "teamBScore": 167.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 167.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -780,7 +804,9 @@
         ]
       },
       "teamAScore": 271,
-      "teamBScore": 181.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 181.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -840,7 +866,9 @@
         ]
       },
       "teamAScore": 210.44,
-      "teamBScore": 216.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 216.94,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "3": [
@@ -902,7 +930,9 @@
         ]
       },
       "teamAScore": 250,
-      "teamBScore": 153.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 153.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -962,7 +992,9 @@
         ]
       },
       "teamAScore": 186.94,
-      "teamBScore": 206
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 206,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -1022,7 +1054,9 @@
         ]
       },
       "teamAScore": 128.19,
-      "teamBScore": 220.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 220.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -1082,7 +1116,9 @@
         ]
       },
       "teamAScore": 140.38,
-      "teamBScore": 185.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 185.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -1142,7 +1178,9 @@
         ]
       },
       "teamAScore": 199.25,
-      "teamBScore": 171.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 171.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -1202,7 +1240,9 @@
         ]
       },
       "teamAScore": 203,
-      "teamBScore": 185.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 185.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -1262,7 +1302,9 @@
         ]
       },
       "teamAScore": 203.19,
-      "teamBScore": 176
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 176,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "4": [
@@ -1324,7 +1366,9 @@
         ]
       },
       "teamAScore": 188,
-      "teamBScore": 203.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 203.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -1384,7 +1428,9 @@
         ]
       },
       "teamAScore": 211.25,
-      "teamBScore": 224.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 224.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -1444,7 +1490,9 @@
         ]
       },
       "teamAScore": 206.19,
-      "teamBScore": 134
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 134,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -1504,7 +1552,9 @@
         ]
       },
       "teamAScore": 149,
-      "teamBScore": 211.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 211.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -1564,7 +1614,9 @@
         ]
       },
       "teamAScore": 170.5,
-      "teamBScore": 214.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 214.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -1624,7 +1676,9 @@
         ]
       },
       "teamAScore": 266.25,
-      "teamBScore": 204.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 204.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -1684,7 +1738,9 @@
         ]
       },
       "teamAScore": 204.75,
-      "teamBScore": 176.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 176.75,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "5": [
@@ -1746,7 +1802,9 @@
         ]
       },
       "teamAScore": 219.75,
-      "teamBScore": 156
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 156,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -1806,7 +1864,9 @@
         ]
       },
       "teamAScore": 175.94,
-      "teamBScore": 206.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 206.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -1866,7 +1926,9 @@
         ]
       },
       "teamAScore": 226.44,
-      "teamBScore": 227.63
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 227.63,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -1926,7 +1988,9 @@
         ]
       },
       "teamAScore": 176.44,
-      "teamBScore": 228.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 228.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -1986,7 +2050,9 @@
         ]
       },
       "teamAScore": 172.5,
-      "teamBScore": 163.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 163.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -2046,7 +2112,9 @@
         ]
       },
       "teamAScore": 145,
-      "teamBScore": 248.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 248.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -2106,7 +2174,9 @@
         ]
       },
       "teamAScore": 221.75,
-      "teamBScore": 204.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 204.44,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "6": [
@@ -2168,7 +2238,9 @@
         ]
       },
       "teamAScore": 216,
-      "teamBScore": 219.69
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 219.69,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -2228,7 +2300,9 @@
         ]
       },
       "teamAScore": 228.19,
-      "teamBScore": 205.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 205.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -2288,7 +2362,9 @@
         ]
       },
       "teamAScore": 240,
-      "teamBScore": 202
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 202,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -2348,7 +2424,9 @@
         ]
       },
       "teamAScore": 189.44,
-      "teamBScore": 219.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 219.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -2408,7 +2486,9 @@
         ]
       },
       "teamAScore": 164.5,
-      "teamBScore": 179.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 179.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -2468,7 +2548,9 @@
         ]
       },
       "teamAScore": 164,
-      "teamBScore": 221.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 221.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -2528,7 +2610,9 @@
         ]
       },
       "teamAScore": 119.25,
-      "teamBScore": 227.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 227.75,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "7": [
@@ -2590,7 +2674,9 @@
         ]
       },
       "teamAScore": 239.5,
-      "teamBScore": 177
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 177,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -2650,7 +2736,9 @@
         ]
       },
       "teamAScore": 191.88,
-      "teamBScore": 242.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 242.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -2710,7 +2798,9 @@
         ]
       },
       "teamAScore": 223.25,
-      "teamBScore": 207.38
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 207.38,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -2770,7 +2860,9 @@
         ]
       },
       "teamAScore": 180.44,
-      "teamBScore": 215.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 215.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -2830,7 +2922,9 @@
         ]
       },
       "teamAScore": 150.25,
-      "teamBScore": 217.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 217.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -2890,7 +2984,9 @@
         ]
       },
       "teamAScore": 214.69,
-      "teamBScore": 199.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 199.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -2950,7 +3046,9 @@
         ]
       },
       "teamAScore": 118.75,
-      "teamBScore": 168
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 168,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "8": [
@@ -3012,7 +3110,9 @@
         ]
       },
       "teamAScore": 147.5,
-      "teamBScore": 266.88
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 266.88,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -3072,7 +3172,9 @@
         ]
       },
       "teamAScore": 206.25,
-      "teamBScore": 198.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 198.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -3132,7 +3234,9 @@
         ]
       },
       "teamAScore": 184.13,
-      "teamBScore": 178.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 178.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -3192,7 +3296,9 @@
         ]
       },
       "teamAScore": 196.5,
-      "teamBScore": 234
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 234,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -3252,7 +3358,9 @@
         ]
       },
       "teamAScore": 225.44,
-      "teamBScore": 208.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 208.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -3312,7 +3420,9 @@
         ]
       },
       "teamAScore": 184.13,
-      "teamBScore": 186.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 186.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -3372,7 +3482,9 @@
         ]
       },
       "teamAScore": 153.75,
-      "teamBScore": 158.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 158.5,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "9": [
@@ -3434,7 +3546,9 @@
         ]
       },
       "teamAScore": 207.5,
-      "teamBScore": 168.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 168.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -3494,7 +3608,9 @@
         ]
       },
       "teamAScore": 238.5,
-      "teamBScore": 199
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 199,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -3554,7 +3670,9 @@
         ]
       },
       "teamAScore": 192.25,
-      "teamBScore": 210.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 210.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -3614,7 +3732,9 @@
         ]
       },
       "teamAScore": 246.88,
-      "teamBScore": 188.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 188.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -3674,7 +3794,9 @@
         ]
       },
       "teamAScore": 205.19,
-      "teamBScore": 191.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 191.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -3734,7 +3856,9 @@
         ]
       },
       "teamAScore": 180.13,
-      "teamBScore": 207.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 207.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -3794,7 +3918,9 @@
         ]
       },
       "teamAScore": 237.88,
-      "teamBScore": 182.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 182.44,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "10": [
@@ -3856,7 +3982,9 @@
         ]
       },
       "teamAScore": 159,
-      "teamBScore": 209
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 209,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -3916,7 +4044,9 @@
         ]
       },
       "teamAScore": 221.75,
-      "teamBScore": 176.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 176.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -3976,7 +4106,9 @@
         ]
       },
       "teamAScore": 250.44,
-      "teamBScore": 245.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 245.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -4036,7 +4168,9 @@
         ]
       },
       "teamAScore": 217,
-      "teamBScore": 156
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 156,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -4096,7 +4230,9 @@
         ]
       },
       "teamAScore": 225.63,
-      "teamBScore": 236.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 236.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -4156,7 +4292,9 @@
         ]
       },
       "teamAScore": 196.51,
-      "teamBScore": 217
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 217,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -4216,7 +4354,9 @@
         ]
       },
       "teamAScore": 210.94,
-      "teamBScore": 260
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 260,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "11": [
@@ -4278,7 +4418,9 @@
         ]
       },
       "teamAScore": 239.38,
-      "teamBScore": 103.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 103.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -4338,7 +4480,9 @@
         ]
       },
       "teamAScore": 205.69,
-      "teamBScore": 184.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 184.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -4398,7 +4542,9 @@
         ]
       },
       "teamAScore": 250.63,
-      "teamBScore": 111.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 111.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -4458,7 +4604,9 @@
         ]
       },
       "teamAScore": 203,
-      "teamBScore": 182
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 182,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -4518,7 +4666,9 @@
         ]
       },
       "teamAScore": 152.5,
-      "teamBScore": 218.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 218.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -4578,7 +4728,9 @@
         ]
       },
       "teamAScore": 171.25,
-      "teamBScore": 211.88
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 211.88,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -4638,7 +4790,9 @@
         ]
       },
       "teamAScore": 239.69,
-      "teamBScore": 201.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 201.44,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "12": [
@@ -4700,7 +4854,9 @@
         ]
       },
       "teamAScore": 109,
-      "teamBScore": 193.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 193.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -4760,7 +4916,9 @@
         ]
       },
       "teamAScore": 211.69,
-      "teamBScore": 90.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 90.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -4820,7 +4978,9 @@
         ]
       },
       "teamAScore": 193.94,
-      "teamBScore": 230.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 230.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -4880,7 +5040,9 @@
         ]
       },
       "teamAScore": 206,
-      "teamBScore": 196.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 196.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -4940,7 +5102,9 @@
         ]
       },
       "teamAScore": 176.44,
-      "teamBScore": 210.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 210.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -5000,7 +5164,9 @@
         ]
       },
       "teamAScore": 239.5,
-      "teamBScore": 219
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 219,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -5060,7 +5226,9 @@
         ]
       },
       "teamAScore": 208.5,
-      "teamBScore": 212.69
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 212.69,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "13": [
@@ -5122,7 +5290,9 @@
         ]
       },
       "teamAScore": 82,
-      "teamBScore": 119
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 119,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -5182,7 +5352,9 @@
         ]
       },
       "teamAScore": 232.69,
-      "teamBScore": 211.63
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 211.63,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -5242,7 +5414,9 @@
         ]
       },
       "teamAScore": 267.25,
-      "teamBScore": 202
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 202,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -5302,7 +5476,9 @@
         ]
       },
       "teamAScore": 198.25,
-      "teamBScore": 246.69
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 246.69,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -5362,7 +5538,9 @@
         ]
       },
       "teamAScore": 243.94,
-      "teamBScore": 213.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 213.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -5422,7 +5600,9 @@
         ]
       },
       "teamAScore": 195.75,
-      "teamBScore": 200.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 200.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -5482,7 +5662,9 @@
         ]
       },
       "teamAScore": 196.63,
-      "teamBScore": 237.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 237.75,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "14": [
@@ -5544,7 +5726,9 @@
         ]
       },
       "teamAScore": 188.38,
-      "teamBScore": 140.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 140.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -5604,7 +5788,9 @@
         ]
       },
       "teamAScore": 186.75,
-      "teamBScore": 241
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 241,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -5664,7 +5850,9 @@
         ]
       },
       "teamAScore": 241.94,
-      "teamBScore": 194
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 194,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -5724,7 +5912,9 @@
         ]
       },
       "teamAScore": 211.44,
-      "teamBScore": 253.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 253.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -5784,7 +5974,9 @@
         ]
       },
       "teamAScore": 195.5,
-      "teamBScore": 237.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 237.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -5844,7 +6036,9 @@
         ]
       },
       "teamAScore": 220,
-      "teamBScore": 203.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 203.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -5904,7 +6098,9 @@
         ]
       },
       "teamAScore": 214.5,
-      "teamBScore": 209
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 209,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "15": [
@@ -5966,7 +6162,9 @@
         ]
       },
       "teamAScore": 139,
-      "teamBScore": 232
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 232,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -6026,7 +6224,9 @@
         ]
       },
       "teamAScore": 231.25,
-      "teamBScore": 199.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 199.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -6086,7 +6286,9 @@
         ]
       },
       "teamAScore": 217.19,
-      "teamBScore": 167
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 167,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -6146,7 +6348,9 @@
         ]
       },
       "teamAScore": 47.5,
-      "teamBScore": 174
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 174,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -6206,7 +6410,9 @@
         ]
       },
       "teamAScore": 221.94,
-      "teamBScore": 158.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 158.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -6266,7 +6472,9 @@
         ]
       },
       "teamAScore": 198.75,
-      "teamBScore": 246.69
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 246.69,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -6326,7 +6534,9 @@
         ]
       },
       "teamAScore": 275.19,
-      "teamBScore": 132.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 132.25,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "16": [
@@ -6388,7 +6598,9 @@
         ]
       },
       "teamAScore": 240.69,
-      "teamBScore": 130.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 130.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -6448,7 +6660,9 @@
         ]
       },
       "teamAScore": 248.5,
-      "teamBScore": 287.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 287.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -6508,7 +6722,9 @@
         ]
       },
       "teamAScore": 195.5,
-      "teamBScore": 133.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 133.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -6568,7 +6784,9 @@
         ]
       },
       "teamAScore": 181.69,
-      "teamBScore": 217.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 217.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -6628,7 +6846,9 @@
         ]
       },
       "teamAScore": 196.25,
-      "teamBScore": 237.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 237.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -6688,7 +6908,9 @@
         ]
       },
       "teamAScore": 187.25,
-      "teamBScore": 168.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 168.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -6748,7 +6970,9 @@
         ]
       },
       "teamAScore": 252.69,
-      "teamBScore": 209.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 209.5,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "17": [
@@ -6810,7 +7034,9 @@
         ]
       },
       "teamAScore": 240.5,
-      "teamBScore": 124.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 124.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -6870,7 +7096,9 @@
         ]
       },
       "teamAScore": 228.5,
-      "teamBScore": 125.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 125.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -6930,7 +7158,9 @@
         ]
       },
       "teamAScore": 203,
-      "teamBScore": 246.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 246.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -6990,7 +7220,9 @@
         ]
       },
       "teamAScore": 164.75,
-      "teamBScore": 183.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 183.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -7050,7 +7282,9 @@
         ]
       },
       "teamAScore": 193.94,
-      "teamBScore": 177.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 177.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -7110,7 +7344,9 @@
         ]
       },
       "teamAScore": 224.75,
-      "teamBScore": 166.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 166.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -7170,7 +7406,9 @@
         ]
       },
       "teamAScore": 211,
-      "teamBScore": 159.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 159.44,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "18": [
@@ -7232,7 +7470,9 @@
         ]
       },
       "teamAScore": 85,
-      "teamBScore": 122.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 122.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -7292,7 +7532,9 @@
         ]
       },
       "teamAScore": 288.25,
-      "teamBScore": 209.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 209.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -7352,7 +7594,9 @@
         ]
       },
       "teamAScore": 228.94,
-      "teamBScore": 208
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 208,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -7412,7 +7656,9 @@
         ]
       },
       "teamAScore": 214.32,
-      "teamBScore": 221.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 221.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -7472,7 +7718,9 @@
         ]
       },
       "teamAScore": 215.5,
-      "teamBScore": 190.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 190.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -7532,7 +7780,9 @@
         ]
       },
       "teamAScore": 184.75,
-      "teamBScore": 158.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 158.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -7592,7 +7842,9 @@
         ]
       },
       "teamAScore": 185.5,
-      "teamBScore": 210.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 210.94,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "19": [
@@ -7654,7 +7906,9 @@
         ]
       },
       "teamAScore": 133.5,
-      "teamBScore": 218
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 218,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -7714,7 +7968,9 @@
         ]
       },
       "teamAScore": 134.19,
-      "teamBScore": 157.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 157.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -7774,7 +8030,9 @@
         ]
       },
       "teamAScore": 233,
-      "teamBScore": 243.13
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 243.13,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -7834,7 +8092,9 @@
         ]
       },
       "teamAScore": 215.5,
-      "teamBScore": 191.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 191.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -7894,7 +8154,9 @@
         ]
       },
       "teamAScore": 166.94,
-      "teamBScore": 218
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 218,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -7954,7 +8216,9 @@
         ]
       },
       "teamAScore": 232,
-      "teamBScore": 205.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 205.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -8014,7 +8278,9 @@
         ]
       },
       "teamAScore": 192.38,
-      "teamBScore": 196
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 196,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "20": [
@@ -8076,7 +8342,9 @@
         ]
       },
       "teamAScore": 233.5,
-      "teamBScore": 88
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 88,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -8136,7 +8404,9 @@
         ]
       },
       "teamAScore": 215.75,
-      "teamBScore": 223.94
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 223.94,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -8196,7 +8466,9 @@
         ]
       },
       "teamAScore": 101.75,
-      "teamBScore": 296
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 296,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -8256,7 +8528,9 @@
         ]
       },
       "teamAScore": 218.19,
-      "teamBScore": 207.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 207.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -8316,7 +8590,9 @@
         ]
       },
       "teamAScore": 233.69,
-      "teamBScore": 199.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 199.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -8376,7 +8652,9 @@
         ]
       },
       "teamAScore": 20.5,
-      "teamBScore": 201
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 201,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -8436,7 +8714,9 @@
         ]
       },
       "teamAScore": 224.25,
-      "teamBScore": 157.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 157.75,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "21": [
@@ -8498,7 +8778,9 @@
         ]
       },
       "teamAScore": 243.94,
-      "teamBScore": 178.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 178.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -8558,7 +8840,9 @@
         ]
       },
       "teamAScore": 218,
-      "teamBScore": 227.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 227.44,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -8618,7 +8902,9 @@
         ]
       },
       "teamAScore": 257.94,
-      "teamBScore": 234
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 234,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -8678,7 +8964,9 @@
         ]
       },
       "teamAScore": 244.25,
-      "teamBScore": 239.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 239.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -8738,7 +9026,9 @@
         ]
       },
       "teamAScore": 209.75,
-      "teamBScore": 177.57
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 177.57,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -8798,7 +9088,9 @@
         ]
       },
       "teamAScore": 185.94,
-      "teamBScore": 182.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 182.5,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "22": [
@@ -8860,7 +9152,9 @@
         ]
       },
       "teamAScore": 201.44,
-      "teamBScore": 277.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 277.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -8920,7 +9214,9 @@
         ]
       },
       "teamAScore": 205,
-      "teamBScore": 201.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 201.5,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -8980,7 +9276,9 @@
         ]
       },
       "teamAScore": 209.94,
-      "teamBScore": 186.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 186.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -9040,7 +9338,9 @@
         ]
       },
       "teamAScore": 224.19,
-      "teamBScore": 206.75
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 206.75,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -9100,7 +9400,9 @@
         ]
       },
       "teamAScore": 184.19,
-      "teamBScore": 198.19
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 198.19,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -9160,7 +9462,9 @@
         ]
       },
       "teamAScore": 188,
-      "teamBScore": 156.13
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 156.13,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -9220,7 +9524,9 @@
         ]
       },
       "teamAScore": 177.75,
-      "teamBScore": 161.44
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 161.44,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "23": [
@@ -9282,7 +9588,9 @@
         ]
       },
       "teamAScore": 185.25,
-      "teamBScore": 313.69
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 313.69,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -9342,7 +9650,9 @@
         ]
       },
       "teamAScore": 170.25,
-      "teamBScore": 214.25
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 214.25,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -9402,7 +9712,9 @@
         ]
       },
       "teamAScore": 152.5,
-      "teamBScore": 209
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 209,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -9462,7 +9774,9 @@
         ]
       },
       "teamAScore": 218.25,
-      "teamBScore": 197
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 197,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -9522,7 +9836,9 @@
         ]
       },
       "teamAScore": 181.75,
-      "teamBScore": 188.44
+      "teamAScoreSource": "sleeper_custom_points",
+      "teamBScore": 188.44,
+      "teamBScoreSource": "sleeper_custom_points"
     },
     {
       "matchup_id": 6,
@@ -9582,7 +9898,9 @@
         ]
       },
       "teamAScore": 158.75,
-      "teamBScore": 196.5
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 196.5,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "playoff_week_start": 21,
