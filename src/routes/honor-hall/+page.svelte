@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague } from '$lib/api';
-  import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
+  import { computeStandingsForLeague, aggregatePlayerPoints, aggregateFinalsMvpPoints } from '$lib/compute';
   import { getBracketMatchesForDisplay, getBracketDisplaySections, buildBracketSeedMaps } from '$lib/compute/honorHallBracket.js';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
@@ -89,17 +89,21 @@
     const regularList = Object.values(aggregatePlayerPoints(regularEntries)).sort((a, b) => b.points - a.points);
     const playoffsList = Object.values(aggregatePlayerPoints(playoffEntries)).sort((a, b) => b.points - a.points);
 
-    // Finals MVP = top scorer in the championship GAME only (both finalists),
-    // NOT the champion's top scorer across the full playoff window.
+    // Finals MVP = top selected-starter scorer on the championship-winning
+    // team in the championship game only. Scores come from the saved year JSON.
     let finalsList = [];
-    if (standings.bracketComplete && standings.championshipGame?.week != null) {
+    if (
+      standings.bracketComplete &&
+      standings.championshipGame?.week != null &&
+      standings.championshipGame?.winnerRosterId != null
+    ) {
       const champWeek = standings.championshipGame.week;
-      const champRosters = new Set((standings.championshipGame.rosterIds || []).map(String));
-      const champGameEntries = (playoffMatchups[champWeek] || []).filter(
-        (e) => champRosters.has(String(e.roster_id ?? e.rosterId ?? ''))
-      );
-      finalsList = Object.values(aggregatePlayerPoints(champGameEntries))
-        .sort((a, b) => b.points - a.points);
+      finalsList = Object.values(
+        aggregateFinalsMvpPoints(
+          playoffMatchups[champWeek] || [],
+          standings.championshipGame.winnerRosterId
+        )
+      ).sort((a, b) => b.points - a.points);
     }
 
     const om = regularList[0] || null;
