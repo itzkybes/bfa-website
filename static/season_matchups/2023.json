@@ -57,10 +57,10 @@
           3.75
         ]
       },
-      "teamAScore": 190.94,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 189.69,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 171.69,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 174.44,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 2,
@@ -119,10 +119,10 @@
           21.25
         ]
       },
-      "teamAScore": 221,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 214.44,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 204.25,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 198.44,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 3,
@@ -181,10 +181,10 @@
           6.5
         ]
       },
-      "teamAScore": 219.69,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 197.75,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 199.94,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 179,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 4,
@@ -243,10 +243,10 @@
           20.25
         ]
       },
-      "teamAScore": 143.69,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 176.19,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 131.69,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 161.94,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 5,
@@ -305,10 +305,10 @@
           18.75
         ]
       },
-      "teamAScore": 170.5,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 176.19,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 155.25,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 160.94,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 6,
@@ -367,10 +367,10 @@
           32.5
         ]
       },
-      "teamAScore": 211.75,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 207,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 196,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 190.75,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 7,
@@ -429,10 +429,10 @@
           24.5
         ]
       },
-      "teamAScore": 200.07,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 222.44,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 185.57,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 204.19,
+      "teamBScoreSource": "bfa_historical_override"
     }
   ],
   "2": [
@@ -493,10 +493,10 @@
           26
         ]
       },
-      "teamAScore": 173.13,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 195.25,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 156.63,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 175.75,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 2,
@@ -555,10 +555,10 @@
           10.75
         ]
       },
-      "teamAScore": 197.19,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 234.19,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 178.94,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 213.19,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 3,
@@ -617,10 +617,10 @@
           33
         ]
       },
-      "teamAScore": 194.69,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 225.5,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 176.69,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 206,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 4,
@@ -679,10 +679,10 @@
           29
         ]
       },
-      "teamAScore": 199.75,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 243,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 182.5,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 217.75,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 5,
@@ -741,10 +741,10 @@
           20
         ]
       },
-      "teamAScore": 188.25,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 233,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 172.5,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 212.5,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 6,
@@ -803,10 +803,10 @@
           8.75
         ]
       },
-      "teamAScore": 208.5,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 156.44,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 192.25,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 142.44,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 7,
@@ -865,10 +865,10 @@
           38
         ]
       },
-      "teamAScore": 243.75,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 211,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 221.5,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 193,
+      "teamBScoreSource": "bfa_historical_override"
     }
   ],
   "3": [
@@ -929,10 +929,10 @@
           14.75
         ]
       },
-      "teamAScore": 171.75,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 169,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 156.25,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 154.75,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 2,
@@ -991,10 +991,10 @@
           39.25
         ]
       },
-      "teamAScore": 196.5,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 229.5,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 179.5,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 207.25,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 3,
@@ -1053,10 +1053,10 @@
           9.75
         ]
       },
-      "teamAScore": 168.69,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 192.25,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 153.94,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 179,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 4,
@@ -1115,10 +1115,10 @@
           5.25
         ]
       },
-      "teamAScore": 199.38,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 162,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 184.88,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 148.75,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 5,
@@ -1177,10 +1177,10 @@
           13.25
         ]
       },
-      "teamAScore": 180.38,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 194.75,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 166.88,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 175.25,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 6,
@@ -1239,10 +1239,10 @@
           25.5
         ]
       },
-      "teamAScore": 218.19,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 221.75,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 201.44,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 203.5,
+      "teamBScoreSource": "bfa_historical_override"
     },
     {
       "matchup_id": 7,
@@ -1301,10 +1301,10 @@
           22.25
         ]
       },
-      "teamAScore": 162,
-      "teamAScoreSource": "sleeper_points",
-      "teamBScore": 150.44,
-      "teamBScoreSource": "sleeper_points"
+      "teamAScore": 149,
+      "teamAScoreSource": "bfa_historical_override",
+      "teamBScore": 136.69,
+      "teamBScoreSource": "bfa_historical_override"
     }
   ],
   "4": [
