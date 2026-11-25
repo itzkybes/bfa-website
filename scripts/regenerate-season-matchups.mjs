@@ -336,6 +336,30 @@ async function syncCompletedWeek(season, week, { refreshScores = false } = {}) {
     throw new Error(`Sleeper returned no matchup data for completed week ${week}; leaving the JSON untouched.`);
   }
 
+  if (process.env.DEBUG_STARTER_SCORE_MAP === '1') {
+    const emperors = raw.find((entry) => String(entry.roster_id) === '1');
+    if (emperors) {
+      const playerMap = emperors.players_points ?? emperors.player_points ?? {};
+      const starterIds = Array.isArray(emperors.starters) ? emperors.starters : [];
+      const starterValues = Array.isArray(emperors.starters_points) ? emperors.starters_points : [];
+      const selected = starterIds.map((pid, index) => ({
+        pid,
+        starters_points: starterValues[index] ?? null,
+        players_points: playerMap?.[pid] ?? null,
+      }));
+      const playerMapSum = selected.reduce((sum, player) => {
+        const value = Number(player.players_points);
+        return sum + (Number.isFinite(value) ? value : 0);
+      }, 0);
+      console.log('DEBUG roster 1 selected-player score sources:', JSON.stringify({
+        points: emperors.points ?? null,
+        custom_points: emperors.custom_points ?? null,
+        selected,
+        selectedPlayersPointsSum: Math.round(playerMapSum * 100) / 100,
+      }));
+    }
+  }
+
   const byMatch = {};
   for (const entry of raw) {
     const matchupId = entry.matchup_id ?? entry.matchupId ?? null;
