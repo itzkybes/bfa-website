@@ -2,7 +2,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getSeasonsChain, BASE_LEAGUE_ID, getPlayersNba, playerHeadshot, pickActiveLeague, getRosterMapWithOwners } from '$lib/api';
-  import { computeStandingsForLeague, aggregatePlayerPoints } from '$lib/compute';
+  import { computeStandingsForLeague, aggregatePlayerPoints, aggregateFinalsMvpPoints } from '$lib/compute';
   import SkeletonLoader from '$lib/components/SkeletonLoader.svelte';
   import SectionHeader from '$lib/components/SectionHeader.svelte';
   import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
@@ -94,24 +94,28 @@
         const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
         const regularByPlayer = aggregatePlayerPoints(regularEntries);
 
-        // ---- Finals MVP = top scorer in the championship GAME only ----
-        // (not the champion's top scorer across the whole playoff window)
+        // ---- Finals MVP = top selected-starter scorer on the champion's team
+        // in the championship game only. Scores come from the saved year JSON.
         let finalsList = [];
-        if (standings.bracketComplete && standings.championshipGame?.week != null) {
+        if (
+          standings.bracketComplete &&
+          standings.championshipGame?.week != null &&
+          standings.championshipGame?.winnerRosterId != null
+        ) {
           const champWeek = standings.championshipGame.week;
-          const champRosters = new Set((standings.championshipGame.rosterIds || []).map(String));
-          const champGameEntries = (playoffMatchups[champWeek] || []).filter(
-            (e) => champRosters.has(String(e.roster_id ?? e.rosterId ?? ''))
-          );
-          finalsList = Object.values(aggregatePlayerPoints(champGameEntries))
-            .sort((a, b) => b.points - a.points);
+          finalsList = Object.values(
+            aggregateFinalsMvpPoints(
+              playoffMatchups[champWeek] || [],
+              standings.championshipGame.winnerRosterId
+            )
+          ).sort((a, b) => b.points - a.points);
         }
 
         // Regular Season MVP = top scorer across regular-season weeks only.
         const regularList = Object.values(regularByPlayer).sort((a, b) => b.points - a.points);
         const playoffsList = Object.values(playoffByPlayer).sort((a, b) => b.points - a.points);
 
-        // Finals MVP = top scorer in the championship game (across BOTH finalists)
+        // Finals MVP = top selected-starter scorer on the championship-winning team
         const finalsMvp = finalsList[0] || null;
         // Playoffs MVP = top cumulative scorer across the playoff window for
         // teams that actually made the playoffs (seeds 1 → playoff_teams).
