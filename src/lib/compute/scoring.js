@@ -64,7 +64,7 @@ export function starterPointsByPid(entry) {
   const arrayKeys = ['starters_points', 'starter_points', 'startersPoints', 'starterPoints'];
   let arr = null;
   for (const k of arrayKeys) {
-    if (Array.isArray(entry[k]) && entry[k].length) {
+    if (Array.isArray(entry[k]) && entry[k].length === starters.length) {
       arr = entry[k];
       break;
     }
