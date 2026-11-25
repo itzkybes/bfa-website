@@ -143,7 +143,7 @@ test('missing snapshot team totals stay unavailable when starter arrays do not a
 test('2022 season snapshot stops at the configured final playoff week', async () => {
   const url = new URL('../static/season_matchups/2022.json', import.meta.url);
   const snapshot = JSON.parse(await readFile(url, 'utf8'));
-  const weeks = Object.keys(snapshot).filter((key) => /^\\d+$/.test(key)).map(Number);
+  const weeks = Object.keys(snapshot).filter((key) => /^\d+$/.test(key)).map(Number);
   assert.equal(Math.max(...weeks), 22);
   assert.equal(Object.hasOwn(snapshot, '23'), false);
 });
