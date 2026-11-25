@@ -24,7 +24,7 @@ on:
     branches:
       - player-stats-year-json-source
     paths:
-      - .github/workflows/sync-historical-week.trigger
+      - .github/workflows/refresh-2026-week5.trigger
   schedule:
     - cron: '20 9 * * 1'
 
@@ -43,9 +43,9 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [[ "$EVENT_NAME" == "push" && ! -f .github/workflows/sync-historical-week.trigger ]]; then
+          if [[ "$EVENT_NAME" == "push" && ! -f .github/workflows/refresh-2026-week5.trigger ]]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "The marker was removed by the previous run; skipping this follow-up push."
+            echo "The one-time week-refresh marker is absent; skipping this follow-up push."
           else
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
@@ -66,10 +66,9 @@ jobs:
           INPUT_REFRESH: ${{ inputs.refresh_scores }}
         run: |
           if [[ "$EVENT_NAME" == "push" ]]; then
-            node scripts/regenerate-season-matchups.mjs --refresh-scores 2022 2023 2024 2025
             node scripts/regenerate-season-matchups.mjs --week 2026 5 --refresh-scores
-            echo "year=2022,2023,2024,2025,2026" >> "$GITHUB_OUTPUT"
-            echo "week=all+5" >> "$GITHUB_OUTPUT"
+            echo "year=2026" >> "$GITHUB_OUTPUT"
+            echo "week=5" >> "$GITHUB_OUTPUT"
           elif [[ -n "$INPUT_YEARS" ]]; then
             IFS=',' read -r -a YEARS <<< "$INPUT_YEARS"
             args=(--refresh-scores)
@@ -108,7 +107,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [[ "$EVENT_NAME" == "push" ]]; then
-            git rm -f .github/workflows/sync-historical-week.trigger
+            git rm -f .github/workflows/refresh-2026-week5.trigger
           fi
           git add -u static/season_matchups/
           if git diff --cached --quiet; then
