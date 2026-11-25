@@ -180,8 +180,9 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
             }
           }
 
-          // Best single-game starter performance — strictly from
-          // starters_p          const playerPoints = starterPointsByPid(e);
+          // Best single-game starter performance reads only saved,
+          // aligned starter points zipped with the selected starter IDs.
+          const playerPoints = starterPointsByPid(e);
           if (playerPoints) {
             for (const [pid, rawPoints] of Object.entries(playerPoints)) {
               const val = Number(rawPoints);
