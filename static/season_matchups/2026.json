@@ -1993,8 +1993,8 @@
           34.25
         ]
       },
-      "teamAScore": 219.69,
-      "teamAScoreSource": "sleeper_points",
+      "teamAScore": 262.18,
+      "teamAScoreSource": "bfa_historical_override",
       "teamBScore": 209.9,
       "teamBScoreSource": "sleeper_points"
     },
