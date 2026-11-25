@@ -40,7 +40,7 @@ test('every saved year JSON file contains starter-aligned player scoring', async
   for (const year of ['2022', '2023', '2024', '2025', '2026']) {
     const url = new URL(`../static/season_matchups/${year}.json`, import.meta.url);
     const snapshot = JSON.parse(await readFile(url, 'utf8'));
-    const weeks = Object.keys(snapshot).filter((key) => /^\\d+$/.test(key));
+    const weeks = Object.keys(snapshot).filter((key) => Number.isInteger(Number(key)));
     assert.ok(weeks.length > 0, `${year} snapshot has no weeks`);
 
     let teamsChecked = 0;
