@@ -97,14 +97,20 @@ For every team in a matchup, the file stores:
 
 Each matchup row stores explicit `teamAScore` and `teamBScore` totals. These
 are the authoritative team scores used by standings, Weekly Recap, and other
-team-level stats. They are calculated by summing the matching `starters_points`
-values (rounded to two decimals); the app does not recalculate a saved total
-when one is present. Starter IDs and points arrays must align, and bench
-players or Sleeper's whole-roster `points` total are never used.
+team-level stats. Team-score precedence is: a saved BFA historical override,
+Sleeper `custom_points`, Sleeper `points`, then the aligned `starters_points`
+sum only when Sleeper does not provide a team total. The app does not
+recalculate a saved total when one is present. Player-level statistics still
+use `starters` zipped to the matching `starters_points` array; bench players
+and raw `player_points` / `players_points` are never included. The 2023 early-
+season BFA corrections are stored directly in `2023.json` with a
+`bfa_historical_override` source marker—there is no separate early-2023 file.
 
-**Manual score values are protected.** If a `teamAScore` or `teamBScore` is
-already present, the updater keeps it exactly as entered. Missing score fields
-may be filled from starter points, but an existing value is never replaced.
+**Manual BFA score overrides are protected.** Values marked
+`bfa_historical_override`, along with unmarked legacy scores, are preserved by
+routine generation. Automatically generated Sleeper totals carry a source
+marker and can be refreshed by the weekly sync when Sleeper posts scoring
+corrections.
 
 Player-level weekly stats (such as Top Performances and Bust of the Week) also
 use the selected starters and their aligned `starters_points` values. Raw
@@ -358,9 +364,9 @@ Each matchup row includes a `matchup_id`, `week`, and two team objects
 positionally aligned: index 0 in `starters` identifies the player whose score
 is at index 0 in `starters_points`.
 
-Only add `teamAScore` or `teamBScore` when an explicit historical correction
-is needed. These are authoritative overrides; otherwise, the site calculates
-the team total from the starter points.
+Each matchup row stores `teamAScore` / `teamBScore` and a source marker when
+the total was generated automatically. Explicit historical corrections are
+stored directly in the same year file and always take precedence in the app.
 
 ### Regenerating the files
 
@@ -382,9 +388,11 @@ node scripts/regenerate-season-matchups.mjs 2025 2026
 ```
 
 The full generator fetches matchup weeks from Sleeper and stores selected
-starter IDs with their matching `starters_points` values. It never uses bench
-points, whole-roster totals, `player_points`, or `players_points` to calculate
-team scores, and preserves explicit score fields for matching matchups.
+starter IDs with their matching `starters_points` values for player-level
+statistics. Team totals use Sleeper `custom_points`, then Sleeper `points`, and
+fall back to the aligned starter sum only when neither team-level total exists.
+Explicit BFA historical overrides and unmarked legacy score values are
+preserved unless a deliberate forced refresh is requested.
 
 ### Automatic refresh
 
@@ -393,10 +401,9 @@ The **Sync season matchup files** GitHub Actions workflow runs weekly
 Actions tab. It runs `node scripts/regenerate-season-matchups.mjs --current-week`.
 That mode reads Sleeper's current `settings.leg`, fetches only the immediately
 preceding completed week, and changes only that week key in the current season
-JSON. It does not fetch, rebuild, or rewrite earlier or future weeks. Existing
-`teamAScore` / `teamBScore` values for the target week are preserved exactly;
-missing totals are filled from aligned starter points. The workflow stages
-only modified existing files under `static/season_matchups/`.
+JSON. Automatically generated totals are refreshed from the latest Sleeper
+response; unmarked legacy scores and explicit BFA overrides remain protected.
+The workflow stages only modified files under `static/season_matchups/`.
 
 No local machine or manual Vercel update is required for the scheduled refresh:
 the workflow commits updated JSON files to GitHub, and the connected Vercel
@@ -404,13 +411,16 @@ project deploys from the repository as usual.
 
 ### Score calculation
 
-For each team entry, the scoring helper follows this order:
+For each team entry, team scoring follows this order:
 
-1. Use the explicit static `teamAScore` / `teamBScore` override when present.
-2. Otherwise, sum the values in `starters_points`, after verifying that the
-   array length matches the selected `starters` IDs.
-3. If starter scoring is absent or misaligned, return 0. Never fall back to a
-   full-roster score.
+1. Use the explicit saved `teamAScore` / `teamBScore` value when present.
+2. Otherwise, use Sleeper `custom_points` when supplied.
+3. Otherwise, use Sleeper `points` when supplied.
+4. Only when no team total exists, sum `starters_points` after verifying that
+   it aligns with the selected `starters` IDs.
+
+Player-level records remain strictly starter-only and never use full-roster
+`player_points` / `players_points`.
 
 This keeps wins, losses, points for/against, standings, and downstream
 season aggregates on the same starter-only scoring basis.

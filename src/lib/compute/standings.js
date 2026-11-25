@@ -4,14 +4,14 @@
 // the UI consumes (regular standings, playoff standings, bracket-derived
 // final standings, championship game, weekly PF series, etc.).
 //
-// Static-vs-live decision:
-//   · For COMPLETED seasons that have a `/static/season_matchups/{year}.json`
-//     snapshot, every week is synthesized from the snapshot. This is instant
-//     and pinning a score is as simple as editing `teamAScore` / `teamBScore`
-//     in the JSON — the static path passes those values through as
-//     `__final_score` and `computeParticipantPoints` honors that first.
-//   · For IN-PROGRESS seasons (or if no snapshot exists), every week falls
-//     back to a live Sleeper API call.
+// Scoring-source policy:
+//   · All team scores and player-level scoring are read from the saved
+ //     `/static/season_matchups/{year}.json` snapshot.
+//   · Explicit `teamAScore` / `teamBScore` values in that file are
+ //     authoritative overrides and flow through as `__final_score`.
+//   · A missing snapshot week is omitted; it never falls back to live
+ //     Sleeper matchup stats. Live API calls below provide league, roster,
+ //     and bracket metadata only.
 
 import {
   getLeague,
@@ -62,8 +62,8 @@ function synthesizeWeekFromStatic(week, weekRows) {
           matchup_id: m.matchup_id ?? null,
           // `__final_score` is the authoritative team total. Editing `teamAScore`
           // / `teamBScore` in the JSON flows through everywhere.
-          ...(m.teamAScore != null || m.teamA?.score != null || m.teamA?.points != null
-            ? { __final_score: safeNum(m.teamAScore ?? m.teamA?.score ?? m.teamA?.points) }
+          ...(m.teamAScore != null || m.teamA?.custom_points != null || m.teamA?.points != null || m.teamA?.score != null
+            ? { __final_score: safeNum(m.teamAScore ?? m.teamA?.custom_points ?? m.teamA?.points ?? m.teamA?.score) }
             : {}),
           // Per-player figures from `starters_points` (the only authoritative
           // source for per-player scoring — `player_points` is intentionally
@@ -81,8 +81,8 @@ function synthesizeWeekFromStatic(week, weekRows) {
           week,
           roster_id: ridB,
           matchup_id: m.matchup_id ?? null,
-          ...(m.teamBScore != null || m.teamB?.score != null || m.teamB?.points != null
-            ? { __final_score: safeNum(m.teamBScore ?? m.teamB?.score ?? m.teamB?.points) }
+          ...(m.teamBScore != null || m.teamB?.custom_points != null || m.teamB?.points != null || m.teamB?.score != null
+            ? { __final_score: safeNum(m.teamBScore ?? m.teamB?.custom_points ?? m.teamB?.points ?? m.teamB?.score) }
             : {}),
           starters: Array.isArray(m.teamB.starters) ? m.teamB.starters : null,
           starters_points: Array.isArray(m.teamB.starters_points) ? m.teamB.starters_points : null,
@@ -92,45 +92,6 @@ function synthesizeWeekFromStatic(week, weekRows) {
     }
   }
   return out;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// early2023 manual scoring patch
-// ─────────────────────────────────────────────────────────────────────────
-
-/**
- * Build a `{ 'owner:foo' | 'team:bar' → points }` map for one week of the
- * 2023 early-season patch JSON. Returns `null` if the week isn't covered.
- */
-function buildEarly2023Override(earlyData, week) {
-  if (!earlyData || !earlyData['2023'] || !earlyData['2023'][String(week)]) return null;
-  if (week < 1 || week > 3) return null;
-  const map = {};
-  for (const e of earlyData['2023'][String(week)]) {
-    const aOwner = e.teamA?.ownerName ? String(e.teamA.ownerName).toLowerCase() : null;
-    const bOwner = e.teamB?.ownerName ? String(e.teamB.ownerName).toLowerCase() : null;
-    const aTeam = e.teamA?.name ? String(e.teamA.name).toLowerCase() : null;
-    const bTeam = e.teamB?.name ? String(e.teamB.name).toLowerCase() : null;
-    if (aOwner) map['owner:' + aOwner] = safeNum(e.teamAScore ?? 0);
-    if (bOwner) map['owner:' + bOwner] = safeNum(e.teamBScore ?? 0);
-    if (aTeam) map['team:' + aTeam] = safeNum(e.teamAScore ?? 0);
-    if (bTeam) map['team:' + bTeam] = safeNum(e.teamBScore ?? 0);
-  }
-  return map;
-}
-
-/** Look up an early-2023 override score for a given roster. */
-function lookupEarlyScore(earlyWeekMap, meta) {
-  if (!earlyWeekMap || !meta) return null;
-  const ownerLow =
-    meta.owner_name || meta.owner_username
-      ? String(meta.owner_name || meta.owner_username).toLowerCase()
-      : null;
-  const teamLow = meta.team_name ? String(meta.team_name).toLowerCase() : null;
-  if (ownerLow && earlyWeekMap['owner:' + ownerLow] != null)
-    return earlyWeekMap['owner:' + ownerLow];
-  if (teamLow && earlyWeekMap['team:' + teamLow] != null) return earlyWeekMap['team:' + teamLow];
-  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -213,11 +174,10 @@ export async function computeStandingsForLeague(leagueId) {
     weeklyPfByRoster[rk] = [];
   }
 
-  // 4. Decide static vs live and load any historical patches.
+  // 4. Load the saved year JSON used as the authoritative scoring source.
   const seasonMatchups = leagueSeason ? await loadSeasonMatchups(leagueSeason) : null;
-  const earlyData = null;
 
-  // 5. Fetch ALL weeks in parallel — static where available, live otherwise.
+  // 5. Adapt every available week in the saved snapshot. Missing weeks stay unavailable.
   const weekFetches = [];
   for (let week = 1; week <= MAX_WEEKS; week++) {
     const staticRows = seasonMatchups?.[String(week)];
@@ -260,7 +220,6 @@ export async function computeStandingsForLeague(leagueId) {
     const statsByRoster = isPlayoffWeek ? statsByRosterPlayoff : statsByRosterRegular;
     const resultsByRoster = isPlayoffWeek ? resultsByRosterPlayoff : resultsByRosterRegular;
     const paByRoster = isPlayoffWeek ? paByRosterPlayoff : paByRosterRegular;
-    const earlyWeekMap = buildEarly2023Override(earlyData, week);
 
     // Group entries by matchup id. Backfill rosterMap from any static
     // `__team_name` / `__owner_name` for rosters not in the live map.
@@ -303,8 +262,7 @@ export async function computeStandingsForLeague(leagueId) {
         const only = entries[0];
         const ridOnly = String(only.roster_id ?? only.rosterId ?? '');
         ensureRoster(statsByRoster, resultsByRoster, paByRoster, ridOnly);
-        const pts =
-          lookupEarlyScore(earlyWeekMap, rosterMap[ridOnly]) ?? computeParticipantPoints(only);
+        const pts = computeParticipantPoints(only);
         statsByRoster[ridOnly].pf += pts;
         if (isRegularWeek) {
           weeklyPfByRoster[ridOnly] = weeklyPfByRoster[ridOnly] || [];
@@ -317,7 +275,7 @@ export async function computeStandingsForLeague(leagueId) {
       const participants = [];
       for (const en of entries) {
         const pid = String(en.roster_id ?? en.rosterId ?? '');
-        const ppts = lookupEarlyScore(earlyWeekMap, rosterMap[pid]) ?? computeParticipantPoints(en);
+        const ppts = computeParticipantPoints(en);
         participants.push({ rosterId: pid, points: ppts });
         ensureRoster(statsByRoster, resultsByRoster, paByRoster, pid);
         statsByRoster[pid].pf += ppts;

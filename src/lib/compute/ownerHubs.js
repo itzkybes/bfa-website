@@ -1,12 +1,14 @@
 import { getSeasonFormat } from './seasonFormat.js';
 import { addAdvancedOwnerStats } from './ownerHubAdvancedStats.js';
+import { starterPointsByPid } from './scoring.js';
 
   /**
    * Roll up every season's standings into a per-owner career snapshot:
    * championships, playoff appearances, career W-L, career PF/PA, best
    * finish, and best single-season PF, PLUS franchise-specific records.
-   * Reads STRICTLY from `starters_points` for any per-player figures
-   * (per project policy — `player_points` is never consulted).
+   * Reads STRICTLY from `starters_points` in the saved year JSON snapshots
+   * for any per-player figures. Live Sleeper matchup player stats are never
+   * substituted, and `player_points` is never consulted.
    */
 export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
     const hubs = {};
@@ -178,15 +180,12 @@ export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
             }
           }
 
-          // Best single-game starter performance — strictly from
-          // starters_points. Tracked separately for regular vs playoffs.
-          const sp = e.starters_points;
-          const starters = e.starters;
-          if (Array.isArray(sp) && Array.isArray(starters)) {
-            for (let idx = 0; idx < starters.length; idx++) {
-              const pid = starters[idx];
-              if (!pid) continue;
-              const val = Number(sp[idx] ?? 0);
+          // Best single-game starter performance reads only saved,
+          // aligned starter points zipped with the selected starter IDs.
+          const playerPoints = starterPointsByPid(e);
+          if (playerPoints) {
+            for (const [pid, rawPoints] of Object.entries(playerPoints)) {
+              const val = Number(rawPoints);
               if (!isFinite(val) || val <= 0) continue;
               if (isRegular) {
                 if (!hub.bestSingleGame || val > hub.bestSingleGame.points) {

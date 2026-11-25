@@ -48,17 +48,15 @@ export async function getUsers(leagueId, ttl = CACHE_10_MIN) {
 }
 
 /**
- * All matchup entries for a given week (Sleeper returns one entry per roster).
+ * Live matchup entries for schedule and matchup-participant context.
  *
- * Default TTL is 60 SECONDS — short enough that a stat correction or
- * mid-game scoring update propagates to the recap within ~1 minute, but
- * long enough that rapid week-clicking through the dropdown still gets
- * served from cache. Note the recap "selected game" semantics: Sleeper's
- * `players_points` / `starters_points` arrays already reflect the owner's
- * manually-selected game (Sleeper resolves the selection internally — no
- * separate "selected game" field is exposed by the public API). So if a
- * recap stat ever looks wrong, the fix is to (a) wait for Sleeper's stat
- * correction job to run and (b) let this short TTL pull it in.
+ * Statistical scores and player performances shown by the site come from
+ * saved `/static/season_matchups/{year}.json` snapshots. This endpoint is
+ * not a fallback source for player-stat leaderboards; callers may use it
+ * to identify live opponents or upcoming matchups only.
+ *
+ * Default TTL is 60 seconds so roster/schedule context stays fresh while
+ * week navigation avoids repeated API requests.
  */
 export async function getMatchupsForWeek(leagueId, week, ttl = CACHE_60_SEC) {
   return await fetchWithCache(
