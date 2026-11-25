@@ -30,3 +30,20 @@ test('2023 early-season BFA score corrections live in the 2023 year snapshot', a
 
   assert.equal(kybesWeekOne?.score, 131.69);
 });
+
+test('2026 week five BFA final score override takes precedence over starter totals', async () => {
+  const url = new URL('../static/season_matchups/2026.json', import.meta.url);
+  const snapshot = JSON.parse(await readFile(url, 'utf8'));
+  const emperors = (snapshot['5'] || []).find((row) =>
+    row.teamA?.name === 'The Emperors' || row.teamB?.name === 'The Emperors'
+  );
+
+  assert.ok(emperors, '2026 week 5 includes The Emperors');
+  if (emperors.teamA?.name === 'The Emperors') {
+    assert.equal(emperors.teamAScore, 262.18);
+    assert.equal(emperors.teamAScoreSource, 'bfa_historical_override');
+  } else {
+    assert.equal(emperors.teamBScore, 262.18);
+    assert.equal(emperors.teamBScoreSource, 'bfa_historical_override');
+  }
+});
