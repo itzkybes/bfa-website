@@ -32,7 +32,7 @@ test('aggregatePlayerPoints uses starter points aliases without reading raw play
 
 import { computeParticipantPoints } from '../src/lib/compute/scoring.js';
 
-test('computeParticipantPoints sums only starter points and ignores full-roster totals', () => {
+test('computeParticipantPoints prefers Sleeper team points over a starter sum', () => {
   const result = computeParticipantPoints({
     starters: ['starter-a', 'starter-b'],
     starters_points: [24.5, 18],
@@ -40,15 +40,15 @@ test('computeParticipantPoints sums only starter points and ignores full-roster 
     points: 84.5,
   });
 
-  assert.equal(result, 42.5);
+  assert.equal(result, 84.5);
 });
 
-test('computeParticipantPoints does not fall back to ambiguous team points when starter data is missing', () => {
+test('computeParticipantPoints uses Sleeper team points when starter data is missing', () => {
   assert.equal(computeParticipantPoints({
     starters: ['starter-a'],
     player_points: { 'starter-a': 20, 'bench-b': 35 },
     points: 55,
-  }), 0);
+  }), 55);
 });
 
 test('computeParticipantPoints preserves explicit historical score overrides', () => {
@@ -61,14 +61,25 @@ test('computeParticipantPoints preserves explicit historical score overrides', (
 });
 
 
-test('computeParticipantPoints refuses starter-point arrays that do not align with starter IDs', () => {
+test('computeParticipantPoints prefers Sleeper totals when starter arrays are misaligned', () => {
   assert.equal(computeParticipantPoints({
     starters: ['starter-a'],
     starters_points: [20, 45],
     points: 65,
-  }), 0);
+  }), 65);
   assert.equal(computeParticipantPoints({
     starters_points: [20, 45],
     points: 65,
+  }), 65);
+});
+
+test('computeParticipantPoints uses starter-sum fallback only when no Sleeper total exists', () => {
+  assert.equal(computeParticipantPoints({
+    starters: ['starter-a', 'starter-b'],
+    starters_points: [24.5, 18],
+  }), 42.5);
+  assert.equal(computeParticipantPoints({
+    starters: ['starter-a'],
+    starters_points: [20, 45],
   }), 0);
 });
