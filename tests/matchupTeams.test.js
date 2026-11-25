@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { buildTeamFromLive, buildTeamFromStatic } from '../src/lib/compute/matchupTeams.js';
-import { starterPointsByPid } from '../src/lib/compute/scoring.js';
+import { starterPointsByPid, aggregateFinalsMvpPoints } from '../src/lib/compute/scoring.js';
 
 test('saved season JSON adapter preserves selected-starter player scores', () => {
   const team = buildTeamFromStatic({
@@ -62,4 +62,41 @@ test('every saved year JSON file contains starter-aligned player scoring', async
     }
     assert.ok(teamsChecked > 0, `${year} snapshot has no team scoring rows`);
   }
+});
+
+test('missing snapshot team totals are summed from aligned saved starter points', () => {
+  const team = buildTeamFromStatic({
+    rosterId: '1',
+    starters: ['player-a', 'player-b', 'player-c'],
+    starters_points: [20.5, 11.25, 0],
+  }, null, {});
+
+  assert.equal(team.points, 31.75);
+});
+
+test('missing snapshot team totals stay unavailable when starter arrays do not align', () => {
+  const team = buildTeamFromStatic({
+    rosterId: '1',
+    starters: ['player-a', 'player-b'],
+    starters_points: [20.5],
+  }, null, {});
+
+  assert.equal(team.points, null);
+});
+
+test('Finals MVP is selected from the championship-winning roster only', () => {
+  // 2022 week 22: Kyle Anderson (Sleeper player id 1548) scored 40.00
+  // for the losing finalist, while the champion's top starter scored 38.25.
+  const championshipEntries = [
+    { roster_id: 'losing-finalist', starters: ['1548'], starters_points: [40] },
+    { roster_id: 'champion', starters: ['2313', '1739'], starters_points: [38.25, 38] },
+  ];
+
+  const result = Object.values(
+    aggregateFinalsMvpPoints(championshipEntries, 'champion')
+  ).sort((a, b) => b.points - a.points);
+
+  assert.equal(result[0]?.playerId, '2313');
+  assert.equal(result[0]?.points, 38.25);
+  assert.ok(result.every((player) => player.rosterId === 'champion'));
 });
