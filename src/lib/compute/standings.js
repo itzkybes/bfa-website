@@ -5,11 +5,11 @@
 // final standings, championship game, weekly PF series, etc.).
 //
 // Scoring-source policy:
- //   · All team scores and player-level scoring are read from the saved
+//   · All team scores and player-level scoring are read from the saved
  //     `/static/season_matchups/{year}.json` snapshot.
- //   · Explicit `teamAScore` / `teamBScore` values in that file are
+//   · Explicit `teamAScore` / `teamBScore` values in that file are
  //     authoritative overrides and flow through as `__final_score`.
- //   · A missing snapshot week is omitted; it never falls back to live
+//   · A missing snapshot week is omitted; it never falls back to live
  //     Sleeper matchup stats. Live API calls below provide league, roster,
  //     and bracket metadata only.
 
