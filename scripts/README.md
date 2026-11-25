@@ -50,4 +50,4 @@ Refresh complete seasons and replace all saved team totals with the API values (
 node scripts/regenerate-season-matchups.mjs --refresh-scores 2022 2023 2024 2025
 ```
 
-The scheduled weekly run uses the same `custom_points` → `points` → aligned starter fallback logic for the latest completed week. The separate `static/early2023.json` BFA historical override remains in place and continues to take precedence for 2023 weeks 1–3.
+The scheduled weekly run uses the same `custom_points` → `points` → aligned starter fallback logic for the latest completed week. The 2023 weeks 1–3 BFA historical score corrections are stored directly in `static/season_matchups/2023.json` with `bfa_historical_override` source markers; there is no separate early-2023 scoring file.
