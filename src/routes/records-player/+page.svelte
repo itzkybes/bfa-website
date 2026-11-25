@@ -94,7 +94,7 @@
         const playoffByPlayer = aggregatePlayerPoints(playoffEntries);
         const regularByPlayer = aggregatePlayerPoints(regularEntries);
 
-        // ---- Finals MVP = top selected-starter scorer on the champion's team
+        // ---- Finals MVP = top selected-starter scorer from either championship finalist
         // in the championship game only. Scores come from the saved year JSON.
         let finalsList = [];
         if (
@@ -106,7 +106,7 @@
           finalsList = Object.values(
             aggregateFinalsMvpPoints(
               playoffMatchups[champWeek] || [],
-              standings.championshipGame.winnerRosterId
+              standings.championshipGame.rosterIds || []
             )
           ).sort((a, b) => b.points - a.points);
         }
