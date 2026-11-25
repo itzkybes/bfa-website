@@ -93,8 +93,8 @@ test('missing snapshot team totals stay unavailable when starter arrays do not a
 });
 
 test('Finals MVP can come from either championship finalist', () => {
-  // 2022 week 22: Kyle Anderson (player id 1548) scored 40.00 for
-  // Scat Porn, the losing finalist, ahead of the champion's top starter.
+  // Synthetic championship-game example: a losing finalist's starter
+  // outscores the champion's starters. A non-finalist must stay ineligible.
   const championshipEntries = [
     { roster_id: 'losing-finalist', starters: ['1548'], starters_points: [40] },
     { roster_id: 'champion', starters: ['2313', '1739'], starters_points: [38.25, 38] },
