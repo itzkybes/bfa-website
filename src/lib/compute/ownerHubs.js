@@ -5,8 +5,9 @@ import { addAdvancedOwnerStats } from './ownerHubAdvancedStats.js';
    * Roll up every season's standings into a per-owner career snapshot:
    * championships, playoff appearances, career W-L, career PF/PA, best
    * finish, and best single-season PF, PLUS franchise-specific records.
-   * Reads STRICTLY from `starters_points` for any per-player figures
-   * (per project policy — `player_points` is never consulted).
+   * Reads STRICTLY from `starters_points` in the saved year JSON snapshots
+   * for any per-player figures. Live Sleeper matchup player stats are never
+   * substituted, and `player_points` is never consulted.
    */
 export function buildOwnerHubs(allSeasonResults, chain, playersMap = {}) {
     const hubs = {};
