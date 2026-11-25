@@ -207,7 +207,7 @@ async function walkSeasons(anchorLeagueId, maxSteps = 50) {
 }
 
 /** Fetch each weekly matchup. Playoff rules come from the shared season format. */
-async function generateSeasonJson(season) {
+async function generateSeasonJson(season, { refreshScores = false } = {}) {
   const { league_id, season: year } = season;
   let previous = {};
   try {
@@ -262,7 +262,7 @@ async function generateSeasonJson(season) {
       const scoreB = computeParticipantPoints(b);
       const hasPriorA = previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore');
       const hasPriorB = previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore');
-      if (hasPriorA && !isAutoScoreSource(previousRow.teamAScoreSource)) {
+      if (hasPriorA && !refreshScores && !isAutoScoreSource(previousRow.teamAScoreSource)) {
         row.teamAScore = previousRow.teamAScore;
         if (previousRow.teamAScoreSource) row.teamAScoreSource = previousRow.teamAScoreSource;
       } else if (week <= completedThroughWeek && scoreA != null) {
@@ -273,7 +273,7 @@ async function generateSeasonJson(season) {
         if (previousRow.teamAScoreSource) row.teamAScoreSource = previousRow.teamAScoreSource;
       }
 
-      if (hasPriorB && !isAutoScoreSource(previousRow.teamBScoreSource)) {
+      if (hasPriorB && !refreshScores && !isAutoScoreSource(previousRow.teamBScoreSource)) {
         row.teamBScore = previousRow.teamBScore;
         if (previousRow.teamBScoreSource) row.teamBScoreSource = previousRow.teamBScoreSource;
       } else if (week <= completedThroughWeek && scoreB != null) {
@@ -454,8 +454,8 @@ async function main() {
     await syncCompletedWeek(targetSeason, requestedWeek, { refreshScores });
     return;
   }
-  if (refreshScores) {
-    throw new Error('--refresh-scores can only be used with --week <year> <week>.');
+  if (syncCurrentWeek && refreshScores) {
+    throw new Error('--refresh-scores cannot be combined with --current-week.');
   }
 
   if (syncCurrentWeek) {
@@ -465,29 +465,34 @@ async function main() {
   }
 
   // Default = every discovered season, including the current season.
-  const requestedYears = argv.length
-    ? argv
+  const requestedYears = argv.filter((arg) => !arg.startsWith('--'));
+  const yearsToWrite = requestedYears.length
+    ? requestedYears
     : seasons.filter((s) => s.season).map((s) => String(s.season));
 
-  if (!requestedYears.length) {
+  if (refreshScores && requestedYears.length === 0) {
+    throw new Error('--refresh-scores for full-season regeneration requires one or more explicit years.');
+  }
+
+  if (!yearsToWrite.length) {
     console.log(
       `\n  ⚠︎  No completed seasons found in the chain. Pass year(s) explicitly to override (e.g. node scripts/regenerate-season-matchups.mjs 2026).`
     );
     return;
   }
-  console.log(`\n  Will write: ${requestedYears.join(', ')}`);
+  console.log(`\n  Will write: ${yearsToWrite.join(', ')}${refreshScores ? ' (refreshing all team totals)' : ''}`);
 
   await fs.mkdir(STATIC_DIR, { recursive: true });
 
   let written = 0;
-  for (const yr of requestedYears) {
+  for (const yr of yearsToWrite) {
     const season = seasons.find((s) => String(s.season) === String(yr));
     if (!season) {
       console.log(`\n  ⚠︎  ${yr}: no matching league in chain — skipping.`);
       continue;
     }
     console.log(`\n  → ${yr}  (league ${season.league_id})`);
-    const result = await generateSeasonJson(season);
+    const result = await generateSeasonJson(season, { refreshScores });
     const outPath = path.join(STATIC_DIR, `${yr}.json`);
     await fs.writeFile(outPath, JSON.stringify(result.payload, null, 2) + '\n', 'utf8');
     const size = (await fs.stat(outPath)).size;
