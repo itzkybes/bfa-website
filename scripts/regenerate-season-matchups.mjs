@@ -363,7 +363,7 @@ async function syncCompletedWeek(season, week, { refreshScores = false } = {}) {
   }
 
   existing[String(week)] = nextRows;
-  await fs.writeFile(outPath, JSON.stringify(existing, null, 2) + '\\n', 'utf8');
+  await fs.writeFile(outPath, JSON.stringify(existing, null, 2) + '\n', 'utf8');
   console.log(
     `✓ Updated only ${season.season}.json week ${week} (${nextRows.length} matchups); ${teamTotalsFromSleeper} team totals came from Sleeper and ${teamTotalsFromStarterFallback} used aligned starter fallback. ${refreshScores ? 'Existing scores refreshed.' : 'Existing saved scores preserved.'}`
   );

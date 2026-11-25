@@ -29,16 +29,29 @@ permissions:
 
 jobs:
   sync:
-    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.added, '.github/workflows/sync-historical-week.trigger') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Check whether this push contains the one-time refresh marker
+        id: gate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" && ! -f .github/workflows/sync-historical-week.trigger ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "The marker was removed by the previous run; skipping this follow-up push."
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Set up Node.js
+        if: steps.gate.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Refresh selected historical week or latest completed week
+        if: steps.gate.outputs.should_run == 'true'
         id: refresh
         shell: bash
         env:
@@ -70,6 +83,7 @@ jobs:
           echo "year=$YEAR" >> "$GITHUB_OUTPUT"
           echo "week=$WEEK" >> "$GITHUB_OUTPUT"
       - name: Commit updated season files
+        if: steps.gate.outputs.should_run == 'true'
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}

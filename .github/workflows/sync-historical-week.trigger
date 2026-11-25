@@ -1,1 +1,1 @@
-One-time trigger to regenerate 2026 week 5 from Sleeper team totals.
+One-time trigger refreshed to run the 2026 week 5 Sleeper score sync.
