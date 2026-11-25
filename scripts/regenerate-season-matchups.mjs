@@ -64,6 +64,21 @@ function computeParticipantPoints(entry) {
   return Math.round(points.reduce((sum, value) => sum + safeNum(value), 0) * 100) / 100;
 }
 
+/** Identify whether a saved total was generated automatically and may be refreshed. */
+function teamScoreSource(entry) {
+  if (entry?.custom_points != null && entry.custom_points !== '') return 'sleeper_custom_points';
+  if (entry?.points != null && entry.points !== '') return 'sleeper_points';
+  const starters = Array.isArray(entry?.starters) ? entry.starters : [];
+  const points = Array.isArray(entry?.starters_points) ? entry.starters_points : [];
+  return starters.length > 0 && points.length === starters.length ? 'starter_fallback' : null;
+}
+
+function isAutoScoreSource(source) {
+  return source === 'sleeper_custom_points' ||
+    source === 'sleeper_points' ||
+    source === 'starter_fallback';
+}
+
 async function get(url) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -240,19 +255,33 @@ async function generateSeasonJson(season) {
       const previousRow = (previous[String(week)] || []).find(
         (candidate) => String(candidate.matchup_id) === String(row.matchup_id)
       );
-      // Preserve an existing saved total as a historical/manual override.
-      // For new completed-week totals, read Sleeper's team-level value first.
+      // Preserve legacy/unmarked scores as manual overrides. Totals marked
+      // as automatically generated may be refreshed from the latest Sleeper
+      // response, so weekly stat corrections flow into the snapshot.
       const scoreA = computeParticipantPoints(a);
       const scoreB = computeParticipantPoints(b);
-      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore')) {
+      const hasPriorA = previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamAScore');
+      const hasPriorB = previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore');
+      if (hasPriorA && !isAutoScoreSource(previousRow.teamAScoreSource)) {
         row.teamAScore = previousRow.teamAScore;
+        if (previousRow.teamAScoreSource) row.teamAScoreSource = previousRow.teamAScoreSource;
       } else if (week <= completedThroughWeek && scoreA != null) {
         row.teamAScore = scoreA;
+        row.teamAScoreSource = teamScoreSource(a);
+      } else if (hasPriorA) {
+        row.teamAScore = previousRow.teamAScore;
+        if (previousRow.teamAScoreSource) row.teamAScoreSource = previousRow.teamAScoreSource;
       }
-      if (previousRow && Object.prototype.hasOwnProperty.call(previousRow, 'teamBScore')) {
+
+      if (hasPriorB && !isAutoScoreSource(previousRow.teamBScoreSource)) {
         row.teamBScore = previousRow.teamBScore;
+        if (previousRow.teamBScoreSource) row.teamBScoreSource = previousRow.teamBScoreSource;
       } else if (week <= completedThroughWeek && scoreB != null) {
         row.teamBScore = scoreB;
+        row.teamBScoreSource = teamScoreSource(b);
+      } else if (hasPriorB) {
+        row.teamBScore = previousRow.teamBScore;
+        if (previousRow.teamBScoreSource) row.teamBScoreSource = previousRow.teamBScoreSource;
       }
       weekRows.push(row);
     }
@@ -340,16 +369,33 @@ async function syncCompletedWeek(season, week, { refreshScores = false } = {}) {
     const hasPriorA = prior && Object.prototype.hasOwnProperty.call(prior, 'teamAScore');
     const hasPriorB = prior && Object.prototype.hasOwnProperty.call(prior, 'teamBScore');
 
-    // Keep saved/manual totals unless this exact week was explicitly asked
-    // to refresh. If the API lacks a total, use aligned starter sums; if those
-    // are also missing, retain the prior score rather than deleting it.
-    if (!refreshScores && hasPriorA) row.teamAScore = prior.teamAScore;
-    else if (scoreA != null) row.teamAScore = scoreA;
-    else if (hasPriorA) row.teamAScore = prior.teamAScore;
+    // Unmarked/legacy saved totals are treated as manual overrides. Totals
+    // tagged as Sleeper/fallback-generated refresh automatically on the next
+    // scheduled sync. --refresh-scores explicitly replaces even manual totals.
+    const preservePriorA = hasPriorA && !refreshScores && !isAutoScoreSource(prior.teamAScoreSource);
+    const preservePriorB = hasPriorB && !refreshScores && !isAutoScoreSource(prior.teamBScoreSource);
 
-    if (!refreshScores && hasPriorB) row.teamBScore = prior.teamBScore;
-    else if (scoreB != null) row.teamBScore = scoreB;
-    else if (hasPriorB) row.teamBScore = prior.teamBScore;
+    if (preservePriorA) {
+      row.teamAScore = prior.teamAScore;
+      if (prior.teamAScoreSource) row.teamAScoreSource = prior.teamAScoreSource;
+    } else if (scoreA != null) {
+      row.teamAScore = scoreA;
+      row.teamAScoreSource = teamScoreSource(a);
+    } else if (hasPriorA) {
+      row.teamAScore = prior.teamAScore;
+      if (prior.teamAScoreSource) row.teamAScoreSource = prior.teamAScoreSource;
+    }
+
+    if (preservePriorB) {
+      row.teamBScore = prior.teamBScore;
+      if (prior.teamBScoreSource) row.teamBScoreSource = prior.teamBScoreSource;
+    } else if (scoreB != null) {
+      row.teamBScore = scoreB;
+      row.teamBScoreSource = teamScoreSource(b);
+    } else if (hasPriorB) {
+      row.teamBScore = prior.teamBScore;
+      if (prior.teamBScoreSource) row.teamBScoreSource = prior.teamBScoreSource;
+    }
 
     for (const entry of [a, b]) {
       if (entry.custom_points != null || entry.points != null) teamTotalsFromSleeper++;
