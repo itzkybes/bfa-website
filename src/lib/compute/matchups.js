@@ -1,12 +1,12 @@
 // src/lib/compute/matchups.js
 //
-// Per-week matchup rows for the `/matchups` page. Two paths:
-//   · Static snapshot when the league is complete AND a JSON exists.
-//   · Live Sleeper API otherwise.
+// Per-week matchup rows for the `/matchups` page.
+// Saved year JSON is the sole source for scores and player performances.
+// Live Sleeper data is context-only when a saved week is unavailable.
 
-import { getLeague, getRosterMapWithOwners, getMatchupsForWeek, safeNum } from '$lib/api/sleeper';
+import { getLeague, getRosterMapWithOwners, getMatchupsForWeek } from '$lib/api/sleeper';
 import { loadSeasonMatchups } from '$lib/api/staticSeasons';
-import { computeParticipantPoints } from './scoring';
+import { buildTeamFromLive, buildTeamFromStatic } from './matchupTeams';
 import { getLatestOwnerAvatars, applyLatestAvatars } from './avatars';
 import { getSeasonFormat } from './seasonFormat';
 import { getCompletedWeekForLeague } from './weekCutoff';
@@ -16,10 +16,10 @@ import { getCompletedWeekForLeague } from './weekCutoff';
  * `/matchups` page renders.
  *
  * Source-of-truth rule:
- *   · If the league has `status === 'complete'` AND a static snapshot exists
- *     at `/static/season_matchups/{year}.json`, use the snapshot —
- *     `teamAScore` / `teamBScore` are the authoritative final scores.
- *   · Otherwise (in-progress season, or no snapshot yet), call Sleeper.
+ *   · If the requested week exists in `/static/season_matchups/{year}.json`,
+ *     use that snapshot for team scores and selected-starter player scoring.
+ *   · Otherwise, live Sleeper data may supply team names and matchup pairing
+ *     only. Scores and player-stat fields remain unavailable.
  *
  * Each row is one of:
  *   - `{ teamA, teamB, participantsCount: 2 }` — normal head-to-head
@@ -53,7 +53,7 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   }
 
   // Use the saved matchup snapshot for active and completed seasons alike.
-  // Explicit teamAScore/teamBScore values are authoritative when present.
+  // It supplies team-score overrides and the per-player starter arrays.
   let seasonMatchups = null;
   if (leagueSeason) {
     seasonMatchups = await loadSeasonMatchups(leagueSeason);
@@ -77,7 +77,9 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
     };
   }
 
-  // Live API path.
+  // Live fallback is context-only. buildTeamFromLive deliberately omits
+  // scores and all starter fields so recap leaderboards never switch away
+  // from the saved year JSON.
   let raw = null;
   try {
     raw = await getMatchupsForWeek(leagueId, week);
@@ -143,37 +145,3 @@ export async function computeMatchupsForLeagueWeek(leagueId, week, rosterMap = n
   return { week, playoffStart, playoffEnd, leagueSeason, completedThroughWeek, matchupsRows: rows };
 }
 
-/**
- * Shape one live Sleeper matchup entry into the row format the UI expects.
- * Carries through `starters` + `starters_points` only — `player_points`
- * is deliberately omitted (project policy: starters_points is the sole
- * source of truth for per-player scoring).
- */
-function buildTeamFromLive(rid, rosterMap, entry) {
-  const meta = rosterMap[rid] || {};
-  return {
-    rosterId: rid,
-    name: meta.team_name || meta.owner_name || 'Roster ' + rid,
-    ownerName: meta.owner_name || null,
-    avatar: meta.team_avatar || meta.owner_avatar || null,
-    points: computeParticipantPoints(entry),
-    starters: entry?.starters ?? null,
-    starters_points: entry?.starters_points ?? null,
-  };
-}
-
-/** Same as `buildTeamFromLive`, but the entry comes from a static JSON. */
-function buildTeamFromStatic(t, score, rosterMap) {
-  const rid = String(t.rosterId ?? t.roster_id ?? '');
-  const meta = rid && rosterMap[rid] ? rosterMap[rid] : {};
-  return {
-    rosterId: rid,
-    name: t.name ?? meta.team_name ?? null,
-    ownerName: t.ownerName ?? meta.owner_name ?? null,
-    // Same fallback ladder as `buildTeamFromLive`.
-    avatar: t.avatar ?? meta.team_avatar ?? meta.owner_avatar ?? null,
-    points: safeNum(score ?? t.score ?? t.points ?? 0),
-    starters: t.starters ?? null,
-    starters_points: t.starters_points ?? null,
-  };
-}
