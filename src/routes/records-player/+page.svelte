@@ -25,10 +25,11 @@
     String(b.season).localeCompare(String(a.season), undefined, { numeric: true })
   );
 
-  // Aggregate player points across multiple matchups. Reads STRICTLY from
-  // `starters_points` (which already reflects each owner's selected-game
-  // choice) — never falls back to `player_points`. Entries that ship
-  // without a starters_points array are skipped so we don't inject zeros.
+  // Aggregate player points from the saved `/season_matchups/{year}.json`
+  // snapshots, delivered by computeStandingsForLeague. Read STRICTLY from
+  // `starters_points` zipped to `starters` (the owner's selected game);
+  // never use live matchup values or `player_points`. Missing snapshot
+  // arrays are skipped rather than estimated or filled with live stats.
   async function loadAll() {
     loading = true; error = null;
     try {
