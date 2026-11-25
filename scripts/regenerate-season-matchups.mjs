@@ -295,10 +295,10 @@ async function generateSeasonJson(season, { refreshScores = false } = {}) {
 }
 
 /**
- * Refresh exactly the latest completed week for the active (anchor) season.
- * Existing weeks other than the target are never rebuilt or modified.
- * Existing score fields on the target week are treated as pinned/manual values
- * and are never overwritten.
+ * Refresh exactly one completed week. Existing weeks other than the target
+ * are never rebuilt or modified. Automatically generated Sleeper totals may
+ * be refreshed for scoring corrections; BFA overrides and unmarked legacy
+ * scores stay protected unless --refresh-scores is explicitly supplied.
  */
 async function syncCompletedWeek(season, week, { refreshScores = false } = {}) {
   if (!season) throw new Error('Could not identify the requested BFA season.');
