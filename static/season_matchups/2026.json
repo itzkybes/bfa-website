@@ -1709,12 +1709,12 @@
         "starters_points": [
           41.55,
           41.35,
-          41.05,
-          28,
-          49.35,
-          33.35,
-          52.3,
-          25.8,
+          36.6,
+          25.75,
+          27.95,
+          15.6,
+          37.2,
+          22.15,
           13.35
         ]
       },
@@ -1738,15 +1738,17 @@
           21.15,
           3.15,
           21.7,
-          31.05,
+          25.6,
           19.45,
           81.2,
           21.4,
           34.25
         ]
       },
-      "teamAScore": 326.1,
-      "teamBScore": 249.3
+      "teamAScore": 261.5,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 243.85,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 2,
@@ -1775,7 +1777,7 @@
           22.75,
           19.2,
           16.7,
-          31
+          13.05
         ]
       },
       "teamB": {
@@ -1794,7 +1796,7 @@
           "2590"
         ],
         "starters_points": [
-          32.99,
+          16.75,
           27.25,
           20.6,
           36.85,
@@ -1802,11 +1804,13 @@
           12.85,
           19.05,
           19.25,
-          19.05
+          26.1
         ]
       },
-      "teamAScore": 174.45,
-      "teamBScore": 208.84
+      "teamAScore": 156.5,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 199.65,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 3,
@@ -1827,11 +1831,11 @@
           "1934"
         ],
         "starters_points": [
-          35.95,
+          13.75,
           45.55,
-          33.2,
+          23.74,
           30,
-          45.5,
+          0,
           48.4,
           26.2,
           30.9,
@@ -1855,18 +1859,20 @@
         ],
         "starters_points": [
           11.69,
-          30.45,
+          27.15,
           65.75,
-          33.05,
-          34.05,
+          36,
+          0,
           9.1,
           17.3,
           30.75,
           25.55
         ]
       },
-      "teamAScore": 306.05,
-      "teamBScore": 257.69
+      "teamAScore": 228.89,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 223.29,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 4,
@@ -1891,7 +1897,7 @@
           28.35,
           21.6,
           34.45,
-          36,
+          23.95,
           24.75,
           23.75,
           16.15,
@@ -1914,19 +1920,21 @@
           "1444"
         ],
         "starters_points": [
-          43.35,
+          0,
           32.55,
           21.95,
           0,
           25.75,
           37.6,
-          33.8,
+          29.19,
           0,
           18.75
         ]
       },
-      "teamAScore": 245.1,
-      "teamBScore": 213.75
+      "teamAScore": 233.05,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 165.79,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 5,
@@ -1950,11 +1958,11 @@
           21.5,
           20.74,
           9.35,
-          18.3,
-          44.3,
-          32.05,
-          34.05,
-          19.95,
+          31.5,
+          19.55,
+          0,
+          24.6,
+          32.29,
           19.45
         ]
       },
@@ -1974,19 +1982,21 @@
           "1265"
         ],
         "starters_points": [
-          41.1,
+          24.05,
           20.7,
           29.35,
           15.9,
-          13.2,
-          29.2,
-          0,
-          26.2,
+          24.35,
+          34.05,
+          33.7,
+          11.8,
           34.25
         ]
       },
-      "teamAScore": 219.69,
-      "teamBScore": 209.9
+      "teamAScore": 178.98,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 228.15,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 6,
@@ -2010,9 +2020,9 @@
           23.15,
           0,
           30.95,
-          33.5,
+          28.65,
           37.7,
-          32.15,
+          26.75,
           40.15,
           32.1,
           20.6
@@ -2038,15 +2048,17 @@
           20.55,
           17.8,
           8.3,
-          30.45,
+          22.15,
           12.05,
-          36.35,
+          48.1,
           17.3,
           25.4
         ]
       },
-      "teamAScore": 250.3,
-      "teamBScore": 185.65
+      "teamAScore": 240.05,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 189.1,
+      "teamBScoreSource": "sleeper_points"
     },
     {
       "matchup_id": 7,
@@ -2068,10 +2080,10 @@
         ],
         "starters_points": [
           26.7,
-          41,
-          34.7,
+          23,
+          22.55,
           34.95,
-          39.95,
+          29.15,
           33.6,
           30.1,
           57.95,
@@ -2097,16 +2109,18 @@
           57.2,
           23.15,
           0,
-          33.5,
-          26.5,
+          30.5,
+          58.25,
           17.09,
           63.05,
           36.85,
           12.25
         ]
       },
-      "teamAScore": 312.65,
-      "teamBScore": 269.59
+      "teamAScore": 271.7,
+      "teamAScoreSource": "sleeper_points",
+      "teamBScore": 298.34,
+      "teamBScoreSource": "sleeper_points"
     }
   ],
   "6": [
