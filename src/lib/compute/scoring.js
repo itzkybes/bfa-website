@@ -136,19 +136,20 @@ export function aggregatePlayerPoints(matchupEntries) {
 }
 
 /**
- * Aggregate Finals MVP points from the championship-winning roster only.
- * The supplied matchup entries must come from the saved season JSON snapshot;
- * this helper never reads live player-score fields.
+ * Aggregate Finals MVP points from both teams in the championship game.
+ * The supplied entries and finalist roster IDs come from the saved season
+ * snapshot and bracket context; player scores are read only from aligned
+ * selected-starter arrays.
  *
  * @param {Array<object | null>} matchupEntries
- * @param {string | number | null} winningRosterId
+ * @param {Array<string | number>} finalistRosterIds
  * @returns {Record<string, { playerId: string, points: number, rosterId: string, pointsByRoster: Record<string, number> }>}
  */
-export function aggregateFinalsMvpPoints(matchupEntries, winningRosterId) {
-  if (winningRosterId == null) return {};
-  const winnerId = String(winningRosterId);
-  const winningTeamEntries = (Array.isArray(matchupEntries) ? matchupEntries : []).filter(
-    (entry) => entry && String(entry.roster_id ?? entry.rosterId ?? '') === winnerId
+export function aggregateFinalsMvpPoints(matchupEntries, finalistRosterIds) {
+  const finalists = new Set((Array.isArray(finalistRosterIds) ? finalistRosterIds : []).map(String));
+  if (!finalists.size) return {};
+  const finalistEntries = (Array.isArray(matchupEntries) ? matchupEntries : []).filter(
+    (entry) => entry && finalists.has(String(entry.roster_id ?? entry.rosterId ?? ''))
   );
-  return aggregatePlayerPoints(winningTeamEntries);
+  return aggregatePlayerPoints(finalistEntries);
 }
