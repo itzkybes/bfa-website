@@ -234,6 +234,9 @@ async function generateSeasonJson(season, { refreshScores = false } = {}) {
   );
   for (let index = 0; index < weeklyResults.length; index++) {
     const week = index + 1;
+    // Sleeper may expose stray weeks beyond the configured BFA season format.
+    // Never persist matchup rows after the season's actual final playoff week.
+    if (week > format.playoffEnd) continue;
     const raw = weeklyResults[index];
     if (!Array.isArray(raw) || !raw.length) continue;
     const byMatch = {};
