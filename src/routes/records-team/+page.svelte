@@ -54,8 +54,6 @@
             avatar: row.avatar || result.rosterMap?.[row.rosterId]?.team_avatar || result.rosterMap?.[row.rosterId]?.owner_avatar || null,
             wins: row.wins || 0,
             losses: row.losses || 0,
-            ties: row.ties || 0,
-            games,
             winPct: games ? (((row.wins || 0) + (row.ties || 0) * 0.5) / games) * 100 : 0,
             pf: row.pf || 0,
             pa: row.pa || 0,
@@ -109,7 +107,32 @@
           const ck = stableKey(cmeta);
           if (ck) championCounts[ck] = (championCounts[ck] || 0) + 1;
         }
-        for (const row of (result.regularStandings || [])) addRow(regAgg, row, rmap[row.rosterId], result.season);
+        for (const row of (result.regularStandings || [])) {
+          const meta = rmap[row.rosterId] || {};
+          addRow(regAgg, row, meta, result.season);
+
+          // Start every regular-season team in the playoff career table too.
+          // Teams that never qualified retain zero postseason totals.
+          const key = stableKey(meta) || String(row.team_name || row.rosterId).toLowerCase();
+          if (!poAgg[key]) {
+            poAgg[key] = {
+              key,
+              team_name: row.team_name || meta.team_name || 'Unknown team',
+              owner_name: row.owner_name || meta.owner_name || '',
+              owner_username: meta.owner_username || null,
+              avatar: row.avatar || meta.team_avatar || meta.owner_avatar || null,
+              wins: 0, losses: 0, ties: 0,
+              pf: 0, pa: 0,
+              maxWinStreak: 0, maxLoseStreak: 0,
+              championships: 0,
+              seasons: []
+            };
+          } else {
+            if (row.avatar) poAgg[key].avatar = row.avatar;
+            if (row.team_name && !String(row.team_name).startsWith('Roster ')) poAgg[key].team_name = row.team_name;
+            if (row.owner_name) poAgg[key].owner_name = row.owner_name;
+          }
+        }
         for (const row of (result.playoffStandings || [])) addRow(poAgg, row, rmap[row.rosterId], result.season);
       }
 
@@ -354,7 +377,7 @@
                       </div>
                     </div>
                   </td>
-                  <td class="col-num"><span class="num">{row.wins}–{row.losses}{#if row.ties}–{row.ties}{/if}</span></td>
+                  <td class="col-num"><span class="num">{row.wins}–{row.losses}</span></td>
                   <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.winPct.toFixed(1)}%</span></td>
                   <td class="col-num"><span class="num">{row.pf.toFixed(2)}</span></td>
                   <td class="col-num"><span class="num muted">{row.pa.toFixed(2)}</span></td>
@@ -377,8 +400,8 @@
       {#if aggregatedRegular.length}
         <div class="table-wrap">
           <table class="bfa-table career-totals-table">
-            <colgroup><col style="width:24%" /><col style="width:6%" /><col style="width:6%" /><col style="width:5%" /><col style="width:7%" /><col style="width:7%" /><col style="width:7%" /><col style="width:7%" /><col style="width:9%" /><col style="width:9%" /><col style="width:7%" /><col style="width:6%" /></colgroup>
-            <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">W</th><th class="col-num" title="All-time regular-season losses">L</th><th class="col-num" title="All-time ties">T</th><th class="col-num" title="Win percentage, with ties counting as half a win">Win %</th><th class="col-num" title="Total regular-season games">Games</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst losing streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th><th class="col-num" title="Average points scored per game">PF / Game</th><th class="col-num" title="Number of seasons played">Seasons</th></tr></thead>
+            <colgroup><col style="width:27%" /><col style="width:7%" /><col style="width:7%" /><col style="width:8%" /><col style="width:8%" /><col style="width:8%" /><col style="width:10%" /><col style="width:10%" /><col style="width:8%" /><col style="width:7%" /></colgroup>
+            <thead><tr><th>Team</th><th class="col-num" title="All-time regular-season wins">W</th><th class="col-num" title="All-time regular-season losses">L</th><th class="col-num" title="Win percentage, with ties counting as half a win">Win %</th><th class="col-num" title="Best win streak ever, in any season">Best Streak</th><th class="col-num" title="Worst losing streak ever, in any season">Worst Streak</th><th class="col-num" title="All-time points scored">Points For</th><th class="col-num" title="All-time points allowed">Points Against</th><th class="col-num" title="Average points scored per game">PF / Game</th><th class="col-num" title="Number of seasons played">Seasons</th></tr></thead>
             <tbody>
               {#each aggregatedRegular as row, idx (row.key)}
                 <tr>
@@ -393,9 +416,7 @@
                   </td>
                   <td class="col-num"><span class="num" class:leader-cell={idx === 0}>{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
-                  <td class="col-num"><span class="num">{row.ties}</span></td>
                   <td class="col-num"><span class="num">{row.winPct.toFixed(1)}%</span></td>
-                  <td class="col-num"><span class="num">{row.games}</span></td>
                   <td class="col-num"><span class="num">{row.maxWinStreak ?? 0}</span></td>
                   <td class="col-num"><span class="num">{row.maxLoseStreak ?? 0}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
@@ -420,7 +441,7 @@
       {#if aggregatedPlayoff.length}
         <div class="table-wrap">
           <table class="bfa-table">
-            <thead><tr><th>Team</th><th class="col-num" title="Total championships won">Titles</th><th class="col-num" title="Playoff wins all-time">W</th><th class="col-num" title="Playoff losses all-time">L</th><th class="col-num" title="Playoff ties all-time">T</th><th class="col-num" title="Playoff win percentage">Win %</th><th class="col-num" title="Number of seasons with playoff games">Playoff Seasons</th><th class="col-num" title="Total playoff points scored">Playoff PF</th><th class="col-num" title="Total playoff points allowed">Playoff PA</th></tr></thead>
+            <thead><tr><th>Team</th><th class="col-num" title="Total championships won">Titles</th><th class="col-num" title="Playoff wins all-time">W</th><th class="col-num" title="Playoff losses all-time">L</th><th class="col-num" title="Playoff win percentage">Win %</th><th class="col-num" title="Number of seasons with playoff games">Playoff Seasons</th><th class="col-num" title="Total playoff points scored">Playoff PF</th><th class="col-num" title="Total playoff points allowed">Playoff PA</th></tr></thead>
             <tbody>
               {#each aggregatedPlayoff as row, idx (row.key)}
                 <tr class:champion-row={(row.championships || 0) > 0}>
@@ -449,7 +470,6 @@
                   </td>
                   <td class="col-num"><span class="num">{row.wins}</span></td>
                   <td class="col-num"><span class="num">{row.losses}</span></td>
-                  <td class="col-num"><span class="num">{row.ties}</span></td>
                   <td class="col-num"><span class="num">{row.winPct.toFixed(1)}%</span></td>
                   <td class="col-num"><span class="num muted">{row.seasons.length}</span></td>
                   <td class="col-num pf"><span class="num">{row.pf}</span></td>
