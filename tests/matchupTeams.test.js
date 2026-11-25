@@ -139,6 +139,15 @@ test('missing snapshot team totals stay unavailable when starter arrays do not a
   assert.equal(team.points, null);
 });
 
+
+test('2022 season snapshot stops at the configured final playoff week', async () => {
+  const url = new URL('../static/season_matchups/2022.json', import.meta.url);
+  const snapshot = JSON.parse(await readFile(url, 'utf8'));
+  const weeks = Object.keys(snapshot).filter((key) => /^\\d+$/.test(key)).map(Number);
+  assert.equal(Math.max(...weeks), 22);
+  assert.equal(Object.hasOwn(snapshot, '23'), false);
+});
+
 test('Finals MVP can come from either championship finalist', () => {
   // Synthetic championship-game example: a losing finalist's starter
   // outscores the champion's starters. A non-finalist must stay ineligible.
