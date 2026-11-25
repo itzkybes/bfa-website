@@ -19,6 +19,14 @@ test('saved season JSON adapter preserves selected-starter player scores', () =>
   });
 });
 
+test('starter player scoring rejects misaligned saved arrays', () => {
+  const entry = {
+    starters: ['player-a', 'player-b'],
+    starters_points: [20.5],
+  };
+  assert.equal(starterPointsByPid(entry), null);
+});
+
 test('live matchup fallback cannot supply team scores or player-stat arrays', () => {
   const team = buildTeamFromLive('1', {
     1: { team_name: 'Live Team', owner_name: 'Manager', team_avatar: 'avatar-url' },
