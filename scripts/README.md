@@ -29,6 +29,10 @@ starter arrays. Team totals use Sleeper's `custom_points` when present, then
 Sleeper's `points` total based on league settings; only missing team totals are
 reconstructed from aligned starter points. Existing `teamAScore`/`teamBScore`
 values remain explicit historical overrides unless a specific week is refreshed.
+Newly generated team totals carry a `teamAScoreSource`/`teamBScoreSource`
+marker (`sleeper_custom_points`, `sleeper_points`, or `starter_fallback`).
+Scheduled weekly syncs refresh those generated totals when Sleeper posts a
+correction; unmarked/legacy totals are preserved as manual overrides.
 
 Refresh one completed week without touching the other weeks:
 
