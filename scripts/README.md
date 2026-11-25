@@ -42,4 +42,12 @@ node scripts/regenerate-season-matchups.mjs --week 2026 5
 
 Add `--refresh-scores` to replace that week's saved team totals with the
 latest Sleeper `custom_points`/`points` values. The **Sync season matchup files**
-workflow also supports selecting a year and week manually from GitHub Actions.
+workflow also supports selecting comma-separated years for a full team-score refresh or a single year/week.
+
+Refresh complete seasons and replace all saved team totals with the API values (use this deliberately when recalibrating historical totals):
+
+```bash
+node scripts/regenerate-season-matchups.mjs --refresh-scores 2022 2023 2024 2025
+```
+
+The scheduled weekly run uses the same `custom_points` → `points` → aligned starter fallback logic for the latest completed week. The separate `static/early2023.json` BFA historical override remains in place and continues to take precedence for 2023 weeks 1–3.
